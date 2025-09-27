@@ -19,7 +19,7 @@ expo-env.d.ts
 *.mobileprovision
 
 # Metro
-.metro-health-check*
+.meta-health-check*
 
 # debug
 npm-debug.*
@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
