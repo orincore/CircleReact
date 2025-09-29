@@ -28,6 +28,7 @@ import { getSocket } from "@/src/api/socket";
 import socketService from "@/src/services/socketService";
 import ConfirmationDialog from "@/src/components/ConfirmationDialog";
 import { chatApi } from "@/src/api/chat";
+import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { friendsApi } from "@/src/api/friends";
 import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
 import UserProfileModal from "@/src/components/UserProfileModal";
@@ -589,6 +590,23 @@ export default function InstagramChatScreen() {
   const [oldestAt, setOldestAt] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
+
+  // Browser notifications - track current chat to prevent notifications
+  const { setCurrentChatId } = useBrowserNotifications();
+
+  // Track current chat for browser notifications
+  useEffect(() => {
+    if (conversationId) {
+      setCurrentChatId(conversationId);
+      console.log('🔔 Set current chat ID for notifications:', conversationId);
+    }
+    
+    // Clear current chat when component unmounts
+    return () => {
+      setCurrentChatId(null);
+      console.log('🔔 Cleared current chat ID for notifications');
+    };
+  }, [conversationId, setCurrentChatId]);
 
   // Helper function to deduplicate messages
   const deduplicateMessages = (messageArray) => {

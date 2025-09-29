@@ -28,6 +28,8 @@ import { getSocket, closeSocket } from "@/src/api/socket";
 import FriendRequestsSection from "@/src/components/FriendRequestsSection";
 import FriendRequestMatchCard from "@/src/components/FriendRequestMatchCard";
 import UserProfileModal from "@/src/components/UserProfileModal";
+import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
+import NotificationDebugPanel from "@/src/components/NotificationDebugPanel";
 import { friendsApi } from "@/src/api/friends";
 import { getUserPreferences, getPreferencesForMatching } from "@/utils/preferences";
 import Toast from "@/components/Toast";
@@ -913,6 +915,8 @@ export default function MatchScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Browser Notification Permission Banner */}
+        <NotificationPermissionBanner />
 
         <View style={[styles.matchCtaCard, isLargeScreen && styles.matchCtaCardLarge]}>
           <View style={styles.matchCtaHeader}>
@@ -1386,6 +1390,9 @@ export default function MatchScreen() {
         userName={selectedUser?.name}
         userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
       />
+
+      {/* Debug Panel for Browser Notifications */}
+      <NotificationDebugPanel />
     </LinearGradient>
   );
 }
