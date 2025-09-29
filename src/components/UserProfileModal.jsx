@@ -22,6 +22,7 @@ import { FriendRequestService } from '@/src/services/FriendRequestService';
 import { getSocket } from '@/src/api/socket';
 import { router } from 'expo-router';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
+import SpotifyProfile from './SpotifyProfile';
 
 export default function UserProfileModal({ 
   visible, 
@@ -38,6 +39,8 @@ export default function UserProfileModal({
   const [blockStatus, setBlockStatus] = useState({ isBlocked: false, isBlockedBy: false });
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showUnfriendConfirm, setShowUnfriendConfirm] = useState(false);
+  const [spotifyData, setSpotifyData] = useState(null);
+  const [spotifyExpanded, setSpotifyExpanded] = useState(false);
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
 
@@ -241,6 +244,9 @@ export default function UserProfileModal({
       console.log('Actual user data from API:', actualUserData);
       setProfileData(profileData);
       
+      // Load Spotify data
+      await loadSpotifyData();
+      
       // Load friend status and message permissions
       await loadFriendStatus();
       await loadBlockStatus();
@@ -329,6 +335,30 @@ export default function UserProfileModal({
       setBlockStatus(blockResponse);
     } catch (error) {
       console.error('Failed to load block status:', error);
+    }
+  };
+
+  const loadSpotifyData = async () => {
+    if (!token || !userId) return;
+    
+    try {
+      console.log('Loading Spotify data for user:', userId);
+      const { socialAccountsApi } = await import('@/src/api/social-accounts');
+      const response = await socialAccountsApi.getUserLinkedAccounts(userId, token);
+      
+      if (response.accounts) {
+        const spotifyAccount = response.accounts.find(account => account.platform === 'spotify');
+        if (spotifyAccount) {
+          console.log('Found Spotify account:', spotifyAccount);
+          setSpotifyData(spotifyAccount);
+        } else {
+          console.log('No Spotify account found for user');
+          setSpotifyData(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load Spotify data:', error);
+      setSpotifyData(null);
     }
   };
 
@@ -640,6 +670,15 @@ export default function UserProfileModal({
                       ))}
                     </View>
                   </View>
+                )}
+
+                {/* Spotify Profile */}
+                {spotifyData && (
+                  <SpotifyProfile
+                    spotifyData={spotifyData}
+                    isExpanded={spotifyExpanded}
+                    onToggle={() => setSpotifyExpanded(!spotifyExpanded)}
+                  />
                 )}
 
                 {/* Social Accounts */}

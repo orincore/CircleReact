@@ -14,13 +14,39 @@ export interface LinkedAccount {
     // Spotify specific
     followers?: number;
     country?: string;
+    subscription?: string;
     top_artists?: Array<{
       name: string;
       genres: string[];
+      popularity: number;
+      image?: string;
+      external_url?: string;
+    }>;
+    top_tracks?: Array<{
+      name: string;
+      artist: string;
+      album: string;
+      popularity: number;
+      preview_url?: string;
+      image?: string;
+      external_url?: string;
+    }>;
+    top_genres?: string[];
+    playlists_count?: number;
+    public_playlists?: Array<{
+      name: string;
+      description?: string;
+      tracks: number;
+      image?: string;
+      external_url?: string;
+    }>;
+    recently_played?: Array<{
+      track: string;
+      artist: string;
+      played_at: string;
       image?: string;
     }>;
-    playlists_count?: number;
-    public_playlists?: number;
+    last_updated?: string;
     
     // Instagram specific
     account_type?: string;
