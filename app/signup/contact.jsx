@@ -42,7 +42,7 @@ export default function SignupContact() {
     setErrors(next);
     if (!canContinue) return;
     setData((prev) => ({ ...prev, email: email.trim(), countryCode, phoneNumber: (phoneNumber || '').trim() }));
-    router.push("/signup/interests");
+    router.push("/signup/about");
   };
 
   return (

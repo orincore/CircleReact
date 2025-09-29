@@ -1,12 +1,13 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, RefreshControl } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, RefreshControl, Image } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { chatApi } from "@/src/api/chat";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSocket } from "@/src/api/socket";
 import socketService from "@/src/services/socketService";
+import FriendsListModal from "@/components/FriendsListModal";
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function ChatListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typingIndicators, setTypingIndicators] = useState({}); // chatId -> array of typing users
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> unread count
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
 
   const loadInbox = async (isRefresh = false) => {
     if (!token) return;
@@ -25,10 +27,38 @@ export default function ChatListScreen() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       
-      const response = await chatApi.getInbox(token);
-      setConversations(response.inbox);
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      const response = await Promise.race([
+        chatApi.getInbox(token),
+        timeoutPromise
+      ]);
+      
+      // Sort conversations by most recent message (descending order)
+      const sortedConversations = response.inbox.sort((a, b) => {
+        const aTime = new Date(a.chat.last_message_at || a.chat.created_at).getTime();
+        const bTime = new Date(b.chat.last_message_at || b.chat.created_at).getTime();
+        return bTime - aTime; // Most recent first
+      });
+      
+      setConversations(sortedConversations);
+      
+      // Initialize unread counts from server data
+      const initialUnreadCounts = {};
+      sortedConversations.forEach(conv => {
+        if (conv.unreadCount > 0) {
+          initialUnreadCounts[conv.chat.id] = conv.unreadCount;
+        }
+      });
+      setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
+      console.log('📊 Initialized unread counts:', initialUnreadCounts);
     } catch (error) {
       console.error('Failed to load inbox:', error);
+      // Set empty conversations on error to stop loading state
+      setConversations([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -47,30 +77,47 @@ export default function ChatListScreen() {
 
     // Handle new messages in chat list
     const handleNewMessage = ({ message }) => {
-      setConversations(prev => prev.map(conv => {
-        if (conv.chat.id === message.chatId) {
-          return {
-            ...conv,
-            lastMessage: {
-              text: message.text,
-              created_at: new Date(message.createdAt).toISOString(),
-              sender_id: message.senderId,
-            },
-            chat: {
-              ...conv.chat,
-              last_message_at: new Date(message.createdAt).toISOString(),
-            }
-          };
-        }
-        return conv;
-      }));
+      console.log('📨 New message received in chat list:', message);
+      
+      setConversations(prev => {
+        const updatedConversations = prev.map(conv => {
+          if (conv.chat.id === message.chatId) {
+            return {
+              ...conv,
+              lastMessage: {
+                id: message.id,
+                text: message.text,
+                created_at: new Date(message.createdAt).toISOString(),
+                sender_id: message.senderId,
+                status: message.senderId === user.id ? (message.status || 'sent') : undefined,
+              },
+              chat: {
+                ...conv.chat,
+                last_message_at: new Date(message.createdAt).toISOString(),
+              }
+            };
+          }
+          return conv;
+        });
+
+        // Sort conversations by most recent message (descending order)
+        return updatedConversations.sort((a, b) => {
+          const aTime = new Date(a.chat.last_message_at || a.chat.created_at).getTime();
+          const bTime = new Date(b.chat.last_message_at || b.chat.created_at).getTime();
+          return bTime - aTime; // Most recent first
+        });
+      });
 
       // Update unread count if message is not from current user
       if (message.senderId !== user.id) {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [message.chatId]: (prev[message.chatId] || 0) + 1
-        }));
+        setUnreadCounts(prev => {
+          const newCount = (prev[message.chatId] || 0) + 1;
+          console.log(`📊 Updated unread count for chat ${message.chatId}: ${newCount}`);
+          return {
+            ...prev,
+            [message.chatId]: newCount
+          };
+        });
       }
     };
 
@@ -89,12 +136,49 @@ export default function ChatListScreen() {
 
     // Handle read receipts to clear unread counts
     const handleRead = ({ chatId, messageId, by }) => {
+      console.log('👁️ Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
       if (by === user.id) {
+        console.log(`📊 Clearing unread count for chat ${chatId}`);
         setUnreadCounts(prev => ({
           ...prev,
           [chatId]: 0
         }));
       }
+    };
+    
+    // Handle unread count updates from server
+    const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
+      console.log(`📊 Unread count update from server for chat ${chatId}: ${unreadCount}`);
+      setUnreadCounts(prev => ({
+        ...prev,
+        [chatId]: unreadCount
+      }));
+    };
+
+    // Handle message status updates for chat list
+    const handleMessageStatusUpdate = ({ messageId, chatId, status }) => {
+      setConversations(prev => prev.map(conv => {
+        if (conv.chat.id === chatId && conv.lastMessage?.id === messageId) {
+          return {
+            ...conv,
+            lastMessage: {
+              ...conv.lastMessage,
+              status: status
+            }
+          };
+        }
+        return conv;
+      }));
+    };
+
+    // Handle delivery receipts
+    const handleDeliveryReceipt = ({ messageId, chatId, status }) => {
+      handleMessageStatusUpdate({ messageId, chatId, status });
+    };
+
+    // Handle read receipts
+    const handleReadReceipt = ({ messageId, chatId, status }) => {
+      handleMessageStatusUpdate({ messageId, chatId, status: 'read' });
     };
 
     // Register global handlers
@@ -104,12 +188,21 @@ export default function ChatListScreen() {
     socket.on('chat:message', handleNewMessage);
     socket.on('chat:typing', handleTyping);
     socket.on('chat:read', handleRead);
+    socket.on('chat:message:delivery_receipt', handleDeliveryReceipt);
+    socket.on('chat:message:read_receipt', handleReadReceipt);
+    socket.on('chat:unread_count', handleUnreadCountUpdate);
+    
+    console.log('🔌 Socket listeners registered for chat list');
 
     return () => {
+      console.log('🔌 Cleaning up socket listeners for chat list');
       socketService.removeMessageHandler('chat-list');
       socket.off('chat:message', handleNewMessage);
       socket.off('chat:typing', handleTyping);
       socket.off('chat:read', handleRead);
+      socket.off('chat:message:delivery_receipt', handleDeliveryReceipt);
+      socket.off('chat:message:read_receipt', handleReadReceipt);
+      socket.off('chat:unread_count', handleUnreadCountUpdate);
     };
   }, [token, user?.id]);
 
@@ -135,24 +228,33 @@ export default function ChatListScreen() {
     (item.lastMessage && item.lastMessage.text && item.lastMessage.text.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const getAvatarInitial = (name) => {
-    return (name && name.charAt(0).toUpperCase()) || '?';
-  };
 
-  const handleChatPress = (chatId, name) => {
+  const handleChatPress = (chatId, name, profilePhoto) => {
     // Clear unread count when entering chat
+    console.log(`📱 Opening chat ${chatId}, clearing unread count`);
     setUnreadCounts(prev => ({
       ...prev,
       [chatId]: 0
     }));
     
     router.push({
-      pathname: "/secure/chat/[id]",
+      pathname: "/secure/chat-conversation",
       params: { 
         id: chatId, 
-        name: name || 'Unknown',
-      },
+        name: name,
+        avatar: profilePhoto
+      }
     });
+  };
+
+  const handleChatCreated = (chatId, name, profilePhoto) => {
+    console.log('Chat created, navigating to:', { chatId, name, profilePhoto });
+    
+    // Refresh inbox to show the new chat
+    loadInbox(true);
+    
+    // Navigate to the new chat
+    handleChatPress(chatId, name, profilePhoto);
   };
 
   return (
@@ -169,8 +271,11 @@ export default function ChatListScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Messages</Text>
-          <TouchableOpacity style={styles.newMessageButton}>
-            <Ionicons name="create" size={22} color="#FFE8FF" />
+          <TouchableOpacity 
+            style={styles.newMessageButton}
+            onPress={() => setShowFriendsModal(true)}
+          >
+            <Ionicons name="people" size={22} color="#FFE8FF" />
           </TouchableOpacity>
         </View>
 
@@ -219,10 +324,21 @@ export default function ChatListScreen() {
               return (
                 <TouchableOpacity
                   style={styles.chatCard}
-                  onPress={() => handleChatPress(chatId, item.otherName)}
+                  onPress={() => handleChatPress(chatId, item.otherName, item.otherProfilePhoto)}
                 >
                   <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{getAvatarInitial(item.otherName)}</Text>
+                    {item.otherProfilePhoto && item.otherProfilePhoto.trim() ? (
+                      <Image 
+                        source={{ uri: item.otherProfilePhoto }} 
+                        style={styles.avatarImage}
+                      />
+                    ) : (
+                      <View style={styles.fallbackAvatar}>
+                        <Text style={styles.fallbackAvatarText}>
+                          {(item.otherName && item.otherName.charAt(0).toUpperCase()) || '?'}
+                        </Text>
+                      </View>
+                    )}
                     {isTyping && (
                       <View style={styles.typingIndicator}>
                         <View style={styles.typingDot} />
@@ -234,15 +350,39 @@ export default function ChatListScreen() {
                       <Text style={styles.chatName}>{item.otherName || 'Unknown'}</Text>
                       <Text style={styles.chatTime}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
-                    <Text style={[
-                      styles.chatMessage,
-                      isTyping && styles.typingText
-                    ]} numberOfLines={1}>
-                      {isTyping 
-                        ? 'typing...' 
-                        : (item.lastMessage && item.lastMessage.text) || 'No messages yet'
-                      }
-                    </Text>
+                    <View style={styles.messageRow}>
+                      <Text style={[
+                        styles.chatMessage,
+                        isTyping && styles.typingText
+                      ]} numberOfLines={1}>
+                        {isTyping 
+                          ? 'typing...' 
+                          : (item.lastMessage && item.lastMessage.text) || 'No messages yet'
+                        }
+                      </Text>
+                      {item.lastMessage && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
+                        <Ionicons
+                          name={
+                            item.lastMessage.status === 'read' ? 'checkmark-done' : 
+                            item.lastMessage.status === 'delivered' ? 'checkmark' : 
+                            item.lastMessage.status === 'sent' ? 'checkmark' :
+                            item.lastMessage.status === 'sending' ? 'time-outline' :
+                            item.lastMessage.status === 'failed' ? 'alert-circle-outline' :
+                            'ellipse-outline'
+                          }
+                          size={12}
+                          color={
+                            item.lastMessage.status === 'read' ? '#7C2B86' : 
+                            item.lastMessage.status === 'delivered' ? 'rgba(124,43,134,0.7)' : 
+                            item.lastMessage.status === 'sent' ? 'rgba(124,43,134,0.5)' :
+                            item.lastMessage.status === 'sending' ? 'rgba(124,43,134,0.4)' :
+                            item.lastMessage.status === 'failed' ? '#FF4444' :
+                            'rgba(124,43,134,0.3)'
+                          }
+                          style={styles.messageStatus}
+                        />
+                      )}
+                    </View>
                   </View>
                   {currentUnreadCount > 0 && (
                     <View style={styles.unreadBadge}>
@@ -253,10 +393,17 @@ export default function ChatListScreen() {
               );
             }}
           />
-        )}
-      </View>
-    </LinearGradient>
-  );
+          )}
+        </View>
+
+        {/* Friends List Modal */}
+        <FriendsListModal
+          visible={showFriendsModal}
+          onClose={() => setShowFriendsModal(false)}
+          onChatCreated={handleChatCreated}
+        />
+      </LinearGradient>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -320,6 +467,14 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
+    position: 'relative',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  fallbackAvatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -327,7 +482,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
+  fallbackAvatarText: {
     fontSize: 20,
     fontWeight: '700',
     color: '#7C2B86',
@@ -369,9 +524,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(31, 17, 71, 0.55)",
   },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   chatMessage: {
     fontSize: 14,
     color: "rgba(31, 17, 71, 0.65)",
+    flex: 1,
+  },
+  messageStatus: {
+    marginLeft: 4,
   },
   typingText: {
     fontStyle: 'italic',

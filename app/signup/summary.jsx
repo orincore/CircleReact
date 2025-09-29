@@ -106,6 +106,9 @@ export default function SignupSummary() {
             {data.phoneNumber ? (
               <View style={styles.summaryRow}><Text style={styles.label}>Phone</Text><Text style={styles.value}>{data.countryCode} {data.phoneNumber}</Text></View>
             ) : null}
+            {data.about ? (
+              <View style={styles.summaryBlock}><Text style={styles.label}>About</Text><Text style={styles.value}>{data.about}</Text></View>
+            ) : null}
             {Array.isArray(data.interests) && data.interests.length > 0 ? (
               <View style={styles.summaryBlock}><Text style={styles.label}>Interests</Text><Text style={styles.value}>{data.interests.join(', ')}</Text></View>
             ) : null}

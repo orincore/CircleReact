@@ -14,8 +14,15 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsArbitraryLoadsInWebContent": true
-        }
-      }
+        },
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Circle uses your location to find nearby matches and improve your dating experience, even when the app is closed.",
+        "NSLocationWhenInUseUsageDescription": "Circle uses your location to find nearby matches and improve your dating experience.",
+        "UIBackgroundModes": [
+          "location",
+          "location"
+        ]
+      },
+      "bundleIdentifier": "com.orincore.Circle"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,6 +31,15 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -33,6 +49,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Circle uses your location to find nearby matches and improve your dating experience, even when the app is closed.",
+          "locationWhenInUsePermission": "Circle uses your location to find nearby matches and improve your dating experience."
+        }
+      ],
       [
         "expo-splash-screen",
         {

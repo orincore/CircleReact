@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View, TextInput, TouchableOpacity, Text, ScrollView } from "react-native";
 
-export default function LocationMapWeb({ region, nearby, style }) {
+export default function LocationMapWeb({ region, nearby, style, onUserPress, highlightedUserId, onRegionChange }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const LRef = useRef(null);
@@ -107,10 +107,12 @@ export default function LocationMapWeb({ region, nearby, style }) {
 
     const { width, height } = viewport;
 
+    // Portrait mode (mobile-like): use smaller, fixed height to fit in parent container
     if (width < 768) {
-      return Math.min(900, Math.max(640, Math.floor(height * 0.9)));
+      return 280; // Fixed height for portrait mode to fit in 300px parent container
     }
 
+    // Landscape mode: use dynamic height based on viewport
     if (width < 1280) {
       return Math.min(980, Math.max(700, Math.floor(height * 0.82)));
     }
@@ -149,6 +151,44 @@ export default function LocationMapWeb({ region, nearby, style }) {
     };
   }, [query]);
 
+  // Build popup HTML function (moved outside to be reusable)
+  const buildNearbyPopupHTML = (m) => {
+    const safeName = m.name ?? "User";
+    const age = typeof m.age === "number" ? m.age : undefined;
+    const gender = m.gender || "";
+    const compat = m.compatibility || "";
+    const subtitle = [age ? `${age}` : null, gender || null].filter(Boolean).join(" · ");
+    const imgUrl = m.photoUrl || "https://via.placeholder.com/320x180.png?text=Profile";
+    const chatId = `chat-${m.id}`;
+    const chatHref = `/secure/chat/${encodeURIComponent(m.id)}`;
+    return `
+      <div style="width: 300px; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:#0F172A;">
+        <div style="position: relative; border-radius: 14px; overflow: hidden; background:#fff; box-shadow: 0 10px 24px rgba(0,0,0,0.18);">
+          <div style="position: relative; height: 150px;">
+            <img src="${imgUrl}" alt="${safeName}" style="width: 100%; height: 100%; object-fit: cover; filter: blur(1px); transform: scale(1.03);" />
+            <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%);"></div>
+            ${compat ? `<div style='position: absolute; top: 10px; left: 10px; display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(255,255,255,0.9); font-size:12px; font-weight:700; color:#065F46;'><span style='display:inline-block; width:8px; height:8px; border-radius:50%; background:#22C55E;'></span><span>${compat}</span></div>` : ''}
+          </div>
+          <div style="padding:14px 14px 12px 14px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width: 52px; height: 52px; border-radius: 14px; overflow:hidden; border: 2px solid rgba(0,0,0,0.06); box-shadow:0 2px 6px rgba(0,0,0,0.08); background:#fff;">
+                <img src="${imgUrl}" alt="${safeName}" style="width:100%; height:100%; object-fit: cover;" />
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="color:#0F172A; font-weight:800; line-height:1.25; font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</div>
+                ${subtitle ? `<div style='color:#475569; font-size:13px;'>${subtitle}</div>` : ""}
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+              <a id="${chatId}" href="${chatHref}" onclick="event.preventDefault(); window.__circleGoToChat && window.__circleGoToChat('${m.id}')" style="flex:0 0 auto; display:inline-block; text-decoration:none; background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%); color:#fff; border:none; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; box-shadow: 0 6px 12px rgba(79,70,229,0.35);">Chat</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Initialize map only once
   useEffect(() => {
     let map;
     let L;
@@ -242,99 +282,171 @@ export default function LocationMapWeb({ region, nearby, style }) {
         popupAnchor: [0, -38],
       });
 
-      const nearbyMarkerSvg = `
+      const createNearbyMarkerSvg = (isHighlighted = false) => `
         <svg width="32" height="44" viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="nearbyGradient" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#22C55E" />
-              <stop offset="100%" stop-color="#16A34A" />
+            <linearGradient id="nearbyGradient${isHighlighted ? 'Highlighted' : ''}" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="${isHighlighted ? '#8B5CF6' : '#22C55E'}" />
+              <stop offset="100%" stop-color="${isHighlighted ? '#7C3AED' : '#16A34A'}" />
             </linearGradient>
-            <filter id="nearbyShadow" x="0" y="0" width="32" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-              <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(22, 163, 74, 0.35)" />
+            <filter id="nearbyShadow${isHighlighted ? 'Highlighted' : ''}" x="0" y="0" width="32" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+              <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="${isHighlighted ? 'rgba(139, 92, 246, 0.5)' : 'rgba(22, 163, 74, 0.35)'}" />
             </filter>
           </defs>
-          <g filter="url(#nearbyShadow)">
-            <path d="M16 42s12-11 12-20.75C28 9.389 22.627 4 16 4S4 9.389 4 21.25C4 31 16 42 16 42z" fill="url(#nearbyGradient)" />
-            <circle cx="16" cy="18" r="5" fill="#ECFDF5" />
+          <g filter="url(#nearbyShadow${isHighlighted ? 'Highlighted' : ''})">
+            <path d="M16 42s12-11 12-20.75C28 9.389 22.627 4 16 4S4 9.389 4 21.25C4 31 16 42 16 42z" fill="url(#nearbyGradient${isHighlighted ? 'Highlighted' : ''})" />
+            <circle cx="16" cy="18" r="5" fill="${isHighlighted ? '#F5F3FF' : '#ECFDF5'}" />
           </g>
         </svg>
       `;
 
-      const nearbyIcon = L.icon({
-        iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(nearbyMarkerSvg)}`,
-        iconSize: [32, 44],
-        iconAnchor: [16, 42],
-        popupAnchor: [0, -34],
+      const createNearbyIcon = (isHighlighted = false) => L.icon({
+        iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(createNearbyMarkerSvg(isHighlighted))}`,
+        iconSize: isHighlighted ? [36, 48] : [32, 44],
+        iconAnchor: isHighlighted ? [18, 46] : [16, 42],
+        popupAnchor: [0, isHighlighted ? -38 : -34],
       });
 
       // Save icons on ref for reuse in search
-      LRef.current.__icons = { userIcon, nearbyIcon };
+      LRef.current.__icons = { userIcon, createNearbyIcon };
+      LRef.current.createNearbyIcon = createNearbyIcon;
 
-      if (!containerRef.current) return;
+      if (!containerRef.current) {
+        console.warn('Map container not available');
+        return;
+      }
 
       const center = [region.latitude, region.longitude];
-      map = L.map(containerRef.current).setView(center, 13);
+      
+      try {
+        map = L.map(containerRef.current).setView(center, 13);
+      } catch (error) {
+        console.error('Error initializing map:', error);
+        return;
+      }
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
+      // Add region change listener
+      if (onRegionChange) {
+        map.on('moveend', () => {
+          const center = map.getCenter();
+          const bounds = map.getBounds();
+          const latDelta = bounds.getNorth() - bounds.getSouth();
+          const lngDelta = bounds.getEast() - bounds.getWest();
+          
+          onRegionChange({
+            latitude: center.lat,
+            longitude: center.lng,
+            latitudeDelta: latDelta,
+            longitudeDelta: lngDelta,
+          });
+        });
+      }
+
       // You marker
       L.marker(center, { icon: userIcon, title: "Your location" }).addTo(map).bindPopup("You are here");
 
-      const buildNearbyPopupHTML = (m) => {
-        const safeName = m.name ?? "User";
-        const age = typeof m.age === "number" ? m.age : undefined;
-        const gender = m.gender || "";
-        const compat = m.compatibility || "";
-        const subtitle = [age ? `${age}` : null, gender || null].filter(Boolean).join(" · ");
-        const imgUrl = m.photoUrl || "https://via.placeholder.com/320x180.png?text=Profile";
-        const chatId = `chat-${m.id}`;
-        const chatHref = `/secure/chat/${encodeURIComponent(m.id)}`;
-        return `
-          <div style="width: 300px; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:#0F172A;">
-            <div style="position: relative; border-radius: 14px; overflow: hidden; background:#fff; box-shadow: 0 10px 24px rgba(0,0,0,0.18);">
-              <div style="position: relative; height: 150px;">
-                <img src="${imgUrl}" alt="${safeName}" style="width: 100%; height: 100%; object-fit: cover; filter: blur(1px); transform: scale(1.03);" />
-                <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%);"></div>
-                ${compat ? `<div style='position: absolute; top: 10px; left: 10px; display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(255,255,255,0.9); font-size:12px; font-weight:700; color:#065F46;'><span style='display:inline-block; width:8px; height:8px; border-radius:50%; background:#22C55E;'></span><span>${compat}</span></div>` : ''}
-              </div>
-              <div style="padding:14px 14px 12px 14px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                  <div style="width: 52px; height: 52px; border-radius: 14px; overflow:hidden; border: 2px solid rgba(0,0,0,0.06); box-shadow:0 2px 6px rgba(0,0,0,0.08); background:#fff;">
-                    <img src="${imgUrl}" alt="${safeName}" style="width:100%; height:100%; object-fit: cover;" />
-                  </div>
-                  <div style="flex:1; min-width:0;">
-                    <div style="color:#0F172A; font-weight:800; line-height:1.25; font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</div>
-                    ${subtitle ? `<div style='color:#475569; font-size:13px;'>${subtitle}</div>` : ""}
-                  </div>
-                </div>
-                <div style="display:flex; justify-content:flex-end; margin-top:12px;">
-                  <a id="${chatId}" href="${chatHref}" onclick="event.preventDefault(); window.__circleGoToChat && window.__circleGoToChat('${m.id}')" style="flex:0 0 auto; display:inline-block; text-decoration:none; background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%); color:#fff; border:none; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; box-shadow: 0 6px 12px rgba(79,70,229,0.35);">Chat</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      };
-
-      // Nearby markers with rich popup (no local array to avoid unused var)
-      effectiveNearby.forEach((m) => {
-        const marker = L.marker([m.latitude, m.longitude], { icon: nearbyIcon, title: m.name }).addTo(map);
-        marker.bindPopup(buildNearbyPopupHTML(m), { className: "circle-nearby-popup", maxWidth: 360, closeButton: true, autoPan: true, keepInView: true, autoPanPadding: [24, 24] });
-      });
-
       mapRef.current = map;
+      
+      // Initialize empty markers map
+      if (mapRef.current) {
+        mapRef.current.__nearbyMarkers = new Map();
+      }
     })();
 
     return () => {
       try {
         if (mapRef.current) {
+          // Clean up markers first
+          if (mapRef.current.__nearbyMarkers) {
+            mapRef.current.__nearbyMarkers.clear();
+            mapRef.current.__nearbyMarkers = null;
+          }
           mapRef.current.remove();
+          mapRef.current = null;
         }
-      } catch {}
+      } catch (error) {
+        console.warn('Error cleaning up map:', error);
+      }
     };
-  }, [region.latitude, region.longitude, nearby, effectiveNearby]);
+  }, [region.latitude, region.longitude]); // Only recreate map when initial region changes
+
+  // Update markers when nearby users change (without recreating map)
+  useEffect(() => {
+    if (!mapRef.current || !LRef.current || !effectiveNearby) return;
+    
+    const map = mapRef.current;
+    const L = LRef.current;
+    const createNearbyIcon = L.createNearbyIcon;
+    
+    if (!createNearbyIcon) return;
+    
+    try {
+      // Clear existing markers
+      if (map.__nearbyMarkers) {
+        map.__nearbyMarkers.forEach(marker => {
+          map.removeLayer(marker);
+        });
+        map.__nearbyMarkers.clear();
+      } else {
+        map.__nearbyMarkers = new Map();
+      }
+      
+      // Add new markers
+      effectiveNearby.forEach((m) => {
+        const isHighlighted = highlightedUserId === m.id;
+        const marker = L.marker([m.latitude, m.longitude], { 
+          icon: createNearbyIcon(isHighlighted), 
+          title: m.name 
+        }).addTo(map);
+        
+        marker.bindPopup(buildNearbyPopupHTML(m), { 
+          className: "circle-nearby-popup", 
+          maxWidth: 360, 
+          closeButton: true, 
+          autoPan: true, 
+          keepInView: true, 
+          autoPanPadding: [24, 24] 
+        });
+        
+        marker.on('click', () => {
+          if (onUserPress) {
+            onUserPress(m);
+          }
+        });
+        
+        map.__nearbyMarkers.set(m.id, marker);
+      });
+    } catch (error) {
+      console.warn('Error updating markers:', error);
+    }
+  }, [effectiveNearby, highlightedUserId, onUserPress]);
+
+  // Handle highlighting updates
+  useEffect(() => {
+    if (!mapRef.current || !mapRef.current.__nearbyMarkers || !LRef.current) return;
+    
+    const markers = mapRef.current.__nearbyMarkers;
+    const L = LRef.current;
+    const createNearbyIcon = L.createNearbyIcon;
+    
+    if (!createNearbyIcon || !markers || markers.size === 0) return;
+    
+    try {
+      // Update all markers based on highlighting
+      markers.forEach((marker, userId) => {
+        if (marker && marker.setIcon) {
+          const isHighlighted = highlightedUserId === userId;
+          marker.setIcon(createNearbyIcon(isHighlighted));
+        }
+      });
+    } catch (error) {
+      console.warn('Error updating marker highlighting:', error);
+    }
+  }, [highlightedUserId]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;

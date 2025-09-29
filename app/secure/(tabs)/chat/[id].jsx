@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -110,7 +110,7 @@ function TypingDots({ label }) {
   );
 }
 
-const MessageBubble = React.memo(({ message, isMine, conversationName, onEdit, onDelete, onReact, conversationId, token }) => {
+const MessageBubble = React.memo(({ message, isMine, conversationName, onEdit, onDelete, onReact, conversationId, token, avatarUri }) => {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -176,16 +176,18 @@ const MessageBubble = React.memo(({ message, isMine, conversationName, onEdit, o
     ]}>
       {!isMine && (
         <View style={styles.avatarContainer}>
-          <LinearGradient
-            colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.15)"]}
-            style={styles.avatar}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.avatarText}>
-              {String(conversationName).charAt(0).toUpperCase()}
-            </Text>
-          </LinearGradient>
+          {avatarUri && avatarUri.trim() ? (
+            <Image 
+              source={{ uri: avatarUri }} 
+              style={styles.messageAvatarImage}
+            />
+          ) : (
+            <View style={styles.messageFallbackAvatar}>
+              <Text style={styles.messageFallbackAvatarText}>
+                {String(conversationName).charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
         </View>
       )}
       
@@ -219,15 +221,21 @@ const MessageBubble = React.memo(({ message, isMine, conversationName, onEdit, o
               <View style={styles.messageStatus}>
                 <Ionicons
                   name={
-                    (message.readBy && message.readBy.length) ? 'checkmark-done' : 
-                    (message.deliveredBy && message.deliveredBy.length) ? 'checkmark' : 
+                    message.status === 'read' ? 'checkmark-done' : 
+                    message.status === 'delivered' ? 'checkmark' : 
+                    message.status === 'sent' ? 'checkmark' :
+                    message.status === 'sending' ? 'time-outline' :
+                    message.status === 'failed' ? 'alert-circle-outline' :
                     'ellipse-outline'
                   }
                   size={13}
                   color={
-                    (message.readBy && message.readBy.length) ? '#7C2B86' : 
-                    (message.deliveredBy && message.deliveredBy.length) ? 'rgba(124,43,134,0.7)' : 
-                    'rgba(124,43,134,0.4)'
+                    message.status === 'read' ? '#7C2B86' : 
+                    message.status === 'delivered' ? 'rgba(124,43,134,0.7)' : 
+                    message.status === 'sent' ? 'rgba(124,43,134,0.5)' :
+                    message.status === 'sending' ? 'rgba(124,43,134,0.4)' :
+                    message.status === 'failed' ? '#FF4444' :
+                    'rgba(124,43,134,0.3)'
                   }
                 />
               </View>
@@ -347,7 +355,6 @@ const conversationSeeds = {
 
 export default function InstagramChatScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { id, name, avatar } = useLocalSearchParams();
   const conversationId = typeof id === "string" ? id : "ava";
   const conversationName = typeof name === "string" ? name : conversationId.split("-")[0] ?? "Chat";
@@ -447,16 +454,6 @@ export default function InstagramChatScreen() {
     };
   }, []);
 
-  // Hide bottom tab bar while on chat screen
-  useEffect(() => {
-    const parent = navigation?.getParent?.() || null;
-    if (parent?.setOptions) {
-      parent.setOptions({ tabBarStyle: { display: 'none' } });
-    }
-    return () => {
-      if (parent?.setOptions) parent.setOptions({ tabBarStyle: undefined });
-    };
-  }, [navigation]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -499,6 +496,48 @@ export default function InstagramChatScreen() {
     
     socketService.addMessageHandler(`chat-${conversationId}`, backgroundMessageHandler);
 
+    // Handle message status updates
+    const handleMessageSent = ({ messageId, chatId }) => {
+      console.log('✅ Message sent confirmation:', { messageId, chatId });
+      if (chatId !== conversationId) return;
+      
+      setMessages(prev => {
+        // Find the most recent message with 'sending' status
+        const sendingIndex = prev.findIndex(msg => msg.status === 'sending');
+        if (sendingIndex !== -1) {
+          const updated = [...prev];
+          updated[sendingIndex] = { ...updated[sendingIndex], id: messageId, status: 'sent' };
+          return updated;
+        }
+        
+        // If no sending message found, update by messageId
+        return prev.map(msg => 
+          msg.id === messageId ? { ...msg, status: 'sent' } : msg
+        );
+      });
+    };
+
+    const handleDeliveryReceipt = ({ messageId, chatId, status }) => {
+      console.log('📨 Delivery receipt received:', { messageId, chatId, status });
+      if (chatId !== conversationId) return;
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId ? { ...msg, status: status } : msg
+      ));
+    };
+
+    const handleReadReceipt = ({ messageId, chatId, status }) => {
+      console.log('👁️ Read receipt received:', { messageId, chatId, status });
+      if (chatId !== conversationId) return;
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId ? { ...msg, status: 'read' } : msg
+      ));
+    };
+
+    // Set up socket event listeners
+    s.on('chat:message:sent', handleMessageSent);
+    s.on('chat:message:delivery_receipt', handleDeliveryReceipt);
+    s.on('chat:message:read_receipt', handleReadReceipt);
+
     const handleHistory = ({ chatId, messages }) => {
       if (chatId !== conversationId) return;
       const asc = [...messages].sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
@@ -511,6 +550,7 @@ export default function InstagramChatScreen() {
         isEdited: m.isEdited,
         isDeleted: m.isDeleted,
         reactions: m.reactions || [],
+        status: m.senderId === myUserId ? (m.status || 'sent') : undefined, // Use backend status or default to 'sent'
       })));
       
       // Set pagination state
@@ -568,6 +608,7 @@ export default function InstagramChatScreen() {
             isEdited: message.isEdited || false,
             isDeleted: message.isDeleted || false,
             reactions: message.reactions || [],
+            status: message.senderId === myUserId ? 'sent' : undefined,
           };
           return updated;
         } else {
@@ -581,6 +622,7 @@ export default function InstagramChatScreen() {
             isEdited: message.isEdited || false,
             isDeleted: message.isDeleted || false,
             reactions: message.reactions || [],
+            status: message.senderId === myUserId ? 'sent' : undefined,
           }];
           
           // Auto-scroll to bottom if user is already near bottom or if it's their own message
@@ -595,8 +637,10 @@ export default function InstagramChatScreen() {
       });
       
       if (message.senderId !== myUserId) {
-        try { s.emit('chat:delivered', { chatId: conversationId, messageId: message.id }); } catch {}
-        try { s.emit('chat:read', { chatId: conversationId, messageId: message.id }); } catch {}
+        console.log('📨 Marking message as delivered:', message.id);
+        try { s.emit('chat:message:delivered', { messageId: message.id }); } catch {}
+        console.log('👁️ Marking message as read:', message.id);
+        try { s.emit('chat:message:read', { messageId: message.id }); } catch {}
       }
     };
 
@@ -718,10 +762,22 @@ export default function InstagramChatScreen() {
     });
 
     s.on('chat:message:blocked', (data) => {
-      const message = data.reason === 'user_blocked' 
-        ? 'You cannot send messages because you have blocked this user.'
-        : 'You cannot send messages because this user has blocked you.';
-      Alert.alert('Message Blocked', message);
+      let message;
+      switch (data.reason) {
+        case 'user_blocked':
+          message = 'You cannot send messages because you have blocked this user.';
+          break;
+        case 'blocked_by_user':
+          message = 'You cannot send messages because this user has blocked you.';
+          break;
+        case 'not_friends':
+          message = 'You can only send messages to friends. Send a friend request first.';
+          break;
+        default:
+          message = 'You cannot send messages to this user.';
+      }
+      
+      Alert.alert('Message blocked', message);
     });
 
     return () => {
@@ -739,6 +795,9 @@ export default function InstagramChatScreen() {
         s.off('chat:message:deleted');
         s.off('chat:reaction:toggle');
         s.off('chat:message:blocked');
+        s.off('chat:message:sent');
+        s.off('chat:message:delivery_receipt');
+        s.off('chat:message:read_receipt');
       } catch {}
       
       // Remove background message handler
@@ -788,8 +847,32 @@ export default function InstagramChatScreen() {
       // Handle new message
       const trimmed = composer.trim();
       if (!trimmed) return;
+      
+      // Create temporary message with 'sending' status
+      const tempId = `temp-${Date.now()}`;
+      const tempMessage = {
+        id: tempId,
+        senderId: myUserId,
+        text: trimmed,
+        createdAt: Date.now(),
+        isEdited: false,
+        isDeleted: false,
+        reactions: [],
+        status: 'sending',
+      };
+      
+      // Add temporary message to UI
+      setMessages(prev => [...prev, tempMessage]);
+      
       const s = getSocket(token);
-      try { s.emit('chat:message', { chatId: conversationId, text: trimmed }); } catch {}
+      try { 
+        s.emit('chat:message', { chatId: conversationId, text: trimmed });
+      } catch (error) {
+        // If sending fails, update status to 'failed'
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempId ? { ...msg, status: 'failed' } : msg
+        ));
+      }
       setComposer("");
     }
     
@@ -1038,7 +1121,7 @@ export default function InstagramChatScreen() {
                 styles.backButton, 
                 hovered ? styles.headerBtnHoverWeb : null
               ]} 
-              onPress={() => router.back()}
+              onPress={() => router.replace('/secure/chat')}
             >
               <Ionicons name="chevron-back" size={26} color="#FFE8FF" />
             </Pressable>
@@ -1103,7 +1186,7 @@ export default function InstagramChatScreen() {
           </View>
         ) : (
           <BlurView intensity={35} tint="dark" style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/secure/chat')}>
               <Ionicons name="chevron-back" size={26} color="#FFE8FF" />
             </TouchableOpacity>
             
@@ -1190,6 +1273,7 @@ export default function InstagramChatScreen() {
                 onReact={handleReactToMessage}
                 conversationId={conversationId}
                 token={token}
+                avatarUri={avatarUri}
               />
             )}
             contentContainerStyle={styles.messagesContainer}
@@ -1391,12 +1475,24 @@ export default function InstagramChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    ...(Platform.OS === 'web' && {
+      minHeight: '100vh',
+      width: '100%',
+    }),
   },
   safeArea: {
     flex: 1,
+    ...(Platform.OS === 'web' && {
+      height: '100%',
+      width: '100%',
+    }),
   },
   flex: {
     flex: 1,
+    ...(Platform.OS === 'web' && {
+      height: '100%',
+      width: '100%',
+    }),
   },
   
   // Background blur effects
@@ -1542,16 +1638,24 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginBottom: 6,
   },
-  avatar: {
+  messageAvatarImage: {
     width: 28,
     height: 28,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.3)',
+  },
+  messageFallbackAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 214, 242, 0.3)',
   },
-  avatarText: {
+  messageFallbackAvatarText: {
     color: '#FFE8FF',
     fontSize: 11,
     fontWeight: '700',

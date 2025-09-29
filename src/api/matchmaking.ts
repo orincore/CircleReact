@@ -17,10 +17,22 @@ export type MatchmakingState =
   | { state: "matched"; match: { otherName: string; chatId: string }; message?: string }
   | { state: "cancelled"; message?: string };
 
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  maxDistance?: number;
+  ageRange?: [number, number];
+}
+
 export const matchmakingApi = {
-  start: (token?: string | null) => http.post<{ ok: boolean }, undefined>("/matchmaking/start", undefined, token),
-  cancel: (token?: string | null) => http.post<{ ok: boolean }, undefined>("/matchmaking/cancel", undefined, token),
-  status: (token?: string | null) => http.get<MatchmakingState>("/matchmaking/status", token),
+  start: (token?: string | null, location?: LocationData) => 
+    http.post<{ ok: boolean }, { location?: LocationData }>("/matchmaking/start", { location }, token),
+  cancel: (token?: string | null) => 
+    http.post<{ ok: boolean }, undefined>("/matchmaking/cancel", undefined, token),
+  status: (token?: string | null) => 
+    http.get<MatchmakingState>("/matchmaking/status", token),
   decide: (decision: "accept" | "pass", token?: string | null) =>
     http.post<MatchmakingState, { decision: "accept" | "pass" }>("/matchmaking/decide", { decision }, token),
+  sendMessageRequest: (receiverId: string, token?: string | null) =>
+    http.post<{ success: boolean; message?: string }, { receiverId: string }>("/matchmaking/message-request", { receiverId }, token),
 };

@@ -17,6 +17,7 @@ export default function EditProfileScreen() {
     age: typeof user?.age === "number" ? String(user.age) : "",
     gender: user?.gender || "",
     phoneNumber: user?.phoneNumber || "",
+    about: user?.about || "",
     interests: Array.isArray(user?.interests) ? user.interests.join(", ") : "",
     needs: Array.isArray(user?.needs) ? user.needs.join(", ") : "",
     profilePhotoUrl: user?.profilePhotoUrl || "",
@@ -28,17 +29,6 @@ export default function EditProfileScreen() {
   const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
   const parseList = (text) => text.split(",").map(s => s.trim()).filter(Boolean);
-
-  const onSave = async () => {
-    try {
-      setSaving(true);
-      const payload = {
-        firstName: form.firstName.trim() || undefined,
-        lastName: form.lastName.trim() || undefined,
-        gender: form.gender.trim() || undefined,
-        phoneNumber: form.phoneNumber.trim() || undefined,
-        profilePhotoUrl: form.profilePhotoUrl.trim() || undefined,
-      };
 
   // Hide the bottom tab bar on this screen and restore on exit
   useEffect(() => {
@@ -60,6 +50,25 @@ export default function EditProfileScreen() {
       }
     };
   }, [navigation]);
+
+  const onSave = async () => {
+    try {
+      setSaving(true);
+      const payload = {
+        firstName: form.firstName.trim() || undefined,
+        lastName: form.lastName.trim() || undefined,
+        gender: form.gender.trim() || undefined,
+        phoneNumber: form.phoneNumber.trim() || undefined,
+        about: form.about.trim() || null,
+        profilePhotoUrl: form.profilePhotoUrl.trim() || undefined,
+      };
+
+      // Validate about field length
+      if (payload.about && payload.about.length > 500) {
+        Alert.alert("Validation Error", "About section must be less than 500 characters");
+        return;
+      }
+
       const ageNum = Number(form.age);
       if (!Number.isNaN(ageNum) && ageNum > 0) payload.age = ageNum;
       if (form.interests.trim()) payload.interests = parseList(form.interests);
@@ -169,6 +178,21 @@ export default function EditProfileScreen() {
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>About you</Text>
               <View style={styles.fieldRow}>
+                <Text style={styles.label}>Bio</Text>
+                <TextInput
+                  value={form.about}
+                  onChangeText={v => setField("about", v)}
+                  placeholder="Tell others about yourself, your interests, and what you're looking for..."
+                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  maxLength={500}
+                />
+                <Text style={styles.characterCount}>{form.about.length}/500</Text>
+              </View>
+              <View style={styles.fieldRow}>
                 <Text style={styles.label}>Interests</Text>
                 <TextInput
                   value={form.interests}
@@ -257,6 +281,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 46,
     color: "#1F1147",
+  },
+  textArea: {
+    height: 100,
+    paddingVertical: 12,
+    textAlignVertical: "top",
+  },
+  characterCount: {
+    fontSize: 12,
+    color: "rgba(31, 17, 71, 0.5)",
+    textAlign: "right",
+    marginTop: 4,
   },
   twoCol: { flexDirection: "row", gap: 12 },
   col: { flex: 1 },

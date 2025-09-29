@@ -1,4 +1,5 @@
 import { withBase } from "./config";
+import { API_BASE_URL } from '../config/api.js';
 
 export interface ApiError extends Error {
   status?: number;
@@ -16,13 +17,13 @@ export interface RequestOptions<TBody = unknown> {
 
 async function request<TResp, TBody = unknown>(path: string, opts: RequestOptions<TBody> = {}): Promise<TResp> {
   const { method = "GET", body, token, headers } = opts;
-  const url = withBase(path);
+  const url = `${API_BASE_URL}${path}`;
   let res: Response;
   try {
     res = await fetch(url, {
       method,
       headers: {
-        "Content-Type": "application/json",
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(headers || {}),
       },

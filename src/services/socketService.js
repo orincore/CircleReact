@@ -20,8 +20,6 @@ class SocketService {
     
     // Set up global background message handler
     this.socket.on('chat:message:background', (data) => {
-      console.log('Background message received:', data);
-      
       // Notify all registered handlers
       this.messageHandlers.forEach((handler) => {
         try {
@@ -41,20 +39,6 @@ class SocketService {
         this.showReactionNotification(data);
       }
     });
-
-    // Handle connection events
-    this.socket.on('connect', () => {
-      console.log('Socket connected for background messaging');
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('Socket disconnected');
-    });
-
-    // Auto-reconnect with exponential backoff
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
   }
 
   // Register a handler for background messages
@@ -71,34 +55,93 @@ class SocketService {
   showMessageNotification = async (message) => {
     if (!message || !message.chatId) return;
     
-    console.log('Checking notification for message:', { chatId: message.chatId, senderName: message.senderName });
-    
     // Primary check: use explicitly tracked current chat ID
     if (this.currentChatId && message.chatId === this.currentChatId) {
-      console.log('User is in same chat (tracked), skipping notification');
       return;
+    }
+    
+    // Additional primary check: if we have a tracked chat ID and it matches, always skip
+    if (this.currentChatId === message.chatId) {
+      return;
+    }
+    
+    // Check the socket service from /src/api/socket.ts as well
+    try {
+      const { socketService: apiSocketService } = await import('../api/socket');
+      const apiCurrentChatId = apiSocketService.getCurrentChatId();
+      if (apiCurrentChatId && apiCurrentChatId === message.chatId) {
+        return;
+      }
+    } catch (error) {
+      // Ignore import errors
     }
     
     // Fallback: Get current route to check if user is in the same chat
-    const currentRoute = router.getState?.()?.routes?.slice(-1)?.[0];
-    const currentChatId = currentRoute?.params?.id;
+    let currentRoute = null;
+    let currentChatId = null;
     
-    console.log('Current route info:', { 
-      routeName: currentRoute?.name, 
-      currentChatId, 
-      trackedChatId: this.currentChatId,
-      messageChatId: message.chatId 
-    });
+    try {
+      const routerState = router.getState?.();
+      if (routerState?.routes) {
+        currentRoute = routerState.routes[routerState.routes.length - 1];
+        currentChatId = currentRoute?.params?.id;
+      }
+      
+      // Alternative method to get current route
+      if (!currentRoute && router.pathname) {
+        const pathname = router.pathname;
+        if (pathname.includes('/chat/')) {
+          const chatIdMatch = pathname.match(/\/chat\/([^\/\?]+)/);
+          if (chatIdMatch) {
+            currentChatId = chatIdMatch[1];
+            currentRoute = { name: '[id]', pathname };
+          }
+        }
+      }
+      
+      // Web fallback: check window location
+      if (!currentRoute && typeof window !== 'undefined' && window.location) {
+        const pathname = window.location.pathname;
+        if (pathname.includes('/chat/')) {
+          const chatIdMatch = pathname.match(/\/chat\/([^\/\?]+)/);
+          if (chatIdMatch) {
+            currentChatId = chatIdMatch[1];
+            currentRoute = { name: '[id]', pathname };
+          }
+        }
+      }
+    } catch (error) {
+      // Ignore router errors
+    }
     
-    // Don't show notification if user is in the same chat
-    if (message.chatId === currentChatId) {
-      console.log('User is in same chat (route), skipping notification');
+    // Enhanced check: Don't show notification if user is on any chat screen with this chat ID
+    if (currentRoute?.name === '[id]' && currentChatId === message.chatId) {
       return;
     }
     
-    // Additional check: if current route is the chat screen with this chat ID
-    if (currentRoute?.name === '[id]' && currentChatId === message.chatId) {
-      console.log('User is in chat screen for this conversation, skipping notification');
+    // Additional check: Don't show notification if user is in the same chat (route fallback)
+    if (message.chatId === currentChatId) {
+      return;
+    }
+    
+    // Check if route name indicates we're in a chat screen
+    if (currentRoute?.name === '[id]') {
+      return;
+    }
+    
+    // Additional check: look for chat-related routes in the pathname
+    if (currentRoute?.pathname && currentRoute.pathname.includes('/chat/')) {
+      return;
+    }
+    
+    // Web-specific check: if window location indicates we're in a chat
+    if (typeof window !== 'undefined' && window.location && window.location.pathname.includes('/chat/')) {
+      return;
+    }
+    
+    // Extra safety check: if the route contains the chat ID in any form
+    if (currentRoute?.pathname?.includes(message.chatId) || 
+        currentRoute?.key?.includes(message.chatId)) {
       return;
     }
     
@@ -109,26 +152,18 @@ class SocketService {
       const { chatApi } = await import('../api/chat');
       const token = this.authToken; // Use stored token directly
       if (token) {
-        console.log('Checking mute status for chat:', message.chatId);
         const response = await chatApi.getMuteStatus(message.chatId, token);
         isMuted = response.isMuted;
-        console.log('Mute status result:', { chatId: message.chatId, isMuted });
-      } else {
-        console.log('No auth token available for mute check');
       }
     } catch (error) {
-      console.error('Failed to check mute status:', error);
       // If we can't check mute status, don't show notification to be safe
       return;
     }
     
     // Don't show notification if chat is muted
     if (isMuted) {
-      console.log('Chat is muted, skipping notification');
       return;
     }
-    
-    console.log('Showing notification for unmuted chat');
     notificationService.showMessageNotification({
       senderName: message.senderName || 'Someone',
       message: message.text || 'New message',
@@ -141,34 +176,54 @@ class SocketService {
   showReactionNotification = async (data) => {
     if (!data || !data.chatId || !data.reaction) return;
     
-    console.log('Checking reaction notification:', { chatId: data.chatId, emoji: data.reaction.emoji });
-    
     // Primary check: use explicitly tracked current chat ID
     if (this.currentChatId && data.chatId === this.currentChatId) {
-      console.log('User is in same chat (tracked), skipping reaction notification');
       return;
+    }
+    
+    // Additional primary check: if we have a tracked chat ID and it matches, always skip
+    if (this.currentChatId === data.chatId) {
+      return;
+    }
+    
+    // Check the socket service from /src/api/socket.ts as well
+    try {
+      const { socketService: apiSocketService } = await import('../api/socket');
+      const apiCurrentChatId = apiSocketService.getCurrentChatId();
+      if (apiCurrentChatId && apiCurrentChatId === data.chatId) {
+        return;
+      }
+    } catch (error) {
+      // Ignore import errors
     }
     
     // Fallback: Get current route to check if user is in the same chat
     const currentRoute = router.getState?.()?.routes?.slice(-1)?.[0];
     const currentChatId = currentRoute?.params?.id;
     
-    console.log('Current route info for reaction:', { 
-      routeName: currentRoute?.name, 
-      currentChatId, 
-      trackedChatId: this.currentChatId,
-      reactionChatId: data.chatId 
-    });
-    
-    // Don't show notification if user is in the same chat
-    if (data.chatId === currentChatId) {
-      console.log('User is in same chat (route), skipping reaction notification');
+    // Enhanced check: Don't show notification if user is on any chat screen with this chat ID
+    if (currentRoute?.name === '[id]' && currentChatId === data.chatId) {
       return;
     }
     
-    // Additional check: if current route is the chat screen with this chat ID
-    if (currentRoute?.name === '[id]' && currentChatId === data.chatId) {
-      console.log('User is in chat screen for this conversation, skipping reaction notification');
+    // Additional check: Don't show notification if user is in the same chat (route fallback)
+    if (data.chatId === currentChatId) {
+      return;
+    }
+    
+    // Check if route name indicates we're in a chat screen
+    if (currentRoute?.name === '[id]') {
+      return;
+    }
+    
+    // Additional check: look for chat-related routes in the pathname
+    if (currentRoute?.pathname && currentRoute.pathname.includes('/chat/')) {
+      return;
+    }
+    
+    // Extra safety check: if the route contains the chat ID in any form
+    if (currentRoute?.pathname?.includes(data.chatId) || 
+        currentRoute?.key?.includes(data.chatId)) {
       return;
     }
     
@@ -178,26 +233,18 @@ class SocketService {
       const { chatApi } = await import('../api/chat');
       const token = this.authToken; // Use stored token directly
       if (token) {
-        console.log('Checking mute status for reaction in chat:', data.chatId);
         const response = await chatApi.getMuteStatus(data.chatId, token);
         isMuted = response.isMuted;
-        console.log('Reaction mute status result:', { chatId: data.chatId, isMuted });
-      } else {
-        console.log('No auth token available for reaction mute check');
       }
     } catch (error) {
-      console.error('Failed to check mute status for reaction:', error);
       // If we can't check mute status, don't show notification to be safe
       return;
     }
     
     // Don't show notification if chat is muted
     if (isMuted) {
-      console.log('Chat is muted, skipping reaction notification');
       return;
     }
-    
-    console.log('Showing reaction notification for unmuted chat');
     notificationService.showReactionNotification({
       senderName: data.reaction.senderName || 'Someone',
       emoji: data.reaction.emoji,
@@ -231,12 +278,10 @@ class SocketService {
   // Set current chat ID (called when entering a chat)
   setCurrentChatId(chatId) {
     this.currentChatId = chatId;
-    console.log('Set current chat ID:', chatId);
   }
 
   // Clear current chat ID (called when leaving a chat)
   clearCurrentChatId() {
-    console.log('Cleared current chat ID:', this.currentChatId);
     this.currentChatId = null;
   }
 

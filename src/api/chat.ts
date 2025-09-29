@@ -34,14 +34,18 @@ export interface ChatInboxItem {
     sender_id: string;
     text: string;
     created_at: string;
+    status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   } | null;
   unreadCount: number;
   otherId?: string;
   otherName?: string;
+  otherProfilePhoto: string;
 }
 
 export const chatApi = {
   getInbox: (token?: string | null) => http.get<{ inbox: ChatInboxItem[] }>(`/chat/inbox`, token),
+  createChatWithUser: (userId: string, token?: string | null) =>
+    http.post<{ chat: { id: string; created_at: string; last_message_at: string | null }; otherUser: { id: string; name: string; profilePhoto: string } }>(`/chat/with-user/${encodeURIComponent(userId)}`, {}, token),
   getMessages: (chatId: string, token?: string | null) =>
     http.get<{ messages: ChatMessage[] }>(`/chat/${encodeURIComponent(chatId)}/messages`, token),
   sendMessage: (chatId: string, text: string, token?: string | null) =>

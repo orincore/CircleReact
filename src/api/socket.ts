@@ -41,16 +41,34 @@ export const socketService = new SocketService();
 
 export function getSocket(token?: string | null): any {
   if (socket && socket.connected) return socket;
+  
   socket = io(API_BASE_URL, {
     path: "/ws",
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     auth: token ? { token } : undefined,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 500,
     reconnectionDelayMax: 3000,
     autoConnect: true,
+    timeout: 60000, // 60 seconds timeout
+    forceNew: false,
   });
+  
+  
+  // Keep connection alive with periodic pings
+  const pingInterval = setInterval(() => {
+    if (socket && socket.connected) {
+      socket.emit('ping');
+    } else {
+      clearInterval(pingInterval);
+    }
+  }, 25000); // Ping every 25 seconds
+  
+  socket.on('disconnect', () => {
+    clearInterval(pingInterval);
+  });
+  
   return socket;
 }
 

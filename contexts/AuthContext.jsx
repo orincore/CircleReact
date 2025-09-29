@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
+import LocationTrackingService from "@/services/LocationTrackingService";
 
 const AuthContext = createContext(undefined);
 
@@ -30,6 +31,17 @@ export function AuthProvider({ children }) {
     
     // Initialize socket service for background messaging
     socketService.initialize(resp.access_token);
+    
+    // Initialize location tracking if it was previously enabled
+    try {
+      const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
+      if (trackingEnabled) {
+        console.log('🔄 Resuming location tracking after authentication');
+        await LocationTrackingService.startTracking(resp.access_token);
+      }
+    } catch (error) {
+      console.error('Failed to resume location tracking:', error);
+    }
     
     try {
       await Promise.all([
@@ -70,14 +82,21 @@ export function AuthProvider({ children }) {
       },
     [applyAuth]
   );
-
   const logOut = useCallback(async () => {
     setIsAuthenticated(false);
     setUser(null);
     setToken(null);
     
-    // Disconnect socket service
-    socketService.disconnect();
+    // Cleanup socket service
+    socketService.cleanup();
+    
+    // Stop location tracking on logout
+    try {
+      await LocationTrackingService.stopTracking();
+      console.log('🛑 Location tracking stopped on logout');
+    } catch (error) {
+      console.error('Failed to stop location tracking on logout:', error);
+    }
     
     try {
       await Promise.all([

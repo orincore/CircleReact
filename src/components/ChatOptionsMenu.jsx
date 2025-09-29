@@ -8,6 +8,7 @@ export default function ChatOptionsMenu({
   visible, 
   onClose, 
   onMuteToggle,
+  onClearChat,
   isMuted = false,
   position = { x: 0, y: 0 }
 }) {
@@ -24,9 +25,10 @@ export default function ChatOptionsMenu({
       label: 'Clear Chat History',
       icon: 'trash-outline',
       onPress: () => {
-        // TODO: Implement clear chat history
-        console.log('Clear chat history');
-        onClose();
+        console.log('Clear chat option pressed');
+        if (onClearChat) {
+          onClearChat();
+        }
       },
       destructive: true,
     },
@@ -54,15 +56,20 @@ export default function ChatOptionsMenu({
             end={{ x: 1, y: 1 }}
           >
             {options.map((option, index) => (
-              <TouchableOpacity
+              <Pressable
                 key={option.id}
-                style={[
+                style={({ pressed, hovered }) => [
                   styles.optionButton,
                   index === options.length - 1 && styles.lastOptionButton,
+                  Platform.OS === 'web' && hovered && { backgroundColor: 'rgba(124, 43, 134, 0.05)' },
+                  pressed && { backgroundColor: 'rgba(124, 43, 134, 0.1)' },
                 ]}
                 onPress={() => {
+                  console.log('Menu option pressed:', option.id);
                   option.onPress();
-                  onClose();
+                  if (option.id !== 'clear') {
+                    onClose();
+                  }
                 }}
               >
                 <Ionicons 
@@ -76,7 +83,7 @@ export default function ChatOptionsMenu({
                 ]}>
                   {option.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </LinearGradient>
         </View>
@@ -125,6 +132,8 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(124, 43, 134, 0.1)',
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
+      userSelect: 'none',
+      transition: 'background-color 0.2s ease',
     }),
   },
   lastOptionButton: {

@@ -71,7 +71,10 @@ export default function ProfileScreen() {
               <Text style={styles.title}>My Circle</Text>
               <Text style={styles.subtitle}>Curate how the world sees you.</Text>
             </View>
-            <TouchableOpacity style={styles.settingsButton}>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => router.push("/secure/profile/settings")}
+            >
               <Ionicons name="settings" size={22} color="#FFE8FF" />
             </TouchableOpacity>
           </View>
@@ -98,6 +101,13 @@ export default function ProfileScreen() {
               ) : null}
             </View>
             <Text style={styles.profileDetail}>{displayDetails}</Text>
+
+            {/* Bio Section */}
+            {user?.about && (
+              <View style={styles.bioSection}>
+                <Text style={styles.bioText}>{user.about}</Text>
+              </View>
+            )}
 
             <TouchableOpacity style={styles.editButton} onPress={() => router.push("/secure/profile/edit") }>
               <Text style={styles.editButtonText}>Edit profile</Text>
@@ -138,6 +148,15 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.detailValue} numberOfLines={1}>{user?.profilePhotoUrl || "—"}</Text>
             </View>
+            {user?.about && (
+              <View style={styles.detailBlock}>
+                <View style={styles.detailLeft}>
+                  <Ionicons name="document-text" size={16} color="#FFD6F2" />
+                  <Text style={styles.detailLabel}>About</Text>
+                </View>
+                <Text style={styles.aboutText}>{user.about}</Text>
+              </View>
+            )}
             {!!(user?.interests?.length) && (
               <View style={styles.detailBlock}>
                 <Text style={styles.detailLabel}>Interests</Text>
@@ -402,6 +421,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
     letterSpacing: 0.5,
+  },
+  aboutText: {
+    fontSize: 14,
+    color: "#1F1147",
+    lineHeight: 20,
+    marginTop: 8,
+    fontWeight: "400",
+  },
+  bioSection: {
+    backgroundColor: "rgba(255, 214, 242, 0.15)",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  bioText: {
+    fontSize: 15,
+    color: "#1F1147",
+    lineHeight: 22,
+    fontWeight: "400",
+    textAlign: "center",
+    fontStyle: "italic",
   },
   blurCircleLarge: {
     position: "absolute",

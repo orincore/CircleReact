@@ -23,15 +23,32 @@ export default function Toast({ visible, text, type = "info" }) {
 
   return (
     <Animated.View
-      pointerEvents="none"
+      pointerEvents="box-none"
       style={[
         styles.wrap,
         Platform.OS === "web" ? styles.wrapWeb : null,
-        { transform: [{ translateY: slide }], opacity },
+        { 
+          transform: [{ translateY: slide }], 
+          opacity,
+          // Force the toast to be above everything
+          zIndex: 999999,
+          elevation: 999999
+        },
       ]}
     >
       <SafeAreaView style={styles.safe}>
-        <View style={[styles.toast, { backgroundColor: bg }]}>
+        <View 
+          style={[
+            styles.toast, 
+            { 
+              backgroundColor: bg,
+              // Additional styling to ensure visibility
+              zIndex: 999999,
+              elevation: 999999
+            }
+          ]} 
+          pointerEvents="none"
+        >
           <Text style={styles.text}>{text}</Text>
         </View>
       </SafeAreaView>
@@ -40,9 +57,37 @@ export default function Toast({ visible, text, type = "info" }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: "absolute", top: 0, left: 0, right: 0, alignItems: "center", zIndex: 1000 },
-  wrapWeb: { position: "fixed" },
-  safe: { width: "100%", alignItems: "center" },
-  toast: { marginTop: 14, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
-  text: { color: "#fff", fontWeight: "700" },
+  wrap: { 
+    position: "absolute", 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    alignItems: "center", 
+    zIndex: 999999, // Even higher z-index
+    elevation: 999999, // Even higher elevation for Android
+    pointerEvents: "box-none" // Allow touches to pass through to elements below
+  },
+  wrapWeb: { position: "fixed", zIndex: 999999, top: 0 },
+  safe: { width: "100%", alignItems: "center", pointerEvents: "box-none" },
+  toast: { 
+    marginTop: 60, // Increased top margin to ensure it's visible above modals
+    borderRadius: 16, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    shadowColor: "#000", 
+    shadowOpacity: 0.3, 
+    shadowRadius: 15, 
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 999, // Very high elevation for Android
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    // Add backdrop blur effect for better visibility
+    backgroundColor: "rgba(0, 0, 0, 0.9)" // Fallback background
+  },
+  text: { 
+    color: "#fff", 
+    fontWeight: "700", 
+    fontSize: 15,
+    textAlign: "center"
+  },
 });

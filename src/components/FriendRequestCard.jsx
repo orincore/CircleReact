@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { friendsApi } from '@/src/api/friends';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSocket } from '@/src/api/socket';
 
 export default function FriendRequestCard({ 
   request, 
@@ -31,7 +32,10 @@ export default function FriendRequestCard({
     setActionType('accept');
     
     try {
-      await friendsApi.acceptFriendRequest(request.id, token);
+      // Use socket instead of REST API for consistency
+      const socket = getSocket(token);
+      socket.emit('friend:request:accept', { requestId: request.id });
+      
       onAccept(request);
       
       // Show success message
@@ -65,7 +69,10 @@ export default function FriendRequestCard({
             setActionType('reject');
             
             try {
-              await friendsApi.rejectFriendRequest(request.id, token);
+              // Use socket instead of REST API for consistency
+              const socket = getSocket(token);
+              socket.emit('friend:request:decline', { requestId: request.id });
+              
               onReject(request);
             } catch (error) {
               console.error('Failed to reject friend request:', error);

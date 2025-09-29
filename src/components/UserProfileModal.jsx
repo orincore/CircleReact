@@ -18,7 +18,10 @@ import { BlurView } from 'expo-blur';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendsApi } from '@/src/api/friends';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
+import { getSocket } from '@/src/api/socket';
 import { router } from 'expo-router';
+import LinkedSocialAccounts from './LinkedSocialAccounts';
 
 export default function UserProfileModal({ 
   visible, 
@@ -42,37 +45,201 @@ export default function UserProfileModal({
     if (visible && userId) {
       console.log('UserProfileModal opened for user:', userId);
       console.log('User name:', userName);
+      console.log('User avatar:', userAvatar);
+      console.log('Modal visible:', visible);
       console.log('Current logged-in user:', user?.id);
       loadUserProfile();
+      
+      // Set up socket listeners for cancelled requests
+      if (token) {
+        const socket = getSocket(token);
+        
+        // Listen for friend request cancellations
+        const handleFriendRequestCancelled = (data) => {
+          console.log('Friend request cancelled:', data);
+          if (data.cancelledBy === userId) {
+            // The user we're viewing cancelled their request to us
+            setFriendStatus('none');
+            Alert.alert('Request Cancelled', `${userName} cancelled their friend request.`);
+          }
+        };
+        
+        // Listen for message request cancellations
+        const handleMessageRequestCancelled = (data) => {
+          console.log('Message request cancelled:', data);
+          if (data.cancelledBy === userId) {
+            // The user we're viewing cancelled their message request to us
+            setCanMessage(false);
+            setMessagePermission(null);
+            Alert.alert('Request Cancelled', `${userName} cancelled their message request.`);
+          }
+        };
+
+        // Listen for friend request acceptance (when the user we're viewing accepts our request)
+        const handleFriendRequestAccepted = (data) => {
+          console.log('Friend request accepted (they accepted our request):', data);
+          if (data.request && data.request.sender_id === user?.id && data.request.receiver_id === userId) {
+            // The user we're viewing accepted our request to them
+            setCanMessage(true);
+            Alert.alert('Friend Request Accepted', `You are now friends with ${userName}!`);
+          }
+        };
+
+        // Listen for friend request accept confirmation (when we accept someone's request)
+        const handleFriendRequestAcceptConfirmed = (data) => {
+          console.log('Friend request accept confirmed (we accepted their request):', data);
+          if (data.request && data.request.sender_id === userId && data.request.receiver_id === user?.id) {
+            // We accepted the request from the user we're viewing
+            setFriendStatus('friends');
+            setCanMessage(true);
+            Alert.alert('Friend Request Accepted', `You are now friends with ${userName}!`);
+          }
+        };
+
+        // Listen for when we get unfriended by someone
+        const handleUnfriended = (data) => {
+          console.log('Unfriended by user:', data);
+          if (data.unfriendedBy === userId) {
+            // The user we're viewing unfriended us
+            setFriendStatus('none');
+            setCanMessage(false);
+            setMessagePermission(null);
+            Alert.alert('Unfriended', `${userName} removed you as a friend. You can no longer message each other.`);
+          }
+        };
+        
+        socket.on('friend:request:cancelled', handleFriendRequestCancelled);
+        socket.on('message:request:cancelled', handleMessageRequestCancelled);
+        socket.on('friend:request:accepted', handleFriendRequestAccepted);
+        socket.on('friend:request:accept:confirmed', handleFriendRequestAcceptConfirmed);
+        socket.on('friend:unfriended', handleUnfriended);
+        
+        // Cleanup listeners when modal closes
+        return () => {
+          socket.off('friend:request:cancelled', handleFriendRequestCancelled);
+          socket.off('message:request:cancelled', handleMessageRequestCancelled);
+          socket.off('friend:request:accepted', handleFriendRequestAccepted);
+          socket.off('friend:request:accept:confirmed', handleFriendRequestAcceptConfirmed);
+          socket.off('friend:unfriended', handleUnfriended);
+        };
+      }
+    } else {
+      console.log('UserProfileModal not opening - visible:', visible, 'userId:', userId);
     }
-  }, [visible, userId]);
+  }, [visible, userId, token, userName, user?.id]);
 
   const loadUserProfile = async () => {
     setLoading(true);
     try {
-      // Using immediate mock data to avoid network issues
+      // Record profile visit for Circle stats (only if viewing someone else's profile)
+      if (userId && user?.id && userId !== user.id) {
+        try {
+          const { circleStatsApi } = await import('@/src/api/circle-stats');
+          await circleStatsApi.recordProfileVisit(userId, token);
+          console.log('✅ Profile visit recorded for user:', userId);
+        } catch (visitError) {
+          console.log('❌ Failed to record profile visit:', visitError);
+        }
+      }
       
-      // Create mock data immediately
-      const mockProfileData = {
+      // Fetch actual user profile data from the backend
+      let actualUserData = null;
+      try {
+        const { exploreApi } = await import('@/src/api/explore');
+        
+        // Try the direct user profile endpoint first
+        try {
+          const result = await exploreApi.getUserProfile(userId, token);
+          if (result.user) {
+            actualUserData = result.user;
+            console.log('Fetched actual user data via profile endpoint:', actualUserData);
+          }
+        } catch (profileError) {
+          console.log('Profile endpoint failed, trying search fallback:', profileError);
+          
+          // Fallback: try to find user via search by ID
+          try {
+            const searchResult = await exploreApi.searchUsers(userId, 1, token);
+            if (searchResult.users && searchResult.users.length > 0) {
+              const foundUser = searchResult.users.find(u => u.id === userId);
+              if (foundUser) {
+                actualUserData = foundUser;
+                console.log('Fetched actual user data via search fallback:', actualUserData);
+              }
+            }
+          } catch (searchError) {
+            console.log('Search fallback also failed:', searchError);
+            
+            // Final fallback: try to find user in explore sections
+            try {
+              const sectionsResult = await exploreApi.getAllSections(token);
+              const allUsers = [
+                ...(sectionsResult.topUsers || []),
+                ...(sectionsResult.newUsers || []),
+                ...(sectionsResult.compatibleUsers || [])
+              ];
+              const foundUser = allUsers.find(u => u.id === userId);
+              if (foundUser) {
+                actualUserData = foundUser;
+                console.log('Fetched actual user data via sections fallback:', actualUserData);
+              }
+            } catch (sectionsError) {
+              console.log('Sections fallback also failed:', sectionsError);
+              
+              // Last resort: try to get user from friends list
+              try {
+                const { friendsApi } = await import('@/src/api/friends');
+                const friendsResult = await friendsApi.getFriendsList(token);
+                if (friendsResult.friends && friendsResult.friends.length > 0) {
+                  const foundFriend = friendsResult.friends.find(f => f.id === userId);
+                  if (foundFriend) {
+                    // Convert friend data to user data format
+                    actualUserData = {
+                      id: foundFriend.id,
+                      name: foundFriend.name,
+                      username: foundFriend.username || foundFriend.name, // Use name as fallback
+                      profilePhoto: foundFriend.profile_photo_url,
+                      email: foundFriend.email,
+                      interests: [],
+                      needs: [],
+                      isOnline: false,
+                      joinedDate: foundFriend.created_at
+                    };
+                    console.log('Fetched actual user data via friends fallback:', actualUserData);
+                  }
+                }
+              } catch (friendsError) {
+                console.log('Friends fallback also failed:', friendsError);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Failed to fetch user profile:', error);
+      }
+
+      // Create profile data using actual data if available, otherwise use provided props
+      const profileData = {
         id: userId,
-        name: userName || 'User',
-        username: `@${userName?.toLowerCase().replace(/\s+/g, '_') || 'user'}`,
-        avatar: userAvatar,
-        bio: 'Living life one adventure at a time ✨',
-        location: 'San Francisco, CA',
-        joinedDate: 'Joined March 2023',
+        name: actualUserData?.name || userName || 'User',
+        username: actualUserData?.username ? `@${actualUserData.username}` : (userName ? `@${userName}` : '@user'),
+        avatar: actualUserData?.profilePhoto || userAvatar,
+        bio: actualUserData?.about || 'No bio available',
+        location: 'Location not specified',
+        joinedDate: actualUserData?.joinedDate ? `Joined ${new Date(actualUserData.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
         stats: {
-          chats: 42,
-          friends: 156,
-          photos: 89
+          chats: Math.floor(Math.random() * 50) + 10,
+          friends: Math.floor(Math.random() * 200) + 50,
+          photos: Math.floor(Math.random() * 100) + 20
         },
-        interests: ['Photography', 'Travel', 'Coffee', 'Art', 'Music'],
-        isOnline: true,
-        lastSeen: 'Active now'
+        interests: actualUserData?.interests || ['Photography', 'Travel', 'Coffee', 'Art', 'Music'],
+        isOnline: actualUserData?.isOnline || Math.random() > 0.5,
+        lastSeen: actualUserData?.isOnline ? 'Active now' : 'Last seen recently'
       };
       
-      console.log('Mock profile data created:', mockProfileData);
-      setProfileData(mockProfileData);
+      console.log('Profile data created:', profileData);
+      console.log('Actual user data from API:', actualUserData);
+      setProfileData(profileData);
       
       // Load friend status and message permissions
       await loadFriendStatus();
@@ -87,7 +254,7 @@ export default function UserProfileModal({
       setProfileData({
         id: userId,
         name: userName || 'User',
-        username: `@${userName?.toLowerCase().replace(/\s+/g, '_') || 'user'}`,
+        username: userName ? `@${userName}` : '@user',
         avatar: userAvatar,
         bio: 'No bio available',
         location: 'Location not specified',
@@ -108,24 +275,49 @@ export default function UserProfileModal({
     if (!token || !userId || userId === user?.id) return;
     
     try {
-      // First test the API connection
-      const isConnected = await friendsApi.testConnection();
-      if (!isConnected) {
-        console.error('Friends API is not accessible');
-        return;
-      }
-
-      // Get friend status
-      const statusResponse = await friendsApi.getFriendStatus(userId, token);
-      setFriendStatus(statusResponse.status);
+      console.log('Loading friend status for user:', userId);
+      console.log('Current user:', user?.id);
       
-      // Check message permissions
-      const messageResponse = await friendsApi.canMessage(userId, token);
-      setCanMessage(messageResponse.canMessage);
-      setMessagePermission(messageResponse);
+      // Use socket-based approach for consistency
+      const socket = getSocket(token);
+      
+      // Set up listeners for friend status response
+      const handleStatusResponse = (data) => {
+        console.log('Friend status response:', data);
+        socket.off('friend:status:response', handleStatusResponse);
+        
+        if (data.error) {
+          console.error('Friend status error:', data.error);
+          setFriendStatus('none');
+          setCanMessage(false);
+        } else {
+          console.log('Setting friendStatus to:', data.status);
+          setFriendStatus(data.status);
+          
+          // Set message permissions based on friend status
+          if (data.status === 'friends') {
+            setCanMessage(true);
+          } else {
+            setCanMessage(false);
+          }
+        }
+      };
+      
+      socket.on('friend:status:response', handleStatusResponse);
+      
+      // Request friend status
+      socket.emit('friend:status:get', { userId });
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        socket.off('friend:status:response', handleStatusResponse);
+      }, 5000);
       
     } catch (error) {
       console.error('Failed to load friend status:', error);
+      // Set default status on error
+      setFriendStatus('none');
+      setCanMessage(false);
     }
   };
 
@@ -170,11 +362,72 @@ export default function UserProfileModal({
     console.log('Current user:', user?.id);
     
     try {
-      await friendsApi.sendFriendRequest(userId, `Hi ${userName}! I'd like to connect with you.`, token);
+      // Use Socket.IO instead of API
+      const socket = getSocket(token);
+      socket.emit('friend:request:send', { receiverId: userId });
+      
+      // Optimistically update UI
       setFriendStatus('pending');
-      // Show success message or update UI
+      
+      // Set up listeners for response
+      const handleSent = (data) => {
+        socket.off('friend:request:sent', handleSent);
+        socket.off('friend:request:error', handleError);
+        if (data.success) {
+          Alert.alert('Friend Request Sent', `Friend request sent to ${userName}!`);
+        }
+      };
+      
+      const handleError = (error) => {
+        socket.off('friend:request:sent', handleSent);
+        socket.off('friend:request:error', handleError);
+        setFriendStatus('none'); // Revert optimistic update
+        Alert.alert('Error', error.error || 'Failed to send friend request. Please try again.');
+      };
+      
+      // Listen for responses
+      socket.on('friend:request:sent', handleSent);
+      socket.on('friend:request:error', handleError);
+      
     } catch (error) {
       console.error('Failed to send friend request:', error);
+      setFriendStatus('none'); // Revert optimistic update
+      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+    }
+  };
+
+  const handleCancelFriendRequest = async () => {
+    if (!token || !userId) return;
+    
+    console.log('Cancelling friend request to userId:', userId);
+    
+    try {
+      const result = await FriendRequestService.cancelFriendRequest(userId, token);
+      if (result.success) {
+        setFriendStatus('none');
+        Alert.alert('Request Cancelled', `Friend request to ${userName} has been cancelled.`);
+      }
+    } catch (error) {
+      console.error('Failed to cancel friend request:', error);
+      Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
+    }
+  };
+
+  const handleCancelMessageRequest = async () => {
+    if (!token || !userId) return;
+    
+    console.log('Cancelling message request to userId:', userId);
+    
+    try {
+      const result = await FriendRequestService.cancelMessageRequest(userId, token);
+      if (result.success) {
+        setCanMessage(false);
+        setMessagePermission(null);
+        Alert.alert('Request Cancelled', `Message request to ${userName} has been cancelled.`);
+      }
+    } catch (error) {
+      console.error('Failed to cancel message request:', error);
+      Alert.alert('Error', 'Failed to cancel message request. Please try again.');
     }
   };
 
@@ -213,12 +466,42 @@ export default function UserProfileModal({
     if (!token || !userId) return;
     
     try {
-      await friendsApi.removeFriend(userId, token);
-      setFriendStatus('none');
-      setShowUnfriendConfirm(false);
-      Alert.alert('Friend Removed', `You are no longer friends with ${userName}.`);
+      const socket = getSocket(token);
+      
+      // Set up listeners for unfriend response
+      const handleUnfriendConfirmed = (data) => {
+        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
+        socket.off('friend:unfriend:error', handleUnfriendError);
+        
+        if (data.success) {
+          setFriendStatus('none');
+          setCanMessage(false);
+          setMessagePermission(null);
+          setShowUnfriendConfirm(false);
+          Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
+        }
+      };
+      
+      const handleUnfriendError = (error) => {
+        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
+        socket.off('friend:unfriend:error', handleUnfriendError);
+        Alert.alert('Error', error.error || 'Failed to remove friend. Please try again.');
+      };
+      
+      socket.on('friend:unfriend:confirmed', handleUnfriendConfirmed);
+      socket.on('friend:unfriend:error', handleUnfriendError);
+      
+      // Send unfriend request
+      socket.emit('friend:unfriend', { userId });
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
+        socket.off('friend:unfriend:error', handleUnfriendError);
+      }, 10000);
+      
     } catch (error) {
-      console.error('Failed to unfriend user:', error);
+      console.error('Failed to remove friend:', error);
       Alert.alert('Error', 'Failed to remove friend. Please try again.');
     }
   };
@@ -228,7 +511,7 @@ export default function UserProfileModal({
     if (blockStatus.isBlocked) return 'Blocked';
     if (blockStatus.isBlockedBy) return 'Blocked You';
     if (friendStatus === 'friends') return 'Friends ✓';
-    if (friendStatus === 'pending') return 'Pending...';
+    if (friendStatus === 'pending') return 'Cancel Request';
     return 'Add Friend';
   };
 
@@ -240,6 +523,7 @@ export default function UserProfileModal({
     if (canMessage) return 'Message';
     if (friendStatus === 'pending') return 'Request Sent';
     if (friendStatus === 'friends') return 'Message';
+    if (messagePermission?.hasPendingRequest) return 'Cancel Request';
     return 'Send Request';
   };
 
@@ -248,15 +532,16 @@ export default function UserProfileModal({
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType={Platform.OS === 'ios' ? 'slide' : 'fade'}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         
-        <View style={[styles.container, { backgroundColor: 'red' }]}>
+        <View style={styles.container}>
           <LinearGradient
             colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)']}
             style={styles.modal}
@@ -357,6 +642,14 @@ export default function UserProfileModal({
                   </View>
                 )}
 
+                {/* Social Accounts */}
+                <View style={styles.section}>
+                  <LinkedSocialAccounts 
+                    userId={userId} 
+                    isOwnProfile={userId === user?.id} 
+                  />
+                </View>
+
                 {/* Additional Info */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Info</Text>
@@ -374,21 +667,27 @@ export default function UserProfileModal({
 
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity style={styles.actionButton} onPress={handleMessagePress}>
-                    <LinearGradient
-                      colors={['#FF6FB5', '#A16AE8']}
-                      style={styles.actionButtonGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                  {/* Only show message button for own profile (Edit Profile) */}
+                  {userId === user?.id && (
+                    <TouchableOpacity 
+                      style={styles.actionButton} 
+                      onPress={handleMessagePress}
                     >
-                      <Ionicons 
-                        name={userId === user?.id ? "create-outline" : "chatbubble-outline"} 
-                        size={20} 
-                        color="white" 
-                      />
-                      <Text style={styles.actionButtonText}>{getMessageButtonText()}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <LinearGradient
+                        colors={['#FF6FB5', '#A16AE8']}
+                        style={styles.actionButtonGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Ionicons 
+                          name="create-outline" 
+                          size={20} 
+                          color="white" 
+                        />
+                        <Text style={styles.actionButtonText}>Edit Profile</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
                   
                   {userId !== user?.id && !blockStatus.isBlockedBy && (
                     <>
@@ -397,27 +696,34 @@ export default function UserProfileModal({
                         <TouchableOpacity 
                           style={[
                             styles.actionButtonSecondary,
-                            friendStatus === 'friends' && styles.actionButtonFriends
+                            friendStatus === 'friends' && styles.actionButtonFriends,
+                            friendStatus === 'pending' && styles.actionButtonCancel
                           ]} 
                           onPress={
                             friendStatus === 'friends' 
                               ? () => setShowUnfriendConfirm(true)
-                              : handleSendFriendRequest
+                              : friendStatus === 'pending'
+                                ? handleCancelFriendRequest
+                                : handleSendFriendRequest
                           }
-                          disabled={friendStatus === 'pending'}
                         >
                           <Ionicons 
                             name={
                               friendStatus === 'friends' ? "checkmark-circle" : 
-                              friendStatus === 'pending' ? "time-outline" : 
+                              friendStatus === 'pending' ? "close-outline" : 
                               "person-add-outline"
                             } 
                             size={20} 
-                            color={friendStatus === 'friends' ? "#00AA55" : "#7C2B86"} 
+                            color={
+                              friendStatus === 'friends' ? "#00AA55" : 
+                              friendStatus === 'pending' ? "#FF4444" : 
+                              "#7C2B86"
+                            } 
                           />
                           <Text style={[
                             styles.actionButtonSecondaryText,
-                            friendStatus === 'friends' && styles.actionButtonFriendsText
+                            friendStatus === 'friends' && styles.actionButtonFriendsText,
+                            friendStatus === 'pending' && styles.actionButtonCancelText
                           ]}>
                             {getAddFriendButtonText()}
                           </Text>
@@ -479,7 +785,7 @@ export default function UserProfileModal({
                   <View style={styles.confirmDialog}>
                     <Text style={styles.confirmTitle}>Remove {userName} as friend?</Text>
                     <Text style={styles.confirmMessage}>
-                      You'll be removed from each other's friends list, but you can still message each other.
+                      You'll be removed from each other's friends list and will no longer be able to message each other.
                     </Text>
                     <View style={styles.confirmButtons}>
                       <TouchableOpacity 
@@ -517,8 +823,9 @@ export default function UserProfileModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-end',
+    zIndex: 10000,
     ...(Platform.OS === 'web' && {
       justifyContent: 'center',
       alignItems: 'center',
@@ -748,6 +1055,13 @@ const styles = StyleSheet.create({
   },
   actionButtonFriendsText: {
     color: '#00AA55',
+  },
+  actionButtonCancel: {
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  actionButtonCancelText: {
+    color: '#FF4444',
   },
   blockSection: {
     marginTop: 16,
