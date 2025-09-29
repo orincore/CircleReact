@@ -119,8 +119,8 @@ export const socialAccountsApi = {
     http.post<InstagramVerificationResponse>('/api/social/verify/instagram-session', { sessionData }, token),
 
   // Handle OAuth callbacks
-  handleSpotifyCallback: (code: string, state: string, error?: string) =>
-    http.post<CallbackResponse>('/api/social/callback/spotify', { code, state, error }),
+  handleSpotifyCallback: (code: string, state: string, token?: string | null, error?: string) =>
+    http.post<CallbackResponse>('/api/social/callback/spotify', { code, state, error }, token),
 
   handleInstagramCallback: (code: string, state: string, error?: string) =>
     http.post<CallbackResponse>('/api/social/callback/instagram', { code, state, error }),

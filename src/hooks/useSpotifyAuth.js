@@ -82,8 +82,8 @@ export const useSpotifyAuth = () => {
 
       console.log('📤 Sending callback to backend...');
       
-      // Send the authorization code to our backend
-      const result = await socialAccountsApi.handleSpotifyCallback(code, state || 'expo-auth-session');
+      // Send the authorization code to our backend with authentication token
+      const result = await socialAccountsApi.handleSpotifyCallback(code, state || 'expo-auth-session', token);
       
       if (result.success) {
         console.log('✅ Spotify account linked successfully');
