@@ -50,6 +50,7 @@ export default function InstagramStep() {
     if (!validateInstagramUsername()) return;
     
     const cleanUsername = instagramUsername.trim().replace('@', '');
+    console.log('📸 Saving Instagram username to signup data:', cleanUsername);
     setData((prev) => ({
       ...prev,
       instagramUsername: cleanUsername,

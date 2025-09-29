@@ -75,13 +75,16 @@ export default function SignupInterests() {
         phoneNumber: norm.phoneOut,
         username: norm.username,
         password: data.password,
-        about: data.about || '', // Include bio from signup data
         interests: norm.interestArr,
         needs: norm.needsArr,
-        instagramUsername: data.instagramUsername.trim(),
+        // Note: about and instagramUsername will be updated separately in summary page
       };
       // Debug: surface outgoing payload
-      try { console.log('Signup payload', payload); } catch {}
+      try { 
+        console.log('📤 Frontend signup payload:', payload);
+        console.log('📝 About field will be updated in summary page:', data.about);
+        console.log('📸 Instagram username will be updated in summary page:', data.instagramUsername);
+      } catch {}
       await signUp(payload);
       router.replace("/signup/summary");
     } catch (e) {
@@ -100,6 +103,7 @@ export default function SignupInterests() {
           password: data.password,
           interests: [],
           needs: [],
+          // Note: about and instagramUsername will be updated separately in summary page
         };
         try {
           try { console.log('Retrying signup with empty interests/needs'); } catch {}

@@ -1,15 +1,84 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
+import { useAuth } from "@/contexts/AuthContext";
+import { socialAccountsApi } from "@/src/api/social-accounts";
 
 export default function SignupSummary() {
   const router = useRouter();
   const { data } = useContext(SignupWizardContext);
+  const { updateProfile, token, user, refreshUser } = useAuth();
   const formatTitleCase = useMemo(() => (s) => (s ? s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1)).join(' ') : s), []);
+  
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateCompleted, setUpdateCompleted] = useState(false);
+  const [displayData, setDisplayData] = useState(data);
+
+  // Update profile with about and Instagram information
+  const updateProfileInformation = async () => {
+    if (!token || !data.about || !data.instagramUsername || updateCompleted) return;
+    
+    setIsUpdating(true);
+    console.log('🔄 Updating profile with about and Instagram information...');
+    
+    try {
+      // 1. Update profile with about information
+      if (data.about && data.about.trim()) {
+        console.log('📝 Updating about field:', data.about);
+        await updateProfile({
+          about: data.about.trim()
+        });
+      }
+
+      // 2. Link Instagram account
+      if (data.instagramUsername && data.instagramUsername.trim()) {
+        console.log('📸 Linking Instagram account:', data.instagramUsername);
+        
+        const cleanUsername = data.instagramUsername.trim().replace('@', '');
+        await socialAccountsApi.verifyInstagram(cleanUsername, token);
+      }
+
+      // 3. Refresh user data to get updated information
+      console.log('🔄 Refreshing user data...');
+      await refreshUser();
+      
+      setUpdateCompleted(true);
+      console.log('✅ Profile update completed successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to update profile:', error);
+      // Don't show error to user, just log it
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Run profile update when component mounts
+  useEffect(() => {
+    if (token && user && !updateCompleted && !isUpdating) {
+      // Small delay to ensure user is fully loaded
+      const timer = setTimeout(() => {
+        updateProfileInformation();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [token, user, updateCompleted, isUpdating]);
+
+  // Update display data when user data changes
+  useEffect(() => {
+    if (updateCompleted && user) {
+      setDisplayData({
+        ...data,
+        about: user.about || data.about,
+        // Add Instagram info if available
+        instagramLinked: true
+      });
+    }
+  }, [updateCompleted, user, data]);
 
   // Sparkle float + opacity animation
   const sparkleFloat = useRef(new Animated.Value(0)).current;
@@ -90,30 +159,55 @@ export default function SignupSummary() {
                   <Animated.View pointerEvents="none" style={[styles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}>
                     <LinearGradient colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.7)", "rgba(255,255,255,0)"]} start={{x:0,y:0}} end={{x:1,y:0}} style={{ flex: 1, borderRadius: 16 }} />
                   </Animated.View>
-                  <Ionicons name="checkmark" size={30} color="#7C2B86" />
                 </View>
               </LinearGradient>
             </View>
 
             <Text style={styles.title}>Hurray! Your Circle account is created</Text>
-            <Text style={styles.subtitle}>Here’s what we’ve got for you:</Text>
+            <Text style={styles.subtitle}>
+              {isUpdating ? 'Setting up your profile...' : 'Here\'s what we\'ve got for you:'}
+            </Text>
 
-            <View style={styles.summaryRow}><Text style={styles.label}>Name</Text><Text style={styles.value}>{data.firstName} {data.lastName}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Gender</Text><Text style={styles.value}>{formatTitleCase(data.gender)}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Age</Text><Text style={styles.value}>{data.age}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Username</Text><Text style={styles.value}>{data.username}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Email</Text><Text style={styles.value}>{data.email}</Text></View>
-            {data.phoneNumber ? (
-              <View style={styles.summaryRow}><Text style={styles.label}>Phone</Text><Text style={styles.value}>{data.countryCode} {data.phoneNumber}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.label}>Name</Text><Text style={styles.value}>{displayData.firstName} {displayData.lastName}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.label}>Gender</Text><Text style={styles.value}>{formatTitleCase(displayData.gender)}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.label}>Age</Text><Text style={styles.value}>{displayData.age}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.label}>Username</Text><Text style={styles.value}>{displayData.username}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.label}>Email</Text><Text style={styles.value}>{displayData.email}</Text></View>
+            {displayData.phoneNumber ? (
+              <View style={styles.summaryRow}><Text style={styles.label}>Phone</Text><Text style={styles.value}>{displayData.countryCode} {displayData.phoneNumber}</Text></View>
             ) : null}
-            {data.about ? (
-              <View style={styles.summaryBlock}><Text style={styles.label}>About</Text><Text style={styles.value}>{data.about}</Text></View>
+            
+            {/* About section with loading state */}
+            {displayData.about ? (
+              <View style={styles.summaryBlock}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>About</Text>
+                  {isUpdating && <Ionicons name="sync" size={12} color="#7C2B86" />}
+                </View>
+                <Text style={styles.value}>{displayData.about}</Text>
+              </View>
             ) : null}
-            {Array.isArray(data.interests) && data.interests.length > 0 ? (
-              <View style={styles.summaryBlock}><Text style={styles.label}>Interests</Text><Text style={styles.value}>{data.interests.join(', ')}</Text></View>
+            
+            {/* Instagram section with status */}
+            {displayData.instagramUsername ? (
+              <View style={styles.summaryBlock}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="logo-instagram" size={14} color="#E4405F" />
+                  <Text style={styles.label}>Instagram</Text>
+                  {isUpdating ? (
+                    <Ionicons name="sync" size={12} color="#7C2B86" />
+                  ) : updateCompleted ? (
+                    <Ionicons name="checkmark-circle" size={12} color="#4CAF50" />
+                  ) : null}
+                </View>
+                <Text style={styles.value}>@{displayData.instagramUsername}</Text>
+              </View>
             ) : null}
-            {Array.isArray(data.needs) && data.needs.length > 0 ? (
-              <View style={styles.summaryBlock}><Text style={styles.label}>Needs</Text><Text style={styles.value}>{data.needs.join(', ')}</Text></View>
+            {Array.isArray(displayData.interests) && displayData.interests.length > 0 ? (
+              <View style={styles.summaryBlock}><Text style={styles.label}>Interests</Text><Text style={styles.value}>{displayData.interests.join(', ')}</Text></View>
+            ) : null}
+            {Array.isArray(displayData.needs) && displayData.needs.length > 0 ? (
+              <View style={styles.summaryBlock}><Text style={styles.label}>Needs</Text><Text style={styles.value}>{displayData.needs.join(', ')}</Text></View>
             ) : null}
 
             <TouchableOpacity style={styles.cta} onPress={() => router.replace("/secure/match") }>
@@ -143,6 +237,7 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   summaryBlock: { gap: 6, paddingTop: 6 },
   label: { fontSize: 13, color: '#58468B' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   value: { fontSize: 14, color: '#1F1147', fontWeight: '600', maxWidth: '60%', textAlign: 'right' },
   cta: { marginTop: 12, backgroundColor: '#FFD6F2', borderRadius: 999, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,214,242,0.8)' },
   ctaText: { fontSize: 16, fontWeight: '800', color: '#7C2B86' },

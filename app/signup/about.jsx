@@ -42,9 +42,11 @@ export default function SignupAbout() {
   const onNext = () => {
     if (!validateAbout()) return;
     
+    const trimmedAbout = about.trim();
+    console.log('📝 Saving about/bio to signup data:', trimmedAbout);
     setData((prev) => ({
       ...prev,
-      about: about.trim(),
+      about: trimmedAbout,
     }));
     router.push("/signup/instagram");
   };
