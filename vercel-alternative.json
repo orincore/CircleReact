@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "name": "circle-social-app",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/((?!_expo|assets|favicon.ico).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/_expo/static/js/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    },
+    {
+      "source": "/_expo/static/css/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type", 
+          "value": "text/css"
+        }
+      ]
+    }
+  ]
+}
