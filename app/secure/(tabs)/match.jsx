@@ -436,13 +436,13 @@ export default function MatchScreen() {
     const socket = getSocket(token);
 
     // Listen for new friend requests
-    socket.on('friend:request:received', ({ request, sender }) => {
+    socket.on('friend:request:received', ({ request }) => {
       console.log('📨 New friend request received:', request);
-      console.log('📨 Sender info:', sender);
+      console.log('📨 Sender info:', request.sender);
       setFriendRequests(prev => [request, ...prev]);
       
       // Show alert notification
-      const senderName = sender?.first_name || 'Someone';
+      const senderName = request.sender?.first_name || 'Someone';
       Alert.alert(
         'Friend Request',
         `${senderName} wants to be your friend`,
