@@ -140,6 +140,19 @@ export default function UserProfileModal({
           const { circleStatsApi } = await import('@/src/api/circle-stats');
           await circleStatsApi.recordProfileVisit(userId, token);
           console.log('✅ Profile visit recorded for user:', userId);
+          
+          // Send profile visit notification to the profile owner
+          try {
+            const socket = getSocket(token);
+            socket.emit('profile:visit', {
+              profileOwnerId: userId,
+              visitorId: user.id,
+              visitorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Someone'
+            });
+            console.log('✅ Profile visit notification sent');
+          } catch (notificationError) {
+            console.log('❌ Failed to send profile visit notification:', notificationError);
+          }
         } catch (visitError) {
           console.log('❌ Failed to record profile visit:', visitError);
         }

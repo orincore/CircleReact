@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSocket } from '@/src/api/socket';
 import socketService from '@/src/services/socketService';
 import { chatApi } from '@/src/api/chat';
+import { notificationApi } from '@/src/api/notifications';
 import NotificationPanel from './NotificationPanel';
 
 const TAB_COLORS = {
@@ -61,13 +62,16 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   const loadNotificationCount = async () => {
     try {
-      // Request notification count via Socket.IO
-      const socket = getSocket(token);
-      socket.emit('notifications:get', {});
-      
-      // The count will be updated by the socket listener
+      console.log('🔔 Loading notification count from API...');
+      const response = await notificationApi.getUnreadCount(token);
+      if (response.success) {
+        console.log('✅ Notification count loaded:', response.count);
+        setNotificationCount(response.count);
+      } else {
+        console.error('❌ Failed to load notification count:', response.error);
+      }
     } catch (error) {
-      console.error('Failed to load notification count:', error);
+      console.error('❌ Error loading notification count:', error);
     }
   };
   
@@ -100,12 +104,13 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   const setupSocketListeners = () => {
     const socket = getSocket(token);
     
-    // Listen for notifications list to update count
-    socket.on('notifications:list', ({ notifications }) => {
-      const pendingCount = (notifications || []).filter(req => req.status === 'pending').length;
-      setNotificationCount(pendingCount);
+    // Listen for new notifications
+    socket.on('notification:new', ({ notification }) => {
+      console.log('🔔 New notification received in tab bar:', notification);
+      setNotificationCount(prev => prev + 1);
     });
     
+    // Keep existing friend request listeners for compatibility
     socket.on('friend:request:received', () => {
       setNotificationCount(prev => prev + 1);
     });
@@ -179,7 +184,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   const cleanupSocketListeners = () => {
     const socket = getSocket(token);
-    socket.off('notifications:list');
+    socket.off('notification:new');
     socket.off('friend:request:received');
     socket.off('friend:request:accept:confirmed');
     socket.off('friend:request:decline:confirmed');
