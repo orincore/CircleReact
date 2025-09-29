@@ -16,6 +16,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
 import InstagramWebViewVerification from './InstagramWebViewVerification';
+import { useSpotifyAuth } from '@/src/hooks/useSpotifyAuth';
 
 const SocialAccountsManager = ({ onClose }) => {
   const { token } = useAuth();
@@ -23,6 +24,9 @@ const SocialAccountsManager = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [linkingPlatform, setLinkingPlatform] = useState(null);
   const [showInstagramWebView, setShowInstagramWebView] = useState(false);
+  
+  // Spotify auth hook
+  const { startSpotifyAuth, isLoading: spotifyLoading, error: spotifyError } = useSpotifyAuth();
 
   useEffect(() => {
     loadLinkedAccounts();
@@ -40,43 +44,36 @@ const SocialAccountsManager = ({ onClose }) => {
       setLoading(false);
     }
   };
-
   const handleLinkAccount = async (platform) => {
     try {
       setLinkingPlatform(platform);
       
       if (platform === 'spotify') {
-        // Detect current platform
-        const currentPlatform = Platform.OS; // 'ios', 'android', or 'web'
-        console.log('🔧 Linking Spotify on platform:', currentPlatform);
+        console.log('Starting Spotify authentication with expo-auth-session...');
         
-        const response = await socialAccountsApi.linkSpotify(currentPlatform, token);
+        const result = await startSpotifyAuth();
         
-        if (response.authUrl) {
-          // Open OAuth URL in browser
-          const supported = await Linking.canOpenURL(response.authUrl);
-          if (supported) {
-            await Linking.openURL(response.authUrl);
-            
-            // Show instructions to user
-            Alert.alert(
-              'Complete Authentication',
-              `Please complete the ${platform} authentication in your browser. The app will automatically refresh when you return.`,
-              [
-                {
-                  text: 'I\'ve completed authentication',
-                  onPress: () => {
-                    // Refresh accounts after user confirms
-                    setTimeout(() => {
-                      loadLinkedAccounts();
-                    }, 1000);
-                  }
-                }
-              ]
-            );
-          } else {
-            Alert.alert('Error', 'Cannot open authentication URL');
-          }
+        if (result.type === 'success') {
+          Alert.alert(
+            'Success!',
+            'Spotify account linked successfully!',
+            [{ 
+              text: 'OK', 
+              onPress: () => {
+                setTimeout(() => {
+                  loadLinkedAccounts(); // Refresh the accounts list
+                }, 1000);
+              }
+            }]
+          );
+        } else if (result.type === 'error') {
+          Alert.alert(
+            'Authentication Error',
+            spotifyError || 'Failed to link Spotify account. Please try again.',
+            [{ text: 'OK' }]
+          );
+        } else if (result.type === 'cancel') {
+          console.log('User cancelled Spotify authentication');
         }
       } else if (platform === 'instagram') {
         // Use WebView verification for Instagram
@@ -266,9 +263,9 @@ const SocialAccountsManager = ({ onClose }) => {
                 <TouchableOpacity
                   style={[styles.actionButton, styles.linkButton]}
                   onPress={() => handleLinkAccount('spotify')}
-                  disabled={linkingPlatform === 'spotify'}
+                  disabled={linkingPlatform === 'spotify' || spotifyLoading}
                 >
-                  {linkingPlatform === 'spotify' ? (
+                  {(linkingPlatform === 'spotify' || spotifyLoading) ? (
                     <ActivityIndicator size="small" color="white" />
                   ) : (
                     <Text style={styles.linkButtonText}>Link</Text>
