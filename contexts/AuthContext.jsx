@@ -88,7 +88,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     
     // Cleanup socket service
-    socketService.cleanup();
+    socketService.disconnect();
     
     // Stop location tracking on logout
     try {

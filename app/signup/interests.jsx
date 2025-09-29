@@ -75,6 +75,7 @@ export default function SignupInterests() {
         phoneNumber: norm.phoneOut,
         username: norm.username,
         password: data.password,
+        about: data.about || '', // Include bio from signup data
         interests: norm.interestArr,
         needs: norm.needsArr,
         instagramUsername: data.instagramUsername.trim(),
