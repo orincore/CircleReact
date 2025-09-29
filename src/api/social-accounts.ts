@@ -103,8 +103,8 @@ export const socialAccountsApi = {
     http.get<{ accounts: LinkedAccount[] }>(`/api/social/user/${userId}/linked-accounts`, token),
 
   // Start Spotify OAuth flow
-  linkSpotify: (token?: string | null) =>
-    http.post<LinkAccountResponse>('/api/social/link/spotify', {}, token),
+  linkSpotify: (platform?: string, token?: string | null) =>
+    http.post<LinkAccountResponse>('/api/social/link/spotify', { platform }, token),
 
   // Start Instagram OAuth flow (legacy)
   linkInstagram: (token?: string | null) =>

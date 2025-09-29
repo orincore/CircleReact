@@ -9,7 +9,8 @@ import {
   Image,
   Switch,
   Linking,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,7 +46,11 @@ const SocialAccountsManager = ({ onClose }) => {
       setLinkingPlatform(platform);
       
       if (platform === 'spotify') {
-        const response = await socialAccountsApi.linkSpotify(token);
+        // Detect current platform
+        const currentPlatform = Platform.OS; // 'ios', 'android', or 'web'
+        console.log('🔧 Linking Spotify on platform:', currentPlatform);
+        
+        const response = await socialAccountsApi.linkSpotify(currentPlatform, token);
         
         if (response.authUrl) {
           // Open OAuth URL in browser
