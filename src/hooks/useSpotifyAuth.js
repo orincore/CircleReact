@@ -35,17 +35,8 @@ export const useSpotifyAuth = () => {
   if (Platform.OS === 'web') {
     redirectUri = 'https://circle.orincore.com/auth/spotify/callback';
   } else {
-    // For mobile, use a more predictable pattern
-    redirectUri = AuthSession.makeRedirectUri({
-      scheme: 'exp',
-      path: 'auth/spotify/callback',
-      preferLocalhost: true, // This helps with consistency
-    });
-    
-    // Fallback to a known pattern if needed
-    if (!redirectUri || redirectUri.includes('undefined')) {
-      redirectUri = 'exp://127.0.0.1:8081/--/auth/spotify/callback';
-    }
+    // Use a custom scheme for better reliability
+    redirectUri = 'circle://auth/spotify/callback';
   }
 
   console.log('🔧 Spotify Auth Config:');
