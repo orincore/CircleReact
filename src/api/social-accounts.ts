@@ -2,7 +2,7 @@ import { http } from "./http";
 
 export interface LinkedAccount {
   id: string;
-  platform: 'spotify' | 'instagram';
+  platform: 'instagram';
   platform_username: string;
   platform_display_name: string;
   platform_profile_url?: string;
@@ -11,65 +11,14 @@ export interface LinkedAccount {
   is_public: boolean;
   linked_at: string;
   platform_data?: {
-    // Spotify specific
-    followers?: number;
-    country?: string;
-    subscription?: string;
-    top_artists?: Array<{
-      name: string;
-      genres: string[];
-      popularity: number;
-      image?: string;
-      external_url?: string;
-    }>;
-    top_tracks?: Array<{
-      name: string;
-      artist: string;
-      album: string;
-      popularity: number;
-      preview_url?: string;
-      image?: string;
-      external_url?: string;
-    }>;
-    top_genres?: string[];
-    playlists_count?: number;
-    public_playlists?: Array<{
-      name: string;
-      description?: string;
-      tracks: number;
-      image?: string;
-      external_url?: string;
-    }>;
-    recently_played?: Array<{
-      track: string;
-      artist: string;
-      played_at: string;
-      image?: string;
-    }>;
-    last_updated?: string;
-    
     // Instagram specific
     account_type?: string;
     media_count?: number;
-  };
-}
-
-export interface LinkAccountResponse {
-  authUrl: string;
-  state: string;
-}
-
-export interface CallbackResponse {
-  success: boolean;
-  message: string;
-  account?: {
-    platform: string;
-    username: string;
-    profile_url?: string;
-    avatar_url?: string;
     verification_method?: string;
+    verified_at?: string;
   };
 }
+
 
 export interface InstagramVerificationResponse {
   success: boolean;
@@ -102,31 +51,14 @@ export const socialAccountsApi = {
   getUserLinkedAccounts: (userId: string, token?: string | null) =>
     http.get<{ accounts: LinkedAccount[] }>(`/api/social/user/${userId}/linked-accounts`, token),
 
-  // Start Spotify OAuth flow
-  linkSpotify: (platform?: string, token?: string | null) =>
-    http.post<LinkAccountResponse>('/api/social/link/spotify', { platform }, token),
 
-  // Start Instagram OAuth flow (legacy)
-  linkInstagram: (token?: string | null) =>
-    http.post<LinkAccountResponse>('/api/social/link/instagram', {}, token),
-
-  // Verify Instagram account via WebView (legacy - manual input)
+  // Verify Instagram account via manual input
   verifyInstagram: (username: string, token?: string | null) =>
     http.post<InstagramVerificationResponse>('/api/social/verify/instagram', { username }, token),
 
-  // Verify Instagram account via session detection (automatic)
-  verifyInstagramSession: (sessionData: { username: string; [key: string]: any }, token?: string | null) =>
-    http.post<InstagramVerificationResponse>('/api/social/verify/instagram-session', { sessionData }, token),
-
-  // Handle OAuth callbacks
-  handleSpotifyCallback: (code: string, state: string, token?: string | null, error?: string) =>
-    http.post<CallbackResponse>('/api/social/callback/spotify', { code, state, error }, token),
-
-  handleInstagramCallback: (code: string, state: string, error?: string) =>
-    http.post<CallbackResponse>('/api/social/callback/instagram', { code, state, error }),
 
   // Unlink a social account
-  unlinkAccount: (platform: 'spotify' | 'instagram', token?: string | null) =>
+  unlinkAccount: (platform: 'instagram', token?: string | null) =>
     http.delete<UnlinkAccountResponse>(`/api/social/unlink/${platform}`, token),
 
   // Update account visibility

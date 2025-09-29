@@ -15,18 +15,13 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
-import InstagramWebViewVerification from './InstagramWebViewVerification';
-import { useSpotifyAuth } from '@/src/hooks/useSpotifyAuth';
 
 const SocialAccountsManager = ({ onClose }) => {
   const { token } = useAuth();
   const [linkedAccounts, setLinkedAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [linkingPlatform, setLinkingPlatform] = useState(null);
-  const [showInstagramWebView, setShowInstagramWebView] = useState(false);
   
-  // Spotify auth hook
-  const { startSpotifyAuth, isLoading: spotifyLoading, error: spotifyError } = useSpotifyAuth();
 
   useEffect(() => {
     loadLinkedAccounts();
@@ -48,35 +43,8 @@ const SocialAccountsManager = ({ onClose }) => {
     try {
       setLinkingPlatform(platform);
       
-      if (platform === 'spotify') {
-        console.log('Starting Spotify authentication with expo-auth-session...');
-        
-        const result = await startSpotifyAuth();
-        
-        if (result.type === 'success') {
-          Alert.alert(
-            'Success!',
-            'Spotify account linked successfully!',
-            [{ 
-              text: 'OK', 
-              onPress: () => {
-                setTimeout(() => {
-                  loadLinkedAccounts(); // Refresh the accounts list
-                }, 1000);
-              }
-            }]
-          );
-        } else if (result.type === 'error') {
-          Alert.alert(
-            'Authentication Error',
-            spotifyError || 'Failed to link Spotify account. Please try again.',
-            [{ text: 'OK' }]
-          );
-        } else if (result.type === 'cancel') {
-          console.log('User cancelled Spotify authentication');
-        }
-      } else if (platform === 'instagram') {
-        // Temporarily use manual verification while fixing Facebook App
+      if (platform === 'instagram') {
+        // Manual Instagram username entry
         const username = prompt('Enter your Instagram username:');
         if (username) {
           try {
@@ -87,10 +55,12 @@ const SocialAccountsManager = ({ onClose }) => {
             Alert.alert('Error', error.message || 'Failed to verify Instagram account');
           }
         }
+      } else {
+        Alert.alert('Error', 'Invalid platform');
       }
     } catch (error) {
       console.error(`Failed to link ${platform}:`, error);
-      Alert.alert('Error', `Failed to start ${platform} authentication`);
+      Alert.alert('Error', `Failed to verify ${platform} account`);
     } finally {
       setLinkingPlatform(null);
     }
@@ -162,8 +132,6 @@ const SocialAccountsManager = ({ onClose }) => {
 
   const getPlatformIcon = (platform) => {
     switch (platform) {
-      case 'spotify':
-        return 'musical-notes';
       case 'instagram':
         return 'camera';
       default:
@@ -173,8 +141,6 @@ const SocialAccountsManager = ({ onClose }) => {
 
   const getPlatformColor = (platform) => {
     switch (platform) {
-      case 'spotify':
-        return '#1DB954';
       case 'instagram':
         return '#E4405F';
       default:
@@ -183,14 +149,7 @@ const SocialAccountsManager = ({ onClose }) => {
   };
 
   const formatPlatformData = (account) => {
-    if (account.platform === 'spotify' && account.platform_data) {
-      const data = account.platform_data;
-      return [
-        data.followers && `${data.followers} followers`,
-        data.playlists_count && `${data.playlists_count} playlists`,
-        data.top_artists?.length && `Top artists: ${data.top_artists.slice(0, 2).map(a => a.name).join(', ')}`
-      ].filter(Boolean).join(' • ');
-    } else if (account.platform === 'instagram' && account.platform_data) {
+    if (account.platform === 'instagram' && account.platform_data) {
       const data = account.platform_data;
       const info = [];
       
@@ -248,42 +207,6 @@ const SocialAccountsManager = ({ onClose }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Available Platforms</Text>
           
-          {/* Spotify */}
-          <View style={styles.platformCard}>
-            <View style={styles.platformHeader}>
-              <View style={styles.platformInfo}>
-                <View style={[styles.platformIcon, { backgroundColor: getPlatformColor('spotify') }]}>
-                  <Ionicons name={getPlatformIcon('spotify')} size={24} color="white" />
-                </View>
-                <View>
-                  <Text style={styles.platformName}>Spotify</Text>
-                  <Text style={styles.platformDescription}>Share your music taste and top artists</Text>
-                </View>
-              </View>
-              
-              {isAccountLinked('spotify') ? (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.unlinkButton]}
-                  onPress={() => handleUnlinkAccount('spotify')}
-                >
-                  <Text style={styles.unlinkButtonText}>Unlink</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.linkButton]}
-                  onPress={() => handleLinkAccount('spotify')}
-                  disabled={linkingPlatform === 'spotify' || spotifyLoading}
-                >
-                  {(linkingPlatform === 'spotify' || spotifyLoading) ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text style={styles.linkButtonText}>Link</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
           {/* Instagram */}
           <View style={styles.platformCard}>
             <View style={styles.platformHeader}>
@@ -293,7 +216,7 @@ const SocialAccountsManager = ({ onClose }) => {
                 </View>
                 <View>
                   <Text style={styles.platformName}>Instagram</Text>
-                  <Text style={styles.platformDescription}>Verify your Instagram account ownership</Text>
+                  <Text style={styles.platformDescription}>Manually verify your Instagram username</Text>
                 </View>
               </View>
               
@@ -380,13 +303,6 @@ const SocialAccountsManager = ({ onClose }) => {
         </View>
       </ScrollView>
 
-      {/* Instagram WebView Verification Modal */}
-      <InstagramWebViewVerification
-        visible={showInstagramWebView}
-        onClose={() => setShowInstagramWebView(false)}
-        onSuccess={handleInstagramVerificationSuccess}
-        token={token}
-      />
     </View>
   );
 };
