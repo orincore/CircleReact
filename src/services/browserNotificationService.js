@@ -227,16 +227,16 @@ class BrowserNotificationService {
 
   // Message notifications
   showMessageNotification({ senderName, message, chatId, senderId }) {
-    const truncatedMessage = message.length > 50 ? message.substring(0, 50) + '...' : message;
+    const truncatedMessage = message && message.length > 50 ? message.substring(0, 50) + '...' : message || 'New message';
     
     return this.showNotification({
-      title: `💬 ${senderName}`,
-      body: truncatedMessage,
+      title: 'Circle New message',
+      body: `by ${senderName}: ${truncatedMessage}`,
       tag: `message_${chatId}`,
       data: { type: 'message', chatId, senderId },
       onClick: (data) => {
-        // Navigate to chat
-        window.location.hash = `/secure/chat/${chatId}`;
+        // Navigate to the specific chat
+        window.location.hash = `/secure/chat-conversation?conversationId=${data.chatId}`;
       }
     });
   }

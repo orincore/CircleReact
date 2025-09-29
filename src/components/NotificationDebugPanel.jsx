@@ -313,6 +313,74 @@ export default function NotificationDebugPanel() {
     }
   };
 
+  const testRealSocketEvents = () => {
+    addTestResult('Real Socket Events', 'info', 'Testing real socket event handlers...');
+    
+    try {
+      // Import the socket to test event emission
+      import('../api/socket').then(({ getSocket }) => {
+        const socket = getSocket(token);
+        
+        if (!socket || !socket.connected) {
+          addTestResult('Real Socket Events', 'error', 'Socket not connected');
+          return;
+        }
+
+        // Test message notification
+        const testMessageData = {
+          message: {
+            id: 'test_' + Date.now(),
+            content: 'This is a test message for notifications',
+            created_at: new Date().toISOString()
+          },
+          sender: {
+            id: 'test_sender_123',
+            first_name: 'Test',
+            last_name: 'User',
+            username: 'testuser'
+          },
+          chatId: 'test_chat_different_from_current' // Different from current chat to trigger notification
+        };
+
+        // Emit the actual socket event that should trigger notification
+        console.log('🧪 Manually emitting chat:message:received event:', testMessageData);
+        
+        // Simulate the server sending this event
+        socket.emit('chat:message:received', testMessageData);
+        
+        // Also trigger the event handler directly to test
+        setTimeout(() => {
+          console.log('🧪 Triggering event handler directly...');
+          
+          // This simulates what happens when the server sends the event
+          const eventHandlers = socket.listeners('chat:message:received');
+          console.log('🔍 Found event handlers:', eventHandlers.length);
+          
+          if (eventHandlers.length > 0) {
+            eventHandlers.forEach(handler => {
+              try {
+                handler(testMessageData);
+                addTestResult('Real Socket Events', 'success', 'Event handler executed - check for notification');
+              } catch (error) {
+                addTestResult('Real Socket Events', 'error', `Handler error: ${error.message}`);
+              }
+            });
+          } else {
+            addTestResult('Real Socket Events', 'error', 'No event handlers found for chat:message:received');
+          }
+        }, 1000);
+
+        addTestResult('Real Socket Events', 'info', 'Socket event test initiated - check console logs');
+        
+      }).catch(error => {
+        addTestResult('Real Socket Events', 'error', `Import error: ${error.message}`);
+      });
+      
+    } catch (error) {
+      addTestResult('Real Socket Events', 'error', `Failed to test socket events: ${error.message}`);
+    }
+  };
+
   const clearResults = () => {
     setTestResults([]);
   };
@@ -490,6 +558,11 @@ export default function NotificationDebugPanel() {
             <TouchableOpacity style={[styles.testButton, { backgroundColor: '#2196F3' }]} onPress={testSocketReconnection}>
               <Ionicons name="refresh-circle" size={16} color="#FFFFFF" />
               <Text style={styles.testButtonText}>Reconnect</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.testButton, { backgroundColor: '#9C27B0' }]} onPress={testRealSocketEvents}>
+              <Ionicons name="radio" size={16} color="#FFFFFF" />
+              <Text style={styles.testButtonText}>Test Events</Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={[styles.testButton, styles.clearButton]} onPress={clearResults}>

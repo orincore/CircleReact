@@ -16,44 +16,19 @@ export default function useBrowserNotifications() {
 
   useEffect(() => {
     // Only run on web platform
-    if (Platform.OS !== 'web' || !token || !user) return;
+    if (Platform.OS !== 'web' || !token || !user) {
+      console.log('🔔 Skipping browser notifications:', { 
+        platform: Platform.OS, 
+        hasToken: !!token, 
+        hasUser: !!user 
+      });
+      return;
+    }
+
+    console.log('🔔 Initializing browser notifications for user:', user.id);
 
     const socket = getSocket(token);
     socketRef.current = socket;
-
-    // Handle connection state changes
-    const handleConnectionChange = (state) => {
-      console.log('🔔 Notification hook - connection state changed:', state);
-      
-      if (state === 'connected') {
-        console.log('🔔 Socket reconnected - re-registering notification listeners');
-        // Re-register all event listeners when reconnected
-        registerEventListeners(socket);
-      } else if (state === 'disconnected' || state === 'reconnecting') {
-        console.log('🔔 Socket disconnected - notifications may be delayed');
-      }
-    };
-
-    socketService.addConnectionListener(handleConnectionChange);
-
-    // Register event listeners
-    const registerEventListeners = (socket) => {
-      // Remove existing listeners to avoid duplicates
-      socket.off('friend:request:received', handleFriendRequestReceived);
-      socket.off('friend:request:accepted', handleFriendRequestAccepted);
-      socket.off('chat:message:received', handleMessageReceived);
-      socket.off('message:request:received', handleMessageRequestReceived);
-      socket.off('matchmaking:proposal', handleMatchFound);
-      socket.off('chat:reaction:received', handleReactionReceived);
-
-      // Register fresh listeners
-      socket.on('friend:request:received', handleFriendRequestReceived);
-      socket.on('friend:request:accepted', handleFriendRequestAccepted);
-      socket.on('chat:message:received', handleMessageReceived);
-      socket.on('message:request:received', handleMessageRequestReceived);
-      socket.on('matchmaking:proposal', handleMatchFound);
-      socket.on('chat:reaction:received', handleReactionReceived);
-    };
 
     // Friend request notifications
     const handleFriendRequestReceived = ({ request }) => {
@@ -181,6 +156,149 @@ export default function useBrowserNotifications() {
       });
     };
 
+    // Register event listeners function
+    const registerEventListeners = (socket) => {
+      console.log('🔔 Registering notification event listeners...');
+      
+      // Remove existing listeners to avoid duplicates
+      socket.off('friend:request:received', handleFriendRequestReceived);
+      socket.off('friend:request:accepted', handleFriendRequestAccepted);
+      socket.off('chat:message:received', handleMessageReceived);
+      socket.off('chat:message:background'); // Remove background message listener
+      socket.off('message:request:received', handleMessageRequestReceived);
+      socket.off('matchmaking:proposal', handleMatchFound);
+      socket.off('chat:reaction:received', handleReactionReceived);
+
+      // Register fresh listeners with debug logging
+      socket.on('friend:request:received', (data) => {
+        console.log('🔔 RAW friend:request:received event:', data);
+        handleFriendRequestReceived(data);
+      });
+      
+      socket.on('friend:request:accepted', (data) => {
+        console.log('🔔 RAW friend:request:accepted event:', data);
+        handleFriendRequestAccepted(data);
+      });
+      
+      // Listen for BOTH message events (the actual event name is chat:message:background)
+      socket.on('chat:message:received', (data) => {
+        console.log('🔔 RAW chat:message:received event:', data);
+        handleMessageReceived(data);
+      });
+      
+      socket.on('chat:message:background', (data) => {
+        console.log('🔔 RAW chat:message:background event:', data);
+        
+        // The actual data is nested under 'message' property
+        const rawMessage = data.message || data;
+        
+        console.log('🔍 Available sender data:', {
+          senderName: rawMessage.senderName,
+          senderUsername: rawMessage.senderUsername,
+          senderId: rawMessage.senderId,
+          sender: rawMessage.sender,
+          text: rawMessage.text,
+          chatId: rawMessage.chatId
+        });
+        
+        // Safe date conversion
+        let createdAt;
+        try {
+          if (rawMessage.createdAt) {
+            // Handle both timestamp (number) and ISO string formats
+            const date = typeof rawMessage.createdAt === 'number' 
+              ? new Date(rawMessage.createdAt) 
+              : new Date(rawMessage.createdAt);
+            
+            if (isNaN(date.getTime())) {
+              throw new Error('Invalid date');
+            }
+            createdAt = date.toISOString();
+          } else {
+            createdAt = new Date().toISOString(); // Fallback to current time
+          }
+        } catch (error) {
+          console.warn('🔔 Invalid createdAt value, using current time:', rawMessage.createdAt);
+          createdAt = new Date().toISOString();
+        }
+        
+        // Extract sender name from available data
+        let senderDisplayName = 'Someone';
+        if (rawMessage.senderName) {
+          senderDisplayName = rawMessage.senderName;
+        } else if (rawMessage.senderUsername) {
+          senderDisplayName = rawMessage.senderUsername;
+        } else if (rawMessage.sender?.first_name) {
+          senderDisplayName = `${rawMessage.sender.first_name} ${rawMessage.sender.last_name || ''}`.trim();
+        }
+
+        // Convert the background message format to the expected format
+        const convertedMessageData = {
+          message: {
+            id: rawMessage.id || 'unknown_' + Date.now(),
+            content: rawMessage.text || '',
+            text: rawMessage.text || '',
+            created_at: createdAt
+          },
+          sender: {
+            id: rawMessage.senderId || 'unknown_sender',
+            first_name: rawMessage.senderName?.split(' ')[0] || senderDisplayName.split(' ')[0] || 'Someone',
+            last_name: rawMessage.senderName?.split(' ').slice(1).join(' ') || senderDisplayName.split(' ').slice(1).join(' ') || '',
+            username: rawMessage.senderUsername || 'user'
+          },
+          chatId: rawMessage.chatId || 'unknown_chat'
+        };
+        
+        console.log('🔔 Converted message data for notification:', convertedMessageData);
+        handleMessageReceived(convertedMessageData);
+      });
+      
+      socket.on('message:request:received', (data) => {
+        console.log('🔔 RAW message:request:received event:', data);
+        handleMessageRequestReceived(data);
+      });
+      
+      socket.on('matchmaking:proposal', (data) => {
+        console.log('🔔 RAW matchmaking:proposal event:', data);
+        handleMatchFound(data);
+      });
+      
+      socket.on('chat:reaction:received', (data) => {
+        console.log('🔔 RAW chat:reaction:received event:', data);
+        handleReactionReceived(data);
+      });
+
+      // Listen for ALL socket events to debug
+      const originalEmit = socket.emit;
+      socket.emit = function(...args) {
+        console.log('📤 Socket EMIT:', args[0], args.slice(1));
+        return originalEmit.apply(this, args);
+      };
+
+      // Log all incoming events
+      socket.onAny((eventName, ...args) => {
+        console.log('📥 Socket RECEIVED:', eventName, args);
+      });
+      
+      console.log('✅ Notification event listeners registered with debug logging');
+    };
+
+    // Handle connection state changes
+    const handleConnectionChange = (state) => {
+      console.log('🔔 Notification hook - connection state changed:', state);
+      
+      if (state === 'connected') {
+        console.log('🔔 Socket reconnected - re-registering notification listeners');
+        // Re-register all event listeners when reconnected
+        registerEventListeners(socket);
+      } else if (state === 'disconnected' || state === 'reconnecting') {
+        console.log('🔔 Socket disconnected - notifications may be delayed');
+      }
+    };
+
+    // Add connection listener
+    socketService.addConnectionListener(handleConnectionChange);
+
     // Initial registration of event listeners
     registerEventListeners(socket);
 
@@ -192,6 +310,7 @@ export default function useBrowserNotifications() {
         socketRef.current.off('friend:request:received', handleFriendRequestReceived);
         socketRef.current.off('friend:request:accepted', handleFriendRequestAccepted);
         socketRef.current.off('chat:message:received', handleMessageReceived);
+        socketRef.current.off('chat:message:background'); // Remove background message listener
         socketRef.current.off('message:request:received', handleMessageRequestReceived);
         socketRef.current.off('matchmaking:proposal', handleMatchFound);
         socketRef.current.off('chat:reaction:received', handleReactionReceived);
