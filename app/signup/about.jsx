@@ -46,7 +46,7 @@ export default function SignupAbout() {
       ...prev,
       about: about.trim(),
     }));
-    router.push("/signup/interests");
+    router.push("/signup/instagram");
   };
 
   const onBack = () => {

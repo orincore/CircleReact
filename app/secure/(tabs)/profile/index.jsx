@@ -1,21 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image, RefreshControl } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image, RefreshControl, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { socialAccountsApi } from "@/src/api/social-accounts";
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, updateProfile, refreshUser, logOut } = useAuth();
+  const { user, updateProfile, refreshUser, logOut, token } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const [linkedAccounts, setLinkedAccounts] = useState([]);
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "User";
   const detailsParts = [];
   if (typeof user?.age === "number") detailsParts.push(String(user.age));
   if (user?.gender) detailsParts.push(user.gender);
   const displayDetails = detailsParts.join(" · ") || "";
+
+  const loadLinkedAccounts = async () => {
+    try {
+      if (token) {
+        const response = await socialAccountsApi.getLinkedAccounts(token);
+        setLinkedAccounts(response.accounts || []);
+      }
+    } catch (error) {
+      console.error('Failed to load linked accounts:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLinkedAccounts();
+  }, [token]);
 
   const handleEdit = async () => {
     try {
@@ -54,6 +71,7 @@ export default function ProfileScreen() {
                 try {
                   setRefreshing(true);
                   await refreshUser();
+                  await loadLinkedAccounts();
                 } finally {
                   setRefreshing(false);
                 }
@@ -178,6 +196,44 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
+
+          {/* Linked Accounts Section */}
+          {linkedAccounts.length > 0 && (
+            <View style={styles.detailsCard}>
+              <Text style={styles.sectionTitle}>Linked Accounts</Text>
+              {linkedAccounts.map((account, index) => (
+                <View key={account.id}>
+                  {index > 0 && <View style={styles.divider} />}
+                  <TouchableOpacity 
+                    style={styles.linkedAccountRow}
+                    onPress={() => {
+                      if (account.platform_profile_url) {
+                        Linking.openURL(account.platform_profile_url);
+                      }
+                    }}
+                  >
+                    <View style={styles.detailLeft}>
+                      <View style={[styles.socialIcon, { backgroundColor: '#E4405F' }]}>
+                        <Ionicons name="logo-instagram" size={16} color="#FFFFFF" />
+                      </View>
+                      <View>
+                        <Text style={styles.detailLabel}>Instagram</Text>
+                        <Text style={styles.socialUsername}>@{account.platform_username}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.socialActions}>
+                      {account.is_public && (
+                        <View style={styles.publicBadge}>
+                          <Text style={styles.publicBadgeText}>Public</Text>
+                        </View>
+                      )}
+                      <Ionicons name="open-outline" size={16} color="#FFD6F2" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.actionsSection}>
             <TouchableOpacity style={styles.actionRow}>
@@ -461,5 +517,43 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.18)",
     bottom: 10,
     left: -80,
+  },
+  // Linked accounts styles
+  linkedAccountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  socialIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  socialUsername: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.6)",
+    marginTop: 2,
+  },
+  socialActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  publicBadge: {
+    backgroundColor: "rgba(76, 175, 80, 0.2)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(76, 175, 80, 0.3)",
+  },
+  publicBadgeText: {
+    fontSize: 10,
+    color: "#4CAF50",
+    fontWeight: "600",
   },
 });

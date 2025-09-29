@@ -14,6 +14,7 @@ export default function SignupLayout() {
     email: "",
     countryCode: "+1",
     phoneNumber: "",
+    instagramUsername: "",
     interests: [],
     needs: [],
   });
@@ -25,6 +26,8 @@ export default function SignupLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="contact" />
+        <Stack.Screen name="about" />
+        <Stack.Screen name="instagram" />
         <Stack.Screen name="interests" />
         <Stack.Screen name="summary" />
       </Stack>

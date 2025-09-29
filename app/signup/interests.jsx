@@ -64,6 +64,7 @@ export default function SignupInterests() {
       if (!/[^@\s]+@[^@\s]+\.[^@\s]+/.test(norm.email)) return alert('Please enter a valid email');
       if (!norm.age || norm.age < 13 || norm.age > 120) return alert('Please select a valid age (13-120)');
       if (norm.phoneOut && norm.phoneOut.replace(/[^0-9]/g, '').length < 5) return alert('Phone should be at least 5 digits');
+      if (!data.instagramUsername || data.instagramUsername.trim().length < 1) return alert('Instagram username is required');
 
       const payload = {
         firstName: norm.firstName,
@@ -76,6 +77,7 @@ export default function SignupInterests() {
         password: data.password,
         interests: norm.interestArr,
         needs: norm.needsArr,
+        instagramUsername: data.instagramUsername.trim(),
       };
       // Debug: surface outgoing payload
       try { console.log('Signup payload', payload); } catch {}

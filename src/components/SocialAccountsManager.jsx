@@ -10,7 +10,9 @@ import {
   Switch,
   Linking,
   ScrollView,
-  Platform
+  Platform,
+  Modal,
+  TextInput
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +23,8 @@ const SocialAccountsManager = ({ onClose }) => {
   const [linkedAccounts, setLinkedAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [linkingPlatform, setLinkingPlatform] = useState(null);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
   
 
   useEffect(() => {
@@ -44,17 +48,9 @@ const SocialAccountsManager = ({ onClose }) => {
       setLinkingPlatform(platform);
       
       if (platform === 'instagram') {
-        // Manual Instagram username entry
-        const username = prompt('Enter your Instagram username:');
-        if (username) {
-          try {
-            const result = await socialAccountsApi.verifyInstagram(username.replace('@', ''), token);
-            Alert.alert('Success!', 'Instagram account linked successfully!');
-            setTimeout(() => loadLinkedAccounts(), 1000);
-          } catch (error) {
-            Alert.alert('Error', error.message || 'Failed to verify Instagram account');
-          }
-        }
+        // Show username input modal
+        setUsernameInput('');
+        setShowUsernameModal(true);
       } else {
         Alert.alert('Error', 'Invalid platform');
       }
@@ -63,6 +59,27 @@ const SocialAccountsManager = ({ onClose }) => {
       Alert.alert('Error', `Failed to verify ${platform} account`);
     } finally {
       setLinkingPlatform(null);
+    }
+  };
+
+  const handleUsernameSubmit = async () => {
+    if (!usernameInput.trim()) {
+      Alert.alert('Error', 'Please enter a username');
+      return;
+    }
+
+    try {
+      setShowUsernameModal(false);
+      setLinkingPlatform('instagram');
+      
+      const result = await socialAccountsApi.verifyInstagram(usernameInput.replace('@', '').trim(), token);
+      Alert.alert('Success!', 'Instagram account linked successfully!');
+      setTimeout(() => loadLinkedAccounts(), 1000);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to verify Instagram account');
+    } finally {
+      setLinkingPlatform(null);
+      setUsernameInput('');
     }
   };
 
@@ -133,7 +150,7 @@ const SocialAccountsManager = ({ onClose }) => {
   const getPlatformIcon = (platform) => {
     switch (platform) {
       case 'instagram':
-        return 'camera';
+        return 'logo-instagram';
       default:
         return 'link';
     }
@@ -302,6 +319,54 @@ const SocialAccountsManager = ({ onClose }) => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Username Input Modal */}
+      <Modal
+        visible={showUsernameModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowUsernameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Instagram Username</Text>
+            <Text style={styles.modalDescription}>
+              Enter your Instagram username (without the @ symbol)
+            </Text>
+            
+            <TextInput
+              style={styles.usernameInput}
+              value={usernameInput}
+              onChangeText={setUsernameInput}
+              placeholder="username"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus={true}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowUsernameModal(false);
+                  setUsernameInput('');
+                  setLinkingPlatform(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.submitButton]}
+                onPress={handleUsernameSubmit}
+                disabled={!usernameInput.trim()}
+              >
+                <Text style={styles.submitButtonText}>Link Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -499,6 +564,75 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: '#666',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1147',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  usernameInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    marginBottom: 24,
+    backgroundColor: '#F8F9FA',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F0F0F0',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  submitButton: {
+    backgroundColor: '#E4405F',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

@@ -43,10 +43,8 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
 
   const getPlatformIcon = (platform) => {
     switch (platform) {
-      case 'spotify':
-        return 'musical-notes';
       case 'instagram':
-        return 'camera';
+        return 'logo-instagram';
       default:
         return 'link';
     }
@@ -54,8 +52,6 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
 
   const getPlatformColor = (platform) => {
     switch (platform) {
-      case 'spotify':
-        return '#1DB954';
       case 'instagram':
         return '#E4405F';
       default:
@@ -65,8 +61,6 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
 
   const getPlatformDisplayName = (platform) => {
     switch (platform) {
-      case 'spotify':
-        return 'Spotify';
       case 'instagram':
         return 'Instagram';
       default:
@@ -75,24 +69,7 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
   };
 
   const formatPlatformData = (account) => {
-    if (account.platform === 'spotify' && account.platform_data) {
-      const data = account.platform_data;
-      const details = [];
-      
-      if (data.followers) {
-        details.push(`${data.followers} followers`);
-      }
-      
-      if (data.top_artists?.length > 0) {
-        details.push(`Loves ${data.top_artists.slice(0, 2).map(a => a.name).join(', ')}`);
-      }
-      
-      if (data.playlists_count) {
-        details.push(`${data.playlists_count} playlists`);
-      }
-      
-      return details.join(' • ');
-    } else if (account.platform === 'instagram' && account.platform_data) {
+    if (account.platform === 'instagram' && account.platform_data) {
       const data = account.platform_data;
       const details = [];
       
@@ -206,22 +183,6 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
               </View>
             </View>
 
-            {/* Show top artists for Spotify */}
-            {account.platform === 'spotify' && account.platform_data?.top_artists?.length > 0 && (
-              <View style={styles.topArtists}>
-                <Text style={styles.topArtistsTitle}>Top Artists:</Text>
-                <View style={styles.artistsList}>
-                  {account.platform_data.top_artists.slice(0, 3).map((artist, index) => (
-                    <View key={index} style={styles.artistItem}>
-                      {artist.image && (
-                        <Image source={{ uri: artist.image }} style={styles.artistImage} />
-                      )}
-                      <Text style={styles.artistName}>{artist.name}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
           </TouchableOpacity>
         ))}
       </View>
