@@ -76,8 +76,17 @@ const SocialAccountsManager = ({ onClose }) => {
           console.log('User cancelled Spotify authentication');
         }
       } else if (platform === 'instagram') {
-        // Use WebView verification for Instagram
-        setShowInstagramWebView(true);
+        // Temporarily use manual verification while fixing Facebook App
+        const username = prompt('Enter your Instagram username:');
+        if (username) {
+          try {
+            const result = await socialAccountsApi.verifyInstagram(username.replace('@', ''), token);
+            Alert.alert('Success!', 'Instagram account linked successfully!');
+            setTimeout(() => loadLinkedAccounts(), 1000);
+          } catch (error) {
+            Alert.alert('Error', error.message || 'Failed to verify Instagram account');
+          }
+        }
       }
     } catch (error) {
       console.error(`Failed to link ${platform}:`, error);
