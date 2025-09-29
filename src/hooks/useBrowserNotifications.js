@@ -163,6 +163,8 @@ export default function useBrowserNotifications() {
       // Remove existing listeners to avoid duplicates
       socket.off('friend:request:received', handleFriendRequestReceived);
       socket.off('friend:request:accepted', handleFriendRequestAccepted);
+      socket.off('friend:request:background'); // Remove background friend request listener
+      socket.off('friend:accepted:background'); // Remove background friend accepted listener
       socket.off('chat:message:received', handleMessageReceived);
       socket.off('chat:message:background'); // Remove background message listener
       socket.off('message:request:received', handleMessageRequestReceived);
@@ -172,12 +174,101 @@ export default function useBrowserNotifications() {
       // Register fresh listeners with debug logging
       socket.on('friend:request:received', (data) => {
         console.log('🔔 RAW friend:request:received event:', data);
-        handleFriendRequestReceived(data);
+        console.log('🔍 Friend request data structure:', {
+          request: data.request,
+          sender: data.sender,
+          directData: data
+        });
+        
+        // Handle nested data structure like messages
+        const friendRequestData = data.request || data;
+        const senderData = data.sender || friendRequestData.sender;
+        
+        // Convert to expected format
+        const convertedData = {
+          request: {
+            id: friendRequestData.id || data.id,
+            sender: senderData || {
+              id: friendRequestData.senderId,
+              first_name: friendRequestData.senderName?.split(' ')[0] || 'Someone',
+              last_name: friendRequestData.senderName?.split(' ').slice(1).join(' ') || ''
+            }
+          }
+        };
+        
+        console.log('🔔 Converted friend request data:', convertedData);
+        handleFriendRequestReceived(convertedData);
       });
       
       socket.on('friend:request:accepted', (data) => {
         console.log('🔔 RAW friend:request:accepted event:', data);
-        handleFriendRequestAccepted(data);
+        console.log('🔍 Friend accepted data structure:', {
+          request: data.request,
+          acceptedBy: data.acceptedBy,
+          directData: data
+        });
+        
+        // Handle nested data structure
+        const requestData = data.request || data;
+        const acceptedByData = data.acceptedBy || data.sender || {
+          id: requestData.acceptedById || requestData.senderId,
+          first_name: requestData.acceptedByName?.split(' ')[0] || requestData.senderName?.split(' ')[0] || 'Someone',
+          last_name: requestData.acceptedByName?.split(' ').slice(1).join(' ') || requestData.senderName?.split(' ').slice(1).join(' ') || ''
+        };
+        
+        const convertedData = {
+          request: requestData,
+          acceptedBy: acceptedByData
+        };
+        
+        console.log('🔔 Converted friend accepted data:', convertedData);
+        handleFriendRequestAccepted(convertedData);
+      });
+
+      // Listen for potential background friend request events
+      socket.on('friend:request:background', (data) => {
+        console.log('🔔 RAW friend:request:background event:', data);
+        
+        // Handle similar to message background events
+        const rawFriendRequest = data.request || data;
+        
+        console.log('🔍 Background friend request data:', {
+          senderName: rawFriendRequest.senderName,
+          senderId: rawFriendRequest.senderId,
+          requestId: rawFriendRequest.id
+        });
+        
+        const convertedData = {
+          request: {
+            id: rawFriendRequest.id || 'unknown_' + Date.now(),
+            sender: {
+              id: rawFriendRequest.senderId || 'unknown_sender',
+              first_name: rawFriendRequest.senderName?.split(' ')[0] || 'Someone',
+              last_name: rawFriendRequest.senderName?.split(' ').slice(1).join(' ') || ''
+            }
+          }
+        };
+        
+        console.log('🔔 Converted background friend request data:', convertedData);
+        handleFriendRequestReceived(convertedData);
+      });
+
+      socket.on('friend:accepted:background', (data) => {
+        console.log('🔔 RAW friend:accepted:background event:', data);
+        
+        const rawAccepted = data.request || data;
+        
+        const convertedData = {
+          request: rawAccepted,
+          acceptedBy: {
+            id: rawAccepted.acceptedById || rawAccepted.senderId,
+            first_name: rawAccepted.acceptedByName?.split(' ')[0] || rawAccepted.senderName?.split(' ')[0] || 'Someone',
+            last_name: rawAccepted.acceptedByName?.split(' ').slice(1).join(' ') || rawAccepted.senderName?.split(' ').slice(1).join(' ') || ''
+          }
+        };
+        
+        console.log('🔔 Converted background friend accepted data:', convertedData);
+        handleFriendRequestAccepted(convertedData);
       });
       
       // Listen for BOTH message events (the actual event name is chat:message:background)
@@ -309,6 +400,8 @@ export default function useBrowserNotifications() {
       if (socketRef.current) {
         socketRef.current.off('friend:request:received', handleFriendRequestReceived);
         socketRef.current.off('friend:request:accepted', handleFriendRequestAccepted);
+        socketRef.current.off('friend:request:background'); // Remove background friend request listener
+        socketRef.current.off('friend:accepted:background'); // Remove background friend accepted listener
         socketRef.current.off('chat:message:received', handleMessageReceived);
         socketRef.current.off('chat:message:background'); // Remove background message listener
         socketRef.current.off('message:request:received', handleMessageRequestReceived);
