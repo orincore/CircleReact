@@ -556,6 +556,9 @@ export class VoiceCallService {
     this.socket.on('voice:call-accepted', async (data) => {
       console.log('✅ Call accepted by other user');
       console.log('📞 Call acceptance data:', data);
+      console.log('🔍 CALLER DEBUG: Received voice:call-accepted event');
+      console.log('🔍 CALLER DEBUG: Current state - isInitiator:', this.isInitiator, 'callState:', this.callState);
+      console.log('🔍 CALLER DEBUG: Current call ID:', this.currentCallId, 'Event call ID:', data.callId);
       
       // Set the call ID for the caller (initiator)
       if (data.callId && !this.currentCallId) {
@@ -568,7 +571,9 @@ export class VoiceCallService {
       if (this.isInitiator) {
         console.log('📞 Creating WebRTC offer as call initiator...');
         console.log('📞 Current call ID before offer:', this.currentCallId);
+        console.log('🔍 CALLER DEBUG: About to call createOffer()');
         await this.createOffer();
+        console.log('🔍 CALLER DEBUG: createOffer() completed');
       } else {
         console.log('📞 Waiting for WebRTC offer as call receiver...');
       }
@@ -594,6 +599,8 @@ export class VoiceCallService {
       console.log('📨 Received WebRTC offer for call:', data.callId);
       console.log('📨 Current call ID:', this.currentCallId);
       console.log('📨 Call state:', this.callState);
+      console.log('🔍 RECEIVER DEBUG: Received voice:offer event');
+      console.log('🔍 RECEIVER DEBUG: isInitiator:', this.isInitiator, 'peerConnection state:', this.peerConnection?.connectionState);
       if (data.callId === this.currentCallId) {
         await this.handleOffer(data.offer);
       } else {
