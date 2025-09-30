@@ -36,7 +36,7 @@ import { API_BASE_URL } from "@/src/api/config";
 import ReactionBar from "@/src/components/ReactionBar";
 import ReactionPicker from "@/src/components/ReactionPicker";
 import VoiceCallModal from "@/components/VoiceCallModal";
-import { voiceCallService, testVoiceCallService } from "@/src/services/VoiceCallService";
+import { voiceCallService } from "@/src/services/VoiceCallService";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -1865,13 +1865,8 @@ export default function InstagramChatScreen() {
       platform: Platform.OS
     });
 
-    // Test voice call service status
-    console.log('🧪 Testing voice call service status...');
-    const testResult = testVoiceCallService();
-    console.log('🧪 Test result:', testResult);
-
     // Check if call is already in progress
-    if (testResult.serviceExists && voiceCallService.isCallActive()) {
+    if (voiceCallService.callState !== 'idle') {
       console.warn('⚠️ Call already in progress, ignoring button click');
       Alert.alert('Call in Progress', 'You already have an active call. Please end the current call before starting a new one.');
       return;
