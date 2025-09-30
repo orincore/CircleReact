@@ -136,11 +136,11 @@ class VoiceCallService {
       // Set state
       this.setCallState('calling');
       
-      // Send call request
+      // Send call request with correct call type
       this.socket.emit('voice:start-call', {
         callId,
         receiverId,
-        callType: 'voice'
+        callType: this.isExpoGo ? 'audio-fallback' : 'webrtc'
       });
       
       console.log('✅ Call request sent');
