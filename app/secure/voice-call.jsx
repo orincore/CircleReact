@@ -83,11 +83,7 @@ export default function VoiceCallScreen() {
       if (newState === 'ended') {
         setIsCleaningUp(true);
         setTimeout(() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace('/secure/chat');
-          }
+          router.back();
         }, 1500);
       }
     };
@@ -98,11 +94,7 @@ export default function VoiceCallScreen() {
         setIsCleaningUp(true);
         setCallState('ended');
         setTimeout(() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace('/secure/chat');
-          }
+          router.back();
         }, 1500);
       }
     };
@@ -115,13 +107,17 @@ export default function VoiceCallScreen() {
       }
     };
     
-    // Set call ID and state if incoming - CRITICAL for showing accept/decline screen
-    if (isIncomingCall) {
+    // Set call ID and state if incoming - ONLY if not already set
+    if (isIncomingCall && voiceCallService.currentCallId !== callId) {
       voiceCallService.currentCallId = callId;
       voiceCallService.isInitiator = false;
       voiceCallService.setCallState('incoming');
       setCallState('incoming'); // Ensure UI state matches
       console.log('📞 Set incoming call state');
+    } else if (isIncomingCall) {
+      // Just sync UI state with service state, don't trigger state change
+      setCallState(voiceCallService.callState);
+      console.log('📞 Synced UI state with service:', voiceCallService.callState);
     }
     
     // Fade in animation
@@ -221,13 +217,9 @@ export default function VoiceCallScreen() {
     setIsCleaningUp(true);
     voiceCallService.declineCall();
     
-    // Give time for cleanup before navigating back
+    // Navigate back after brief delay
     setTimeout(() => {
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/secure/chat');
-      }
+      router.back();
     }, 300);
   };
   
@@ -241,11 +233,7 @@ export default function VoiceCallScreen() {
     
     // Give time for cleanup before navigating back
     setTimeout(() => {
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/secure/chat');
-      }
+      router.back();
     }, 300);
   };
   

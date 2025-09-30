@@ -125,6 +125,12 @@ class VoiceCallService {
     this.socket.on('voice:incoming-call', async (data) => {
       console.log('📞 Incoming call received:', data);
       
+      // Prevent duplicate call setup for same call ID
+      if (this.currentCallId === data.callId) {
+        console.log('⚠️ Duplicate incoming call event for same call ID, ignoring');
+        return;
+      }
+      
       this.currentCallId = data.callId;
       this.isInitiator = false;
       this.setCallState('incoming');
@@ -737,10 +743,13 @@ class VoiceCallService {
 
   // Start call timeout (1 minute for incoming calls)
   startCallTimeout() {
-    console.log('⏰ Starting 1-minute call timeout');
+    // Clear any existing timeout first (without logging)
+    if (this.callTimeoutTimer) {
+      clearTimeout(this.callTimeoutTimer);
+      this.callTimeoutTimer = null;
+    }
     
-    // Clear any existing timeout
-    this.stopCallTimeout();
+    console.log('⏰ Starting 1-minute call timeout');
     
     // Set 1-minute timeout
     this.callTimeoutTimer = setTimeout(() => {

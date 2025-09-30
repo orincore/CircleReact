@@ -156,10 +156,21 @@ export function useVoiceCall() {
       }
     };
     
+    // Track if we've already navigated for this call
+    let navigatedCallId = null;
+    
     // Handle incoming calls - Navigate to full-screen call UI
     voiceCallService.onIncomingCall = async (callData) => {
       console.log('📞 Incoming call received:', callData);
       console.log('📱 App state:', AppState.currentState);
+      
+      // Prevent duplicate navigation for same call
+      if (navigatedCallId === callData.callId) {
+        console.log('⚠️ Already navigated for this call, skipping navigation');
+        return;
+      }
+      
+      navigatedCallId = callData.callId;
       
       const isBackground = AppState.currentState !== 'active';
       
