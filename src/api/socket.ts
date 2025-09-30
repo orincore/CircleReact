@@ -131,17 +131,17 @@ function createSocket(token?: string | null) {
     // Enhanced socket configuration for production
     const socketConfig = {
       path: "/ws",
+      // Optimized transport order (WebSocket first for EC2 backend)
       transports: Platform.OS === 'web' ? ["websocket", "polling"] : ["websocket"],
       auth: token ? { token } : undefined,
       reconnection: false, // We handle reconnection manually
       autoConnect: true,
-      timeout: Platform.OS === 'web' ? 20000 : 15000, // Shorter timeout for mobile
+      timeout: 20000, // Standard timeout for EC2 backend
       forceNew: true,
       upgrade: true,
       rememberUpgrade: true,
-      // Enhanced for cross-platform compatibility
+      // Standard configuration for EC2 backend
       withCredentials: false,
-      extraHeaders: Platform.OS === 'web' ? {} : undefined,
     };
 
     socket = io(API_BASE_URL, socketConfig);
@@ -171,13 +171,42 @@ function createSocket(token?: string | null) {
     // Connection error
     socket.on('connect_error', (error: any) => {
       console.error('❌ Socket connection error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type,
+        transport: error.transport
+      });
       socketService.notifyConnectionState('disconnected');
       
-      // Enhanced error handling for different platforms
+      // Enhanced error handling for different platforms and domains
       if (Platform.OS === 'web') {
         // Browser-specific error handling
         if (error.message?.includes('CORS')) {
           console.error('🌐 CORS error detected - check server configuration');
+        }
+        
+        // Production domain specific debugging
+        if (API_BASE_URL.includes('api.circle.orincore.com')) {
+          console.error('🏭 Production domain connection failed:', {
+            domain: 'api.circle.orincore.com',
+            transport: socket.io?.engine?.transport?.name || 'unknown',
+            readyState: socket.io?.engine?.readyState || 'unknown',
+            url: API_BASE_URL,
+            error: error.message
+          });
+          
+          // Check if it's a WebSocket-specific issue
+          if (error.message?.includes('websocket') || error.message?.includes('WebSocket')) {
+            console.warn('⚠️ WebSocket connection failed on production domain - this is common with Vercel');
+            console.warn('⚠️ Falling back to polling transport');
+          }
+          
+          // Check for SSL/TLS issues
+          if (error.message?.includes('SSL') || error.message?.includes('TLS') || error.message?.includes('certificate')) {
+            console.error('🔒 SSL/TLS certificate issue detected on production domain');
+          }
         }
       }
       

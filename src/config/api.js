@@ -25,8 +25,8 @@ const getApiBaseUrl = () => {
   
   // Node.js environment (React Native)
   if (process.env.NODE_ENV === 'production') {
-    // Production - using custom domain with SSL
-    return 'https://api.circle.orincore.com';
+    // Production - AWS Amplify with Cloudflare
+    return process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.yourdomain.com';
   } else {
     // Development - use MacBook IP with HTTP (no SSL)
     return `http://${MACBOOK_IP}:8080`;
