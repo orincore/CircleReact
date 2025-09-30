@@ -75,7 +75,9 @@ export default function VoiceCallScreen() {
       callId,
       callerId,
       callerName,
-      isIncoming: isIncoming === 'true'
+      callerAvatar,
+      isIncoming: isIncoming === 'true',
+      currentServiceState: voiceCallService.getCallState()
     });
     
     // Set up voice call service listeners
@@ -89,11 +91,37 @@ export default function VoiceCallScreen() {
     startPulseAnimation();
     startFadeInAnimation();
     
-    // If incoming call, set up the service
+    // Enhanced incoming call setup
     if (isIncoming === 'true') {
+      console.log('📞 Setting up incoming call state...');
       voiceCallService.currentCallId = callId;
-      voiceCallService.setCallState('incoming');
+      
+      // Force incoming state regardless of service state
+      setTimeout(() => {
+        console.log('📞 Forcing incoming call state...');
+        setCallState('incoming');
+        voiceCallService.setCallState('incoming');
+      }, 100);
+    } else {
+      // For outgoing calls, ensure proper state
+      console.log('📞 Setting up outgoing call state...');
+      setCallState('calling');
     }
+    
+    // Verify state after mount
+    setTimeout(() => {
+      console.log('🔍 Post-mount state verification:', {
+        screenState: callState,
+        serviceState: voiceCallService.getCallState(),
+        isIncoming: isIncoming === 'true'
+      });
+      
+      // Fix state mismatch
+      if (isIncoming === 'true' && callState !== 'incoming') {
+        console.log('🔧 Fixing state mismatch - forcing incoming state');
+        setCallState('incoming');
+      }
+    }, 500);
     
     return () => {
       // Cleanup
@@ -240,17 +268,38 @@ export default function VoiceCallScreen() {
       console.log('✅ User accepted the call');
       setCallState('connecting');
       
+      // Verify socket connection before accepting
+      if (!voiceCallService.socket || !voiceCallService.socket.connected) {
+        console.warn('⚠️ Socket not connected, attempting to reconnect...');
+        const initialized = voiceCallService.initializeSocket(token);
+        if (!initialized) {
+          throw new Error('Unable to establish connection');
+        }
+        
+        // Wait briefly for connection
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       // Accept the call through the voice call service
       const success = await voiceCallService.acceptCall(token);
       if (!success) {
-        throw new Error('Failed to accept call');
+        throw new Error('Failed to accept call - connection issue');
       }
       
       console.log('✅ Call acceptance sent to backend');
     } catch (error) {
       console.error('❌ Failed to accept call:', error);
       setCallState('incoming'); // Reset to incoming state on error
-      Alert.alert('Error', 'Failed to accept call: ' + error.message);
+      
+      // Show user-friendly error message
+      const errorMessage = error.message.includes('connection') 
+        ? 'Connection issue. Please check your internet and try again.'
+        : 'Failed to accept call. Please try again.';
+        
+      Alert.alert('Call Error', errorMessage, [
+        { text: 'Retry', onPress: () => acceptCall() },
+        { text: 'Decline', onPress: () => declineCall() }
+      ]);
     }
   };
   
@@ -434,11 +483,22 @@ export default function VoiceCallScreen() {
           <View style={styles.callInfo}>
             <Animated.View style={[styles.avatarContainer, { transform: [{ scale: pulseAnim }] }]}>
               <Avatar
-                uri={callerAvatar}
+                uri={callerAvatar || ''}
                 name={callerName || 'Unknown'}
-                size={120}
-                style={styles.avatar}
+                size={callState === 'incoming' ? 140 : 120}
+                style={[
+                  styles.avatar,
+                  callState === 'incoming' && styles.incomingAvatar
+                ]}
               />
+              
+              {/* Call type indicator */}
+              {callState === 'incoming' && (
+                <View style={styles.incomingIndicator}>
+                  <Ionicons name="call" size={24} color="white" />
+                </View>
+              )}
+              
               {voiceCallService.isExpoGo && isRecording && (
                 <View style={styles.recordingIndicator}>
                   <Ionicons name="mic" size={20} color="#FF6B6B" />
@@ -448,6 +508,13 @@ export default function VoiceCallScreen() {
             
             <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
             <Text style={styles.callStatus}>{renderCallState()}</Text>
+            
+            {/* Enhanced incoming call info */}
+            {callState === 'incoming' && (
+              <Text style={styles.incomingCallText}>
+                Incoming voice call
+              </Text>
+            )}
             
             {voiceCallService.isExpoGo && (
               <Text style={styles.expoGoNotice}>
@@ -505,6 +572,30 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
+  incomingAvatar: {
+    borderWidth: 6,
+    borderColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  incomingIndicator: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#4CAF50',
+    borderRadius: 25,
+    padding: 8,
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 8,
+  },
   recordingIndicator: {
     position: 'absolute',
     bottom: 10,
@@ -527,6 +618,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     marginBottom: 16,
+  },
+  incomingCallText: {
+    fontSize: 16,
+    color: '#4CAF50',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 8,
   },
   expoGoNotice: {
     fontSize: 14,

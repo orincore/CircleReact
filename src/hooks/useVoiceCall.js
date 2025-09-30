@@ -84,6 +84,39 @@ export function useVoiceCall() {
     try {
       console.log('📞 Starting voice call to:', receiverId);
       
+      // Pre-call connection verification
+      console.log('🔍 Verifying connection before call...');
+      const socket = voiceCallService.socket;
+      if (!socket || !socket.connected) {
+        console.warn('⚠️ Socket not connected, attempting to reconnect...');
+        // Try to reinitialize
+        const initialized = voiceCallService.initializeSocket(token);
+        if (!initialized) {
+          throw new Error('Unable to establish connection for voice call');
+        }
+        
+        // Wait for connection
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          const checkConnection = () => {
+            if (voiceCallService.socket?.connected) {
+              clearTimeout(timeout);
+              resolve(true);
+            } else {
+              setTimeout(checkConnection, 100);
+            }
+          };
+          checkConnection();
+        });
+      }
+      
+      // Verify room membership before call
+      if (socket) {
+        socket.emit('verify-room-membership', { timestamp: Date.now() });
+        // Small delay to ensure verification
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
       // Navigate to voice call screen first
       router.push({
         pathname: '/secure/voice-call',
@@ -96,7 +129,7 @@ export function useVoiceCall() {
         }
       });
 
-      // Start the actual call
+      // Start the actual call with enhanced error handling
       const success = await voiceCallService.startCall(receiverId, token);
       if (!success) {
         // If call failed, navigate to a safe screen

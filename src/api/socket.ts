@@ -214,8 +214,20 @@ function createSocket(token?: string | null) {
         if (socket && socket.connected) {
           console.log('🏠 Verifying user room membership...');
           socket.emit('verify-room-membership', { timestamp: Date.now() });
+          
+          // Force refresh socket state for voice calls
+          console.log('🔄 Refreshing socket state for voice calls...');
+          socket.emit('refresh-connection-state', { timestamp: Date.now() });
         }
       }, 2000);
+      
+      // Additional verification after 5 seconds for reliability
+      setTimeout(() => {
+        if (socket && socket.connected) {
+          console.log('🔄 Secondary connection verification...');
+          socket.emit('verify-room-membership', { timestamp: Date.now() });
+        }
+      }, 5000);
       
       // Start heartbeat
       startHeartbeat();
@@ -340,6 +352,12 @@ function createSocket(token?: string | null) {
       if (!data.isInRoom) {
         console.warn('⚠️ User not in room after verification attempt!');
       }
+    });
+
+    // Connection state refresh response
+    socket.on('connection-state-refreshed', (data: any) => {
+      console.log('🔄 Connection state refreshed:', data);
+      socketService.notifyConnectionState('refreshed');
     });
 
     // Authentication error
