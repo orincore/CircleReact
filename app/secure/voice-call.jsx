@@ -11,7 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { voiceCallService } from '@/src/services/VoiceCallService.new';
+import { voiceCallService } from '@/src/services/VoiceCallService';
 import { useAuth } from '@/contexts/AuthContext';
 import Avatar from '@/components/Avatar';
 

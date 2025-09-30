@@ -1,7 +1,7 @@
 // NEW SIMPLIFIED VOICE CALL HOOK - BUILT FROM SCRATCH
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { voiceCallService } from '../services/VoiceCallService.new';
+import { voiceCallService } from '../services/VoiceCallService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function useVoiceCall() {
