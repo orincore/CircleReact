@@ -111,13 +111,45 @@ if (Platform.OS === 'web') {
   mediaDevices = null;
 }
 
-// STUN servers for NAT traversal
+// Enhanced STUN/TURN servers for better NAT traversal and cross-network connectivity
 const ICE_SERVERS = {
   iceServers: [
+    // Google STUN servers
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-  ]
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    
+    // Additional STUN servers for better connectivity
+    { urls: 'stun:stun.stunprotocol.org:3478' },
+    { urls: 'stun:stun.voiparound.com' },
+    { urls: 'stun:stun.voipbuster.com' },
+    { urls: 'stun:stun.voipstunt.com' },
+    { urls: 'stun:stun.voxgratia.org' },
+    
+    // OpenRelay TURN servers (free public TURN servers)
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ],
+  // Enhanced ICE configuration for better connectivity
+  iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all',
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require'
 };
 
 export class VoiceCallService {
@@ -143,6 +175,16 @@ export class VoiceCallService {
     this.callTimer = null;
     this.recordingUri = null;
     this.audioStreamingInterval = null;
+    
+    // Connection timeout and retry handling
+    this.connectionTimeout = null;
+    this.connectionRetryCount = 0;
+    this.maxConnectionRetries = 3;
+    this.connectionTimeoutMs = 30000; // 30 seconds
+    
+    // ICE gathering state tracking
+    this.iceGatheringComplete = false;
+    this.iceGatheringTimeout = null;
     
     // Debug WebRTC availability
     console.log('🎙️ VoiceCallService initialized:', {
@@ -211,14 +253,31 @@ export class VoiceCallService {
       
       this.peerConnection = new RTCPeerConnection(ICE_SERVERS);
       
-      // Handle ICE candidates
+      // Handle ICE candidates with enhanced logging and gathering state tracking
       this.peerConnection.onicecandidate = (event) => {
-        if (event.candidate && this.socket && this.currentCallId) {
-          console.log('📡 Sending ICE candidate');
-          this.socket.emit('voice:ice-candidate', {
-            callId: this.currentCallId,
-            candidate: event.candidate
+        if (event.candidate) {
+          console.log('📡 ICE candidate generated:', {
+            type: event.candidate.type,
+            protocol: event.candidate.protocol,
+            address: event.candidate.address,
+            port: event.candidate.port,
+            priority: event.candidate.priority
           });
+          
+          if (this.socket && this.currentCallId) {
+            this.socket.emit('voice:ice-candidate', {
+              callId: this.currentCallId,
+              candidate: event.candidate
+            });
+          }
+        } else {
+          // ICE gathering complete
+          console.log('✅ ICE gathering completed');
+          this.iceGatheringComplete = true;
+          if (this.iceGatheringTimeout) {
+            clearTimeout(this.iceGatheringTimeout);
+            this.iceGatheringTimeout = null;
+          }
         }
       };
 
@@ -240,35 +299,80 @@ export class VoiceCallService {
         }
       };
 
-      // Handle connection state changes with detailed logging
+      // Handle connection state changes with enhanced retry logic
       this.peerConnection.onconnectionstatechange = () => {
         console.log('🔗 Connection state changed:', this.peerConnection.connectionState);
         console.log('🔗 ICE connection state:', this.peerConnection.iceConnectionState);
         console.log('🔗 ICE gathering state:', this.peerConnection.iceGatheringState);
         console.log('🔗 Signaling state:', this.peerConnection.signalingState);
         
+        // Clear connection timeout when connected
         if (this.peerConnection.connectionState === 'connected') {
           console.log('✅ WebRTC connection established successfully!');
+          this.clearConnectionTimeout();
+          this.connectionRetryCount = 0;
           this.verifyAudioStreams();
           this.setCallState('connected');
+        } else if (this.peerConnection.connectionState === 'connecting') {
+          console.log('🔄 WebRTC connection in progress...');
+          this.startConnectionTimeout();
         } else if (this.peerConnection.connectionState === 'disconnected') {
           console.warn('⚠️ WebRTC connection disconnected');
-          // Don't immediately end call - might reconnect
+          // Try to reconnect if not too many attempts
+          if (this.connectionRetryCount < this.maxConnectionRetries) {
+            console.log(`🔄 Attempting to reconnect (${this.connectionRetryCount + 1}/${this.maxConnectionRetries})`);
+            this.connectionRetryCount++;
+            this.attemptReconnection();
+          } else {
+            console.error('❌ Max reconnection attempts reached');
+            this.endCall();
+          }
         } else if (this.peerConnection.connectionState === 'failed') {
           console.error('❌ WebRTC connection failed');
-          this.endCall();
+          if (this.connectionRetryCount < this.maxConnectionRetries) {
+            console.log(`🔄 Connection failed, attempting restart (${this.connectionRetryCount + 1}/${this.maxConnectionRetries})`);
+            this.connectionRetryCount++;
+            this.restartIce();
+          } else {
+            console.error('❌ Max connection attempts reached, ending call');
+            this.endCall();
+          }
         }
       };
       
-      // Additional ICE connection state monitoring
+      // Enhanced ICE connection state monitoring with retry logic
       this.peerConnection.oniceconnectionstatechange = () => {
         console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
         
         if (this.peerConnection.iceConnectionState === 'connected' || 
             this.peerConnection.iceConnectionState === 'completed') {
           console.log('✅ ICE connection established');
+          this.clearConnectionTimeout();
+        } else if (this.peerConnection.iceConnectionState === 'checking') {
+          console.log('🔍 ICE connectivity checks in progress...');
+        } else if (this.peerConnection.iceConnectionState === 'disconnected') {
+          console.warn('⚠️ ICE connection disconnected, may reconnect...');
         } else if (this.peerConnection.iceConnectionState === 'failed') {
           console.error('❌ ICE connection failed');
+          if (this.connectionRetryCount < this.maxConnectionRetries) {
+            console.log(`🔄 ICE failed, restarting ICE (${this.connectionRetryCount + 1}/${this.maxConnectionRetries})`);
+            this.connectionRetryCount++;
+            this.restartIce();
+          }
+        }
+      };
+      
+      // ICE gathering state monitoring
+      this.peerConnection.onicegatheringstatechange = () => {
+        console.log('🧊 ICE gathering state:', this.peerConnection.iceGatheringState);
+        
+        if (this.peerConnection.iceGatheringState === 'complete') {
+          console.log('✅ ICE gathering completed');
+          this.iceGatheringComplete = true;
+          if (this.iceGatheringTimeout) {
+            clearTimeout(this.iceGatheringTimeout);
+            this.iceGatheringTimeout = null;
+          }
         }
       };
 
@@ -1027,10 +1131,13 @@ export class VoiceCallService {
     this.cleanup();
   }
 
-  // Create WebRTC offer
+  // Create WebRTC offer with ICE gathering optimization
   async createOffer() {
     try {
       console.log('📨 Creating WebRTC offer');
+      
+      // Reset ICE gathering state
+      this.iceGatheringComplete = false;
       
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
@@ -1039,13 +1146,22 @@ export class VoiceCallService {
       
       await this.peerConnection.setLocalDescription(offer);
       
+      console.log('📨 Offer created, waiting for ICE candidates...');
+      
+      // Wait for ICE gathering to complete or timeout
+      await this.waitForIceGathering();
+      
+      // Get the final offer with all ICE candidates
+      const finalOffer = this.peerConnection.localDescription;
+      
       console.log('📤 Sending WebRTC offer for call:', this.currentCallId);
       console.log('📤 Socket connected:', this.socket.connected);
       console.log('📤 Socket ID:', this.socket.id);
+      console.log('📤 ICE candidates in offer:', finalOffer.sdp.split('a=candidate:').length - 1);
       
       this.socket.emit('voice:offer', {
         callId: this.currentCallId,
-        offer: offer
+        offer: finalOffer
       });
       
       console.log('✅ WebRTC offer sent to backend');
@@ -1055,7 +1171,45 @@ export class VoiceCallService {
     }
   }
 
-  // Handle WebRTC offer
+  // Wait for ICE gathering to complete
+  async waitForIceGathering(timeoutMs = 5000) {
+    return new Promise((resolve) => {
+      if (this.iceGatheringComplete || this.peerConnection.iceGatheringState === 'complete') {
+        console.log('✅ ICE gathering already complete');
+        resolve();
+        return;
+      }
+
+      console.log('⏳ Waiting for ICE gathering to complete...');
+      
+      const timeout = setTimeout(() => {
+        console.log('⏰ ICE gathering timeout - proceeding with current candidates');
+        resolve();
+      }, timeoutMs);
+
+      const checkGathering = () => {
+        if (this.iceGatheringComplete || this.peerConnection.iceGatheringState === 'complete') {
+          clearTimeout(timeout);
+          console.log('✅ ICE gathering completed');
+          resolve();
+        }
+      };
+
+      // Check immediately and then periodically
+      checkGathering();
+      const interval = setInterval(() => {
+        checkGathering();
+        if (this.iceGatheringComplete) {
+          clearInterval(interval);
+        }
+      }, 100);
+
+      // Clean up interval on timeout
+      setTimeout(() => clearInterval(interval), timeoutMs);
+    });
+  }
+
+  // Handle WebRTC offer with ICE gathering optimization
   async handleOffer(offer) {
     try {
       console.log('📨 Handling WebRTC offer');
@@ -1065,17 +1219,30 @@ export class VoiceCallService {
       }
       
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('✅ Remote description set');
+      
+      // Reset ICE gathering state
+      this.iceGatheringComplete = false;
       
       const answer = await this.peerConnection.createAnswer();
       await this.peerConnection.setLocalDescription(answer);
       
+      console.log('📨 Answer created, waiting for ICE candidates...');
+      
+      // Wait for ICE gathering to complete or timeout
+      await this.waitForIceGathering();
+      
+      // Get the final answer with all ICE candidates
+      const finalAnswer = this.peerConnection.localDescription;
+      
       console.log('📤 Sending WebRTC answer for call:', this.currentCallId);
       console.log('📤 Socket connected:', this.socket.connected);
       console.log('📤 Socket ID:', this.socket.id);
+      console.log('📤 ICE candidates in answer:', finalAnswer.sdp.split('a=candidate:').length - 1);
       
       this.socket.emit('voice:answer', {
         callId: this.currentCallId,
-        answer: answer
+        answer: finalAnswer
       });
       
       console.log('✅ WebRTC answer sent to backend');
@@ -1570,6 +1737,9 @@ export class VoiceCallService {
     console.log('🧹 Current call ID before cleanup:', this.currentCallId);
     console.log('🧹 Current call state before cleanup:', this.callState);
     
+    // Clear all timeouts
+    this.cleanupTimeouts();
+    
     // Stop call timer
     if (this.callTimer) {
       clearInterval(this.callTimer);
@@ -1648,6 +1818,134 @@ export class VoiceCallService {
   // Check if call is active
   isCallActive() {
     return ['calling', 'ringing', 'connecting', 'connected'].includes(this.callState);
+  }
+
+  // Connection timeout management
+  startConnectionTimeout() {
+    this.clearConnectionTimeout();
+    console.log(`⏰ Starting connection timeout (${this.connectionTimeoutMs}ms)`);
+    
+    this.connectionTimeout = setTimeout(() => {
+      console.error('⏰ Connection timeout reached');
+      if (this.callState === 'connecting') {
+        if (this.connectionRetryCount < this.maxConnectionRetries) {
+          console.log(`🔄 Connection timeout, attempting retry (${this.connectionRetryCount + 1}/${this.maxConnectionRetries})`);
+          this.connectionRetryCount++;
+          this.restartIce();
+        } else {
+          console.error('❌ Connection timeout - max retries reached');
+          if (this.onError) this.onError('Connection timeout - unable to establish call');
+          this.endCall();
+        }
+      }
+    }, this.connectionTimeoutMs);
+  }
+
+  clearConnectionTimeout() {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+      console.log('✅ Connection timeout cleared');
+    }
+  }
+
+  // ICE restart for connection recovery
+  async restartIce() {
+    if (!this.peerConnection) {
+      console.error('❌ Cannot restart ICE - no peer connection');
+      return false;
+    }
+
+    try {
+      console.log('🔄 Restarting ICE connection...');
+      
+      // Reset ICE gathering state
+      this.iceGatheringComplete = false;
+      
+      // Create new offer with ICE restart
+      const offer = await this.peerConnection.createOffer({ 
+        iceRestart: true,
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
+      
+      await this.peerConnection.setLocalDescription(offer);
+      
+      // Send the new offer
+      if (this.socket && this.currentCallId) {
+        console.log('📤 Sending ICE restart offer');
+        this.socket.emit('voice:offer', {
+          callId: this.currentCallId,
+          offer: offer,
+          iceRestart: true
+        });
+      }
+      
+      // Set timeout for ICE gathering
+      this.iceGatheringTimeout = setTimeout(() => {
+        if (!this.iceGatheringComplete) {
+          console.warn('⚠️ ICE gathering timeout during restart');
+        }
+      }, 10000); // 10 second timeout
+      
+      console.log('✅ ICE restart initiated');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to restart ICE:', error);
+      return false;
+    }
+  }
+
+  // Attempt reconnection by recreating peer connection
+  async attemptReconnection() {
+    if (!this.isWebRTCAvailable) {
+      console.error('❌ Cannot reconnect - WebRTC not available');
+      return false;
+    }
+
+    try {
+      console.log('🔄 Attempting full reconnection...');
+      
+      // Close existing peer connection
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = null;
+      }
+      
+      // Reinitialize peer connection
+      if (!await this.initializePeerConnection()) {
+        throw new Error('Failed to reinitialize peer connection');
+      }
+      
+      // Re-add local stream if available
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => {
+          console.log('📤 Re-adding track to peer connection:', track.kind, track.id);
+          this.peerConnection.addTrack(track, this.localStream);
+        });
+      }
+      
+      // Create new offer if we're the initiator
+      if (this.isInitiator) {
+        await this.createOffer();
+      }
+      
+      console.log('✅ Reconnection attempt completed');
+      return true;
+    } catch (error) {
+      console.error('❌ Reconnection failed:', error);
+      return false;
+    }
+  }
+
+  // Enhanced cleanup with timeout clearing
+  cleanupTimeouts() {
+    this.clearConnectionTimeout();
+    
+    if (this.iceGatheringTimeout) {
+      clearTimeout(this.iceGatheringTimeout);
+      this.iceGatheringTimeout = null;
+    }
   }
 
   // Start call timer
