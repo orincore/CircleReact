@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import ToastNotification from './ToastNotification';
 import notificationService from '../services/notificationService';
+import useAndroidNotifications from '../hooks/useAndroidNotifications';
 
 export default function NotificationManager() {
   const [notifications, setNotifications] = useState([]);
+  
+  // Initialize Android notifications (only on mobile platforms)
+  const { setCurrentChatId } = useAndroidNotifications();
 
   useEffect(() => {
     const handleShow = (notification) => {

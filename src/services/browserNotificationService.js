@@ -351,6 +351,28 @@ class BrowserNotificationService {
     });
   }
 
+  // Voice call notifications
+  showVoiceCallNotification({ callerName, callerId, callId }) {
+    return this.showNotification({
+      title: '📞 Incoming Voice Call',
+      body: `${callerName} is calling you`,
+      icon: '/icon-192x192.png',
+      tag: `voice_call_${callId}`,
+      data: { 
+        type: 'voice_call', 
+        callerId, 
+        callId,
+        timestamp: Date.now()
+      },
+      onClick: () => {
+        console.log('📞 Voice call notification clicked');
+        // Focus the window to bring the app to foreground
+        window.focus();
+        // The call modal should already be handled by the socket listener
+      }
+    });
+  }
+
   // Reaction notifications
   showReactionNotification({ senderName, emoji, message, chatId, senderId }) {
     return this.showNotification({

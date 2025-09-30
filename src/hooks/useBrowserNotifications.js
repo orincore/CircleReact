@@ -153,6 +153,7 @@ export default function useBrowserNotifications() {
     socket.off('message:request:received', handleMessageRequestReceived);
     socket.off('matchmaking:proposal', handleMatchFound);
     socket.off('chat:reaction:received', handleReactionReceived);
+    socket.off('voice:incoming-call', handleIncomingVoiceCall);
   };
 
   // Generic notification handler for all notification types
@@ -324,6 +325,23 @@ export default function useBrowserNotifications() {
     });
   };
 
+  // Voice call notifications
+  const handleIncomingVoiceCall = ({ callId, callerId, callerName, callerAvatar }) => {
+    console.log('📞 Incoming voice call for browser notification:', { callId, callerId, callerName });
+    
+    // Only show notification if page is not visible (user is not actively using the app)
+    if (document.visibilityState === 'visible') {
+      console.log('📞 Page is visible, not showing voice call notification');
+      return;
+    }
+
+    browserNotificationService.showVoiceCallNotification({
+      callerName: callerName || 'Someone',
+      callerId,
+      callId
+    });
+  };
+
   // Register event listeners function
   const registerEventListeners = (socket) => {
     console.log('🔔 Registering notification event listeners...');
@@ -404,6 +422,11 @@ export default function useBrowserNotifications() {
     socket.on('chat:reaction:received', (data) => {
       console.log('🔔 RAW chat:reaction:received event:', data);
       handleReactionReceived(data);
+    });
+
+    socket.on('voice:incoming-call', (data) => {
+      console.log('🔔 RAW voice:incoming-call event:', data);
+      handleIncomingVoiceCall(data);
     });
   };
 

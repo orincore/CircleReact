@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, AppState } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text, AppState, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from '@/contexts/AuthContext';
 import { getSocket } from '@/src/api/socket';
@@ -20,6 +21,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   const [showNotifications, setShowNotifications] = useState(false);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [chatUnreadCounts, setChatUnreadCounts] = useState({}); // chatId -> unread count
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!token) return;
@@ -205,7 +207,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   return (
     <>
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {/* Regular tabs */}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -291,10 +293,10 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     backgroundColor: TAB_COLORS.background,
-    height: 72,
-    paddingBottom: 12,
+    minHeight: 72,
     paddingTop: 10,
     paddingHorizontal: 8,
+    // Remove fixed paddingBottom as it's now handled dynamically with safe area
   },
   tabItem: {
     flex: 1,

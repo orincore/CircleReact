@@ -35,6 +35,9 @@ import UserProfileModal from "@/src/components/UserProfileModal";
 import { API_BASE_URL } from "@/src/api/config";
 import ReactionBar from "@/src/components/ReactionBar";
 import ReactionPicker from "@/src/components/ReactionPicker";
+import VoiceCallModal from "@/components/VoiceCallModal";
+import { voiceCallService, testVoiceCallService } from "@/src/services/VoiceCallService";
+import { useVoiceCall } from "@/src/hooks/useVoiceCall";
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -593,6 +596,9 @@ export default function InstagramChatScreen() {
 
   // Browser notifications - track current chat to prevent notifications
   const { setCurrentChatId } = useBrowserNotifications();
+  
+  // Voice call functionality
+  const { startVoiceCall } = useVoiceCall();
 
   // Track current chat for browser notifications
   useEffect(() => {
@@ -643,6 +649,8 @@ export default function InstagramChatScreen() {
   const [displayedMessages, setDisplayedMessages] = useState([]);
   const [messageLimit, setMessageLimit] = useState(50); // Start with 50 messages
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [showVoiceCall, setShowVoiceCall] = useState(false);
+  const [voiceCallData, setVoiceCallData] = useState(null);
   const [otherUserId, setOtherUserId] = useState(
     paramOtherUserId && typeof paramOtherUserId === "string" ? paramOtherUserId : null
   );
@@ -1845,6 +1853,139 @@ export default function InstagramChatScreen() {
     setShowUserProfile(true);
   };
 
+  // Voice call handlers
+  const handleStartVoiceCall = async () => {
+    console.log('🔘 Call button clicked!');
+    console.log('📊 Call button debug info:', {
+      otherUserId,
+      friendshipStatus,
+      conversationName,
+      userAvatar,
+      startVoiceCall: typeof startVoiceCall,
+      platform: Platform.OS
+    });
+
+    // Test voice call service status
+    console.log('🧪 Testing voice call service status...');
+    const testResult = testVoiceCallService();
+    console.log('🧪 Test result:', testResult);
+
+    // Check if call is already in progress
+    if (testResult.serviceExists && voiceCallService.isCallActive()) {
+      console.warn('⚠️ Call already in progress, ignoring button click');
+      Alert.alert('Call in Progress', 'You already have an active call. Please end the current call before starting a new one.');
+      return;
+    }
+
+    // Mobile browser specific debugging with iOS HTTP detection
+    if (Platform.OS === 'web') {
+      const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isDevelopmentIP = typeof window !== 'undefined' && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(window.location.href);
+      const isHTTP = typeof window !== 'undefined' && window.location.protocol === 'http:';
+      
+      console.log('📱 Mobile browser debug info:', {
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        isMobile: typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+        isIOS,
+        isDevelopmentIP,
+        isHTTP,
+        protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        hasWebRTC: typeof window !== 'undefined' && !!window.RTCPeerConnection,
+        hasMediaDevices: typeof navigator !== 'undefined' && !!navigator.mediaDevices,
+        hasGetUserMedia: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
+        isSecureContext: typeof window !== 'undefined' && window.isSecureContext
+      });
+      
+      // Show specific warning for iOS HTTP development
+      if (isIOS && isDevelopmentIP && isHTTP) {
+        console.warn('⚠️ iOS HTTP Development Mode Detected!');
+        console.warn('⚠️ Voice calls will likely fail on iOS with HTTP on IP addresses');
+        console.warn('⚠️ This is expected browser security behavior');
+      }
+    }
+
+    // Proceed with actual voice call for all platforms
+
+    if (!otherUserId || friendshipStatus !== 'friends') {
+      console.log('❌ Cannot call - not friends or no otherUserId');
+      Alert.alert('Cannot Call', 'You can only call friends.');
+      return;
+    }
+
+    if (!startVoiceCall) {
+      console.error('❌ startVoiceCall function is not available');
+      Alert.alert('Error', 'Voice call functionality is not available.');
+      return;
+    }
+
+    try {
+      console.log('📞 Starting voice call to:', otherUserId);
+      
+      // For iOS Safari, trigger any pending audio play due to user interaction
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOS && voiceCallService.pendingRemoteAudioPlay) {
+          console.log('🍎 iOS user interaction detected - enabling audio playback');
+          voiceCallService.forcePlayRemoteAudio();
+        }
+      }
+      
+      await startVoiceCall(otherUserId, conversationName, userAvatar);
+    } catch (error) {
+      console.error('❌ Failed to start voice call:', error);
+      
+      // Enhanced error handling for iOS HTTP scenarios
+      let errorTitle = 'Call Failed';
+      let errorMessage = error.message || 'Failed to start voice call. Please try again.';
+      
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && typeof window !== 'undefined') {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isDevelopmentIP = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(window.location.href);
+        const isHTTP = window.location.protocol === 'http:';
+        
+        if (isIOS && isDevelopmentIP && isHTTP) {
+          errorTitle = 'iOS Development Limitation';
+          errorMessage = `Voice calls don't work on iOS with HTTP on IP addresses (${window.location.hostname}).\n\nThis is a browser security restriction.\n\nSolutions:\n• Use HTTPS instead of HTTP\n• Use localhost instead of IP\n• Test on Android/desktop for HTTP development`;
+        }
+      }
+      
+      Alert.alert(errorTitle, errorMessage);
+    }
+  };
+
+  const handleCloseVoiceCall = () => {
+    console.log('📞 Closing voice call modal');
+    setShowVoiceCall(false);
+    setVoiceCallData(null);
+  };
+
+  // Listen for incoming voice calls
+  useEffect(() => {
+    const socket = getSocket(token);
+    if (!socket) return;
+
+    const handleIncomingCall = (data) => {
+      console.log('📞 Incoming voice call:', data);
+      
+      // Only show if it's from the current chat user
+      if (data.callerId === otherUserId) {
+        setVoiceCallData({
+          name: data.callerName,
+          avatar: data.callerAvatar,
+          id: data.callerId
+        });
+        setShowVoiceCall(true);
+      }
+    };
+
+    socket.on('voice:incoming-call', handleIncomingCall);
+
+    return () => {
+      socket.off('voice:incoming-call', handleIncomingCall);
+    };
+  }, [token, otherUserId]);
+
   // Clear chat function
   const handleClearChat = () => {
     console.log('🗑️ handleClearChat called');
@@ -1975,14 +2116,17 @@ export default function InstagramChatScreen() {
               </View>
             </View>
             
-            <Pressable 
-              style={({ hovered }) => [
-                styles.headerAction, 
-                hovered ? styles.headerBtnHoverWeb : null
-              ]}
-            >
-              <Ionicons name="videocam" size={22} color="#FFE8FF" />
-            </Pressable>
+            {friendshipStatus === 'friends' && (
+              <Pressable 
+                style={({ hovered }) => [
+                  styles.headerAction, 
+                  hovered ? styles.headerBtnHoverWeb : null
+                ]}
+                onPress={handleStartVoiceCall}
+              >
+                <Ionicons name="call" size={22} color="#FFE8FF" />
+              </Pressable>
+            )}
             
             <Pressable 
               style={({ hovered }) => [
@@ -2042,9 +2186,14 @@ export default function InstagramChatScreen() {
               </View>
             </View>
             
-            <TouchableOpacity style={styles.headerAction}>
-              <Ionicons name="videocam" size={22} color="#FFE8FF" />
-            </TouchableOpacity>
+            {friendshipStatus === 'friends' && (
+              <TouchableOpacity 
+                style={styles.headerAction}
+                onPress={handleStartVoiceCall}
+              >
+                <Ionicons name="call" size={22} color="#FFE8FF" />
+              </TouchableOpacity>
+            )}
             
             <TouchableOpacity 
               style={styles.headerAction}
@@ -2330,6 +2479,13 @@ export default function InstagramChatScreen() {
         userId={otherUserId || conversationId}
         userName={conversationName}
         userAvatar={userAvatar}
+      />
+
+      <VoiceCallModal
+        visible={showVoiceCall}
+        onClose={handleCloseVoiceCall}
+        callData={voiceCallData}
+        token={token}
       />
     </LinearGradient>
   );
