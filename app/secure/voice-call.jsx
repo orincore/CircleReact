@@ -7,13 +7,18 @@ import {
   StyleSheet,
   SafeAreaView,
   Animated,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { voiceCallService } from '@/src/services/VoiceCallService';
 import { useAuth } from '@/contexts/AuthContext';
 import Avatar from '@/components/Avatar';
+
+const { width, height } = Dimensions.get('window');
 
 export default function VoiceCallScreen() {
   const router = useRouter();
@@ -27,8 +32,14 @@ export default function VoiceCallScreen() {
   const [isMuted, setIsMuted] = useState(false);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   
-  // Animation
+  // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const waveAnim1 = useRef(new Animated.Value(0)).current;
+  const waveAnim2 = useRef(new Animated.Value(0)).current;
+  const waveAnim3 = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
     console.log('📞 Voice call screen mounted:', {
@@ -107,21 +118,66 @@ export default function VoiceCallScreen() {
       console.log('📞 Set incoming call state');
     }
     
-    // Start pulse animation
+    // Fade in animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Pulse animation for avatar
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
+          toValue: 1.08,
+          duration: 1200,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 1200,
           useNativeDriver: true,
         }),
       ])
     ).start();
+    
+    // Rotating gradient animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        useNativeDriver: true,
+      })
+    ).start();
+    
+    // Wave animations (for connected state)
+    if (callState === 'connected') {
+      [waveAnim1, waveAnim2, waveAnim3].forEach((anim, index) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 2000,
+              delay: index * 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      });
+    }
     
     // Cleanup on unmount
     return () => {
@@ -276,29 +332,46 @@ export default function VoiceCallScreen() {
     return null;
   };
   
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <LinearGradient
-        colors={['#1a0b2e', '#2d1b69', '#7b2cbf']}
+        colors={['#0f0c29', '#302b63', '#24243e']}
         style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/secure/chat');
-                }
-              }}
-            >
-              <Ionicons name="chevron-back" size={28} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Voice Call</Text>
-          </View>
+        {/* Animated Background Circles */}
+        <Animated.View style={[styles.bgCircle1, { transform: [{ rotate: spin }] }]} />
+        <Animated.View style={[styles.bgCircle2, { transform: [{ rotate: spin }] }]} />
+        
+        <SafeAreaView style={styles.safeArea}>
+          <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/secure/chat');
+                  }
+                }}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.backButtonBlur}>
+                  <Ionicons name="chevron-back" size={24} color="white" />
+                </BlurView>
+              </TouchableOpacity>
+              <BlurView intensity={30} tint="dark" style={styles.headerTitleContainer}>
+                <Text style={styles.headerTitle}>Voice Call</Text>
+              </BlurView>
+            </View>
           
           {/* Call Info */}
           <View style={styles.callInfo}>
@@ -359,41 +432,83 @@ export default function VoiceCallScreen() {
             )}
           </View>
           
-          {/* Action Buttons */}
-          <View style={styles.actionsContainer}>
-            {renderButtons()}
-          </View>
-        </View>
+            {/* Action Buttons */}
+            <View style={styles.actionsContainer}>
+              {renderButtons()}
+            </View>
+          </Animated.View>
+        </SafeAreaView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   gradient: {
     flex: 1,
   },
+  bgCircle1: {
+    position: 'absolute',
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width * 0.75,
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    top: -width * 0.5,
+    right: -width * 0.3,
+  },
+  bgCircle2: {
+    position: 'absolute',
+    width: width * 1.2,
+    height: width * 1.2,
+    borderRadius: width * 0.6,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    bottom: -width * 0.4,
+    left: -width * 0.2,
+  },
+  safeArea: {
+    flex: 1,
+  },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingTop: 16,
+    paddingBottom: 32,
+    justifyContent: 'space-between',
   },
   backButton: {
-    padding: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  backButtonBlur: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTitleContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: 'white',
-    marginLeft: 16,
+    letterSpacing: 0.5,
   },
   callInfo: {
     flex: 1,
@@ -411,64 +526,96 @@ const styles = StyleSheet.create({
   mainAvatarContainer: {
     position: 'relative',
     zIndex: 1,
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 15,
   },
   mainAvatar: {
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   connectedAvatar: {
-    borderWidth: 4,
-    borderColor: '#4CAF50',
+    borderWidth: 5,
+    borderColor: '#00E676',
+    shadowColor: '#00E676',
+    shadowOpacity: 0.8,
   },
   incomingIndicator: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#4CAF50',
-    borderRadius: 20,
-    padding: 6,
-    borderWidth: 2,
-    borderColor: 'white',
+    top: -8,
+    right: -8,
+    backgroundColor: '#00E676',
+    borderRadius: 24,
+    padding: 8,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#00E676',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 10,
   },
   myAvatarContainer: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
+    bottom: -10,
+    right: -10,
     zIndex: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   myAvatar: {
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   myAvatarLabel: {
     position: 'absolute',
-    bottom: -20,
+    bottom: -24,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   myAvatarText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '600',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '700',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   callerName: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     color: 'white',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 24,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   callStatus: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
+    fontWeight: '600',
+    letterSpacing: 2,
   },
   incomingText: {
     fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: '600',
+    color: '#00E676',
+    fontWeight: '700',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 230, 118, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   actionsContainer: {
     paddingBottom: 50,
@@ -486,38 +633,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   button: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
   },
   acceptButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#00E676',
+    shadowColor: '#00E676',
+    shadowOpacity: 0.6,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   declineButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#FF3D00',
+    shadowColor: '#FF3D00',
+    shadowOpacity: 0.6,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   endButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#FF3D00',
+    shadowColor: '#FF3D00',
+    shadowOpacity: 0.6,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   controlButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   controlButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255, 61, 0, 0.25)',
+    borderColor: '#FF3D00',
+    shadowColor: '#FF3D00',
+    shadowOpacity: 0.5,
   },
 });

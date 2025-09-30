@@ -5,13 +5,17 @@ import { Platform } from 'react-native';
 // Import WebRTC for React Native (development build)
 let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
 
-if (Platform.OS === 'web') {
-  // Browser WebRTC
+// Check if we're in a browser environment (client-side only)
+const isBrowser = typeof window !== 'undefined';
+
+if (Platform.OS === 'web' && isBrowser) {
+  // Browser WebRTC (client-side only)
   RTCPeerConnection = window.RTCPeerConnection;
   RTCSessionDescription = window.RTCSessionDescription;
   RTCIceCandidate = window.RTCIceCandidate;
   mediaDevices = navigator.mediaDevices;
-} else {
+  console.log('✅ Browser WebRTC loaded successfully');
+} else if (Platform.OS !== 'web') {
   // React Native WebRTC (development build)
   try {
     const webrtc = require('react-native-webrtc');
@@ -40,6 +44,7 @@ class VoiceCallService {
     this.remoteStream = null;
     this.processingOffer = false; // Flag to prevent duplicate offer processing
     this.processingAnswer = false; // Flag to prevent duplicate answer processing
+    this.creatingOffer = false; // Flag to prevent duplicate offer creation
     
     // Callbacks
     this.onIncomingCall = null;
@@ -269,6 +274,14 @@ class VoiceCallService {
 
   // WebRTC: Create offer
   async createOffer() {
+    // Prevent duplicate offer creation
+    if (this.creatingOffer) {
+      console.log('⚠️ Already creating offer, skipping duplicate call');
+      return;
+    }
+    
+    this.creatingOffer = true;
+    
     try {
       console.log('📤 Creating WebRTC offer...');
       
@@ -281,6 +294,13 @@ class VoiceCallService {
       // Double check peer connection exists after setup
       if (!this.peerConnection) {
         throw new Error('Failed to setup peer connection');
+      }
+      
+      // Check signaling state before creating offer
+      if (this.peerConnection.signalingState !== 'stable' && 
+          this.peerConnection.signalingState !== 'have-local-offer') {
+        console.log('⚠️ Peer connection not in correct state for offer:', this.peerConnection.signalingState);
+        return;
       }
       
       console.log('📝 Creating offer...');
@@ -308,11 +328,14 @@ class VoiceCallService {
       const isFatalError = !error.message.includes('Called in wrong state') && 
                           !error.message.includes('no pending remote description') &&
                           !error.message.includes('Local fingerprint does not match') &&
+                          !error.message.includes('order of m-lines') &&
                           !error.message.includes('null');
       
       if (isFatalError && this.onError) {
         this.onError(error.message);
       }
+    } finally {
+      this.creatingOffer = false;
     }
   }
 
@@ -458,9 +481,23 @@ class VoiceCallService {
       return;
     }
     
+    // If already setting up, wait for it to complete
     if (this.settingUpPeerConnection) {
       console.log('⚠️ Already setting up peer connection, waiting...');
-      return;
+      // Wait up to 5 seconds for setup to complete
+      let attempts = 0;
+      while (this.settingUpPeerConnection && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (this.peerConnection) {
+        console.log('✅ Peer connection ready after waiting');
+        return;
+      }
+      
+      console.error('❌ Peer connection setup timed out');
+      throw new Error('Peer connection setup timed out');
     }
     
     this.settingUpPeerConnection = true;
@@ -504,11 +541,19 @@ class VoiceCallService {
       this.remoteStream = event.streams[0];
       
       // Play remote audio
-      if (Platform.OS === 'web') {
+      if (Platform.OS === 'web' && isBrowser) {
         // Browser: use Audio element
-        const audioElement = new Audio();
-        audioElement.srcObject = this.remoteStream;
-        audioElement.play();
+        try {
+          const audioElement = new Audio();
+          audioElement.srcObject = this.remoteStream;
+          audioElement.autoplay = true;
+          audioElement.play().catch(err => {
+            console.warn('⚠️ Audio autoplay blocked, user interaction may be required:', err);
+          });
+          console.log('🔊 Browser audio element created and playing');
+        } catch (error) {
+          console.error('❌ Failed to create audio element:', error);
+        }
       } else {
         // React Native: audio plays automatically through device speakers
         // No need to manually play - react-native-webrtc handles this
