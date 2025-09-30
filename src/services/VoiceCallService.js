@@ -979,9 +979,71 @@ export class VoiceCallService {
         throw new Error(errorMsg);
       }
       
-      // Initialize socket
+      // Initialize socket with enhanced browser handling
       if (!this.initializeSocket(token)) {
         throw new Error('Failed to initialize connection');
+      }
+      
+      // For browsers (especially MacBook), ensure socket is truly connected
+      if (Platform.OS === 'web') {
+        console.log('🌐 Browser detected - performing enhanced socket connection check');
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while ((!this.socket || !this.socket.connected) && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`🔄 Browser socket retry attempt ${retryCount}/${maxRetries}`);
+          
+          if (this.socket) {
+            // Force disconnect and reconnect for browsers
+            this.socket.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+            this.socket.connect();
+          }
+          
+          // Wait for connection with timeout
+          try {
+            await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error(`Browser socket connection timeout (attempt ${retryCount})`));
+              }, 3000);
+              
+              if (this.socket.connected) {
+                clearTimeout(timeout);
+                resolve();
+                return;
+              }
+              
+              this.socket.once('connect', () => {
+                clearTimeout(timeout);
+                console.log(`✅ Browser socket connected on attempt ${retryCount}`);
+                resolve();
+              });
+              
+              this.socket.once('connect_error', (error) => {
+                clearTimeout(timeout);
+                reject(new Error(`Browser socket connection failed: ${error.message}`));
+              });
+            });
+            break; // Success, exit retry loop
+          } catch (error) {
+            console.warn(`⚠️ Browser socket attempt ${retryCount} failed:`, error.message);
+            if (retryCount >= maxRetries) {
+              throw new Error(`Failed to establish browser socket connection after ${maxRetries} attempts`);
+            }
+          }
+        }
+        
+        // Final verification for browsers
+        if (!this.socket || !this.socket.connected) {
+          throw new Error('Browser socket connection verification failed');
+        }
+        
+        console.log('✅ Browser socket connection verified:', {
+          connected: this.socket.connected,
+          id: this.socket.id,
+          transport: this.socket.io?.engine?.transport?.name || 'unknown'
+        });
       }
 
       if (this.isExpoGo) {
@@ -1015,9 +1077,169 @@ export class VoiceCallService {
       console.log('📤 Socket ID:', this.socket.id);
       console.log('📤 Call data:', callData);
       
+      // Enhanced socket connection check (especially for MacBook browsers)
+      if (!this.socket || !this.socket.connected) {
+        console.warn('⚠️ Socket not connected before call, attempting emergency reconnection...');
+        
+        if (Platform.OS === 'web') {
+          // MacBook browsers need more aggressive reconnection
+          console.log('🖥️ MacBook browser emergency reconnection protocol');
+          
+          let reconnectAttempts = 0;
+          const maxReconnectAttempts = 2;
+          
+          while (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            console.log(`🔄 Emergency reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+            
+            try {
+              if (this.socket) {
+                // Force disconnect first
+                this.socket.disconnect();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Reconnect
+                this.socket.connect();
+                
+                // Wait for connection
+                await new Promise((resolve, reject) => {
+                  const timeout = setTimeout(() => {
+                    reject(new Error(`Emergency reconnection timeout (attempt ${reconnectAttempts})`));
+                  }, 4000);
+                  
+                  if (this.socket.connected) {
+                    clearTimeout(timeout);
+                    resolve();
+                    return;
+                  }
+                  
+                  this.socket.once('connect', () => {
+                    clearTimeout(timeout);
+                    console.log(`✅ Emergency reconnection successful (attempt ${reconnectAttempts})`);
+                    resolve();
+                  });
+                  
+                  this.socket.once('connect_error', (error) => {
+                    clearTimeout(timeout);
+                    reject(new Error(`Emergency reconnection failed: ${error.message}`));
+                  });
+                });
+                
+                break; // Success, exit retry loop
+              } else {
+                throw new Error('Socket instance not available');
+              }
+            } catch (error) {
+              console.error(`❌ Emergency reconnection attempt ${reconnectAttempts} failed:`, error.message);
+              if (reconnectAttempts >= maxReconnectAttempts) {
+                throw new Error(`MacBook browser socket connection failed after ${maxReconnectAttempts} emergency attempts`);
+              }
+            }
+          }
+        } else {
+          // Standard reconnection for non-browser platforms
+          if (this.socket) {
+            this.socket.connect();
+            
+            await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error('Socket connection timeout'));
+              }, 5000);
+              
+              this.socket.once('connect', () => {
+                clearTimeout(timeout);
+                console.log('✅ Socket reconnected successfully');
+                resolve();
+              });
+              
+              this.socket.once('connect_error', (error) => {
+                clearTimeout(timeout);
+                reject(new Error(`Socket connection failed: ${error.message}`));
+              });
+            });
+          } else {
+            throw new Error('Socket connection not available');
+          }
+        }
+      }
+      
+      // Double-check socket is connected before emitting
+      if (!this.socket.connected) {
+        throw new Error('Socket connection failed - unable to start call');
+      }
+      
+      console.log('📤 Final socket state before sending:', {
+        connected: this.socket.connected,
+        id: this.socket.id,
+        transport: this.socket.io?.engine?.transport?.name || 'unknown',
+        readyState: this.socket.io?.engine?.readyState || 'unknown'
+      });
+      
+      // MacBook browser: Add connection health verification
+      if (Platform.OS === 'web') {
+        console.log('🖥️ MacBook browser: Performing final connection health check');
+        
+        // Test connection with a ping before sending call
+        const connectionHealthy = await new Promise((resolve) => {
+          const healthTimeout = setTimeout(() => {
+            console.warn('⚠️ Connection health check timeout');
+            resolve(false);
+          }, 2000);
+          
+          // Send a test ping
+          this.socket.emit('ping', { test: 'connection-health', timestamp: Date.now() });
+          
+          // Listen for pong response
+          const pongHandler = () => {
+            clearTimeout(healthTimeout);
+            this.socket.off('pong', pongHandler);
+            console.log('✅ Connection health check passed');
+            resolve(true);
+          };
+          
+          this.socket.once('pong', pongHandler);
+          
+          // Also resolve if already healthy
+          if (this.socket.connected && this.socket.id) {
+            clearTimeout(healthTimeout);
+            this.socket.off('pong', pongHandler);
+            resolve(true);
+          }
+        });
+        
+        if (!connectionHealthy) {
+          throw new Error('MacBook browser connection health check failed - socket may be unstable');
+        }
+      }
+      
       this.socket.emit('voice:start-call', callData);
 
       console.log('✅ Call request sent to backend via socket');
+      
+      // MacBook browser: Set a backup timeout to prevent infinite connecting state
+      if (Platform.OS === 'web') {
+        console.log('🖥️ MacBook browser: Setting backup call timeout protection');
+        
+        const callTimeoutProtection = setTimeout(() => {
+          if (this.callState === 'calling') {
+            console.error('❌ MacBook browser call timeout - call stuck in calling state');
+            if (this.onError) {
+              this.onError('Call timed out - this may be a MacBook browser connection issue. Please try again.');
+            }
+            this.endCall();
+          }
+        }, 30000); // 30 second timeout
+        
+        // Clear timeout when call state changes
+        const originalSetCallState = this.setCallState.bind(this);
+        this.setCallState = (newState) => {
+          if (newState !== 'calling') {
+            clearTimeout(callTimeoutProtection);
+            this.setCallState = originalSetCallState; // Restore original method
+          }
+          originalSetCallState(newState);
+        };
+      }
       return true;
     } catch (error) {
       console.error('❌ Failed to start call:', error);
