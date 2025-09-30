@@ -633,6 +633,11 @@ export class VoiceCallService {
       console.log('✅ TESTING: Received response from backend:', data);
     });
     
+    // Keep-alive response
+    this.socket.on('voice:keep-alive-pong', (data) => {
+      console.log('💓 KEEP-ALIVE: Received pong from backend for call:', data.callId);
+    });
+    
     // Monitor socket connection status
     this.socket.on('connect', () => {
       console.log('✅ VOICE CALL: Socket connected', this.socket.id);
@@ -1653,11 +1658,17 @@ export class VoiceCallService {
     
     this.callStartTime = Date.now();
     this.callTimer = setInterval(() => {
-      if (this.onCallDurationUpdate) {
-        const duration = Math.floor((Date.now() - this.callStartTime) / 1000);
-        this.onCallDurationUpdate(duration);
+      const duration = Math.floor((Date.now() - this.callStartTime) / 1000);
+      console.log(`🕰️ Call duration: ${duration}s`);
+      
+      // Send keep-alive ping during active call to prevent socket timeout
+      if (this.socket && this.socket.connected && this.callState === 'connected') {
+        this.socket.emit('voice:keep-alive', {
+          callId: this.currentCallId,
+          duration: duration
+        });
       }
-    }, 1000);
+    }, 10000); // Log every 10 seconds
     
     console.log('⏱️ Call timer started');
   }
