@@ -27,6 +27,7 @@ export default function VoiceCallScreen() {
   // Set initial call state based on whether it's incoming or outgoing
   const [callState, setCallState] = useState(() => {
     const incoming = isIncoming === 'true';
+    console.log('🎙️ Initial state setup:', { incoming, isIncoming });
     return incoming ? 'incoming' : 'calling'; // incoming, calling, ringing, connecting, connected, ended
   });
   
@@ -95,13 +96,8 @@ export default function VoiceCallScreen() {
     if (isIncoming === 'true') {
       console.log('📞 Setting up incoming call state...');
       voiceCallService.currentCallId = callId;
-      
-      // Force incoming state regardless of service state
-      setTimeout(() => {
-        console.log('📞 Forcing incoming call state...');
-        setCallState('incoming');
-        voiceCallService.setCallState('incoming');
-      }, 100);
+      setCallState('incoming');
+      voiceCallService.setCallState('incoming');
     } else {
       // For outgoing calls, ensure proper state
       console.log('📞 Setting up outgoing call state...');
@@ -360,9 +356,14 @@ export default function VoiceCallScreen() {
   };
   
   const renderCallState = () => {
+    console.log('🔍 renderCallState called with:', { callState, isIncoming: isIncoming === 'true' });
+    
+    // ALWAYS show "Incoming call..." for incoming calls - no matter what state
+    if (isIncoming === 'true') {
+      return 'Incoming call...';
+    }
+    
     switch (callState) {
-      case 'incoming':
-        return 'Incoming call...';
       case 'calling':
         return 'Calling...';
       case 'ringing':
@@ -373,28 +374,21 @@ export default function VoiceCallScreen() {
         return formatDuration(callDuration);
       case 'ended':
         return 'Call ended';
-      case 'idle':
-        return 'Call ended';
       default:
-        console.warn('Unknown call state:', callState);
         return 'Call in progress...';
     }
   };
   
   const renderActionButtons = () => {
-    // Don't show buttons if call has ended or screen is inactive
-    if (callState === 'ended' || callState === 'idle' || !isScreenActive) {
-      return (
-        <View style={styles.endedCallContainer}>
-          <Text style={styles.endedCallText}>
-            {callState === 'ended' || callState === 'idle' ? 'Call ended' : 'Disconnecting...'}
-          </Text>
-        </View>
-      );
-    }
+    console.log('🔍 renderActionButtons called with state:', {
+      callState,
+      isScreenActive,
+      isIncoming: isIncoming === 'true'
+    });
     
-    if (callState === 'incoming') {
-      // Incoming call - show accept/decline
+    // ALWAYS show accept/decline buttons for incoming calls - no exceptions
+    if (isIncoming === 'true') {
+      console.log('✅ Rendering incoming call buttons (FORCED - incoming call detected)');
       return (
         <View style={styles.incomingCallActions}>
           <TouchableOpacity
@@ -412,7 +406,18 @@ export default function VoiceCallScreen() {
           </TouchableOpacity>
         </View>
       );
-    } else if (callState === 'connected') {
+    }
+    
+    // For outgoing calls or other states
+    if (callState === 'ended') {
+      return (
+        <View style={styles.endedCallContainer}>
+          <Text style={styles.endedCallText}>Call ended</Text>
+        </View>
+      );
+    }
+    
+    if (callState === 'connected') {
       // Connected call - show call controls
       return (
         <View style={styles.callControls}>
@@ -446,8 +451,10 @@ export default function VoiceCallScreen() {
           </TouchableOpacity>
         </View>
       );
-    } else if (callState === 'calling' || callState === 'connecting') {
-      // Calling or Connecting - show end call only
+    }
+    
+    // For calling/connecting states - show end call only
+    if (callState === 'calling' || callState === 'connecting') {
       return (
         <TouchableOpacity
           style={[styles.actionButton, styles.endCallButton]}
@@ -458,6 +465,7 @@ export default function VoiceCallScreen() {
       );
     }
     
+    // Fallback - should never reach here for incoming calls
     return null;
   };
   
@@ -510,7 +518,7 @@ export default function VoiceCallScreen() {
             <Text style={styles.callStatus}>{renderCallState()}</Text>
             
             {/* Enhanced incoming call info */}
-            {callState === 'incoming' && (
+            {isIncoming === 'true' && (
               <Text style={styles.incomingCallText}>
                 Incoming voice call
               </Text>
@@ -522,6 +530,15 @@ export default function VoiceCallScreen() {
               </Text>
             )}
           </View>
+          
+          {/* Debug Info - Remove in production */}
+          {__DEV__ && (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugText}>
+                State: {callState} | Incoming: {isIncoming} | Active: {isScreenActive.toString()}
+              </Text>
+            </View>
+          )}
           
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
@@ -694,5 +711,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '500',
+  },
+  debugContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 10,
+    borderRadius: 5,
+    marginVertical: 10,
+  },
+  debugText: {
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

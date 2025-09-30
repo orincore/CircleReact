@@ -780,9 +780,9 @@ export class VoiceCallService {
         return;
       }
       
-      // Prevent calls when already ended
-      if (this.callState === 'ended' || this.callState === 'idle') {
-        console.log('⚠️ Ignoring incoming call - call service is in ended/idle state');
+      // Don't prevent calls when in idle state for incoming calls
+      if (this.callState === 'ended') {
+        console.log('⚠️ Ignoring incoming call - call service is in ended state');
         return;
       }
       
