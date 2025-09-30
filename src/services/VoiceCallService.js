@@ -844,6 +844,14 @@ export class VoiceCallService {
       console.error('❌ Current call state:', this.callState);
       console.error('❌ Current call ID:', this.currentCallId);
       
+      // Handle specific error types
+      if (data.reason === 'receiver_offline') {
+        console.warn('⚠️ Receiver is offline');
+        if (this.onError) this.onError('User is currently offline and cannot receive calls');
+        this.endCall();
+        return;
+      }
+      
       // Don't automatically end call for "Call not found" errors during acceptance
       // This might be a temporary backend issue
       if (data.error && data.error.includes('Call not found') && this.callState === 'connecting') {
@@ -855,6 +863,13 @@ export class VoiceCallService {
       // For other errors, end the call
       if (this.onError) this.onError(data.error);
       this.endCall();
+    });
+
+    // Voice call sent confirmation
+    this.socket.on('voice:call-sent', (data) => {
+      console.log('✅ Call sent to receiver:', data);
+      // Call is now ringing, waiting for receiver response
+      this.setCallState('calling');
     });
 
     // Audio chunk received (for Expo Go)
