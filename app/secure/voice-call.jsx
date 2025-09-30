@@ -24,11 +24,13 @@ export default function VoiceCallScreen() {
   const { callId, callerId, callerName, callerAvatar, isIncoming } = useLocalSearchParams();
   const { token } = useAuth();
   
+  // FORCE incoming state - no complex logic
+  const isIncomingCall = isIncoming === 'true' || isIncoming === true;
+  
   // Set initial call state based on whether it's incoming or outgoing
   const [callState, setCallState] = useState(() => {
-    const incoming = isIncoming === 'true';
-    console.log('🎙️ Initial state setup:', { incoming, isIncoming });
-    return incoming ? 'incoming' : 'calling'; // incoming, calling, ringing, connecting, connected, ended
+    console.log('🎙️ Initial state setup:', { isIncoming, isIncomingCall });
+    return isIncomingCall ? 'incoming' : 'calling';
   });
   
   // Prevent duplicate screens
@@ -57,6 +59,12 @@ export default function VoiceCallScreen() {
     setHasNavigated(true);
     setIsScreenActive(false);
     
+    // Clear global flag
+    if (typeof window !== 'undefined') {
+      window.__activeVoiceCallScreen = false;
+      console.log('🧹 Cleared global voice call screen flag on navigation');
+    }
+    
     try {
       if (router.canGoBack()) {
         router.back();
@@ -81,6 +89,18 @@ export default function VoiceCallScreen() {
       currentServiceState: voiceCallService.getCallState()
     });
     
+    // Set global flag to prevent duplicate screens
+    if (typeof window !== 'undefined') {
+      if (window.__activeVoiceCallScreen) {
+        console.warn('⚠️ Another voice call screen is already active, this one will self-destruct');
+        setTimeout(() => {
+          navigateBack();
+        }, 1000);
+        return;
+      }
+      window.__activeVoiceCallScreen = true;
+    }
+    
     // Set up voice call service listeners
     voiceCallService.onCallStateChange = handleCallStateChange;
     voiceCallService.onError = handleCallError;
@@ -93,7 +113,7 @@ export default function VoiceCallScreen() {
     startFadeInAnimation();
     
     // Enhanced incoming call setup
-    if (isIncoming === 'true') {
+    if (isIncomingCall) {
       console.log('📞 Setting up incoming call state...');
       voiceCallService.currentCallId = callId;
       setCallState('incoming');
@@ -109,11 +129,11 @@ export default function VoiceCallScreen() {
       console.log('🔍 Post-mount state verification:', {
         screenState: callState,
         serviceState: voiceCallService.getCallState(),
-        isIncoming: isIncoming === 'true'
+        isIncomingCall
       });
       
       // Fix state mismatch
-      if (isIncoming === 'true' && callState !== 'incoming') {
+      if (isIncomingCall && callState !== 'incoming') {
         console.log('🔧 Fixing state mismatch - forcing incoming state');
         setCallState('incoming');
       }
@@ -127,6 +147,12 @@ export default function VoiceCallScreen() {
       voiceCallService.onCallEnded = null;
       voiceCallService.onCallDurationUpdate = null;
       voiceCallService.onCallEndedByOther = null;
+      
+      // Clear global flag
+      if (typeof window !== 'undefined') {
+        window.__activeVoiceCallScreen = false;
+        console.log('🧹 Cleared global voice call screen flag');
+      }
     };
   }, []);
   
@@ -189,6 +215,16 @@ export default function VoiceCallScreen() {
       startDurationTimer();
       // Audio streaming is automatically handled by VoiceCallService
       console.log('🎵 Call connected - audio streaming will start automatically');
+    } else if (newState === 'connecting') {
+      console.log('🔄 Call connecting...');
+      // Set a timeout to prevent getting stuck in connecting state
+      setTimeout(() => {
+        if (callState === 'connecting') {
+          console.warn('⚠️ Call stuck in connecting state, forcing connected state');
+          setCallState('connected');
+          startDurationTimer();
+        }
+      }, 15000); // 15 second timeout
     } else if (newState === 'ended') {
       stopDurationTimer();
       setIsRecording(false);
@@ -356,10 +392,10 @@ export default function VoiceCallScreen() {
   };
   
   const renderCallState = () => {
-    console.log('🔍 renderCallState called with:', { callState, isIncoming: isIncoming === 'true' });
+    console.log('🔍 renderCallState called with:', { callState, isIncomingCall });
     
     // ALWAYS show "Incoming call..." for incoming calls - no matter what state
-    if (isIncoming === 'true') {
+    if (isIncomingCall) {
       return 'Incoming call...';
     }
     
@@ -383,11 +419,11 @@ export default function VoiceCallScreen() {
     console.log('🔍 renderActionButtons called with state:', {
       callState,
       isScreenActive,
-      isIncoming: isIncoming === 'true'
+      isIncomingCall
     });
     
     // ALWAYS show accept/decline buttons for incoming calls - no exceptions
-    if (isIncoming === 'true') {
+    if (isIncomingCall) {
       console.log('✅ Rendering incoming call buttons (FORCED - incoming call detected)');
       return (
         <View style={styles.incomingCallActions}>
@@ -493,15 +529,15 @@ export default function VoiceCallScreen() {
               <Avatar
                 uri={callerAvatar || ''}
                 name={callerName || 'Unknown'}
-                size={callState === 'incoming' ? 140 : 120}
+                size={isIncomingCall ? 140 : 120}
                 style={[
                   styles.avatar,
-                  callState === 'incoming' && styles.incomingAvatar
+                  isIncomingCall && styles.incomingAvatar
                 ]}
               />
               
               {/* Call type indicator */}
-              {callState === 'incoming' && (
+              {isIncomingCall && (
                 <View style={styles.incomingIndicator}>
                   <Ionicons name="call" size={24} color="white" />
                 </View>
@@ -518,7 +554,7 @@ export default function VoiceCallScreen() {
             <Text style={styles.callStatus}>{renderCallState()}</Text>
             
             {/* Enhanced incoming call info */}
-            {isIncoming === 'true' && (
+            {isIncomingCall && (
               <Text style={styles.incomingCallText}>
                 Incoming voice call
               </Text>
@@ -535,7 +571,7 @@ export default function VoiceCallScreen() {
           {__DEV__ && (
             <View style={styles.debugContainer}>
               <Text style={styles.debugText}>
-                State: {callState} | Incoming: {isIncoming} | Active: {isScreenActive.toString()}
+                State: {callState} | Incoming: {isIncomingCall.toString()} | Active: {isScreenActive.toString()}
               </Text>
             </View>
           )}

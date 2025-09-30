@@ -1456,30 +1456,56 @@ export class VoiceCallService {
       this.socket.emit('test:backend-connection', {
         message: 'Testing backend connection before accept',
         timestamp: Date.now(),
-        callId: this.currentCallId
+        isExpoGo: this.isExpoGo
       });
       
-      console.log('📤 Final socket state before accept:', {
-        connected: this.socket.connected,
-        id: this.socket.id
-      });
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to accept call:', error);
+      if (this.onError) this.onError(error.message);
       
+      // Don't automatically decline - let user try again or handle manually
+      this.setCallState('ended');
+      this.cleanup();
+      return false;
+    }
+  }
+
+  // Accept incoming call
+  async acceptCall(token) {
+    try {
+      console.log('✅ Accepting incoming call:', this.currentCallId);
+      
+      if (!this.currentCallId) {
+        throw new Error('No active call to accept');
+      }
+
+      // Set connecting state immediately
+      this.setCallState('connecting');
+
+      // Emit accept call event
       this.socket.emit('voice:accept-call', {
         callId: this.currentCallId
       });
 
-      this.setCallState('connecting');
       console.log('✅ Call accepted and sent to backend');
+      
+      // Set a timeout to prevent getting stuck in connecting state
+      setTimeout(() => {
+        if (this.callState === 'connecting') {
+          console.warn('⚠️ Call stuck in connecting state, attempting to force connection...');
+          // Try to trigger connection process
+          if (this.socket && this.socket.connected) {
+            this.socket.emit('voice:force-connection', {
+              callId: this.currentCallId
+            });
+          }
+        }
+      }, 10000); // 10 second timeout
+      
       return true;
     } catch (error) {
       console.error('❌ Failed to accept call:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        isWebRTCAvailable: this.isWebRTCAvailable,
-        isExpoGo: this.isExpoGo
-      });
-      
       if (this.onError) this.onError(error.message);
       
       // Don't automatically decline - let user try again or handle manually
@@ -2223,7 +2249,7 @@ export class VoiceCallService {
       this.onCallDurationUpdate = null;
     }, 1000);
     
-    console.log('✅ Cleanup completed. Previous call ID:', previousCallId);
+    console.log('✅ Cleanup completed. Previous call ID:', previousCallId || 'none');
   }
 
   // Get current call state

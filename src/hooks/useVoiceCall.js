@@ -22,19 +22,26 @@ export function useVoiceCall() {
     console.log('🎧 Setting up incoming call handler...');
     let lastCallId = null;
     let navigationInProgress = false;
+    let activeCallScreen = false;
     
     const incomingCallHandler = (callData) => {
       console.log('🚨 INCOMING CALL HANDLER TRIGGERED! 🚨');
       console.log('📞 Handling incoming call:', callData);
       
       // Prevent duplicate navigation for same call
-      if (lastCallId === callData.callId || navigationInProgress) {
-        console.log('⚠️ Ignoring duplicate call navigation:', callData.callId);
+      if (lastCallId === callData.callId || navigationInProgress || activeCallScreen) {
+        console.log('⚠️ Ignoring duplicate call navigation:', {
+          sameCallId: lastCallId === callData.callId,
+          navigationInProgress,
+          activeCallScreen,
+          callId: callData.callId
+        });
         return;
       }
       
       lastCallId = callData.callId;
       navigationInProgress = true;
+      activeCallScreen = true;
       
       // Navigate to voice call screen with call data
       router.push({
@@ -48,10 +55,15 @@ export function useVoiceCall() {
         }
       });
       
-      // Reset navigation flag after 3 seconds
+      // Reset navigation flag after 2 seconds
       setTimeout(() => {
         navigationInProgress = false;
-      }, 3000);
+      }, 2000);
+      
+      // Reset active screen flag after 10 seconds (call should be answered by then)
+      setTimeout(() => {
+        activeCallScreen = false;
+      }, 10000);
     };
     
     // Set handler on voice call service using persistent registration
