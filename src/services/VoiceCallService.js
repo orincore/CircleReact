@@ -601,6 +601,14 @@ export class VoiceCallService {
       console.log('📨 Call state:', this.callState);
       console.log('🔍 RECEIVER DEBUG: Received voice:offer event');
       console.log('🔍 RECEIVER DEBUG: isInitiator:', this.isInitiator, 'peerConnection state:', this.peerConnection?.connectionState);
+      
+      // Test backend connection when we receive an offer
+      console.log('🧪 TESTING: Sending test event to backend...');
+      this.socket.emit('test:backend-connection', {
+        message: 'Testing backend connection from receiver',
+        timestamp: Date.now(),
+        callId: this.currentCallId
+      });
       if (data.callId === this.currentCallId) {
         await this.handleOffer(data.offer);
       } else {
@@ -620,6 +628,11 @@ export class VoiceCallService {
       }
     });
 
+    // Test backend response
+    this.socket.on('test:backend-response', (data) => {
+      console.log('✅ TESTING: Received response from backend:', data);
+    });
+    
     // ICE candidate received
     this.socket.on('voice:ice-candidate', async (data) => {
       console.log('📡 Received ICE candidate for call:', data.callId);
@@ -884,6 +897,20 @@ export class VoiceCallService {
 
       // Accept the call
       console.log('📤 Sending voice:accept-call to backend with callId:', this.currentCallId);
+      console.log('🧪 TESTING: Socket connection before accepting call:', {
+        connected: this.socket.connected,
+        id: this.socket.id,
+        hasSocket: !!this.socket
+      });
+      
+      // Test backend connection first
+      console.log('🧪 TESTING: Sending test event to backend before accept...');
+      this.socket.emit('test:backend-connection', {
+        message: 'Testing backend connection before accept',
+        timestamp: Date.now(),
+        callId: this.currentCallId
+      });
+      
       this.socket.emit('voice:accept-call', {
         callId: this.currentCallId
       });
