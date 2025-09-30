@@ -75,6 +75,13 @@ class VoiceCallService {
     // Call accepted
     this.socket.on('voice:call-accepted', (data) => {
       console.log('✅ Call accepted:', data);
+      
+      // Update call ID with the one from backend
+      if (data.callId) {
+        this.currentCallId = data.callId;
+        console.log('📞 Updated call ID from backend:', this.currentCallId);
+      }
+      
       this.setCallState('connecting');
       
       if (this.isInitiator) {
