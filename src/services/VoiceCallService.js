@@ -249,7 +249,15 @@ class VoiceCallService {
     } catch (error) {
       console.error('❌ Failed to create offer:', error);
       console.error('Error details:', error.message, error.stack);
-      if (this.onError) this.onError(error.message);
+      
+      // Only show error to user if it's a fatal error, not duplicate/state errors
+      const isFatalError = !error.message.includes('Called in wrong state') && 
+                          !error.message.includes('no pending remote description') &&
+                          !error.message.includes('Local fingerprint does not match');
+      
+      if (isFatalError && this.onError) {
+        this.onError(error.message);
+      }
     }
   }
 
@@ -312,7 +320,15 @@ class VoiceCallService {
     } catch (error) {
       console.error('❌ Failed to handle offer:', error);
       console.error('Error details:', error.message, error.stack);
-      if (this.onError) this.onError(error.message);
+      
+      // Only show error to user if it's a fatal error, not duplicate/state errors
+      const isFatalError = !error.message.includes('Called in wrong state') && 
+                          !error.message.includes('no pending remote description') &&
+                          !error.message.includes('Local fingerprint does not match');
+      
+      if (isFatalError && this.onError) {
+        this.onError(error.message);
+      }
     } finally {
       this.processingOffer = false;
     }
@@ -356,7 +372,15 @@ class VoiceCallService {
     } catch (error) {
       console.error('❌ Failed to handle answer:', error);
       console.error('Error details:', error.message, error.stack);
-      if (this.onError) this.onError(error.message);
+      
+      // Only show error to user if it's a fatal error, not duplicate/state errors
+      const isFatalError = !error.message.includes('Called in wrong state') && 
+                          !error.message.includes('no pending remote description') &&
+                          !error.message.includes('Local fingerprint does not match');
+      
+      if (isFatalError && this.onError) {
+        this.onError(error.message);
+      }
     } finally {
       // Always clear the flag
       this.processingAnswer = false;
