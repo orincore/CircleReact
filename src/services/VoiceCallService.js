@@ -216,23 +216,31 @@ class VoiceCallService {
     try {
       console.log('📤 Creating WebRTC offer...');
       
-      await this.setupPeerConnection();
+      // Only setup peer connection if it doesn't exist
+      if (!this.peerConnection) {
+        await this.setupPeerConnection();
+      }
       
+      console.log('📝 Creating offer...');
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false
       });
+      console.log('✅ Offer created');
       
+      console.log('📝 Setting local description (offer)...');
       await this.peerConnection.setLocalDescription(offer);
+      console.log('✅ Local description set');
       
       this.socket.emit('voice:offer', {
         callId: this.currentCallId,
         offer: offer
       });
       
-      console.log('✅ Offer sent');
+      console.log('✅ Offer sent to receiver');
     } catch (error) {
       console.error('❌ Failed to create offer:', error);
+      console.error('Error details:', error.message, error.stack);
       if (this.onError) this.onError(error.message);
     }
   }
@@ -242,20 +250,32 @@ class VoiceCallService {
     try {
       console.log('📥 Handling WebRTC offer...');
       
-      await this.setupPeerConnection();
-      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      // Only setup peer connection if it doesn't exist
+      if (!this.peerConnection) {
+        await this.setupPeerConnection();
+      }
       
+      console.log('📝 Setting remote description (offer)...');
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('✅ Remote description set');
+      
+      console.log('📝 Creating answer...');
       const answer = await this.peerConnection.createAnswer();
+      console.log('✅ Answer created');
+      
+      console.log('📝 Setting local description (answer)...');
       await this.peerConnection.setLocalDescription(answer);
+      console.log('✅ Local description set');
       
       this.socket.emit('voice:answer', {
         callId: this.currentCallId,
         answer: answer
       });
       
-      console.log('✅ Answer sent');
+      console.log('✅ Answer sent to caller');
     } catch (error) {
       console.error('❌ Failed to handle offer:', error);
+      console.error('Error details:', error.message, error.stack);
       if (this.onError) this.onError(error.message);
     }
   }
