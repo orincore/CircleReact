@@ -29,11 +29,13 @@ import FriendRequestsSection from "@/src/components/FriendRequestsSection";
 import FriendRequestMatchCard from "@/src/components/FriendRequestMatchCard";
 import UserProfileModal from "@/src/components/UserProfileModal";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
-import NotificationDebugPanel from "@/src/components/NotificationDebugPanel";
+import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { friendsApi } from "@/src/api/friends";
+import { testBrowserNotifications, testProfileVisitNotification, debugNotificationSystem, forceEnableNotifications, testBackendProfileVisitNotification, simulateSocketNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import { getUserPreferences, getPreferencesForMatching } from "@/utils/preferences";
 import Toast from "@/components/Toast";
 import { circleStatsApi, CirclePointsHelper } from "@/src/api/circle-stats";
+import LiveActivityFeed from "@/components/LiveActivityFeed";
 
 const mockMatches = [
   { id: 1, name: "Ava", age: 27, location: "2 km away", compatibility: "92%" },
@@ -45,7 +47,32 @@ export default function MatchScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
+  
+  // Initialize browser notifications
+  const { setCurrentChatId } = useBrowserNotifications();
   const { token, user } = useAuth();
+  
+  // Initialize browser notification testing (development only)
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Add test functions to window for manual testing
+      window.testBrowserNotifications = testBrowserNotifications;
+      window.testProfileVisitNotification = testProfileVisitNotification;
+      window.testBackendProfileVisitNotification = testBackendProfileVisitNotification;
+      window.simulateSocketNotification = simulateSocketNotification;
+      window.testSocketUserEvents = testSocketUserEvents;
+      window.debugNotificationSystem = debugNotificationSystem;
+      window.forceEnableNotifications = forceEnableNotifications;
+      console.log('🧪 Browser notification testing available:');
+      console.log('   - window.debugNotificationSystem() - Debug entire notification system');
+      console.log('   - window.forceEnableNotifications() - Force enable notifications');
+      console.log('   - window.testSocketUserEvents() - Test socket user event reception');
+      console.log('   - window.testBackendProfileVisitNotification() - Test exact backend format');
+      console.log('   - window.simulateSocketNotification() - Simulate socket event');
+      console.log('   - window.testBrowserNotifications() - Test all notification types');
+      console.log('   - window.testProfileVisitNotification() - Test profile visit notifications');
+    }
+  }, []);
   const [isSearching, setIsSearching] = useState(false);
   const [matchedUser, setMatchedUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -965,6 +992,9 @@ export default function MatchScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Live Activity Feed */}
+        <LiveActivityFeed isVisible={true} maxItems={50} />
+
         <View style={styles.featureCard}>
           {loadingStats ? (
             <View style={styles.loadingContainer}>
@@ -1391,8 +1421,6 @@ export default function MatchScreen() {
         userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
       />
 
-      {/* Debug Panel for Browser Notifications */}
-      <NotificationDebugPanel />
     </LinearGradient>
   );
 }

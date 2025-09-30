@@ -1142,6 +1142,20 @@ export default function InstagramChatScreen() {
     };
 
     s.emit('chat:join', { chatId: conversationId });
+    
+    // Auto-mark all messages as read when chat is opened
+    const markChatAsReadOnOpen = () => {
+      console.log('📖 Auto-marking chat as read on open:', conversationId);
+      try {
+        s.emit('chat:mark-all-read', { chatId: conversationId });
+      } catch (error) {
+        console.error('❌ Error auto-marking chat as read:', error);
+      }
+    };
+    
+    // Mark as read after a shorter delay for better UX
+    const markReadTimeout = setTimeout(markChatAsReadOnOpen, 800);
+    
     s.on('chat:history', handleHistory);
     s.on('chat:message', handleMessage);
     s.on('chat:delivered', handleDelivered);
@@ -1377,6 +1391,9 @@ export default function InstagramChatScreen() {
     // when someone clears their chat - it's now user-specific
 
     return () => {
+      // Clear the mark as read timeout
+      clearTimeout(markReadTimeout);
+      
       try { s.emit('chat:leave', { chatId: conversationId }); } catch {}
       try {
         s.off('chat:history', handleHistory);

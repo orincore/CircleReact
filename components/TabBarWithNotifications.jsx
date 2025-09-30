@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSocket } from '@/src/api/socket';
 import socketService from '@/src/services/socketService';
 import { chatApi } from '@/src/api/chat';
-import { notificationApi } from '@/src/api/notifications';
+import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
 import NotificationPanel from './NotificationPanel';
 
 const TAB_COLORS = {
@@ -16,15 +16,14 @@ const TAB_COLORS = {
 
 export default function TabBarWithNotifications({ state, descriptors, navigation }) {
   const { token } = useAuth();
+  const { notificationCount, resetCount: resetNotificationCount, incrementCount } = useLocalNotificationCount();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [chatUnreadCounts, setChatUnreadCounts] = useState({}); // chatId -> unread count
 
   useEffect(() => {
     if (!token) return;
 
-    loadNotificationCount();
     loadTotalUnreadMessages();
     setupSocketListeners();
 
@@ -107,20 +106,22 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     // Listen for new notifications
     socket.on('notification:new', ({ notification }) => {
       console.log('🔔 New notification received in tab bar:', notification);
-      setNotificationCount(prev => prev + 1);
+      incrementCount();
     });
     
     // Keep existing friend request listeners for compatibility
     socket.on('friend:request:received', () => {
-      setNotificationCount(prev => prev + 1);
+      incrementCount();
     });
 
     socket.on('friend:request:accept:confirmed', () => {
-      setNotificationCount(prev => Math.max(0, prev - 1));
+      // Note: The hook already handles decrementing, so we don't need to do anything here
+      // The notification panel will reset the count when opened
     });
 
     socket.on('friend:request:decline:confirmed', () => {
-      setNotificationCount(prev => Math.max(0, prev - 1));
+      // Note: The hook already handles decrementing, so we don't need to do anything here
+      // The notification panel will reset the count when opened
     });
     
     // Listen for chat message events to update total unread count

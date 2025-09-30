@@ -1,16 +1,24 @@
 // API Configuration for different environments
 
 const getApiBaseUrl = () => {
+  // MacBook IP address for testing (no SSL)
+  const MACBOOK_IP = '172.20.10.14';
+  const isDev = process.env.NODE_ENV !== 'production';
+  
   // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     // Browser environment - check hostname
     const hostname = window.location.hostname;
+    console.log('🔍 Hostname detection:', { hostname, isDev, nodeEnv: process.env.NODE_ENV });
     
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      // Local development - use custom domain with SSL
-      return 'https://api.circle.orincore.com';
+    // Force MacBook IP for development (no SSL)
+    if (isDev || hostname === 'localhost' || hostname === '127.0.0.1') {
+      // Local development - use MacBook IP with HTTP (no SSL)
+      console.log('🏠 Using MacBook IP backend (no SSL):', `http://${MACBOOK_IP}:8080`);
+      return `http://${MACBOOK_IP}:8080`;
     } else {
       // Production - using custom domain with SSL
+      console.log('🌐 Using production backend');
       return 'https://api.circle.orincore.com';
     }
   }
@@ -20,7 +28,8 @@ const getApiBaseUrl = () => {
     // Production - using custom domain with SSL
     return 'https://api.circle.orincore.com';
   } else {
-    return 'http://localhost:8080';
+    // Development - use MacBook IP with HTTP (no SSL)
+    return `http://${MACBOOK_IP}:8080`;
   }
 };
 

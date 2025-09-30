@@ -1,12 +1,15 @@
 import io from "socket.io-client";
-import { API_BASE_URL } from "./config";
+import { API_BASE_URL } from "../config/api.js";
+import { Platform } from 'react-native';
 
 let socket: any | null = null;
 let reconnectAttempts = 0;
-let maxReconnectAttempts = 10;
+let maxReconnectAttempts = 15; // Increased for production
 let reconnectTimer: any = null;
 let pingInterval: any = null;
 let connectionState = 'disconnected'; // 'connecting', 'connected', 'disconnected', 'reconnecting'
+let isInitialized = false;
+let currentToken: string | null = null;
 
 // Socket service for managing chat state and message handlers
 class SocketService {
@@ -108,6 +111,9 @@ function attemptReconnection(token?: string | null) {
 // Create socket with comprehensive event handling
 function createSocket(token?: string | null) {
   try {
+    // Store current token
+    currentToken = token || null;
+    
     // Clean up existing socket
     if (socket) {
       socket.removeAllListeners();
@@ -115,44 +121,84 @@ function createSocket(token?: string | null) {
     }
     clearIntervals();
 
-    console.log('🔌 Creating new socket connection...');
+    console.log('🔌 Creating new socket connection...', {
+      platform: Platform.OS,
+      url: API_BASE_URL,
+      hasToken: !!token
+    });
     socketService.notifyConnectionState('connecting');
 
-    socket = io(API_BASE_URL, {
+    // Enhanced socket configuration for production
+    const socketConfig = {
       path: "/ws",
-      transports: ["websocket", "polling"],
+      transports: Platform.OS === 'web' ? ["websocket", "polling"] : ["websocket"],
       auth: token ? { token } : undefined,
       reconnection: false, // We handle reconnection manually
       autoConnect: true,
-      timeout: 20000, // 20 seconds timeout
+      timeout: Platform.OS === 'web' ? 20000 : 15000, // Shorter timeout for mobile
       forceNew: true,
-    });
+      upgrade: true,
+      rememberUpgrade: true,
+      // Enhanced for cross-platform compatibility
+      withCredentials: false,
+      extraHeaders: Platform.OS === 'web' ? {} : undefined,
+    };
+
+    socket = io(API_BASE_URL, socketConfig);
 
     // Connection successful
     socket.on('connect', () => {
-      console.log('✅ Socket connected successfully');
+      console.log('✅ Socket connected successfully', {
+        id: socket.id,
+        transport: socket.io.engine.transport.name,
+        platform: Platform.OS
+      });
       reconnectAttempts = 0; // Reset attempts on successful connection
+      isInitialized = true;
       socketService.notifyConnectionState('connected');
       
       // Start heartbeat
       startHeartbeat();
+      
+      // Re-join any active chat
+      const currentChatId = socketService.getCurrentChatId();
+      if (currentChatId) {
+        console.log('🔄 Re-joining chat after reconnection:', currentChatId);
+        socket.emit('chat:join', { chatId: currentChatId });
+      }
     });
 
     // Connection error
     socket.on('connect_error', (error: any) => {
       console.error('❌ Socket connection error:', error);
       socketService.notifyConnectionState('disconnected');
+      
+      // Enhanced error handling for different platforms
+      if (Platform.OS === 'web') {
+        // Browser-specific error handling
+        if (error.message?.includes('CORS')) {
+          console.error('🌐 CORS error detected - check server configuration');
+        }
+      }
+      
       attemptReconnection(token);
     });
 
     // Disconnection
     socket.on('disconnect', (reason: string) => {
-      console.warn('⚠️ Socket disconnected:', reason);
+      console.warn('⚠️ Socket disconnected:', reason, {
+        platform: Platform.OS,
+        wasConnected: isInitialized
+      });
       clearIntervals();
       socketService.notifyConnectionState('disconnected');
       
-      // Don't reconnect if disconnection was intentional
-      if (reason !== 'io client disconnect' && reason !== 'io server disconnect') {
+      // Enhanced reconnection logic
+      const shouldReconnect = reason !== 'io client disconnect' && 
+                             reason !== 'io server disconnect' &&
+                             isInitialized; // Only reconnect if was previously connected
+      
+      if (shouldReconnect) {
         attemptReconnection(token);
       }
     });
@@ -166,6 +212,15 @@ function createSocket(token?: string | null) {
     socket.on('auth_error', (error: any) => {
       console.error('🔐 Authentication error:', error);
       socketService.notifyConnectionState('auth_failed');
+    });
+
+    // Transport upgrade events for debugging
+    socket.io.on('upgrade', () => {
+      console.log('🚀 Socket transport upgraded to:', socket.io.engine.transport.name);
+    });
+
+    socket.io.on('upgradeError', (error: any) => {
+      console.warn('⚠️ Socket transport upgrade failed:', error);
     });
 
   } catch (error) {
@@ -191,17 +246,64 @@ function startHeartbeat() {
 }
 
 export function getSocket(token?: string | null): any {
+  // Update token if provided and different
+  if (token && token !== currentToken) {
+    console.log('🔄 Token changed, reconnecting socket...');
+    closeSocket();
+    createSocket(token);
+    return socket;
+  }
+
   // Return existing connected socket
   if (socket && socket.connected && connectionState === 'connected') {
     return socket;
   }
 
   // Create new socket if none exists or connection is broken
-  if (!socket || !socket.connected) {
-    createSocket(token);
+  if (!socket || !socket.connected || connectionState === 'disconnected') {
+    console.log('🔌 Creating socket - current state:', {
+      hasSocket: !!socket,
+      connected: socket?.connected,
+      connectionState,
+      platform: Platform.OS
+    });
+    createSocket(token || currentToken);
   }
   
   return socket;
+}
+
+// Enhanced function to ensure socket is ready
+export function ensureSocketConnection(token?: string | null): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const socket = getSocket(token);
+    
+    if (socket && socket.connected && connectionState === 'connected') {
+      resolve(socket);
+      return;
+    }
+    
+    // Wait for connection with timeout
+    const timeout = setTimeout(() => {
+      reject(new Error('Socket connection timeout'));
+    }, 10000);
+    
+    const onConnect = () => {
+      clearTimeout(timeout);
+      socketService.removeConnectionListener(onConnect);
+      resolve(socket);
+    };
+    
+    socketService.addConnectionListener((state) => {
+      if (state === 'connected') {
+        onConnect();
+      } else if (state === 'failed' || state === 'auth_failed') {
+        clearTimeout(timeout);
+        socketService.removeConnectionListener(onConnect);
+        reject(new Error(`Socket connection failed: ${state}`));
+      }
+    });
+  });
 }
 
 export function closeSocket() {

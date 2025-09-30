@@ -126,9 +126,9 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
       </View>
 
       <View style={styles.accountsList}>
-        {linkedAccounts.map((account) => (
+        {linkedAccounts.map((account, index) => (
           <TouchableOpacity
-            key={account.id}
+            key={account.id || `account-${index}-${account.platform}`}
             style={styles.accountCard}
             onPress={() => handleAccountPress(account)}
             activeOpacity={0.7}

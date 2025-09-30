@@ -23,6 +23,7 @@ import { getSocket } from '@/src/api/socket';
 import { router } from 'expo-router';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
+import Avatar from '../../components/Avatar';
 
 export default function UserProfileModal({ 
   visible, 
@@ -440,19 +441,49 @@ export default function UserProfileModal({
   };
 
   const handleCancelFriendRequest = async () => {
-    if (!token || !userId) return;
-    
+    if (!token || !userId) {
+      console.error('Missing token or userId for cancel request');
+      return;
+    }
+  
     console.log('Cancelling friend request to userId:', userId);
-    
+    console.log('Token available:', !!token);
+    console.log('Browser environment:', Platform.OS === 'web');
+  
     try {
+      // Add loading state
+      setFriendStatus('cancelling');
+      
       const result = await FriendRequestService.cancelFriendRequest(userId, token);
-      if (result.success) {
+      console.log('Cancel friend request result:', result);
+      
+      if (result && result.success) {
         setFriendStatus('none');
         Alert.alert('Request Cancelled', `Friend request to ${userName} has been cancelled.`);
+      } else {
+        console.error('Cancel request failed - no success flag:', result);
+        setFriendStatus('pending'); // Revert to pending
+        Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
       }
     } catch (error) {
       console.error('Failed to cancel friend request:', error);
-      Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      setFriendStatus('pending'); // Revert to pending
+      
+      // More specific error messages
+      let errorMessage = 'Failed to cancel friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -555,6 +586,7 @@ export default function UserProfileModal({
     if (blockStatus.isBlockedBy) return 'Blocked You';
     if (friendStatus === 'friends') return 'Friends ✓';
     if (friendStatus === 'pending') return 'Cancel Request';
+    if (friendStatus === 'cancelling') return 'Cancelling...';
     return 'Add Friend';
   };
 
@@ -611,33 +643,24 @@ export default function UserProfileModal({
             ) : profileData ? (
               <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Test element to ensure rendering */}
-                <Text style={{ color: '#FF0000', fontSize: 16, textAlign: 'center', marginBottom: 10 }}>
-                </Text>
-                
                 {/* Avatar and Basic Info */}
                 <View style={styles.profileHeader}>
-                  <View style={styles.avatarContainer}>
-                    {profileData.avatar ? (
-                      <Image source={{ uri: profileData.avatar }} style={styles.avatar} />
-                    ) : (
-                      <LinearGradient
-                        colors={['#FF6FB5', '#A16AE8', '#5D5FEF']}
-                        style={styles.avatar}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Text style={styles.avatarText}>
-                          {profileData.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </LinearGradient>
-                    )}
-                    
-                    {/* Online Status */}
-                    <View style={[
-                      styles.onlineIndicator, 
-                      { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
-                    ]} />
-                  </View>
+                  <Avatar 
+                    user={{
+                      id: userId,
+                      first_name: profileData.name.split(' ')[0],
+                      last_name: profileData.name.split(' ')[1],
+                      profile_photo_url: profileData.avatar,
+                      name: profileData.name
+                    }}
+                    size={100}
+                    disabled={true}
+                    style={styles.avatarContainer}
+                  />
+                  <View style={[
+                    styles.onlineIndicator, 
+                    { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
+                  ]} />
                   
                   <Text style={styles.name}>{profileData.name}</Text>
                   <Text style={styles.username}>{profileData.username}</Text>

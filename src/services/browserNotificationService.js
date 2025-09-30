@@ -7,6 +7,7 @@ class BrowserNotificationService {
     this.isEnabled = false;
     this.notificationQueue = [];
     this.activeNotifications = new Map();
+    this.permissionRequested = false;
     
     // Only initialize on web platform
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -30,16 +31,20 @@ class BrowserNotificationService {
         enabled: this.isEnabled,
         userAgent: navigator.userAgent.substring(0, 50) + '...',
         protocol: window.location.protocol,
-        host: window.location.host
+        host: window.location.host,
+        visibilityState: document.visibilityState,
+        timestamp: new Date().toISOString()
       });
-
-      // Log additional debug info
-      console.log('🔔 Notification API details:', {
-        NotificationConstructor: typeof Notification,
-        maxActions: Notification.maxActions || 'undefined',
-        permission: Notification.permission,
-        requestPermission: typeof Notification.requestPermission
+      
+      // Add visibility change listener for debugging
+      document.addEventListener('visibilitychange', () => {
+        console.log('👁️ Page visibility changed:', {
+          visibilityState: document.visibilityState,
+          hidden: document.hidden,
+          timestamp: new Date().toISOString()
+        });
       });
+      
     } else {
       console.warn('⚠️ Browser notifications not supported');
       console.log('🔍 Debug info:', {
@@ -53,11 +58,11 @@ class BrowserNotificationService {
   // Request notification permission
   async requestPermission() {
     console.log('🔔 Requesting notification permission...');
+    this.permissionRequested = true;
     
     if (!this.isSupported) {
-      const error = 'Browser notifications not supported';
-      console.error('❌', error);
-      throw new Error(error);
+      console.error('❌ Browser notifications not supported');
+      return false;
     }
 
     if (this.permission === 'granted') {
@@ -66,149 +71,147 @@ class BrowserNotificationService {
     }
 
     try {
-      console.log('🔔 Current permission status:', this.permission);
-      
-      // Check if requestPermission is available
-      if (typeof Notification.requestPermission !== 'function') {
-        throw new Error('Notification.requestPermission is not available');
-      }
-      
       const permission = await Notification.requestPermission();
       this.permission = permission;
       this.isEnabled = permission === 'granted';
       
       console.log('🔔 Permission request result:', {
         permission,
-        enabled: this.isEnabled,
-        timestamp: new Date().toISOString()
+        enabled: this.isEnabled
       });
       
       return permission === 'granted';
     } catch (error) {
-      console.error('❌ Failed to request notification permission:', {
-        error: error.message,
-        stack: error.stack,
-        permission: this.permission,
-        supported: this.isSupported
-      });
+      console.error('❌ Failed to request notification permission:', error);
       return false;
     }
   }
 
-  // Check if notifications are enabled
+  // Check if notifications can be shown
   canShowNotifications() {
-    const canShow = this.isSupported && this.isEnabled && document.visibilityState === 'hidden';
+    const isPageHidden = document.visibilityState === 'hidden';
+    const hasPermission = this.isSupported && this.isEnabled;
     
-    console.log('🔔 Can show notifications check:', {
+    console.log('🔍 Notification check:', {
       supported: this.isSupported,
       enabled: this.isEnabled,
-      pageHidden: document.visibilityState === 'hidden',
+      permission: this.permission,
+      pageHidden: isPageHidden,
       visibilityState: document.visibilityState,
-      canShow,
+      canShow: hasPermission && isPageHidden,
       timestamp: new Date().toISOString()
     });
     
-    return canShow;
+    return hasPermission && isPageHidden;
   }
 
-  // Show browser notification
-  showNotification({ title, body, icon, tag, data, onClick, requiresInteraction = true }) {
-    console.log('🔔 Attempting to show notification:', {
-      title,
-      body: body?.substring(0, 50) + '...',
+  // Force show notification (for testing)
+  canForceShow() {
+    return this.isSupported && this.isEnabled;
+  }
+
+  // Core notification display method
+  showNotification({ title, body, icon = '/icon-192x192.png', tag, data = {}, onClick }) {
+    console.log('🔔 Attempting to show notification:', { 
+      title, 
+      body, 
       tag,
-      timestamp: new Date().toISOString()
+      visibilityState: document.visibilityState,
+      permission: this.permission,
+      enabled: this.isEnabled
     });
-
-    if (!this.canShowNotifications()) {
-      console.log('🔕 Skipping notification - conditions not met');
-      return null;
+    
+    // Auto-request permission if not done yet
+    if (!this.permissionRequested && this.permission === 'default') {
+      console.log('🔔 Auto-requesting permission...');
+      this.requestPermission().then(() => {
+        // Retry showing notification after permission
+        if (this.canShowNotifications()) {
+          console.log('🔔 Permission granted, retrying notification...');
+          this.displayNotification({ title, body, icon, tag, data, onClick });
+        } else {
+          console.log('🔕 Still cannot show notification after permission grant');
+        }
+      });
+      return false;
     }
+    
+    if (!this.canShowNotifications()) {
+      console.log('🔕 Cannot show notification - conditions not met:', {
+        supported: this.isSupported,
+        enabled: this.isEnabled,
+        pageHidden: document.visibilityState === 'hidden',
+        visibilityState: document.visibilityState
+      });
+      return false;
+    }
+    
+    console.log('✅ All conditions met, displaying notification...');
+    return this.displayNotification({ title, body, icon, tag, data, onClick });
+  }
 
+  // Display the actual notification
+  displayNotification({ title, body, icon, tag, data, onClick }) {
     try {
-      // Close existing notification with same tag
-      if (tag && this.activeNotifications.has(tag)) {
-        console.log('🔔 Closing existing notification with tag:', tag);
-        this.activeNotifications.get(tag).close();
-      }
-
-      console.log('🔔 Creating notification with options:', {
-        title,
+      console.log('✅ Displaying notification:', title);
+      
+      const notification = new Notification(title, {
         body,
-        icon: icon || '/favicon.ico',
+        icon,
         tag,
-        requiresInteraction,
+        data,
+        requireInteraction: false,
         silent: false
       });
 
-      const notification = new Notification(title, {
-        body,
-        icon: icon || '/favicon.ico',
-        tag,
-        data,
-        requiresInteraction,
-        silent: false,
-        badge: '/favicon.ico'
-      });
-
-      // Store active notification
+      // Store reference
       if (tag) {
         this.activeNotifications.set(tag, notification);
       }
 
-      // Handle events
+      // Handle click
       notification.onclick = (event) => {
         console.log('🔔 Notification clicked:', title);
-        event.preventDefault();
-        window.focus(); // Focus the browser window
         
+        // Focus the window
+        if (window) {
+          window.focus();
+        }
+        
+        // Call custom onClick handler
         if (onClick) {
           onClick(data);
         }
         
+        // Close notification
         notification.close();
-        if (tag) {
-          this.activeNotifications.delete(tag);
-        }
       };
 
-      notification.onshow = () => {
-        console.log('🔔 Notification shown successfully:', title);
-      };
-
-      notification.onerror = (error) => {
-        console.error('❌ Notification error:', error);
-      };
-
-      notification.onclose = () => {
-        console.log('🔔 Notification closed:', title);
-        if (tag) {
-          this.activeNotifications.delete(tag);
-        }
-      };
-
-      // Auto-close after delay
+      // Auto-close after 5 seconds
       setTimeout(() => {
-        console.log('🔔 Auto-closing notification:', title);
         notification.close();
-        if (tag) {
-          this.activeNotifications.delete(tag);
-        }
-      }, 8000);
+      }, 5000);
 
-      console.log('✅ Browser notification created successfully:', title);
+      console.log('✅ Notification displayed successfully:', title);
       return notification;
+      
     } catch (error) {
-      console.error('❌ Failed to show browser notification:', {
-        error: error.message,
-        stack: error.stack,
-        title,
-        supported: this.isSupported,
-        enabled: this.isEnabled,
-        permission: this.permission
-      });
+      console.error('❌ Failed to display notification:', error);
       return null;
     }
+  }
+
+  // Clear all notifications
+  clearAllNotifications() {
+    console.log('🧹 Clearing all notifications...');
+    this.activeNotifications.forEach((notification, tag) => {
+      try {
+        notification.close();
+      } catch (error) {
+        console.warn('⚠️ Error closing notification:', tag, error);
+      }
+    });
+    this.activeNotifications.clear();
   }
 
   // Friend request notifications
@@ -216,27 +219,33 @@ class BrowserNotificationService {
     return this.showNotification({
       title: '👥 New Friend Request',
       body: `${senderName} wants to be your friend`,
-      tag: `friend_request_${requestId}`,
-      data: { type: 'friend_request', senderId, requestId },
+      icon: '/icon-192x192.png',
+      tag: `friend-request-${senderId}`,
+      data: { type: 'friend_request', senderId, requestId, senderName },
       onClick: (data) => {
-        // Navigate to notifications or match page
-        window.location.hash = '/secure/notifications';
+        console.log('🔔 Friend request notification clicked:', data);
+        // Navigate to notifications or friend requests
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
       }
     });
   }
 
   // Message notifications
   showMessageNotification({ senderName, message, chatId, senderId }) {
-    const truncatedMessage = message && message.length > 50 ? message.substring(0, 50) + '...' : message || 'New message';
-    
     return this.showNotification({
-      title: 'Circle New message',
-      body: `by ${senderName}: ${truncatedMessage}`,
-      tag: `message_${chatId}`,
-      data: { type: 'message', chatId, senderId },
+      title: `💬 ${senderName}`,
+      body: message,
+      icon: '/icon-192x192.png',
+      tag: `message-${chatId}`,
+      data: { type: 'message', chatId, senderId, senderName },
       onClick: (data) => {
-        // Navigate to the specific chat
-        window.location.hash = `/secure/chat-conversation?conversationId=${data.chatId}`;
+        console.log('🔔 Message notification clicked:', data);
+        // Navigate to chat
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
       }
     });
   }
@@ -244,13 +253,17 @@ class BrowserNotificationService {
   // Match notifications
   showMatchNotification({ matchedUserName, matchId }) {
     return this.showNotification({
-      title: '💖 New Match!',
+      title: '💕 New Match!',
       body: `You matched with ${matchedUserName}`,
-      tag: `match_${matchId}`,
-      data: { type: 'match', matchId },
+      icon: '/icon-192x192.png',
+      tag: `match-${matchId}`,
+      data: { type: 'match', matchId, matchedUserName },
       onClick: (data) => {
-        // Navigate to match page
-        window.location.hash = '/secure/match';
+        console.log('🔔 Match notification clicked:', data);
+        // Navigate to matches
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
       }
     });
   }
@@ -260,112 +273,109 @@ class BrowserNotificationService {
     return this.showNotification({
       title: '📩 Message Request',
       body: `${senderName} wants to send you a message`,
-      tag: `message_request_${requestId}`,
-      data: { type: 'message_request', senderId, requestId },
+      icon: '/icon-192x192.png',
+      tag: `message-request-${senderId}`,
+      data: { type: 'message_request', senderId, requestId, senderName },
       onClick: (data) => {
-        // Navigate to notifications
-        window.location.hash = '/secure/notifications';
+        console.log('🔔 Message request notification clicked:', data);
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
       }
     });
   }
 
-  // Friend request accepted notifications
-  showFriendRequestAcceptedNotification({ friendName, friendId }) {
+  // Friend accepted notifications
+  showFriendAcceptedNotification({ friendName, friendId }) {
     return this.showNotification({
       title: '✅ Friend Request Accepted',
       body: `${friendName} accepted your friend request`,
-      tag: `friend_accepted_${friendId}`,
-      data: { type: 'friend_accepted', friendId },
+      icon: '/icon-192x192.png',
+      tag: `friend-accepted-${friendId}`,
+      data: { type: 'friend_accepted', friendId, friendName },
       onClick: (data) => {
-        // Navigate to chat with new friend
-        window.location.hash = `/secure/chat/${friendId}`;
+        console.log('🔔 Friend accepted notification clicked:', data);
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
+      }
+    });
+  }
+
+  // Profile visit notifications
+  showProfileVisitNotification({ visitorName, visitorId }) {
+    console.log('👀 Showing profile visit notification:', { visitorName, visitorId });
+    
+    // Validate input parameters
+    if (!visitorName || !visitorId) {
+      console.error('❌ Invalid profile visit notification data:', { visitorName, visitorId });
+      return false;
+    }
+    
+    // Sanitize visitor name for display
+    const sanitizedVisitorName = String(visitorName).trim() || 'Someone';
+    
+    return this.showNotification({
+      title: '👀 Profile Visit',
+      body: `${sanitizedVisitorName} viewed your profile`,
+      icon: '/icon-192x192.png',
+      tag: `profile-visit-${visitorId}`,
+      data: { 
+        type: 'profile_visit', 
+        visitorId, 
+        visitorName: sanitizedVisitorName,
+        timestamp: new Date().toISOString()
+      },
+      onClick: (data) => {
+        console.log('🔔 Profile visit notification clicked:', data);
+        
+        // Focus the window
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
+        
+        // Optional: Navigate to visitor's profile or notifications
+        // This can be enhanced based on app routing requirements
+        try {
+          // Example: Could navigate to visitor's profile
+          // window.location.href = `/profile/${data.visitorId}`;
+          
+          // Or navigate to notifications page
+          // window.location.href = '/notifications';
+          
+          console.log('✅ Profile visit notification click handled successfully');
+        } catch (error) {
+          console.error('❌ Error handling profile visit notification click:', error);
+        }
       }
     });
   }
 
   // Reaction notifications
   showReactionNotification({ senderName, emoji, message, chatId, senderId }) {
-    const truncatedMessage = message.length > 30 ? message.substring(0, 30) + '...' : message;
-    
     return this.showNotification({
       title: `${emoji} ${senderName}`,
-      body: `Reacted to: "${truncatedMessage}"`,
-      tag: `reaction_${chatId}_${Date.now()}`,
-      data: { type: 'reaction', chatId, senderId },
+      body: `Reacted to: ${message}`,
+      icon: '/icon-192x192.png',
+      tag: `reaction-${chatId}-${senderId}`,
+      data: { type: 'reaction', chatId, senderId, senderName, emoji },
       onClick: (data) => {
-        // Navigate to chat
-        window.location.hash = `/secure/chat/${chatId}`;
+        console.log('🔔 Reaction notification clicked:', data);
+        if (typeof window !== 'undefined') {
+          window.focus();
+        }
       }
     });
   }
 
-  // Generic notification
-  showGenericNotification({ title, body, type, data, onClick }) {
-    return this.showNotification({
-      title,
-      body,
-      tag: `generic_${type}_${Date.now()}`,
-      data: { type, ...data },
-      onClick
-    });
-  }
-
-  // Clear all notifications
-  clearAllNotifications() {
-    this.activeNotifications.forEach(notification => {
-      notification.close();
-    });
-    this.activeNotifications.clear();
-    console.log('🔕 All browser notifications cleared');
-  }
-
-  // Force show notification (for testing - ignores page visibility)
+  // Force show notification (for testing)
   forceShowNotification({ title, body, icon, tag, data, onClick }) {
-    console.log('🧪 Force showing notification for testing:', title);
+    if (!this.canForceShow()) {
+      console.log('🔕 Cannot force show - no permission');
+      return false;
+    }
     
-    if (!this.isSupported) {
-      console.error('❌ Cannot force show - browser not supported');
-      return null;
-    }
-
-    if (this.permission !== 'granted') {
-      console.error('❌ Cannot force show - permission not granted');
-      return null;
-    }
-
-    try {
-      const notification = new Notification(title, {
-        body,
-        icon: icon || '/favicon.ico',
-        tag,
-        data,
-        requiresInteraction: false,
-        silent: false
-      });
-
-      notification.onclick = (event) => {
-        console.log('🔔 Force notification clicked:', title);
-        event.preventDefault();
-        window.focus();
-        
-        if (onClick) {
-          onClick(data);
-        }
-        
-        notification.close();
-      };
-
-      // Auto-close after 5 seconds for testing
-      setTimeout(() => {
-        notification.close();
-      }, 5000);
-
-      console.log('✅ Force notification shown successfully:', title);
-      return notification;
-    } catch (error) {
-      console.error('❌ Failed to force show notification:', error);
-      return null;
-    }
+    return this.displayNotification({ title, body, icon, tag, data, onClick });
   }
 
   // Get notification status
@@ -374,7 +384,8 @@ class BrowserNotificationService {
       supported: this.isSupported,
       permission: this.permission,
       enabled: this.isEnabled,
-      activeCount: this.activeNotifications.size
+      activeCount: this.activeNotifications.size,
+      permissionRequested: this.permissionRequested
     };
   }
 }

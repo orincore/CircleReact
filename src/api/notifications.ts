@@ -28,29 +28,29 @@ export const notificationApi = {
    * Get user notifications
    */
   getNotifications: (token?: string | null, limit?: number): Promise<NotificationResponse> =>
-    http.get<NotificationResponse>(`/notifications${limit ? `?limit=${limit}` : ''}`, token),
+    http.get<NotificationResponse>(`/api/notifications${limit ? `?limit=${limit}` : ''}`, token),
 
   /**
    * Get unread notification count
    */
   getUnreadCount: (token?: string | null): Promise<NotificationResponse> =>
-    http.get<NotificationResponse>('/notifications/unread-count', token),
+    http.get<NotificationResponse>('/api/notifications/unread-count', token),
 
   /**
    * Mark notification as read
    */
   markAsRead: (notificationId: string, token?: string | null): Promise<NotificationResponse> =>
-    http.patch<NotificationResponse>(`/notifications/${notificationId}/read`, {}, token),
+    http.patch<NotificationResponse>(`/api/notifications/${notificationId}/read`, {}, token),
 
   /**
    * Delete notification
    */
   deleteNotification: (notificationId: string, token?: string | null): Promise<NotificationResponse> =>
-    http.delete<NotificationResponse>(`/notifications/${notificationId}`, token),
+    http.delete<NotificationResponse>(`/api/notifications/${notificationId}`, token),
 
   /**
    * Mark all notifications as read
    */
   markAllAsRead: (token?: string | null): Promise<NotificationResponse> =>
-    http.patch<NotificationResponse>('/notifications/mark-all-read', {}, token),
+    http.patch<NotificationResponse>('/api/notifications/mark-all-read', {}, token),
 };
