@@ -129,30 +129,82 @@ function createSocket(token?: string | null) {
     socketService.notifyConnectionState('connecting');
 
     // Enhanced socket configuration for production
+    const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+    
     const socketConfig = {
       path: "/ws",
-      // Optimized transport order (WebSocket first for EC2 backend)
-      transports: Platform.OS === 'web' ? ["websocket", "polling"] : ["websocket"],
+      // Production-optimized transport order
+      transports: isProduction 
+        ? ["polling", "websocket"] // Production: polling first for reliability
+        : Platform.OS === 'web' 
+          ? ["websocket", "polling"] // Local: websocket first
+          : ["websocket"],
       auth: token ? { token } : undefined,
       reconnection: false, // We handle reconnection manually
       autoConnect: true,
-      timeout: 20000, // Standard timeout for EC2 backend
+      // Production-specific timeouts
+      timeout: isProduction ? 30000 : 15000, // Longer timeout for production
       forceNew: true,
-      upgrade: true,
-      rememberUpgrade: true,
-      // Standard configuration for EC2 backend
+      upgrade: isProduction ? false : true, // Disable upgrade in production initially
+      rememberUpgrade: isProduction ? false : true, // Don't remember upgrade in production
+      // Production-specific configuration
       withCredentials: false,
+      // Additional production resilience
+      ...(isProduction && {
+        // Force polling initially in production
+        forceBase64: false,
+        enablesXDR: false,
+        timestampRequests: true,
+        timestampParam: 't',
+        // Polling-specific options for production
+        pollingTimeout: 30000,
+        // Disable WebSocket upgrade attempts initially
+        upgrade: false,
+      }),
     };
+    
+    console.log('🔧 Socket configuration for', isProduction ? 'PRODUCTION' : 'LOCAL', ':', {
+      url: API_BASE_URL,
+      transports: socketConfig.transports,
+      timeout: socketConfig.timeout,
+      upgrade: socketConfig.upgrade,
+      platform: Platform.OS
+    });
 
     socket = io(API_BASE_URL, socketConfig);
 
     // Connection successful
     socket.on('connect', () => {
+      const transport = socket.io.engine.transport.name;
       console.log('✅ Socket connected successfully', {
         id: socket.id,
-        transport: socket.io.engine.transport.name,
-        platform: Platform.OS
+        transport: transport,
+        platform: Platform.OS,
+        url: API_BASE_URL,
+        isProduction: isProduction,
+        timestamp: new Date().toISOString()
       });
+      
+      // Production-specific connection validation
+      if (isProduction) {
+        console.log('🏭 PRODUCTION CONNECTION ESTABLISHED:', {
+          socketId: socket.id,
+          transport: transport,
+          readyState: socket.io.engine.readyState,
+          upgraded: socket.io.engine.upgraded,
+          url: API_BASE_URL,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Test production connection immediately
+        setTimeout(() => {
+          if (socket && socket.connected) {
+            console.log('🧪 Testing production connection stability...');
+            socket.emit('ping', { test: 'production-stability', timestamp: Date.now() });
+          }
+        }, 1000);
+      }
+      
       reconnectAttempts = 0; // Reset attempts on successful connection
       isInitialized = true;
       socketService.notifyConnectionState('connected');
@@ -176,7 +228,9 @@ function createSocket(token?: string | null) {
         description: error.description,
         context: error.context,
         type: error.type,
-        transport: error.transport
+        transport: error.transport,
+        url: API_BASE_URL,
+        timestamp: new Date().toISOString()
       });
       socketService.notifyConnectionState('disconnected');
       
@@ -189,23 +243,54 @@ function createSocket(token?: string | null) {
         
         // Production domain specific debugging
         if (API_BASE_URL.includes('api.circle.orincore.com')) {
-          console.error('🏭 Production domain connection failed:', {
+          console.error('🏭 PRODUCTION SOCKET ERROR ANALYSIS:', {
             domain: 'api.circle.orincore.com',
             transport: socket.io?.engine?.transport?.name || 'unknown',
             readyState: socket.io?.engine?.readyState || 'unknown',
             url: API_BASE_URL,
-            error: error.message
+            error: error.message,
+            errorType: error.type,
+            errorCode: error.code,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            connectionAttempt: reconnectAttempts + 1
           });
           
-          // Check if it's a WebSocket-specific issue
+          // Specific error pattern detection
           if (error.message?.includes('websocket') || error.message?.includes('WebSocket')) {
-            console.warn('⚠️ WebSocket connection failed on production domain - this is common with Vercel');
+            console.warn('⚠️ WebSocket connection failed on production domain');
+            console.warn('⚠️ This could be due to:');
+            console.warn('   - Proxy/CDN blocking WebSocket upgrades');
+            console.warn('   - Server not supporting WebSocket on this domain');
+            console.warn('   - Network firewall restrictions');
             console.warn('⚠️ Falling back to polling transport');
           }
           
           // Check for SSL/TLS issues
           if (error.message?.includes('SSL') || error.message?.includes('TLS') || error.message?.includes('certificate')) {
             console.error('🔒 SSL/TLS certificate issue detected on production domain');
+            console.error('🔒 This could be due to:');
+            console.error('   - Invalid or expired SSL certificate');
+            console.error('   - Certificate chain issues');
+            console.error('   - Mixed content (HTTP/HTTPS) issues');
+          }
+          
+          // Check for timeout issues
+          if (error.message?.includes('timeout') || error.type === 'timeout') {
+            console.error('⏱️ Connection timeout on production domain');
+            console.error('⏱️ This could be due to:');
+            console.error('   - Slow server response times');
+            console.error('   - Network latency issues');
+            console.error('   - Server overload or cold starts');
+          }
+          
+          // Check for network issues
+          if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            console.error('🌐 Network error on production domain');
+            console.error('🌐 This could be due to:');
+            console.error('   - DNS resolution issues');
+            console.error('   - Server downtime');
+            console.error('   - CDN/proxy configuration issues');
           }
         }
       }
@@ -263,15 +348,49 @@ function createSocket(token?: string | null) {
 function startHeartbeat() {
   clearIntervals(); // Clear any existing intervals
   
+  const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+  const heartbeatInterval = isProduction ? 20000 : 25000; // More frequent in production
+  
   pingInterval = setInterval(() => {
     if (socket && socket.connected) {
-      socket.emit('ping');
-      console.log('💓 Sending heartbeat...');
+      const pingData = {
+        timestamp: Date.now(),
+        environment: isProduction ? 'production' : 'local',
+        transport: socket.io?.engine?.transport?.name || 'unknown'
+      };
+      
+      socket.emit('ping', pingData);
+      console.log('💓 Sending heartbeat...', isProduction ? '(PRODUCTION)' : '(LOCAL)', {
+        transport: pingData.transport,
+        interval: heartbeatInterval
+      });
+      
+      // Production-specific connection monitoring
+      if (isProduction) {
+        // Monitor for connection stability issues
+        const connectionHealth = {
+          connected: socket.connected,
+          readyState: socket.io?.engine?.readyState,
+          transport: socket.io?.engine?.transport?.name,
+          upgraded: socket.io?.engine?.upgraded,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log('🏭 Production connection health:', connectionHealth);
+        
+        // Detect potential issues
+        if (socket.io?.engine?.readyState !== 'open') {
+          console.warn('⚠️ Production socket readyState is not "open":', socket.io?.engine?.readyState);
+        }
+      }
     } else {
       console.warn('⚠️ Socket not connected, stopping heartbeat');
+      if (isProduction) {
+        console.error('🏭 PRODUCTION HEARTBEAT FAILED - Socket disconnected');
+      }
       clearIntervals();
     }
-  }, 25000); // Ping every 25 seconds
+  }, heartbeatInterval);
 }
 
 export function getSocket(token?: string | null): any {
@@ -359,4 +478,59 @@ export function forceReconnect(token?: string | null) {
   closeSocket();
   reconnectAttempts = 0;
   createSocket(token);
+}
+
+// Production socket diagnostics (for browser console debugging)
+export function diagnoseProductionSocket() {
+  const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+  
+  console.log('🔍 SOCKET DIAGNOSTIC REPORT:', {
+    environment: isProduction ? 'PRODUCTION' : 'LOCAL',
+    url: API_BASE_URL,
+    socketExists: !!socket,
+    connected: socket?.connected || false,
+    socketId: socket?.id || 'none',
+    transport: socket?.io?.engine?.transport?.name || 'unknown',
+    readyState: socket?.io?.engine?.readyState || 'unknown',
+    upgraded: socket?.io?.engine?.upgraded || false,
+    reconnectAttempts: reconnectAttempts,
+    connectionState: connectionState,
+    isInitialized: isInitialized,
+    currentToken: !!currentToken,
+    platform: Platform.OS,
+    timestamp: new Date().toISOString()
+  });
+  
+  if (isProduction && socket) {
+    console.log('🏭 PRODUCTION-SPECIFIC DIAGNOSTICS:', {
+      engineUpgrade: socket.io?.engine?.upgrade,
+      engineTransports: socket.io?.engine?.transports,
+      engineSocket: !!socket.io?.engine?.socket,
+      engineWriteBuffer: socket.io?.engine?.writeBuffer?.length || 0,
+      engineReadyState: socket.io?.engine?.readyState,
+      enginePingInterval: socket.io?.engine?.pingInterval,
+      enginePingTimeout: socket.io?.engine?.pingTimeout
+    });
+    
+    // Test connection
+    console.log('🧪 Testing production connection...');
+    socket.emit('ping', { 
+      test: 'diagnostic', 
+      timestamp: Date.now(),
+      source: 'manual-diagnostic' 
+    });
+  }
+  
+  return {
+    socket,
+    isProduction,
+    connected: socket?.connected,
+    transport: socket?.io?.engine?.transport?.name
+  };
+}
+
+// Make diagnostic function available globally for browser console
+if (typeof window !== 'undefined') {
+  (window as any).diagnoseProductionSocket = diagnoseProductionSocket;
+  (window as any).forceSocketReconnect = forceReconnect;
 }
