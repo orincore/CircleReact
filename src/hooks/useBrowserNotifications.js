@@ -390,8 +390,8 @@ export default function useBrowserNotifications() {
     console.log('🔔 Registering notification event listeners...');
     console.log('🔔 Socket details:', {
       connected: socket?.connected,
-      id: socket?.id,
-      userId: user?.id,
+      socketId: socket?.id,
+      userId: currentUserId,
       hasAuth: !!socket?.handshake?.auth?.token
     });
     
@@ -402,6 +402,22 @@ export default function useBrowserNotifications() {
       
       // Test if we can receive our own events by emitting to ourselves
       console.log('🧪 Testing user room subscription...');
+      
+      // Add pong listener to verify connection
+      socket.on('pong', (data) => {
+        console.log('✅ Socket ping/pong successful:', data);
+      });
+      
+      // Test voice call room subscription
+      console.log('📞 Testing voice call room subscription for user:', currentUserId);
+      
+      // Emit a test event to see if we're properly in our user room
+      socket.emit('test:user-room', { userId: currentUserId });
+      
+      // Listen for any voice call events to debug
+      socket.on('voice:test', (data) => {
+        console.log('📞 Voice test event received:', data);
+      });
       if (user?.id) {
         // This should help us verify if the socket is properly joined to the user's room
         console.log('🔔 Socket should be listening for events to user:', user.id);
