@@ -286,15 +286,7 @@ class VoiceCallService {
 
     console.log('🔧 Setting up peer connection...');
     
-    // Create peer connection
-    this.peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    });
-
-    // Get local audio stream
+    // Get local audio stream first
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -302,15 +294,23 @@ class VoiceCallService {
       });
       
       console.log('🎤 Got local audio stream');
-      
-      // Add local stream to peer connection
-      this.localStream.getTracks().forEach(track => {
-        this.peerConnection.addTrack(track, this.localStream);
-      });
     } catch (error) {
       console.error('❌ Failed to get local stream:', error);
       throw error;
     }
+
+    // Create peer connection after we have the stream
+    this.peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+
+    // Add local stream to peer connection
+    this.localStream.getTracks().forEach(track => {
+      this.peerConnection.addTrack(track, this.localStream);
+    });
 
     // Handle remote stream
     this.peerConnection.ontrack = (event) => {
