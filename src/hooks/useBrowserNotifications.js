@@ -395,6 +395,11 @@ export default function useBrowserNotifications() {
       hasAuth: !!socket?.handshake?.auth?.token
     });
     
+    // Debug: Check if this matches the expected receiver ID
+    console.log('🔍 DEBUGGING: Expected receiver ID from backend: 5d73dab8-eb6a-4842-a368-6ddfe0e7b208');
+    console.log('🔍 DEBUGGING: Actual user ID from frontend:', user?.id);
+    console.log('🔍 DEBUGGING: IDs match:', user?.id === '5d73dab8-eb6a-4842-a368-6ddfe0e7b208');
+    
     // Test socket connection by emitting a test event
     if (socket?.connected) {
       console.log('🧪 Testing socket connection...');
@@ -412,7 +417,15 @@ export default function useBrowserNotifications() {
       console.log('📞 Testing voice call room subscription for user:', user?.id);
       
       // Emit a test event to see if we're properly in our user room
+      console.log('🧪 Emitting test:user-room event with userId:', user?.id);
       socket.emit('test:user-room', { userId: user?.id });
+      
+      // Also emit a direct test to check socket authentication
+      socket.emit('debug:socket-info', { 
+        requestedUserId: user?.id,
+        socketId: socket?.id,
+        timestamp: Date.now()
+      });
       
       // Listen for any voice call events to debug
       socket.on('voice:test', (data) => {
