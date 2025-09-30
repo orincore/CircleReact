@@ -633,6 +633,28 @@ export class VoiceCallService {
       console.log('✅ TESTING: Received response from backend:', data);
     });
     
+    // Monitor socket connection status
+    this.socket.on('connect', () => {
+      console.log('✅ VOICE CALL: Socket connected', this.socket.id);
+    });
+    
+    this.socket.on('disconnect', (reason) => {
+      console.warn('⚠️ VOICE CALL: Socket disconnected:', reason);
+      if (this.callState === 'incoming' || this.callState === 'connecting') {
+        console.log('🔄 VOICE CALL: Attempting auto-reconnect during call...');
+        setTimeout(() => {
+          if (!this.socket.connected) {
+            console.log('🔄 VOICE CALL: Auto-reconnecting socket...');
+            this.socket.connect();
+          }
+        }, 1000);
+      }
+    });
+    
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ VOICE CALL: Socket connection error:', error);
+    });
+    
     // ICE candidate received
     this.socket.on('voice:ice-candidate', async (data) => {
       console.log('📡 Received ICE candidate for call:', data.callId);
@@ -903,12 +925,46 @@ export class VoiceCallService {
         hasSocket: !!this.socket
       });
       
+      // Check socket connection and reconnect if needed
+      if (!this.socket.connected) {
+        console.log('⚠️ Socket disconnected, attempting to reconnect...');
+        try {
+          // Try to reconnect
+          this.socket.connect();
+          
+          // Wait for connection
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Reconnection timeout')), 5000);
+            
+            this.socket.once('connect', () => {
+              clearTimeout(timeout);
+              console.log('✅ Socket reconnected successfully');
+              resolve();
+            });
+            
+            this.socket.once('connect_error', (error) => {
+              clearTimeout(timeout);
+              console.error('❌ Socket reconnection failed:', error);
+              reject(error);
+            });
+          });
+        } catch (reconnectError) {
+          console.error('❌ Failed to reconnect socket:', reconnectError);
+          throw new Error('Cannot accept call - socket connection failed');
+        }
+      }
+      
       // Test backend connection first
       console.log('🧪 TESTING: Sending test event to backend before accept...');
       this.socket.emit('test:backend-connection', {
         message: 'Testing backend connection before accept',
         timestamp: Date.now(),
         callId: this.currentCallId
+      });
+      
+      console.log('📤 Final socket state before accept:', {
+        connected: this.socket.connected,
+        id: this.socket.id
       });
       
       this.socket.emit('voice:accept-call', {
