@@ -55,8 +55,14 @@ export default function VoiceCallScreen() {
       userLastName: user?.last_name
     });
     
-    // Initialize socket
-    voiceCallService.initializeSocket(token);
+    // Socket should already be initialized by useVoiceCall hook
+    // Only initialize if not already connected
+    if (!voiceCallService.socket || !voiceCallService.socket.connected) {
+      console.log('⚠️ Socket not connected, initializing...');
+      voiceCallService.initializeSocket(token);
+    } else {
+      console.log('✅ Socket already connected');
+    }
     
     // Setup listeners
     voiceCallService.onCallStateChange = (newState, data) => {
@@ -182,13 +188,24 @@ export default function VoiceCallScreen() {
     // Cleanup on unmount
     return () => {
       console.log('📞 Voice call screen unmounting - cleaning up');
-      setIsCleaningUp(true);
-      voiceCallService.cleanup();
+      console.log('📞 Current call state:', callState);
+      console.log('📞 Is cleaning up:', isCleaningUp);
+      
+      // Only cleanup if we're actually ending the call
+      // Don't cleanup if the screen is just re-rendering
+      if (callState === 'ended' || isCleaningUp) {
+        console.log('✅ Cleaning up voice call resources');
+        setIsCleaningUp(true);
+        voiceCallService.cleanup();
+      } else {
+        console.log('⚠️ Screen unmounting but call still active - not cleaning up');
+      }
+      
       voiceCallService.onCallStateChange = null;
       voiceCallService.onCallEnded = null;
       voiceCallService.onError = null;
     };
-  }, []);
+  }, [callState, isCleaningUp]);
   
   // Accept call
   const handleAccept = async () => {
@@ -234,13 +251,24 @@ export default function VoiceCallScreen() {
   
   // Toggle mute
   const handleToggleMute = () => {
-    if (voiceCallService.localStream) {
-      const audioTrack = voiceCallService.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
-        console.log('🔇 Mute:', !audioTrack.enabled);
-      }
+    console.log('🔇 Toggle mute clicked, current state:', isMuted);
+    
+    if (!voiceCallService.localStream) {
+      console.error('❌ No local stream available');
+      return;
+    }
+    
+    const audioTracks = voiceCallService.localStream.getAudioTracks();
+    console.log('🎤 Audio tracks:', audioTracks.length);
+    
+    if (audioTracks.length > 0) {
+      const audioTrack = audioTracks[0];
+      const newMutedState = !audioTrack.enabled;
+      audioTrack.enabled = !newMutedState;
+      setIsMuted(newMutedState);
+      console.log('✅ Mute toggled:', newMutedState ? 'MUTED' : 'UNMUTED');
+    } else {
+      console.error('❌ No audio tracks found');
     }
   };
   
@@ -379,21 +407,23 @@ export default function VoiceCallScreen() {
             <View style={styles.dualAvatarContainer}>
               {/* Other User Avatar (Larger) */}
               <Animated.View style={[styles.mainAvatarContainer, { transform: [{ scale: pulseAnim }] }]}>
-                <Avatar
-                  user={{
-                    id: callerId,
-                    name: callerName || 'Unknown',
-                    profile_photo_url: callerAvatar || '',
-                    first_name: callerName?.split(' ')[0] || 'Unknown',
-                    last_name: callerName?.split(' ')[1] || ''
-                  }}
-                  size={120}
-                  style={[
-                    styles.mainAvatar,
-                    callState === 'connected' && styles.connectedAvatar
-                  ]}
-                  disabled={true}
-                />
+                <View style={[
+                  styles.avatarWrapper,
+                  callState === 'connected' && styles.avatarWrapperConnected
+                ]}>
+                  <Avatar
+                    user={{
+                      id: callerId,
+                      name: callerName || 'Unknown',
+                      profile_photo_url: callerAvatar || '',
+                      first_name: callerName?.split(' ')[0] || 'Unknown',
+                      last_name: callerName?.split(' ')[1] || ''
+                    }}
+                    size={120}
+                    style={styles.mainAvatar}
+                    disabled={true}
+                  />
+                </View>
                 
                 {isIncomingCall && callState === 'incoming' && (
                   <View style={styles.incomingIndicator}>
@@ -405,18 +435,20 @@ export default function VoiceCallScreen() {
               {/* Current User Avatar (Smaller, bottom right) */}
               {user && (
                 <View style={styles.myAvatarContainer}>
-                  <Avatar
-                    user={{
-                      id: user.id,
-                      name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You',
-                      profile_photo_url: user.profile_photo_url,
-                      first_name: user.first_name,
-                      last_name: user.last_name
-                    }}
-                    size={70}
-                    style={styles.myAvatar}
-                    disabled={true}
-                  />
+                  <View style={styles.myAvatarWrapper}>
+                    <Avatar
+                      user={{
+                        id: user.id,
+                        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You',
+                        profile_photo_url: user.profile_photo_url,
+                        first_name: user.first_name,
+                        last_name: user.last_name
+                      }}
+                      size={70}
+                      style={styles.myAvatar}
+                      disabled={true}
+                    />
+                  </View>
                   <View style={styles.myAvatarLabel}>
                     <Text style={styles.myAvatarText}>You</Text>
                   </View>
@@ -426,10 +458,6 @@ export default function VoiceCallScreen() {
             
             <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
             <Text style={styles.callStatus}>{renderStatusText()}</Text>
-            
-            {isIncomingCall && callState === 'incoming' && (
-              <Text style={styles.incomingText}>Incoming voice call</Text>
-            )}
           </View>
           
             {/* Action Buttons */}
@@ -517,9 +545,9 @@ const styles = StyleSheet.create({
   },
   dualAvatarContainer: {
     position: 'relative',
-    width: 200,
-    height: 200,
-    marginBottom: 30,
+    width: 220,
+    height: 220,
+    marginBottom: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -531,16 +559,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 20,
     elevation: 15,
+    backgroundColor: 'transparent',
   },
-  mainAvatar: {
-    borderWidth: 5,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+  avatarWrapper: {
+    borderRadius: 60,
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  connectedAvatar: {
+  avatarWrapperConnected: {
     borderWidth: 5,
     borderColor: '#00E676',
     shadowColor: '#00E676',
     shadowOpacity: 0.8,
+  },
+  mainAvatar: {
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   incomingIndicator: {
     position: 'absolute',
@@ -559,28 +595,37 @@ const styles = StyleSheet.create({
   },
   myAvatarContainer: {
     position: 'absolute',
-    bottom: -10,
-    right: -10,
+    bottom: -5,
+    right: -5,
     zIndex: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 12,
+    backgroundColor: 'transparent',
+  },
+  myAvatarWrapper: {
+    borderRadius: 35,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    backgroundColor: 'transparent',
   },
   myAvatar: {
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   myAvatarLabel: {
     position: 'absolute',
-    bottom: -24,
-    left: 0,
-    right: 0,
+    bottom: -28,
+    left: -10,
+    right: -10,
     alignItems: 'center',
   },
   myAvatarText: {
-    fontSize: 13,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '700',
     letterSpacing: 1,
@@ -604,18 +649,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
     fontWeight: '600',
     letterSpacing: 2,
-  },
-  incomingText: {
-    fontSize: 16,
-    color: '#00E676',
-    fontWeight: '700',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0, 230, 118, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   actionsContainer: {
     paddingBottom: 50,

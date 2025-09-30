@@ -1,6 +1,7 @@
 // NEW SIMPLIFIED VOICE CALL SERVICE - BUILT FROM SCRATCH
 import { getSocket } from '../api/socket';
 import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 // Import WebRTC for React Native (development build)
 let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
@@ -56,6 +57,13 @@ class VoiceCallService {
     this.callStartTime = null;
     this.callDurationInterval = null;
     
+    // Notification loop
+    this.notificationLoopInterval = null;
+    this.currentNotificationId = null;
+    
+    // Call timeout (1 minute for incoming calls)
+    this.callTimeoutTimer = null;
+    
     // Check WebRTC availability
     this.isWebRTCAvailable = !!(RTCPeerConnection && mediaDevices);
     
@@ -66,8 +74,29 @@ class VoiceCallService {
   }
 
   // Initialize socket connection
-  initializeSocket(token) {
+  async initializeSocket(token) {
     try {
+      // Request notification permissions for Android
+      if (Platform.OS === 'android') {
+        try {
+          const { status: existingStatus } = await Notifications.getPermissionsAsync();
+          let finalStatus = existingStatus;
+          
+          if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+          }
+          
+          if (finalStatus !== 'granted') {
+            console.warn('⚠️ Notification permission not granted');
+          } else {
+            console.log('✅ Notification permissions granted');
+          }
+        } catch (error) {
+          console.error('❌ Failed to request notification permissions:', error);
+        }
+      }
+      
       this.socket = getSocket();
       
       if (!this.socket) {
@@ -93,13 +122,17 @@ class VoiceCallService {
     if (!this.socket) return;
 
     // Incoming call
-    this.socket.on('voice:incoming-call', (data) => {
+    this.socket.on('voice:incoming-call', async (data) => {
       console.log('📞 Incoming call received:', data);
       
       this.currentCallId = data.callId;
       this.isInitiator = false;
       this.setCallState('incoming');
       
+      // Start 1-minute timeout for incoming call
+      this.startCallTimeout();
+      
+      // Trigger callback immediately to show full-screen call UI
       if (this.onIncomingCall) {
         this.onIncomingCall({
           callId: data.callId,
@@ -206,6 +239,10 @@ class VoiceCallService {
     try {
       console.log('✅ Accepting call:', this.currentCallId);
       
+      // Stop notification loop and timeout when call is accepted
+      this.stopNotificationLoop();
+      this.stopCallTimeout();
+      
       if (!this.isWebRTCAvailable) {
         throw new Error('WebRTC is not available. Voice calls require a development build with react-native-webrtc.');
       }
@@ -239,6 +276,10 @@ class VoiceCallService {
   // Decline incoming call
   declineCall() {
     console.log('❌ Declining call');
+    
+    // Stop notification loop and timeout when call is declined
+    this.stopNotificationLoop();
+    this.stopCallTimeout();
     
     if (this.currentCallId) {
       this.socket.emit('voice:decline-call', {
@@ -574,6 +615,8 @@ class VoiceCallService {
 
     // Handle connection state changes
     this.peerConnection.onconnectionstatechange = () => {
+      if (!this.peerConnection) return; // Guard against null after cleanup
+      
       console.log('🔄 Connection state:', this.peerConnection.connectionState);
       
       if (this.peerConnection.connectionState === 'connected') {
@@ -594,6 +637,8 @@ class VoiceCallService {
     
     // Also handle ICE connection state for better debugging
     this.peerConnection.oniceconnectionstatechange = () => {
+      if (!this.peerConnection) return; // Guard against null after cleanup
+      
       console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
       
       if (this.peerConnection.iceConnectionState === 'connected' || 
@@ -628,6 +673,112 @@ class VoiceCallService {
     }
   }
 
+  // Start notification loop (for incoming calls)
+  startNotificationLoop(callData) {
+    if (Platform.OS !== 'android') return;
+    
+    console.log('🔔 Starting notification loop for 1 minute');
+    
+    // Clear any existing loop
+    this.stopNotificationLoop();
+    
+    // Store call data for the loop
+    this.loopCallData = callData;
+    
+    // Track notification count
+    this.notificationCount = 0;
+    this.maxNotifications = 20; // 20 notifications in 1 minute (every 3 seconds)
+    
+    // Trigger notification immediately
+    if (this.onNotificationNeeded) {
+      this.onNotificationNeeded(callData);
+      this.notificationCount++;
+    }
+    
+    // Set up interval to repeat notification every 3 seconds
+    this.notificationLoopInterval = setInterval(() => {
+      this.notificationCount++;
+      console.log(`🔔 Repeating notification... (${this.notificationCount}/${this.maxNotifications})`);
+      
+      // Check if we've reached max notifications or call state changed
+      if (this.notificationCount >= this.maxNotifications) {
+        console.log('⏰ Reached maximum notifications (1 minute)');
+        this.stopNotificationLoop();
+        return;
+      }
+      
+      if (this.onNotificationNeeded && this.callState === 'incoming') {
+        this.onNotificationNeeded(callData);
+      } else {
+        // Stop loop if call state changed
+        this.stopNotificationLoop();
+      }
+    }, 3000); // Repeat every 3 seconds
+  }
+
+  // Stop notification loop
+  stopNotificationLoop() {
+    if (this.notificationLoopInterval) {
+      console.log('🔕 Stopping notification loop');
+      clearInterval(this.notificationLoopInterval);
+      this.notificationLoopInterval = null;
+    }
+    
+    // Dismiss any active notifications
+    if (this.currentNotificationId && Platform.OS === 'android') {
+      try {
+        Notifications.dismissNotificationAsync(this.currentNotificationId);
+      } catch (error) {
+        console.error('Failed to dismiss notification:', error);
+      }
+      this.currentNotificationId = null;
+    }
+  }
+
+  // Start call timeout (1 minute for incoming calls)
+  startCallTimeout() {
+    console.log('⏰ Starting 1-minute call timeout');
+    
+    // Clear any existing timeout
+    this.stopCallTimeout();
+    
+    // Set 1-minute timeout
+    this.callTimeoutTimer = setTimeout(() => {
+      console.log('⏰ Call timeout reached (1 minute) - no response');
+      
+      if (this.callState === 'incoming' || this.callState === 'calling') {
+        console.log('📞 Auto-ending call due to timeout');
+        
+        // Stop notification loop
+        this.stopNotificationLoop();
+        
+        // Emit timeout event to backend
+        if (this.socket && this.currentCallId) {
+          this.socket.emit('voice:call-timeout', {
+            callId: this.currentCallId
+          });
+        }
+        
+        // End the call
+        this.endCall();
+        
+        // Notify UI
+        if (this.onCallEnded) {
+          this.onCallEnded('timeout');
+        }
+      }
+    }, 60000); // 60 seconds = 1 minute
+  }
+
+  // Stop call timeout
+  stopCallTimeout() {
+    if (this.callTimeoutTimer) {
+      console.log('⏰ Stopping call timeout');
+      clearTimeout(this.callTimeoutTimer);
+      this.callTimeoutTimer = null;
+    }
+  }
+
   // Set call state
   setCallState(newState) {
     console.log('📞 Call state:', this.callState, '->', newState);
@@ -643,6 +794,8 @@ class VoiceCallService {
     console.log('🧹 Cleaning up call resources...');
     
     this.stopCallTimer();
+    this.stopNotificationLoop();
+    this.stopCallTimeout();
     
     // Stop all media tracks FIRST (critical for microphone release)
     if (this.localStream) {
@@ -670,6 +823,13 @@ class VoiceCallService {
     // Close peer connection AFTER stopping tracks
     if (this.peerConnection) {
       console.log('🔌 Closing peer connection...');
+      
+      // Remove event handlers to prevent errors after cleanup
+      this.peerConnection.ontrack = null;
+      this.peerConnection.onicecandidate = null;
+      this.peerConnection.onconnectionstatechange = null;
+      this.peerConnection.oniceconnectionstatechange = null;
+      
       this.peerConnection.close();
       this.peerConnection = null;
       console.log('✅ Peer connection closed');
