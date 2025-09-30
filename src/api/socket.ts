@@ -209,6 +209,14 @@ function createSocket(token?: string | null) {
       isInitialized = true;
       socketService.notifyConnectionState('connected');
       
+      // Enhanced connection verification - ensure user room membership
+      setTimeout(() => {
+        if (socket && socket.connected) {
+          console.log('🏠 Verifying user room membership...');
+          socket.emit('verify-room-membership', { timestamp: Date.now() });
+        }
+      }, 2000);
+      
       // Start heartbeat
       startHeartbeat();
       
@@ -317,12 +325,24 @@ function createSocket(token?: string | null) {
       }
     });
 
-    // Pong response for heartbeat
-    socket.on('pong', () => {
+    // Pong response
+    socket.on('pong', (data: any) => {
       console.log('💓 Heartbeat received');
+      if (data?.ts) {
+        const latency = Date.now() - data.ts;
+        console.log(`📊 Socket latency: ${latency}ms`);
+      }
     });
 
-    // Handle authentication errors
+    // Room membership verification response
+    socket.on('room-membership-verified', (data: any) => {
+      console.log('🏠 Room membership verified:', data);
+      if (!data.isInRoom) {
+        console.warn('⚠️ User not in room after verification attempt!');
+      }
+    });
+
+    // Authentication error
     socket.on('auth_error', (error: any) => {
       console.error('🔐 Authentication error:', error);
       socketService.notifyConnectionState('auth_failed');

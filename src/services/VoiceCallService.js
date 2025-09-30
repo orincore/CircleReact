@@ -199,9 +199,20 @@ export class VoiceCallService {
     this.onCallAccepted = null;
     this.onCallDeclined = null;
     this.onCallEnded = null;
-    this.onRemoteStream = null;
-    this.onCallStateChange = null;
     this.onError = null;
+    this.onCallStateChange = null;
+    
+    // Persistent handler storage to survive reinitialization
+    this._persistentHandlers = {
+      onIncomingCall: null,
+      onCallAccepted: null,
+      onCallDeclined: null,
+      onCallEnded: null,
+      onError: null,
+      onCallStateChange: null
+    };
+    
+    console.log('🔧 VoiceCallService constructor: Persistent handlers initialized:', !!this._persistentHandlers);
     
     // Socket reconnection handling
     this.socketReconnectAttempts = 0;
@@ -247,6 +258,72 @@ export class VoiceCallService {
       hasMediaDevices: mediaDevices !== null,
       details: details
     };
+  }
+
+  // Register persistent handlers that survive reinitialization
+  registerPersistentHandler(handlerName, handler) {
+    console.log(`🔄 Registering persistent handler: ${handlerName}`);
+    console.log(`🔄 Handler type: ${typeof handler}`);
+    console.log(`🔄 Persistent handlers object exists: ${!!this._persistentHandlers}`);
+    
+    if (!this._persistentHandlers) {
+      console.warn('⚠️ Persistent handlers object not initialized, creating now...');
+      this._persistentHandlers = {};
+    }
+    
+    this._persistentHandlers[handlerName] = handler;
+    this[handlerName] = handler;
+    
+    console.log(`✅ Handler registered successfully. Current handler: ${typeof this[handlerName]}`);
+    console.log(`✅ Persistent handler stored: ${typeof this._persistentHandlers[handlerName]}`);
+  }
+
+  // Restore persistent handlers after reinitialization
+  restorePersistentHandlers() {
+    console.log('🔄 Restoring persistent handlers...');
+    console.log('🔄 Available persistent handlers:', Object.keys(this._persistentHandlers || {}));
+    
+    if (!this._persistentHandlers) {
+      console.warn('⚠️ No persistent handlers object found during restoration');
+      return;
+    }
+    
+    Object.keys(this._persistentHandlers).forEach(handlerName => {
+      if (this._persistentHandlers[handlerName]) {
+        console.log(`✅ Restoring handler: ${handlerName} (${typeof this._persistentHandlers[handlerName]})`);
+        this[handlerName] = this._persistentHandlers[handlerName];
+      } else {
+        console.log(`⚠️ No persistent handler found for: ${handlerName}`);
+      }
+    });
+    
+    // Verify restoration
+    console.log('🔍 Post-restoration handler status:', {
+      onIncomingCall: typeof this.onIncomingCall,
+      onCallAccepted: typeof this.onCallAccepted,
+      onCallDeclined: typeof this.onCallDeclined,
+      onCallEnded: typeof this.onCallEnded,
+      onError: typeof this.onError
+    });
+  }
+
+  // Debug method to check handler status
+  debugHandlerStatus() {
+    console.log('🔍 HANDLER STATUS DEBUG:', {
+      currentHandlers: {
+        onIncomingCall: typeof this.onIncomingCall,
+        onCallAccepted: typeof this.onCallAccepted,
+        onCallDeclined: typeof this.onCallDeclined,
+        onCallEnded: typeof this.onCallEnded,
+        onError: typeof this.onError
+      },
+      persistentHandlers: this._persistentHandlers ? Object.keys(this._persistentHandlers).reduce((acc, key) => {
+        acc[key] = typeof this._persistentHandlers[key];
+        return acc;
+      }, {}) : 'NOT_INITIALIZED',
+      socketInitialized: this.isSocketInitialized,
+      socketConnected: this.socket?.connected || false
+    });
   }
 
   // Initialize WebRTC peer connection
@@ -596,6 +673,10 @@ export class VoiceCallService {
 
       // Set up socket event listeners
       this.setupSocketListeners();
+      
+      // Restore persistent handlers after socket initialization
+      this.restorePersistentHandlers();
+      
       this.isSocketInitialized = true;
       console.log('✅ Voice call socket initialized and listening for incoming calls');
       return true;
@@ -704,12 +785,30 @@ export class VoiceCallService {
       this.setCallState('incoming');
       
       // Navigate to voice call screen
+      console.log('🔍 HANDLER DEBUG:', {
+        hasOnIncomingCall: !!this.onIncomingCall,
+        handlerType: typeof this.onIncomingCall,
+        hasPersistentHandlers: !!this._persistentHandlers,
+        persistentOnIncomingCall: !!this._persistentHandlers?.onIncomingCall,
+        persistentHandlerType: typeof this._persistentHandlers?.onIncomingCall
+      });
+      
       if (this.onIncomingCall) {
         console.log('📞 Calling onIncomingCall handler...');
         console.log('📞 Handler function exists:', typeof this.onIncomingCall);
         this.onIncomingCall(data);
       } else {
         console.warn('❌ No onIncomingCall handler set!');
+        
+        // Try to restore from persistent handlers
+        if (this._persistentHandlers?.onIncomingCall) {
+          console.log('🔄 Attempting to restore handler from persistent storage...');
+          this.onIncomingCall = this._persistentHandlers.onIncomingCall;
+          console.log('✅ Handler restored, calling now...');
+          this.onIncomingCall(data);
+        } else {
+          console.error('❌ No persistent handler available either!');
+        }
       }
     });
 
@@ -1268,13 +1367,7 @@ export class VoiceCallService {
   async acceptCall(token) {
     try {
       console.log('✅ Accepting incoming call');
-      console.log('🔍 Accept call debug info:', {
-        isWebRTCAvailable: this.isWebRTCAvailable,
-        isExpoGo: this.isExpoGo,
-        platform: Platform.OS,
-        hasRTCPeerConnection: !!RTCPeerConnection,
-        hasMediaDevices: !!mediaDevices
-      });
+      console.log('🔍 Accept call debug info:', this.checkWebRTCAvailability());
       
       // Check if voice calls are supported
       if (!this.isWebRTCAvailable && !this.isExpoGo) {
@@ -1282,12 +1375,7 @@ export class VoiceCallService {
           ? 'WebRTC is not available in this browser. Please use a modern browser like Chrome, Firefox, or Safari.'
           : 'Voice calls are not available on this device.';
         
-        console.error('❌ Voice calls not available for accepting call:', {
-          platform: Platform.OS,
-          isExpoGo: this.isExpoGo,
-          hasRTCPeerConnection: RTCPeerConnection !== null,
-          hasMediaDevices: mediaDevices !== null
-        });
+        console.error('❌ Voice calls not available for accepting call:', this.checkWebRTCAvailability());
         
         throw new Error(errorMsg);
       }

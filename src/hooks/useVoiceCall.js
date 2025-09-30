@@ -37,8 +37,14 @@ export function useVoiceCall() {
       });
     };
     
-    // Set handler on voice call service
-    voiceCallService.onIncomingCall = incomingCallHandler;
+    // Set handler on voice call service using persistent registration
+    voiceCallService.registerPersistentHandler('onIncomingCall', incomingCallHandler);
+    
+    // Debug handler status
+    setTimeout(() => {
+      console.log('🔍 Checking handler status after registration...');
+      voiceCallService.debugHandlerStatus();
+    }, 1000);
     
     // Also set global fallback handler for browser notifications
     if (typeof window !== 'undefined') {
