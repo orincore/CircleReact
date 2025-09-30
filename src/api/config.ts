@@ -35,15 +35,29 @@ const DEFAULT_DEV_HOST = "172.20.10.14"; // fallback LAN IP; will prefer inferre
 
 // Build base URL
 export const API_BASE_URL: string = (() => {
-  // Highest priority: explicit override via env
+  // ALWAYS prioritize explicit override via env (even in DEV mode)
   const override = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (override && override.trim()) return override.trim();
+  if (override && override.trim()) {
+    console.log('🌐 API Configuration: {');
+    console.log('  baseUrl:', override.trim());
+    console.log('  environment:', DEV ? 'development' : 'production');
+    console.log('  platform:', Platform.OS);
+    console.log('}');
+    return override.trim();
+  }
 
+  // Only use auto-detection if NO env variable is set
   if (DEV) {
     // Prefer inference from packager scriptURL or window.location
     const inferred = inferDevHost();
     const host = inferred || DEFAULT_DEV_HOST;
-    return `http://${host}:${DEV_PORT}`;
+    const devUrl = `http://${host}:${DEV_PORT}`;
+    console.log('🌐 API Configuration: {');
+    console.log('  baseUrl:', devUrl);
+    console.log('  environment: development (auto-detected)');
+    console.log('  platform:', Platform.OS);
+    console.log('}');
+    return devUrl;
   }
 
   // Production default (can still be overridden via env)

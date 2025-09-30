@@ -1,7 +1,14 @@
 // API Configuration for different environments
 
 const getApiBaseUrl = () => {
-  // MacBook IP address for testing (no SSL)
+  // ALWAYS check for explicit env variable first (highest priority)
+  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (envUrl && envUrl.trim()) {
+    console.log('🌐 API Configuration: Using EXPO_PUBLIC_API_BASE_URL from .env:', envUrl.trim());
+    return envUrl.trim();
+  }
+
+  // Fallback: MacBook IP address for testing (no SSL)
   const MACBOOK_IP = '172.20.10.14';
   const isDev = process.env.NODE_ENV !== 'production';
   
@@ -23,14 +30,9 @@ const getApiBaseUrl = () => {
     }
   }
   
-  // Node.js environment (React Native)
-  if (process.env.NODE_ENV === 'production') {
-    // Production - AWS Amplify with Cloudflare
-    return process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.yourdomain.com';
-  } else {
-    // Development - use MacBook IP with HTTP (no SSL)
-    return `http://${MACBOOK_IP}:8080`;
-  }
+  // Node.js environment (React Native) - fallback only
+  console.log('🏠 Using fallback MacBook IP backend:', `http://${MACBOOK_IP}:8080`);
+  return `http://${MACBOOK_IP}:8080`;
 };
 
 export const API_BASE_URL = getApiBaseUrl();

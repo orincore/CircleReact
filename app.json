@@ -45,7 +45,8 @@
         "com.android.vending.BILLING"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.orincore.Circle"
     },
     "web": {
       "output": "static",
@@ -53,15 +54,6 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#7C2B86",
-          "defaultChannel": "default",
-          "sounds": ["./assets/sounds/notification.wav"]
-        }
-      ],
       [
         "expo-location",
         {
@@ -85,6 +77,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c9234d97-8ff5-45bc-8f8f-8772ef0926a5"
+      }
     }
   }
 }

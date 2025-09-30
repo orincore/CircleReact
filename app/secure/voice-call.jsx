@@ -18,7 +18,7 @@ import Avatar from '@/components/Avatar';
 export default function VoiceCallScreen() {
   const router = useRouter();
   const { callId, callerId, callerName, callerAvatar, isIncoming } = useLocalSearchParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   
   // Simple state management
   const isIncomingCall = isIncoming === 'true';
@@ -35,8 +35,13 @@ export default function VoiceCallScreen() {
       callId,
       callerId,
       callerName,
+      callerAvatar,
       isIncomingCall,
-      initialState: isIncomingCall ? 'incoming' : 'calling'
+      initialState: isIncomingCall ? 'incoming' : 'calling',
+      user: user,
+      userAvatar: user?.profile_photo_url,
+      userFirstName: user?.first_name,
+      userLastName: user?.last_name
     });
     
     // Initialize socket
@@ -61,7 +66,11 @@ export default function VoiceCallScreen() {
       if (newState === 'ended') {
         setIsCleaningUp(true);
         setTimeout(() => {
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/secure/chat');
+          }
         }, 1500);
       }
     };
@@ -72,7 +81,11 @@ export default function VoiceCallScreen() {
         setIsCleaningUp(true);
         setCallState('ended');
         setTimeout(() => {
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/secure/chat');
+          }
         }, 1500);
       }
     };
@@ -137,7 +150,11 @@ export default function VoiceCallScreen() {
     
     // Give time for cleanup before navigating back
     setTimeout(() => {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/secure/chat');
+      }
     }, 300);
   };
   
@@ -151,7 +168,11 @@ export default function VoiceCallScreen() {
     
     // Give time for cleanup before navigating back
     setTimeout(() => {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/secure/chat');
+      }
     }, 300);
   };
   
@@ -266,7 +287,13 @@ export default function VoiceCallScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/secure/chat');
+                }
+              }}
             >
               <Ionicons name="chevron-back" size={28} color="white" />
             </TouchableOpacity>
@@ -275,23 +302,54 @@ export default function VoiceCallScreen() {
           
           {/* Call Info */}
           <View style={styles.callInfo}>
-            <Animated.View style={[styles.avatarContainer, { transform: [{ scale: pulseAnim }] }]}>
-              <Avatar
-                uri={callerAvatar || ''}
-                name={callerName || 'Unknown'}
-                size={isIncomingCall ? 140 : 120}
-                style={[
-                  styles.avatar,
-                  isIncomingCall && styles.incomingAvatar
-                ]}
-              />
+            {/* Dual Avatar Layout */}
+            <View style={styles.dualAvatarContainer}>
+              {/* Other User Avatar (Larger) */}
+              <Animated.View style={[styles.mainAvatarContainer, { transform: [{ scale: pulseAnim }] }]}>
+                <Avatar
+                  user={{
+                    id: callerId,
+                    name: callerName || 'Unknown',
+                    profile_photo_url: callerAvatar || '',
+                    first_name: callerName?.split(' ')[0] || 'Unknown',
+                    last_name: callerName?.split(' ')[1] || ''
+                  }}
+                  size={120}
+                  style={[
+                    styles.mainAvatar,
+                    callState === 'connected' && styles.connectedAvatar
+                  ]}
+                  disabled={true}
+                />
+                
+                {isIncomingCall && callState === 'incoming' && (
+                  <View style={styles.incomingIndicator}>
+                    <Ionicons name="call" size={20} color="white" />
+                  </View>
+                )}
+              </Animated.View>
               
-              {isIncomingCall && (
-                <View style={styles.incomingIndicator}>
-                  <Ionicons name="call" size={24} color="white" />
+              {/* Current User Avatar (Smaller, bottom right) */}
+              {user && (
+                <View style={styles.myAvatarContainer}>
+                  <Avatar
+                    user={{
+                      id: user.id,
+                      name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You',
+                      profile_photo_url: user.profile_photo_url,
+                      first_name: user.first_name,
+                      last_name: user.last_name
+                    }}
+                    size={70}
+                    style={styles.myAvatar}
+                    disabled={true}
+                  />
+                  <View style={styles.myAvatarLabel}>
+                    <Text style={styles.myAvatarText}>You</Text>
+                  </View>
                 </View>
               )}
-            </Animated.View>
+            </View>
             
             <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
             <Text style={styles.callStatus}>{renderStatusText()}</Text>
@@ -342,16 +400,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarContainer: {
+  dualAvatarContainer: {
     position: 'relative',
+    width: 200,
+    height: 200,
     marginBottom: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatar: {
+  mainAvatarContainer: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  mainAvatar: {
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  incomingAvatar: {
-    borderWidth: 6,
+  connectedAvatar: {
+    borderWidth: 4,
     borderColor: '#4CAF50',
   },
   incomingIndicator: {
@@ -359,10 +425,32 @@ const styles = StyleSheet.create({
     top: -5,
     right: -5,
     backgroundColor: '#4CAF50',
-    borderRadius: 25,
-    padding: 8,
-    borderWidth: 3,
+    borderRadius: 20,
+    padding: 6,
+    borderWidth: 2,
     borderColor: 'white',
+  },
+  myAvatarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    zIndex: 2,
+  },
+  myAvatar: {
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  myAvatarLabel: {
+    position: 'absolute',
+    bottom: -20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  myAvatarText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
   },
   callerName: {
     fontSize: 28,

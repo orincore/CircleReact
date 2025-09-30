@@ -1,5 +1,30 @@
 // NEW SIMPLIFIED VOICE CALL SERVICE - BUILT FROM SCRATCH
 import { getSocket } from '../api/socket';
+import { Platform } from 'react-native';
+
+// Import WebRTC for React Native (development build)
+let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
+
+if (Platform.OS === 'web') {
+  // Browser WebRTC
+  RTCPeerConnection = window.RTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription;
+  RTCIceCandidate = window.RTCIceCandidate;
+  mediaDevices = navigator.mediaDevices;
+} else {
+  // React Native WebRTC (development build)
+  try {
+    const webrtc = require('react-native-webrtc');
+    RTCPeerConnection = webrtc.RTCPeerConnection;
+    RTCSessionDescription = webrtc.RTCSessionDescription;
+    RTCIceCandidate = webrtc.RTCIceCandidate;
+    mediaDevices = webrtc.mediaDevices;
+    console.log('✅ react-native-webrtc loaded successfully');
+  } catch (error) {
+    console.error('❌ Failed to load react-native-webrtc:', error);
+    console.error('⚠️ Voice calls will not work without react-native-webrtc in development build');
+  }
+}
 
 class VoiceCallService {
   constructor() {
@@ -26,7 +51,13 @@ class VoiceCallService {
     this.callStartTime = null;
     this.callDurationInterval = null;
     
-    console.log('✅ VoiceCallService initialized');
+    // Check WebRTC availability
+    this.isWebRTCAvailable = !!(RTCPeerConnection && mediaDevices);
+    
+    console.log('✅ VoiceCallService initialized:', {
+      platform: Platform.OS,
+      webRTCAvailable: this.isWebRTCAvailable
+    });
   }
 
   // Initialize socket connection
@@ -133,6 +164,10 @@ class VoiceCallService {
     try {
       console.log('📞 Starting call to:', receiverId);
       
+      if (!this.isWebRTCAvailable) {
+        throw new Error('WebRTC is not available. Voice calls require a development build with react-native-webrtc.');
+      }
+      
       if (!this.socket || !this.socket.connected) {
         throw new Error('Socket not connected');
       }
@@ -165,6 +200,10 @@ class VoiceCallService {
   async acceptCall() {
     try {
       console.log('✅ Accepting call:', this.currentCallId);
+      
+      if (!this.isWebRTCAvailable) {
+        throw new Error('WebRTC is not available. Voice calls require a development build with react-native-webrtc.');
+      }
       
       if (!this.currentCallId) {
         throw new Error('No active call to accept');
@@ -235,7 +274,13 @@ class VoiceCallService {
       
       // Only setup peer connection if it doesn't exist
       if (!this.peerConnection) {
+        console.log('⚠️ Peer connection not ready, setting up...');
         await this.setupPeerConnection();
+      }
+      
+      // Double check peer connection exists after setup
+      if (!this.peerConnection) {
+        throw new Error('Failed to setup peer connection');
       }
       
       console.log('📝 Creating offer...');
@@ -262,7 +307,8 @@ class VoiceCallService {
       // Only show error to user if it's a fatal error, not duplicate/state errors
       const isFatalError = !error.message.includes('Called in wrong state') && 
                           !error.message.includes('no pending remote description') &&
-                          !error.message.includes('Local fingerprint does not match');
+                          !error.message.includes('Local fingerprint does not match') &&
+                          !error.message.includes('null');
       
       if (isFatalError && this.onError) {
         this.onError(error.message);
@@ -422,7 +468,12 @@ class VoiceCallService {
     
     // Get local audio stream first
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
+      if (!mediaDevices) {
+        this.settingUpPeerConnection = false;
+        throw new Error('mediaDevices not available - WebRTC not properly initialized');
+      }
+      
+      this.localStream = await mediaDevices.getUserMedia({
         audio: true,
         video: false
       });
@@ -430,6 +481,7 @@ class VoiceCallService {
       console.log('🎤 Got local audio stream');
     } catch (error) {
       console.error('❌ Failed to get local stream:', error);
+      this.settingUpPeerConnection = false;
       throw error;
     }
 
@@ -452,9 +504,16 @@ class VoiceCallService {
       this.remoteStream = event.streams[0];
       
       // Play remote audio
-      const audioElement = new Audio();
-      audioElement.srcObject = this.remoteStream;
-      audioElement.play();
+      if (Platform.OS === 'web') {
+        // Browser: use Audio element
+        const audioElement = new Audio();
+        audioElement.srcObject = this.remoteStream;
+        audioElement.play();
+      } else {
+        // React Native: audio plays automatically through device speakers
+        // No need to manually play - react-native-webrtc handles this
+        console.log('🔊 Remote audio stream received (will play automatically on native)');
+      }
     };
 
     // Handle ICE candidates
