@@ -391,7 +391,7 @@ export default function useBrowserNotifications() {
     console.log('🔔 Socket details:', {
       connected: socket?.connected,
       socketId: socket?.id,
-      userId: currentUserId,
+      userId: user?.id,
       hasAuth: !!socket?.handshake?.auth?.token
     });
     
@@ -409,10 +409,10 @@ export default function useBrowserNotifications() {
       });
       
       // Test voice call room subscription
-      console.log('📞 Testing voice call room subscription for user:', currentUserId);
+      console.log('📞 Testing voice call room subscription for user:', user?.id);
       
       // Emit a test event to see if we're properly in our user room
-      socket.emit('test:user-room', { userId: currentUserId });
+      socket.emit('test:user-room', { userId: user?.id });
       
       // Listen for any voice call events to debug
       socket.on('voice:test', (data) => {
