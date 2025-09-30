@@ -13,6 +13,8 @@ class VoiceCallService {
     this.peerConnection = null;
     this.localStream = null;
     this.remoteStream = null;
+    this.processingOffer = false; // Flag to prevent duplicate offer processing
+    this.processingAnswer = false; // Flag to prevent duplicate answer processing
     
     // Callbacks
     this.onIncomingCall = null;
@@ -168,6 +170,12 @@ class VoiceCallService {
         throw new Error('No active call to accept');
       }
 
+      // Prevent multiple accept calls
+      if (this.callState !== 'incoming') {
+        console.log('⚠️ Call already accepted or in wrong state:', this.callState);
+        return false;
+      }
+
       this.setCallState('connecting');
       
       this.socket.emit('voice:accept-call', {
@@ -250,22 +258,50 @@ class VoiceCallService {
     try {
       console.log('📥 Handling WebRTC offer...');
       
+      // Prevent processing duplicate offers
+      if (this.processingOffer) {
+        console.log('⚠️ Already processing an offer, ignoring duplicate');
+        return;
+      }
+      
+      // Check if we already have a remote description
+      if (this.peerConnection && this.peerConnection.signalingState === 'stable') {
+        console.log('⚠️ Already in stable state, ignoring duplicate offer');
+        return;
+      }
+      
+      // Check if we're in correct state to receive offer
+      if (this.peerConnection && this.peerConnection.signalingState !== 'stable' && this.peerConnection.signalingState !== 'have-remote-offer') {
+        console.log('⚠️ Not in correct state to receive offer:', this.peerConnection.signalingState);
+        return;
+      }
+      
+      this.processingOffer = true;
+      
       // Only setup peer connection if it doesn't exist
       if (!this.peerConnection) {
         await this.setupPeerConnection();
       }
       
+      console.log('📝 Current signaling state before offer:', this.peerConnection.signalingState);
       console.log('📝 Setting remote description (offer)...');
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      console.log('✅ Remote description set');
+      console.log('✅ Remote description set, new state:', this.peerConnection.signalingState);
+      
+      // Check state before creating answer
+      if (this.peerConnection.signalingState !== 'have-remote-offer') {
+        console.log('⚠️ Wrong state after setting remote offer:', this.peerConnection.signalingState);
+        return;
+      }
       
       console.log('📝 Creating answer...');
       const answer = await this.peerConnection.createAnswer();
       console.log('✅ Answer created');
       
       console.log('📝 Setting local description (answer)...');
+      console.log('📝 Current state before setLocalDescription:', this.peerConnection.signalingState);
       await this.peerConnection.setLocalDescription(answer);
-      console.log('✅ Local description set');
+      console.log('✅ Local description set, new state:', this.peerConnection.signalingState);
       
       this.socket.emit('voice:answer', {
         callId: this.currentCallId,
@@ -277,6 +313,8 @@ class VoiceCallService {
       console.error('❌ Failed to handle offer:', error);
       console.error('Error details:', error.message, error.stack);
       if (this.onError) this.onError(error.message);
+    } finally {
+      this.processingOffer = false;
     }
   }
 
@@ -285,17 +323,32 @@ class VoiceCallService {
     try {
       console.log('📥 Handling WebRTC answer...');
       
-      // Check if we already have a remote description
+      // Check if peer connection exists
+      if (!this.peerConnection) {
+        console.error('❌ No peer connection available');
+        return;
+      }
+      
+      // Check if we're already processing an answer
+      if (this.processingAnswer) {
+        console.log('⚠️ Already processing an answer, ignoring duplicate');
+        return;
+      }
+      
+      // Check if we already have a remote description (already in stable state)
       if (this.peerConnection.signalingState === 'stable') {
         console.log('⚠️ Already in stable state, ignoring duplicate answer');
         return;
       }
       
-      // Check if peer connection exists and is in correct state
-      if (!this.peerConnection) {
-        console.error('❌ No peer connection available');
+      // Check if we're in the correct state to receive an answer
+      if (this.peerConnection.signalingState !== 'have-local-offer') {
+        console.log('⚠️ Not in correct state to receive answer:', this.peerConnection.signalingState);
         return;
       }
+      
+      // Set flag to prevent concurrent processing
+      this.processingAnswer = true;
       
       console.log('📝 Current signaling state:', this.peerConnection.signalingState);
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
@@ -304,6 +357,9 @@ class VoiceCallService {
       console.error('❌ Failed to handle answer:', error);
       console.error('Error details:', error.message, error.stack);
       if (this.onError) this.onError(error.message);
+    } finally {
+      // Always clear the flag
+      this.processingAnswer = false;
     }
   }
 
@@ -447,6 +503,10 @@ class VoiceCallService {
     this.currentCallId = null;
     this.isInitiator = false;
     this.callStartTime = null;
+    
+    // Reset processing flags
+    this.processingOffer = false;
+    this.processingAnswer = false;
     
     this.setCallState('idle');
     
