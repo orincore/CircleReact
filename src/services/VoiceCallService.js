@@ -284,10 +284,25 @@ class VoiceCallService {
   async handleAnswer(answer) {
     try {
       console.log('📥 Handling WebRTC answer...');
+      
+      // Check if we already have a remote description
+      if (this.peerConnection.signalingState === 'stable') {
+        console.log('⚠️ Already in stable state, ignoring duplicate answer');
+        return;
+      }
+      
+      // Check if peer connection exists and is in correct state
+      if (!this.peerConnection) {
+        console.error('❌ No peer connection available');
+        return;
+      }
+      
+      console.log('📝 Current signaling state:', this.peerConnection.signalingState);
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log('✅ Answer processed');
+      console.log('✅ Answer processed, new state:', this.peerConnection.signalingState);
     } catch (error) {
       console.error('❌ Failed to handle answer:', error);
+      console.error('Error details:', error.message, error.stack);
       if (this.onError) this.onError(error.message);
     }
   }
