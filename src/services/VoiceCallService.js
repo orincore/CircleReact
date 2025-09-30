@@ -508,20 +508,36 @@ class VoiceCallService {
     
     this.stopCallTimer();
     
-    // Close peer connection
+    // Stop all media tracks FIRST (critical for microphone release)
+    if (this.localStream) {
+      console.log('🎤 Stopping local stream tracks...');
+      this.localStream.getTracks().forEach(track => {
+        console.log('🛑 Stopping track:', track.kind, track.label);
+        track.stop();
+        track.enabled = false; // Ensure track is disabled
+      });
+      this.localStream = null;
+      console.log('✅ Local stream stopped and cleared');
+    }
+    
+    // Stop remote stream tracks
+    if (this.remoteStream) {
+      console.log('🔊 Stopping remote stream tracks...');
+      this.remoteStream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+      this.remoteStream = null;
+      console.log('✅ Remote stream stopped and cleared');
+    }
+    
+    // Close peer connection AFTER stopping tracks
     if (this.peerConnection) {
+      console.log('🔌 Closing peer connection...');
       this.peerConnection.close();
       this.peerConnection = null;
+      console.log('✅ Peer connection closed');
     }
-    
-    // Stop local stream
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-    
-    // Clear remote stream
-    this.remoteStream = null;
     
     // Reset state
     this.currentCallId = null;
@@ -534,7 +550,7 @@ class VoiceCallService {
     
     this.setCallState('idle');
     
-    console.log('✅ Cleanup complete');
+    console.log('✅ Cleanup complete - all resources released');
   }
 
   // Get current state

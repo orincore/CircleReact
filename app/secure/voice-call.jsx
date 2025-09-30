@@ -25,6 +25,7 @@ export default function VoiceCallScreen() {
   const [callState, setCallState] = useState(isIncomingCall ? 'incoming' : 'calling');
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
   
   // Animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -34,7 +35,8 @@ export default function VoiceCallScreen() {
       callId,
       callerId,
       callerName,
-      isIncomingCall
+      isIncomingCall,
+      initialState: isIncomingCall ? 'incoming' : 'calling'
     });
     
     // Initialize socket
@@ -42,7 +44,14 @@ export default function VoiceCallScreen() {
     
     // Setup listeners
     voiceCallService.onCallStateChange = (newState, data) => {
-      console.log('📞 State changed to:', newState);
+      console.log('📞 State changed to:', newState, 'from:', callState);
+      
+      // Prevent state changes during cleanup
+      if (isCleaningUp) {
+        console.log('⚠️ Ignoring state change during cleanup');
+        return;
+      }
+      
       setCallState(newState);
       
       if (data?.duration) {
@@ -50,28 +59,39 @@ export default function VoiceCallScreen() {
       }
       
       if (newState === 'ended') {
+        setIsCleaningUp(true);
         setTimeout(() => {
           router.back();
-        }, 2000);
+        }, 1500);
       }
     };
     
     voiceCallService.onCallEnded = () => {
-      console.log('📞 Call ended');
-      setTimeout(() => {
-        router.back();
-      }, 2000);
+      console.log('📞 Call ended callback');
+      if (!isCleaningUp) {
+        setIsCleaningUp(true);
+        setCallState('ended');
+        setTimeout(() => {
+          router.back();
+        }, 1500);
+      }
     };
     
     voiceCallService.onError = (error) => {
       console.error('❌ Call error:', error);
-      alert(`Call error: ${error}`);
+      // Only show error alert if it's not during cleanup
+      if (!isCleaningUp) {
+        alert(`Call error: ${error}`);
+      }
     };
     
-    // Set call ID if incoming
+    // Set call ID and state if incoming - CRITICAL for showing accept/decline screen
     if (isIncomingCall) {
       voiceCallService.currentCallId = callId;
+      voiceCallService.isInitiator = false;
       voiceCallService.setCallState('incoming');
+      setCallState('incoming'); // Ensure UI state matches
+      console.log('📞 Set incoming call state');
     }
     
     // Start pulse animation
@@ -90,7 +110,11 @@ export default function VoiceCallScreen() {
       ])
     ).start();
     
+    // Cleanup on unmount
     return () => {
+      console.log('📞 Voice call screen unmounting - cleaning up');
+      setIsCleaningUp(true);
+      voiceCallService.cleanup();
       voiceCallService.onCallStateChange = null;
       voiceCallService.onCallEnded = null;
       voiceCallService.onError = null;
@@ -105,16 +129,30 @@ export default function VoiceCallScreen() {
   
   // Decline call
   const handleDecline = () => {
+    if (isCleaningUp) return;
+    
     console.log('❌ Declining call');
+    setIsCleaningUp(true);
     voiceCallService.declineCall();
-    router.back();
+    
+    // Give time for cleanup before navigating back
+    setTimeout(() => {
+      router.back();
+    }, 300);
   };
   
   // End call
   const handleEnd = () => {
+    if (isCleaningUp) return;
+    
     console.log('📞 Ending call');
+    setIsCleaningUp(true);
     voiceCallService.endCall();
-    router.back();
+    
+    // Give time for cleanup before navigating back
+    setTimeout(() => {
+      router.back();
+    }, 300);
   };
   
   // Toggle mute
