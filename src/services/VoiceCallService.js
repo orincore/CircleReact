@@ -180,7 +180,7 @@ export class VoiceCallService {
     this.connectionTimeout = null;
     this.connectionRetryCount = 0;
     this.maxConnectionRetries = 3;
-    this.connectionTimeoutMs = 30000; // 30 seconds
+    this.connectionTimeoutMs = 15000; // Reduced to 15 seconds for faster recovery
     
     // ICE gathering state tracking
     this.iceGatheringComplete = false;
@@ -189,18 +189,25 @@ export class VoiceCallService {
     // Debug WebRTC availability
     console.log('🎙️ VoiceCallService initialized:', {
       platform: Platform.OS,
-      isExpoGo: this.isExpoGo,
       isWebRTCAvailable: this.isWebRTCAvailable,
       hasRTCPeerConnection: RTCPeerConnection !== null,
       hasMediaDevices: mediaDevices !== null
     });
     
-    // Event listeners
-    this.onCallStateChange = null;
-    this.onRemoteStream = null;
+    // Socket event listeners
+    this.onIncomingCall = null;
+    this.onCallAccepted = null;
+    this.onCallDeclined = null;
     this.onCallEnded = null;
+    this.onRemoteStream = null;
+    this.onCallStateChange = null;
     this.onError = null;
-    this._onIncomingCall = null;
+    
+    // Socket reconnection handling
+    this.socketReconnectAttempts = 0;
+    this.maxSocketReconnectAttempts = 5;
+    this.pendingOffer = null;
+    this.pendingAnswer = null;
     
     // Audio elements for web
     this.localAudioElement = null;
@@ -611,13 +618,63 @@ export class VoiceCallService {
     console.log('🔗 Socket connected:', this.socket.connected);
     console.log('🔗 Socket ID:', this.socket.id);
 
-    // Test socket connection
+    // Enhanced socket connection handling with reconnection
     this.socket.on('connect', () => {
       console.log('🔌 Voice call socket connected:', this.socket.id);
+      this.socketReconnectAttempts = 0;
+      
+      // Resend pending offer/answer if reconnected during call setup
+      if (this.pendingOffer && this.currentCallId) {
+        console.log('🔄 Resending pending offer after reconnection');
+        this.socket.emit('voice:offer', {
+          callId: this.currentCallId,
+          offer: this.pendingOffer
+        });
+        this.pendingOffer = null;
+      }
+      
+      if (this.pendingAnswer && this.currentCallId) {
+        console.log('🔄 Resending pending answer after reconnection');
+        this.socket.emit('voice:answer', {
+          callId: this.currentCallId,
+          answer: this.pendingAnswer
+        });
+        this.pendingAnswer = null;
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('🔌 Voice call socket disconnected:', reason);
+      
+      // Handle disconnection during active call
+      if (this.isCallActive() && this.socketReconnectAttempts < this.maxSocketReconnectAttempts) {
+        console.log(`🔄 Attempting socket reconnection (${this.socketReconnectAttempts + 1}/${this.maxSocketReconnectAttempts})`);
+        this.socketReconnectAttempts++;
+        
+        // Try to reconnect after a short delay
+        setTimeout(() => {
+          if (this.socket && !this.socket.connected) {
+            console.log('🔄 Attempting to reconnect socket...');
+            this.socket.connect();
+          }
+        }, 2000);
+      } else if (this.socketReconnectAttempts >= this.maxSocketReconnectAttempts) {
+        console.error('❌ Max socket reconnection attempts reached');
+        if (this.onError) this.onError('Connection lost - unable to reconnect');
+        this.endCall();
+      }
+    });
+
+    this.socket.on('reconnect', () => {
+      console.log('✅ Socket reconnected successfully');
+      this.socketReconnectAttempts = 0;
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error);
+      if (this.isCallActive()) {
+        if (this.onError) this.onError('Connection error during call');
+      }
     });
 
     // Incoming call
@@ -1159,12 +1216,22 @@ export class VoiceCallService {
       console.log('📤 Socket ID:', this.socket.id);
       console.log('📤 ICE candidates in offer:', finalOffer.sdp.split('a=candidate:').length - 1);
       
-      this.socket.emit('voice:offer', {
-        callId: this.currentCallId,
-        offer: finalOffer
-      });
+      // Store offer in case we need to resend after reconnection
+      this.pendingOffer = finalOffer;
       
-      console.log('✅ WebRTC offer sent to backend');
+      if (this.socket && this.socket.connected) {
+        this.socket.emit('voice:offer', {
+          callId: this.currentCallId,
+          offer: finalOffer
+        });
+        console.log('✅ WebRTC offer sent to backend');
+        // Clear pending offer after successful send
+        setTimeout(() => {
+          this.pendingOffer = null;
+        }, 5000);
+      } else {
+        console.warn('⚠️ Socket not connected, offer will be sent when reconnected');
+      }
     } catch (error) {
       console.error('❌ Failed to create offer:', error);
       if (this.onError) this.onError('Failed to establish connection');
@@ -1240,12 +1307,22 @@ export class VoiceCallService {
       console.log('📤 Socket ID:', this.socket.id);
       console.log('📤 ICE candidates in answer:', finalAnswer.sdp.split('a=candidate:').length - 1);
       
-      this.socket.emit('voice:answer', {
-        callId: this.currentCallId,
-        answer: finalAnswer
-      });
+      // Store answer in case we need to resend after reconnection
+      this.pendingAnswer = finalAnswer;
       
-      console.log('✅ WebRTC answer sent to backend');
+      if (this.socket && this.socket.connected) {
+        this.socket.emit('voice:answer', {
+          callId: this.currentCallId,
+          answer: finalAnswer
+        });
+        console.log('✅ WebRTC answer sent to backend');
+        // Clear pending answer after successful send
+        setTimeout(() => {
+          this.pendingAnswer = null;
+        }, 5000);
+      } else {
+        console.warn('⚠️ Socket not connected, answer will be sent when reconnected');
+      }
     } catch (error) {
       console.error('❌ Failed to handle offer:', error);
       if (this.onError) this.onError('Failed to establish connection');
@@ -1805,6 +1882,12 @@ export class VoiceCallService {
     this.isSpeakerOn = false;
     this.callDuration = 0;
     this.remoteStream = null;
+    
+    // Clear pending offers/answers
+    this.pendingOffer = null;
+    this.pendingAnswer = null;
+    this.socketReconnectAttempts = 0;
+    
     this.setCallState('idle');
     
     console.log('✅ Cleanup completed. Previous call ID:', previousCallId);
