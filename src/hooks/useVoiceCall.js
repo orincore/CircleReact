@@ -14,14 +14,13 @@ export function useVoiceCall() {
     if (token) {
       console.log('🎙️ Initializing voice call service with token...');
       const initialized = initializeVoiceCallService(token);
-      console.log('🎙️ Voice call service initialization result:', initialized);
     } else {
       console.warn('⚠️ No token available for voice call initialization');
     }
 
     // Set up incoming call handler
-    console.log('🎙️ Setting up incoming call handler...');
-    voiceCallService.onIncomingCall = (callData) => {
+    console.log('🎧 Setting up incoming call handler...');
+    const incomingCallHandler = (callData) => {
       console.log('🚨 INCOMING CALL HANDLER TRIGGERED! 🚨');
       console.log('📞 Handling incoming call:', callData);
       
@@ -37,11 +36,24 @@ export function useVoiceCall() {
         }
       });
     };
+    
+    // Set handler on voice call service
+    voiceCallService.onIncomingCall = incomingCallHandler;
+    
+    // Also set global fallback handler for browser notifications
+    if (typeof window !== 'undefined') {
+      window.__voiceCallHandler = incomingCallHandler;
+      console.log('🌍 Global voice call handler registered');
+    }
 
     // Cleanup on unmount
     return () => {
       console.log('🎙️ Cleaning up voice call hook...');
       voiceCallService.onIncomingCall = null;
+      if (typeof window !== 'undefined') {
+        window.__voiceCallHandler = null;
+        console.log('🌍 Global voice call handler unregistered');
+      }
     };
   }, [router, token]);
 

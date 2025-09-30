@@ -329,12 +329,55 @@ export default function useBrowserNotifications() {
   const handleIncomingVoiceCall = ({ callId, callerId, callerName, callerAvatar }) => {
     console.log('📞 Incoming voice call for browser notification:', { callId, callerId, callerName });
     
-    // Only show notification if page is not visible (user is not actively using the app)
+    // If page is visible, trigger the voice call service handler directly
     if (document.visibilityState === 'visible') {
-      console.log('📞 Page is visible, not showing voice call notification');
+      console.log('📞 Page is visible, triggering voice call service handler');
+      
+      // Import and trigger voice call service handler
+      try {
+        const { voiceCallService } = require('@/src/services/VoiceCallService');
+        if (voiceCallService && voiceCallService.onIncomingCall) {
+          console.log('📞 Triggering voice call service onIncomingCall handler');
+          voiceCallService.onIncomingCall({
+            callId,
+            callerId,
+            callerName: callerName || 'Unknown Caller',
+            callerAvatar: callerAvatar || ''
+          });
+        } else {
+          console.warn('⚠️ Voice call service or onIncomingCall handler not available');
+          
+          // Fallback: Try to trigger global voice call handler
+          if (window.__voiceCallHandler) {
+            console.log('📞 Using global voice call handler fallback');
+            window.__voiceCallHandler({
+              callId,
+              callerId,
+              callerName: callerName || 'Unknown Caller',
+              callerAvatar: callerAvatar || ''
+            });
+          } else {
+            console.error('❌ No voice call handler available - call will be missed!');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error triggering voice call service:', error);
+        
+        // Fallback: Try to trigger global voice call handler
+        if (window.__voiceCallHandler) {
+          console.log('📞 Using global voice call handler fallback after error');
+          window.__voiceCallHandler({
+            callId,
+            callerId,
+            callerName: callerName || 'Unknown Caller',
+            callerAvatar: callerAvatar || ''
+          });
+        }
+      }
       return;
     }
 
+    // If page is not visible, show browser notification
     browserNotificationService.showVoiceCallNotification({
       callerName: callerName || 'Someone',
       callerId,

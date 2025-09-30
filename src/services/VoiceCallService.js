@@ -158,12 +158,22 @@ export class VoiceCallService {
     this.onRemoteStream = null;
     this.onCallEnded = null;
     this.onError = null;
-    this.onIncomingCall = null;
+    this._onIncomingCall = null;
     
     // Audio elements for web
     this.localAudioElement = null;
     this.remoteAudioElement = null;
     this.pendingRemoteAudioPlay = false;
+  }
+
+  // Incoming call handler getter/setter with debugging
+  set onIncomingCall(handler) {
+    console.log('📞 Setting incoming call handler:', !!handler);
+    this._onIncomingCall = handler;
+  }
+
+  get onIncomingCall() {
+    return this._onIncomingCall;
   }
 
   // Public method to check WebRTC availability
@@ -538,8 +548,7 @@ export class VoiceCallService {
         console.log('📞 Handler function exists:', typeof this.onIncomingCall);
         this.onIncomingCall(data);
       } else {
-        console.error('❌ No onIncomingCall handler set!');
-        console.error('❌ onIncomingCall is:', this.onIncomingCall);
+        console.warn('❌ No onIncomingCall handler set!');
       }
     });
 
