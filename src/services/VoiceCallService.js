@@ -209,6 +209,15 @@ class VoiceCallService {
   endCall() {
     console.log('📞 Ending call');
     
+    // Stop all media tracks IMMEDIATELY before anything else
+    if (this.localStream) {
+      console.log('🎤 Stopping microphone immediately...');
+      this.localStream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+    }
+    
     if (this.currentCallId) {
       this.socket.emit('voice:end-call', {
         callId: this.currentCallId
@@ -272,23 +281,20 @@ class VoiceCallService {
         return;
       }
       
-      // Check if we already have a remote description
+      // If we already have a stable connection, ignore new offers
       if (this.peerConnection && this.peerConnection.signalingState === 'stable') {
         console.log('⚠️ Already in stable state, ignoring duplicate offer');
         return;
       }
       
-      // Check if we're in correct state to receive offer
-      if (this.peerConnection && this.peerConnection.signalingState !== 'stable' && this.peerConnection.signalingState !== 'have-remote-offer') {
-        console.log('⚠️ Not in correct state to receive offer:', this.peerConnection.signalingState);
-        return;
-      }
-      
+      // Set flag to prevent concurrent processing
       this.processingOffer = true;
       
       // Only setup peer connection if it doesn't exist
       if (!this.peerConnection) {
         await this.setupPeerConnection();
+      } else {
+        console.log('✅ Using existing peer connection');
       }
       
       console.log('📝 Current signaling state before offer:', this.peerConnection.signalingState);
@@ -402,10 +408,16 @@ class VoiceCallService {
   // Setup WebRTC peer connection
   async setupPeerConnection() {
     if (this.peerConnection) {
-      console.log('⚠️ Peer connection already exists');
+      console.log('⚠️ Peer connection already exists, reusing it');
       return;
     }
-
+    
+    if (this.settingUpPeerConnection) {
+      console.log('⚠️ Already setting up peer connection, waiting...');
+      return;
+    }
+    
+    this.settingUpPeerConnection = true;
     console.log('🔧 Setting up peer connection...');
     
     // Get local audio stream first
@@ -461,14 +473,34 @@ class VoiceCallService {
       console.log('🔄 Connection state:', this.peerConnection.connectionState);
       
       if (this.peerConnection.connectionState === 'connected') {
+        console.log('✅ WebRTC connection established!');
         this.setCallState('connected');
         this.startCallTimer();
-      } else if (this.peerConnection.connectionState === 'failed' || 
-                 this.peerConnection.connectionState === 'disconnected') {
+      } else if (this.peerConnection.connectionState === 'failed') {
+        console.error('❌ Connection failed');
         this.endCall();
+      } else if (this.peerConnection.connectionState === 'disconnected') {
+        console.log('⚠️ Connection disconnected');
+        this.endCall();
+      } else if (this.peerConnection.connectionState === 'closed') {
+        console.log('🔒 Connection closed');
+        this.cleanup();
+      }
+    };
+    
+    // Also handle ICE connection state for better debugging
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
+      
+      if (this.peerConnection.iceConnectionState === 'connected' || 
+          this.peerConnection.iceConnectionState === 'completed') {
+        console.log('✅ ICE connection established');
+      } else if (this.peerConnection.iceConnectionState === 'failed') {
+        console.error('❌ ICE connection failed');
       }
     };
 
+    this.settingUpPeerConnection = false;
     console.log('✅ Peer connection setup complete');
   }
 
@@ -547,6 +579,7 @@ class VoiceCallService {
     // Reset processing flags
     this.processingOffer = false;
     this.processingAnswer = false;
+    this.settingUpPeerConnection = false;
     
     this.setCallState('idle');
     
