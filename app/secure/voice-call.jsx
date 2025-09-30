@@ -29,6 +29,10 @@ export default function VoiceCallScreen() {
     const incoming = isIncoming === 'true';
     return incoming ? 'incoming' : 'calling'; // incoming, calling, ringing, connecting, connected, ended
   });
+  
+  // Prevent duplicate screens
+  const [isScreenActive, setIsScreenActive] = useState(true);
+  const [hasNavigated, setHasNavigated] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -41,9 +45,17 @@ export default function VoiceCallScreen() {
   // Timer ref for call duration
   const durationTimer = useRef(null);
 
-  // Safe navigation function
+  // Safe navigation function with duplicate prevention
   const navigateBack = () => {
+    if (hasNavigated || !isScreenActive) {
+      console.log('📞 Navigation already in progress, skipping...');
+      return;
+    }
+    
     console.log('📞 Attempting to navigate back...');
+    setHasNavigated(true);
+    setIsScreenActive(false);
+    
     try {
       if (router.canGoBack()) {
         router.back();
@@ -139,7 +151,14 @@ export default function VoiceCallScreen() {
   };
   
   const handleCallStateChange = (newState) => {
-    console.log('📞 Call state changed:', newState);
+    console.log('📞 Call state changed:', callState, '->', newState);
+    
+    // Prevent duplicate state changes
+    if (newState === callState) {
+      console.log('📞 Ignoring duplicate state change');
+      return;
+    }
+    
     setCallState(newState);
     
     if (newState === 'connected') {
@@ -149,10 +168,14 @@ export default function VoiceCallScreen() {
     } else if (newState === 'ended') {
       stopDurationTimer();
       setIsRecording(false);
-      // Navigate back after a short delay
+      
+      // Show "Call ended" for 3 seconds before navigating back
+      console.log('📞 Call ended, showing end screen for 3 seconds...');
       setTimeout(() => {
-        navigateBack();
-      }, 2000);
+        if (isScreenActive && !hasNavigated) {
+          navigateBack();
+        }
+      }, 3000);
     }
   };
   
@@ -164,12 +187,26 @@ export default function VoiceCallScreen() {
   };
   
   const handleCallEnded = () => {
-    console.log('📞 Call ended');
+    console.log('📞 Call ended handler triggered');
+    
+    // Prevent duplicate call end handling
+    if (callState === 'ended') {
+      console.log('📞 Call already ended, ignoring duplicate event');
+      return;
+    }
+    
     setCallState('ended');
     stopDurationTimer();
     if (voiceCallService.isExpoGo && isRecording) {
       stopAudioRecording();
     }
+    
+    // Show "Call ended" for 3 seconds before navigating back
+    setTimeout(() => {
+      if (isScreenActive && !hasNavigated) {
+        navigateBack();
+      }
+    }, 3000);
   };
 
   const handleCallDurationUpdate = (duration) => {
@@ -178,10 +215,23 @@ export default function VoiceCallScreen() {
 
   const handleCallEndedByOther = (data) => {
     console.log('📞 Call ended by other user, duration:', data.duration, 'seconds');
+    
+    // Set state to ended first
+    setCallState('ended');
+    stopDurationTimer();
+    
+    // Show alert with call duration
     Alert.alert(
       'Call Ended', 
-      `Call ended by ${callerName}. Duration: ${formatDuration(data.duration || 0)}`,
-      [{ text: 'OK', onPress: () => navigateBack() }]
+      `Call ended by ${callerName || 'the other user'}. Duration: ${formatDuration(data.duration || 0)}`,
+      [{ 
+        text: 'OK', 
+        onPress: () => {
+          if (isScreenActive && !hasNavigated) {
+            navigateBack();
+          }
+        }
+      }]
     );
   };
   
@@ -274,12 +324,26 @@ export default function VoiceCallScreen() {
         return formatDuration(callDuration);
       case 'ended':
         return 'Call ended';
+      case 'idle':
+        return 'Call ended';
       default:
-        return 'Unknown state';
+        console.warn('Unknown call state:', callState);
+        return 'Call in progress...';
     }
   };
   
   const renderActionButtons = () => {
+    // Don't show buttons if call has ended or screen is inactive
+    if (callState === 'ended' || callState === 'idle' || !isScreenActive) {
+      return (
+        <View style={styles.endedCallContainer}>
+          <Text style={styles.endedCallText}>
+            {callState === 'ended' || callState === 'idle' ? 'Call ended' : 'Disconnecting...'}
+          </Text>
+        </View>
+      );
+    }
+    
     if (callState === 'incoming') {
       // Incoming call - show accept/decline
       return (
@@ -523,5 +587,14 @@ const styles = StyleSheet.create({
   controlButtonActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  endedCallContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  endedCallText: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
 });

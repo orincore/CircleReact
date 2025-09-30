@@ -18,11 +18,23 @@ export function useVoiceCall() {
       console.warn('⚠️ No token available for voice call initialization');
     }
 
-    // Set up incoming call handler
+    // Set up incoming call handler with duplicate prevention
     console.log('🎧 Setting up incoming call handler...');
+    let lastCallId = null;
+    let navigationInProgress = false;
+    
     const incomingCallHandler = (callData) => {
       console.log('🚨 INCOMING CALL HANDLER TRIGGERED! 🚨');
       console.log('📞 Handling incoming call:', callData);
+      
+      // Prevent duplicate navigation for same call
+      if (lastCallId === callData.callId || navigationInProgress) {
+        console.log('⚠️ Ignoring duplicate call navigation:', callData.callId);
+        return;
+      }
+      
+      lastCallId = callData.callId;
+      navigationInProgress = true;
       
       // Navigate to voice call screen with call data
       router.push({
@@ -35,6 +47,11 @@ export function useVoiceCall() {
           isIncoming: 'true'
         }
       });
+      
+      // Reset navigation flag after 3 seconds
+      setTimeout(() => {
+        navigationInProgress = false;
+      }, 3000);
     };
     
     // Set handler on voice call service using persistent registration

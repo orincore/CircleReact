@@ -775,8 +775,14 @@ export class VoiceCallService {
       }
       
       // Prevent duplicate call screens for same call ID
-      if (this.currentCallId === data.callId && this.callState === 'incoming') {
-        console.log('⚠️ Ignoring duplicate incoming call event for same call ID');
+      if (this.currentCallId === data.callId && (this.callState === 'incoming' || this.callState === 'connecting' || this.callState === 'connected')) {
+        console.log('⚠️ Ignoring duplicate incoming call event for same call ID, current state:', this.callState);
+        return;
+      }
+      
+      // Prevent calls when already ended
+      if (this.callState === 'ended' || this.callState === 'idle') {
+        console.log('⚠️ Ignoring incoming call - call service is in ended/idle state');
         return;
       }
       
@@ -2158,62 +2164,64 @@ export class VoiceCallService {
     if (this.localStream) {
       console.log('🧹 Stopping local stream tracks');
       this.localStream.getTracks().forEach(track => {
-        console.log('🧹 Stopping track:', track.kind, track.id);
         track.stop();
       });
       this.localStream = null;
     }
     
-    if (this.peerConnection) {
-      console.log('🧹 Closing peer connection');
-      this.peerConnection.close();
-      this.peerConnection = null;
+    // Stop remote stream
+    if (this.remoteStream) {
+      console.log('📹 Stopping remote stream...');
+      this.remoteStream.getTracks().forEach(track => {
+        track.stop();
+      });
+      this.remoteStream = null;
     }
     
-    // Clean up audio elements (web only)
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      if (this.localAudioElement) {
-        console.log('🧹 Cleaning up local audio element');
-        this.localAudioElement.srcObject = null;
-        this.localAudioElement.remove();
-        this.localAudioElement = null;
-      }
-      
-      if (this.remoteAudioElement) {
-        console.log('🧹 Cleaning up remote audio element');
-        this.remoteAudioElement.srcObject = null;
-        this.remoteAudioElement.remove();
-        this.remoteAudioElement = null;
-      }
+    // Stop audio recording if active
+    if (this.audioRecording) {
+      console.log('🎤 Stopping audio recording...');
+      this.audioRecording.stopAndUnloadAsync().catch(() => {
+        // Ignore errors during cleanup
+      });
+      this.audioRecording = null;
     }
     
-    // Expo Go audio cleanup
-    if (this.isExpoGo) {
-      if (this.audioRecording) {
-        this.audioRecording.stopAndUnloadAsync().catch(console.error);
-        this.audioRecording = null;
-      }
-      if (this.audioSound) {
-        this.audioSound.unloadAsync().catch(console.error);
-        this.audioSound = null;
-      }
+    // Stop audio playback if active
+    if (this.audioSound) {
+      console.log('🔊 Stopping audio playback...');
+      this.audioSound.stopAsync().catch(() => {
+        // Ignore errors during cleanup
+      });
+      this.audioSound = null;
     }
     
-    // Reset state
-    const previousCallId = this.currentCallId;
+    // Clear audio streaming interval
+    if (this.audioStreamingInterval) {
+      clearInterval(this.audioStreamingInterval);
+      this.audioStreamingInterval = null;
+    }
+    
+    // Reset call state
     this.currentCallId = null;
     this.isInitiator = false;
     this.isMuted = false;
     this.isSpeakerOn = false;
-    this.callDuration = 0;
-    this.remoteStream = null;
-    
-    // Clear pending offers/answers
+    this.callStartTime = null;
+    this.connectionRetryCount = 0;
     this.pendingOffer = null;
     this.pendingAnswer = null;
     this.socketReconnectAttempts = 0;
     
+    // Set to idle state and notify listeners
     this.setCallState('idle');
+    
+    // Clear handlers to prevent further events
+    setTimeout(() => {
+      console.log('🧹 Final cleanup - clearing temporary handlers...');
+      // Don't clear persistent handlers, just temporary ones
+      this.onCallDurationUpdate = null;
+    }, 1000);
     
     console.log('✅ Cleanup completed. Previous call ID:', previousCallId);
   }
