@@ -1,12 +1,13 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { socialAccountsApi } from "@/src/api/social-accounts";
+import AnimatedBackground from "@/components/signup/AnimatedBackground";
 
 export default function SignupSummary() {
   const router = useRouter();
@@ -120,7 +121,7 @@ export default function SignupSummary() {
   }, [confettiAnim, confetti]);
 
   return (
-    <LinearGradient colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]} locations={[0, 0.55, 1]} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+    <AnimatedBackground>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           {/* Decorative sparkles (animated) */}
@@ -145,7 +146,7 @@ export default function SignupSummary() {
             );
           })}
 
-          <View style={styles.card}>
+          <View style={styles.glassCard}>
             <View style={styles.celebrateRow}>
               <Ionicons name="sparkles" size={18} color="#7C2B86" />
               <Text style={styles.celebrateText}>Welcome to Circle</Text>
@@ -163,7 +164,7 @@ export default function SignupSummary() {
               </LinearGradient>
             </View>
 
-            <Text style={styles.title}>Hurray! Your Circle account is created</Text>
+            <Text style={styles.title}>🎉 Hurray! Your Circle account is created</Text>
             <Text style={styles.subtitle}>
               {isUpdating ? 'Setting up your profile...' : 'Here\'s what we\'ve got for you:'}
             </Text>
@@ -211,38 +212,66 @@ export default function SignupSummary() {
             ) : null}
 
             <TouchableOpacity style={styles.cta} onPress={() => router.replace("/secure/match") }>
-              <Ionicons name="sparkles" size={18} color="#7C2B86" />
-              <Text style={styles.ctaText}>All set</Text>
-              <Ionicons name="arrow-forward" size={18} color="#7C2B86" />
+              <Text style={styles.ctaText}>Let's Go! ✨</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
-    </LinearGradient>
+    </AnimatedBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
   safeArea: { flex: 1 },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 28, padding: 24, width: '100%', gap: 12, boxShadow: '0px 22px 52px rgba(18, 8, 43, 0.35)', borderWidth: 1, borderColor: 'rgba(233,230,255,0.6)' },
+  glassCard: { 
+    backgroundColor: 'rgba(255,255,255,0.96)', 
+    borderRadius: 32, 
+    padding: 28, 
+    width: '100%', 
+    maxWidth: 480,
+    gap: 14, 
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 15 },
+    elevation: 20,
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,214,242,0.4)' 
+  },
   celebrateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 4 },
   celebrateText: { fontSize: 12, fontWeight: '800', color: '#7C2B86', textTransform: 'uppercase', letterSpacing: 1.2 },
   checkWrap: { alignItems: 'center', marginBottom: 6 },
-  checkCircleOuter: { width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center' },
-  checkCircleInner: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFF6FB', alignItems: 'center', justifyContent: 'center', shadowColor: '#7C2B86', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  title: { fontSize: 22, fontWeight: '800', color: '#1F1147', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: 'rgba(31,17,71,0.62)', textAlign: 'center', marginBottom: 6 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  summaryBlock: { gap: 6, paddingTop: 6 },
-  label: { fontSize: 13, color: '#58468B' },
+  checkCircleOuter: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
+  checkCircleInner: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF6FB', alignItems: 'center', justifyContent: 'center', shadowColor: '#7C2B86', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+  title: { fontSize: 24, fontWeight: '800', color: '#1F1147', textAlign: 'center', lineHeight: 32 },
+  subtitle: { fontSize: 15, color: 'rgba(31,17,71,0.65)', textAlign: 'center', marginBottom: 8, lineHeight: 22 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(93, 95, 239, 0.08)' },
+  summaryBlock: { gap: 8, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(93, 95, 239, 0.08)' },
+  label: { fontSize: 13, color: '#58468B', fontWeight: '600', letterSpacing: 0.3 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  value: { fontSize: 14, color: '#1F1147', fontWeight: '600', maxWidth: '60%', textAlign: 'right' },
-  cta: { marginTop: 12, backgroundColor: '#FFD6F2', borderRadius: 999, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,214,242,0.8)' },
-  ctaText: { fontSize: 16, fontWeight: '800', color: '#7C2B86' },
-  sparkle: { position: 'absolute', opacity: 0.5 },
-  sparkleTL: { top: 48, left: 28 },
-  sparkleTR: { top: 94, right: 32 },
-  sparkleBL: { bottom: 72, left: 40 },
+  value: { fontSize: 15, color: '#1F1147', fontWeight: '600', maxWidth: '60%', textAlign: 'right', lineHeight: 20 },
+  cta: { 
+    marginTop: 16, 
+    backgroundColor: '#A16AE8',
+    borderRadius: 999, 
+    paddingVertical: 18, 
+    alignItems: 'center', 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    gap: 10,
+    shadowColor: '#A16AE8',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  ctaText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
+  sparkle: { position: 'absolute', opacity: 0.6 },
+  sparkleTL: { top: 60, left: 32 },
+  sparkleTR: { top: 110, right: 36 },
+  sparkleBL: { bottom: 90, left: 44 },
+  confetti: { position: 'absolute', top: 100, borderRadius: 2 },
+  shimmer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 40, overflow: 'hidden' },
 });

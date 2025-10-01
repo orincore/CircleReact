@@ -2498,9 +2498,11 @@ const styles = StyleSheet.create({
     flex: 1,
     ...(Platform.OS === 'web' && {
       minHeight: '100vh',
+      height: '100vh', // Fixed height for mobile browsers
       width: '100%',
       maxWidth: 800,
       alignSelf: 'center',
+      overflow: 'hidden', // Prevent scrolling issues
     }),
   },
   safeArea: {
@@ -2508,6 +2510,8 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' && {
       height: '100%',
       width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
     }),
   },
   flex: {
@@ -2847,9 +2851,14 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'web' ? 20 : 12, // Extra padding for mobile browsers
+    paddingBottom: Platform.OS === 'web' ? 16 : 12,
     ...(Platform.OS === 'web' && {
-      marginBottom: 0, // Ensure no extra margin on web
+      marginBottom: 0,
+      position: 'relative',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
     }),
   },
   composerBlur: {

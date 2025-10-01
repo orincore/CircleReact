@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,16 +12,44 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  useWindowDimensions,
+  ScrollView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Login() {
   const router = useRouter();
   const { logIn } = useAuth();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 1024;
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -40,260 +68,562 @@ export default function Login() {
   };
 
   return (
-    <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-      locations={[0, 0.55, 1]}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.select({ ios: "padding", android: undefined })}
+      
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <LinearGradient
+          colors={['#7C2B86', '#A16AE8', '#5D5FEF']}
+          locations={[0, 0.5, 1]}
+          style={[styles.loginSection, isLargeScreen && styles.loginSectionLarge]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
         >
-          <View style={styles.blurCircleLarge} />
-          <View style={styles.blurCircleSmall} />
-
-          <View style={styles.container}>
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.backButton}
-                accessibilityRole="button"
+          <SafeAreaView style={styles.safeArea}>
+            <KeyboardAvoidingView
+              behavior={Platform.select({ ios: "padding", android: undefined })}
+              style={styles.keyboardView}
+            >
+              <Animated.View 
+                style={[
+                  styles.loginContent,
+                  isLargeScreen && styles.loginContentLarge,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
               >
-                <Ionicons name="chevron-back" size={24} color="#FFE8FF" />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <View style={styles.circleLogo}>
-                  <Text style={styles.logoText}>C</Text>
-                </View>
-                <Text style={styles.appName}>Circle</Text>
-              </View>
-            </View>
-
-            <View style={styles.welcomeBlock}>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Let’s pick up where your heart left off.</Text>
-            </View>
-
-            <View style={styles.card}>
-              {error ? (
-                <Text style={styles.errorText}>{error}</Text>
-              ) : null}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail" size={18} color="#8880B6" />
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="you@example.com"
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed" size={18} color="#8880B6" />
-                  <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="••••••••"
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                    secureTextEntry
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.primaryButton}
-                onPress={handleLogin}
-                disabled={submitting}
-              >
-                <Text style={styles.primaryButtonText}>{submitting ? "Logging in..." : "Log in"}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity activeOpacity={0.85} style={styles.secondaryAction}>
-                <Text style={styles.secondaryActionText}>Forgot password?</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.bottomPrompt}>
-              <Text style={styles.promptText}>New to Circle?</Text>
-              <Link href="/signup" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.promptLink}>Create an account</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+                {isLargeScreen ? (
+                  // Desktop Layout
+                  <View style={styles.desktopGrid}>
+                    {/* Left Side - Branding */}
+                    <View style={styles.desktopLeft}>
+                      <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={styles.backButton}
+                      >
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      
+                      <View style={styles.brandingSection}>
+                        <Image 
+                          source={require('@/assets/logo/circle-logo.png')} 
+                          style={styles.brandLogo}
+                          resizeMode="contain"
+                        />
+                        <Text style={styles.brandName}>Circle</Text>
+                        <Text style={styles.brandTagline}>
+                          Welcome back to your circle of connections
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.featureList}>
+                        <View style={styles.featureItem}>
+                          <LinearGradient
+                            colors={['#FF6FB5', '#FF8CC5']}
+                            style={styles.featureIconSmall}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Ionicons name="heart" size={20} color="#FFFFFF" />
+                          </LinearGradient>
+                          <Text style={styles.featureText}>Smart Matching</Text>
+                        </View>
+                        <View style={styles.featureItem}>
+                          <LinearGradient
+                            colors={['#A16AE8', '#B88EF0']}
+                            style={styles.featureIconSmall}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
+                          </LinearGradient>
+                          <Text style={styles.featureText}>Real-time Chat</Text>
+                        </View>
+                        <View style={styles.featureItem}>
+                          <LinearGradient
+                            colors={['#10B981', '#34D399']}
+                            style={styles.featureIconSmall}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
+                          </LinearGradient>
+                          <Text style={styles.featureText}>Safe & Secure</Text>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    {/* Right Side - Login Form */}
+                    <View style={styles.desktopRight}>
+                      <View style={styles.formCard}>
+                        <Text style={styles.formTitle}>Log In</Text>
+                        <Text style={styles.formSubtitle}>
+                          Enter your credentials to continue
+                        </Text>
+                        
+                        {error ? (
+                          <View style={styles.errorBox}>
+                            <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                            <Text style={styles.errorText}>{error}</Text>
+                          </View>
+                        ) : null}
+                        
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Email or Username</Text>
+                          <View style={styles.inputWrapper}>
+                            <Ionicons name="mail-outline" size={20} color="#A16AE8" />
+                            <TextInput
+                              value={email}
+                              onChangeText={setEmail}
+                              placeholder="you@example.com"
+                              placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                              keyboardType="email-address"
+                              autoCapitalize="none"
+                              style={styles.input}
+                            />
+                          </View>
+                        </View>
+                        
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Password</Text>
+                          <View style={styles.inputWrapper}>
+                            <Ionicons name="lock-closed-outline" size={20} color="#A16AE8" />
+                            <TextInput
+                              value={password}
+                              onChangeText={setPassword}
+                              placeholder="Enter your password"
+                              placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                              secureTextEntry={!showPassword}
+                              style={styles.input}
+                            />
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                              <Ionicons 
+                                name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                                size={20} 
+                                color="#A16AE8" 
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        
+                        <TouchableOpacity style={styles.forgotPassword}>
+                          <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+                          onPress={handleLogin}
+                          disabled={submitting}
+                        >
+                          <Text style={styles.primaryButtonText}>
+                            {submitting ? "Logging in..." : "Log In"}
+                          </Text>
+                          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        
+                        <View style={styles.signupPrompt}>
+                          <Text style={styles.signupPromptText}>Don't have an account? </Text>
+                          <Link href="/signup" asChild>
+                            <TouchableOpacity>
+                              <Text style={styles.signupLink}>Sign Up</Text>
+                            </TouchableOpacity>
+                          </Link>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  // Mobile Layout
+                  <View style={styles.mobileLayout}>
+                    <TouchableOpacity
+                      onPress={() => router.back()}
+                      style={styles.backButtonMobile}
+                    >
+                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.mobileHeader}>
+                      <Image 
+                        source={require('@/assets/logo/circle-logo.png')} 
+                        style={styles.mobileLogo}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.mobileTitle}>Welcome Back</Text>
+                      <Text style={styles.mobileSubtitle}>
+                        Log in to continue your journey
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.mobileFormCard}>
+                      {error ? (
+                        <View style={styles.errorBox}>
+                          <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                          <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                      ) : null}
+                      
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Email or Username</Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="mail-outline" size={18} color="#A16AE8" />
+                          <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="you@example.com"
+                            placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            style={styles.input}
+                          />
+                        </View>
+                      </View>
+                      
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Password</Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="lock-closed-outline" size={18} color="#A16AE8" />
+                          <TextInput
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder="Enter your password"
+                            placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                            secureTextEntry={!showPassword}
+                            style={styles.input}
+                          />
+                          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                            <Ionicons 
+                              name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                              size={18} 
+                              color="#A16AE8" 
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      
+                      <TouchableOpacity style={styles.forgotPassword}>
+                        <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+                        onPress={handleLogin}
+                        disabled={submitting}
+                      >
+                        <Text style={styles.primaryButtonText}>
+                          {submitting ? "Logging in..." : "Log In"}
+                        </Text>
+                        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.mobileSignupPrompt}>
+                      <Text style={styles.mobileSignupText}>Don't have an account? </Text>
+                      <Link href="/signup" asChild>
+                        <TouchableOpacity>
+                          <Text style={styles.mobileSignupLink}>Sign Up</Text>
+                        </TouchableOpacity>
+                      </Link>
+                    </View>
+                  </View>
+                )}
+              </Animated.View>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </LinearGradient>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
+  container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  loginSection: {
+    minHeight: '100%',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  loginSectionLarge: {
+    paddingHorizontal: 60,
+    paddingVertical: 60,
   },
   safeArea: {
     flex: 1,
   },
-  flex: {
+  keyboardView: {
     flex: 1,
   },
-  container: {
+  loginContent: {
     flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 32,
-    justifyContent: "space-between",
+    justifyContent: 'center',
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  loginContentLarge: {
+    maxWidth: 1200,
+    marginHorizontal: 'auto',
+    width: '100%',
+  },
+  
+  // Desktop Layout
+  desktopGrid: {
+    flexDirection: 'row',
+    gap: 60,
+    alignItems: 'center',
+  },
+  desktopLeft: {
+    flex: 1,
+  },
+  desktopRight: {
+    flex: 1,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  circleLogo: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "rgba(255, 214, 242, 0.25)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  logoText: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#FFFFFF",
+  brandingSection: {
+    marginBottom: 48,
   },
-  appName: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#FFFFFF",
+  brandLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 20,
   },
-  welcomeBlock: {
-    marginTop: 48,
-    gap: 8,
+  brandName: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#FFFFFF",
+  brandTagline: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 26,
   },
-  subtitle: {
+  featureList: {
+    gap: 20,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  featureIconSmall: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  featureText: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.82)",
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  card: {
-    marginTop: 36,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderRadius: 22,
-    padding: 24,
-    gap: 22,
-    boxShadow: "0px 12px 24px rgba(18, 8, 43, 0.35)",
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 40,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 15 },
     elevation: 20,
+  },
+  formTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1F1147',
+    marginBottom: 8,
+  },
+  formSubtitle: {
+    fontSize: 16,
+    color: 'rgba(31, 17, 71, 0.7)',
+    marginBottom: 32,
+  },
+  
+  // Mobile Layout
+  mobileLayout: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+  },
+  backButtonMobile: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  mobileHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  mobileLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 20,
+  },
+  mobileTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  mobileSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+  },
+  mobileFormCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 24,
+    gap: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  
+  // Form Elements
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#EF4444',
+    fontWeight: '600',
   },
   inputGroup: {
     gap: 8,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#58468B",
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7C2B86',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(93, 95, 239, 0.25)",
-    backgroundColor: "rgba(246, 245, 255, 0.9)",
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(161, 106, 232, 0.2)',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 16,
-    height: 52,
+    height: 56,
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: "#1F1147",
+    color: '#1F1147',
+    fontWeight: '500',
+  },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#A16AE8',
   },
   primaryButton: {
-    backgroundColor: "#FFD6F2",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#A16AE8',
     borderRadius: 999,
     paddingVertical: 18,
-    alignItems: "center",
+    gap: 10,
+    shadowColor: '#A16AE8',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    marginTop: 8,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
   },
   primaryButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#7C2B86",
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  secondaryAction: {
-    alignSelf: "flex-start",
+  signupPrompt: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
   },
-  secondaryActionText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7C68E4",
+  signupPromptText: {
+    fontSize: 15,
+    color: 'rgba(31, 17, 71, 0.7)',
   },
-  bottomPrompt: {
-    alignItems: "center",
-    gap: 6,
-    marginTop: 32,
+  signupLink: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#A16AE8',
   },
-  promptText: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.78)",
+  mobileSignupPrompt: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
   },
-  promptLink: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFE8FF",
+  mobileSignupText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
-  blurCircleLarge: {
-    position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(255, 214, 242, 0.32)",
-    top: -100,
-    right: -50,
-  },
-  blurCircleSmall: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255, 255, 255, 0.16)",
-    bottom: 40,
-    left: -70,
+  mobileSignupLink: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFD6F2',
   },
 });

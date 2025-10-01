@@ -1,11 +1,13 @@
-import React, { useContext, useMemo, useState } from "react";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useContext, useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
+import { Animated, Image } from "react-native";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
+import AnimatedBackground from "@/components/signup/AnimatedBackground";
+import CircularProgress from "@/components/signup/CircularProgress";
 
 const INTEREST_OPTIONS = [
   "art", "music", "coding", "coffee", "running", "yoga", "travel", "books", "movies", "gaming",
@@ -29,6 +31,28 @@ export default function SignupInterests() {
   const [interests, setInterests] = useState(new Set(data.interests || []));
   const [needs, setNeeds] = useState(new Set(data.needs || []));
 
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  // Entrance animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   const filteredInterests = useMemo(() => INTEREST_OPTIONS.filter(i => i.includes(query.toLowerCase())), [query]);
   const filteredNeeds = useMemo(() => NEED_OPTIONS.filter(i => i.includes(query.toLowerCase())), [query]);
 
@@ -39,6 +63,20 @@ export default function SignupInterests() {
   };
 
   const onSubmit = async () => {
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     // Normalize and validate up-front so values are available in catch as well
     const norm = (() => {
       const firstName = (data.firstName || '').trim();
@@ -49,7 +87,9 @@ export default function SignupInterests() {
       const age = Number(data.age);
       const rawPhone = (data.phoneNumber || '').trim();
       const cleanedDigits = rawPhone ? rawPhone.replace(/[^0-9]/g, '') : '';
-      const phoneOut = cleanedDigits ? `${data.countryCode}${cleanedDigits}` : undefined;
+      // Remove + from country code and combine with phone number
+      const countryCodeDigits = data.countryCode ? data.countryCode.replace(/[^0-9]/g, '') : '';
+      const phoneOut = cleanedDigits ? `${countryCodeDigits}${cleanedDigits}` : undefined;
       const interestArr = Array.from(interests || []).map(String);
       const needsArr = Array.from(needs || []).map(String);
       return { firstName, lastName, username, gender, email, age, phoneOut, interestArr, needsArr };
@@ -66,6 +106,15 @@ export default function SignupInterests() {
       if (norm.phoneOut && norm.phoneOut.replace(/[^0-9]/g, '').length < 5) return alert('Phone should be at least 5 digits');
       if (!data.instagramUsername || data.instagramUsername.trim().length < 1) return alert('Instagram username is required');
 
+      // Debug: Check what we have in context data
+      console.log('🔍 Context data before payload creation:', {
+        instagramUsername: data.instagramUsername,
+        about: data.about,
+        allData: data
+      });
+
+      const instagramUsernameValue = (data.instagramUsername || '').trim().replace('@', '');
+      
       const payload = {
         firstName: norm.firstName,
         lastName: norm.lastName,
@@ -77,14 +126,14 @@ export default function SignupInterests() {
         password: data.password,
         interests: norm.interestArr,
         needs: norm.needsArr,
-        // Note: about and instagramUsername will be updated separately in summary page
+        instagramUsername: instagramUsernameValue,
+        about: (data.about || '').trim(),
       };
       // Debug: surface outgoing payload
-      try { 
-        console.log('📤 Frontend signup payload:', payload);
-        console.log('📝 About field will be updated in summary page:', data.about);
-        console.log('📸 Instagram username will be updated in summary page:', data.instagramUsername);
-      } catch {}
+      console.log('📤 Frontend signup payload:', JSON.stringify(payload, null, 2));
+      console.log('📸 Instagram username in payload:', payload.instagramUsername);
+      console.log('📸 Instagram username length:', payload.instagramUsername?.length);
+      console.log('📝 About in payload:', payload.about);
       await signUp(payload);
       router.replace("/signup/summary");
     } catch (e) {
@@ -103,10 +152,13 @@ export default function SignupInterests() {
           password: data.password,
           interests: [],
           needs: [],
-          // Note: about and instagramUsername will be updated separately in summary page
+          instagramUsername: (data.instagramUsername || '').trim().replace('@', ''),
+          about: (data.about || '').trim(),
         };
         try {
-          try { console.log('Retrying signup with empty interests/needs'); } catch {}
+          console.log('🔄 Retrying signup with empty interests/needs');
+          console.log('🔄 Retry payload:', retry);
+          console.log('🔄 Instagram username in retry:', retry.instagramUsername);
           await signUp(retry);
           router.replace('/signup/summary');
           return;
@@ -128,26 +180,48 @@ export default function SignupInterests() {
   );
 
   return (
-    <LinearGradient colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]} locations={[0, 0.55, 1]} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+    <AnimatedBackground>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
           <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button">
-                <Ionicons name="chevron-back" size={24} color="#FFE8FF" />
+            <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
               </TouchableOpacity>
               <View style={styles.brandRow}>
-                <View style={styles.circleLogo}><Text style={styles.logoText}>C</Text></View>
+                <Image 
+                  source={require('@/assets/logo/circle-logo.png')} 
+                  style={styles.brandLogo}
+                  resizeMode="contain"
+                />
                 <Text style={styles.appName}>Circle</Text>
               </View>
-            </View>
+              <CircularProgress progress={100} currentStep={5} totalSteps={5} />
+            </Animated.View>
 
-            <View style={styles.welcomeBlock}>
-              <Text style={styles.title}>Pick your vibe</Text>
-              <Text style={styles.subtitle}>Select interests and needs that describe you.</Text>
-            </View>
+            <Animated.View 
+              style={[
+                styles.welcomeBlock,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
+              <Text style={styles.title}>Pick your vibe 🎨</Text>
+              <Text style={styles.subtitle}>Select interests and needs that describe you. This helps us find your perfect matches!</Text>
+              <Text style={styles.nextStep}>🎉 Final step - Let's create your account!</Text>
+            </Animated.View>
 
-            <View style={styles.card}>
+            <Animated.View 
+              style={[
+                styles.glassCard,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Search</Text>
                 <View style={styles.inputWrapper}>
@@ -166,43 +240,168 @@ export default function SignupInterests() {
                 {filteredNeeds.map((i) => renderChip(i, needs.has(i), () => toggle(setNeeds, needs, i)))}
               </View>
 
-              <TouchableOpacity activeOpacity={0.85} style={styles.primaryButton} onPress={onSubmit}>
-                <Text style={styles.primaryButtonText}>Create account</Text>
-              </TouchableOpacity>
-            </View>
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity activeOpacity={0.85} style={styles.primaryButton} onPress={onSubmit}>
+                  <Text style={styles.primaryButtonText}>Create Account 🎉</Text>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </LinearGradient>
+    </AnimatedBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 28, paddingTop: 24, paddingBottom: 40 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  backButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: "rgba(255, 214, 242, 0.4)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255, 255, 255, 0.1)" },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  
+  header: { 
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  circleLogo: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255, 214, 242, 0.25)", justifyContent: "center", alignItems: "center" },
-  logoText: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
-  appName: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
-  welcomeBlock: { marginTop: 32, gap: 6 },
-  title: { fontSize: 28, fontWeight: "800", color: "#FFFFFF" },
-  subtitle: { fontSize: 16, color: "rgba(255, 255, 255, 0.82)" },
-  card: { marginTop: 24, backgroundColor: "rgba(255, 255, 255, 0.92)", borderRadius: 22, padding: 24, gap: 22, boxShadow: "0px 12px 24px rgba(18, 8, 43, 0.35)", elevation: 20 },
+  brandLogo: { 
+    width: 48, 
+    height: 48,
+  },
+  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
+  
+  welcomeBlock: { marginBottom: 20, gap: 8 },
+  title: { 
+    fontSize: 32, 
+    fontWeight: "800", 
+    color: "#FFFFFF",
+    lineHeight: 38,
+  },
+  subtitle: { 
+    fontSize: 16, 
+    color: "rgba(255, 255, 255, 0.9)",
+    lineHeight: 22,
+  },
+  nextStep: {
+    fontSize: 14,
+    color: "rgba(255, 214, 242, 0.95)",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  
+  glassCard: { 
+    backgroundColor: Platform.OS === 'web' 
+      ? "rgba(255, 255, 255, 0.15)" 
+      : "rgba(255, 255, 255, 0.92)", 
+    borderRadius: 28, 
+    padding: 24, 
+    gap: 20,
+    ...(Platform.OS === 'web' && {
+      backdropFilter: 'blur(20px)',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+    }),
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  
   inputGroup: { gap: 8 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#58468B", letterSpacing: 0.3, textTransform: "uppercase" },
-  inputWrapper: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(93, 95, 239, 0.25)", backgroundColor: "rgba(246, 245, 255, 0.9)", paddingHorizontal: 16, height: 52 },
-  input: { flex: 1, fontSize: 16, color: "#1F1147" },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#1F1147", textTransform: "uppercase", letterSpacing: 0.5 },
+  inputLabel: { 
+    fontSize: 13, 
+    fontWeight: "700", 
+    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.95)" : "#58468B",
+    letterSpacing: 0.3,
+  },
+  inputWrapper: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 10, 
+    borderRadius: 16, 
+    borderWidth: 2, 
+    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(93, 95, 239, 0.2)", 
+    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)", 
+    paddingHorizontal: 16, 
+    height: 54,
+  },
+  input: { 
+    flex: 1, 
+    fontSize: 16, 
+    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+    fontWeight: "500",
+  },
+  
+  sectionTitle: { 
+    fontSize: 15, 
+    fontWeight: "800", 
+    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+    letterSpacing: 0.5,
+    marginTop: 8,
+  },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: "rgba(93, 95, 239, 0.25)", backgroundColor: "rgba(246, 245, 255, 0.9)" },
-  chipSelected: { backgroundColor: "#FFD6F2", borderColor: "rgba(255, 214, 242, 0.85)", shadowColor: "#7C2B86", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } },
-  chipText: { color: "#58468B", fontWeight: "600" },
-  chipTextSelected: { color: "#7C2B86" },
-  primaryButton: { backgroundColor: "#FFD6F2", borderRadius: 999, paddingVertical: 16, alignItems: "center" },
-  primaryButtonText: { fontSize: 16, fontWeight: "800", color: "#7C2B86" },
+  chip: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 6, 
+    paddingVertical: 10, 
+    paddingHorizontal: 14, 
+    borderRadius: 999, 
+    borderWidth: 2, 
+    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.3)" : "rgba(93, 95, 239, 0.25)", 
+    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)",
+  },
+  chipSelected: { 
+    backgroundColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.3)" : "#FFD6F2", 
+    borderColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.6)" : "rgba(255, 214, 242, 0.85)", 
+    shadowColor: "#7C2B86", 
+    shadowOpacity: 0.15, 
+    shadowRadius: 6, 
+    shadowOffset: { width: 0, height: 3 },
+  },
+  chipText: { 
+    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.9)" : "#58468B", 
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  chipTextSelected: { 
+    color: Platform.OS === 'web' ? "#FFFFFF" : "#7C2B86",
+    fontWeight: "700",
+  },
+  
+  primaryButton: { 
+    backgroundColor: "#A16AE8",
+    borderRadius: 999, 
+    paddingVertical: 18, 
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#A16AE8",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    marginTop: 8,
+  },
+  primaryButtonText: { 
+    fontSize: 17, 
+    fontWeight: "800", 
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
 });

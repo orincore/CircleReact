@@ -1,5 +1,4 @@
-import React, { useContext, useState } from "react";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useContext, useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { 
   KeyboardAvoidingView, 
@@ -10,219 +9,215 @@ import {
   TextInput, 
   TouchableOpacity, 
   View,
-  Alert
+  Animated,
+  useWindowDimensions,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
+import AnimatedBackground from "@/components/signup/AnimatedBackground";
+import CircularProgress from "@/components/signup/CircularProgress";
 
-export default function InstagramStep() {
+export default function SignupInstagram() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
-  const [instagramUsername, setInstagramUsername] = useState(data.instagramUsername);
+  const [instagramUsername, setInstagramUsername] = useState(data.instagramUsername || '');
   const [error, setError] = useState("");
 
-  const validateInstagramUsername = () => {
-    const username = instagramUsername.trim().replace('@', '');
-    
-    if (!username) {
-      setError("Instagram username is required");
-      return false;
-    }
-    
-    if (username.length < 1 || username.length > 30) {
-      setError("Instagram username must be between 1 and 30 characters");
-      return false;
-    }
-    
-    // Basic Instagram username validation
-    const instagramRegex = /^[a-zA-Z0-9._]+$/;
-    if (!instagramRegex.test(username)) {
-      setError("Instagram username can only contain letters, numbers, periods, and underscores");
-      return false;
-    }
-    
-    setError("");
-    return true;
-  };
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
 
-  const onNext = () => {
-    if (!validateInstagramUsername()) return;
-    
-    const cleanUsername = instagramUsername.trim().replace('@', '');
-    console.log('📸 Saving Instagram username to signup data:', cleanUsername);
-    setData((prev) => ({
-      ...prev,
-      instagramUsername: cleanUsername,
-    }));
-    router.push("/signup/interests");
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const onBack = () => {
+    setData((prev) => ({ ...prev, instagramUsername: instagramUsername.trim() }));
     router.back();
   };
 
-  const handleUsernameChange = (text) => {
-    // Remove @ symbol if user types it
-    const cleanText = text.replace('@', '');
-    setInstagramUsername(cleanText);
-    if (error) setError(""); // Clear error when user starts typing
+  const onNext = () => {
+    Animated.sequence([
+      Animated.spring(buttonScale, {
+        toValue: 0.95,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const trimmedUsername = instagramUsername.trim();
+    console.log('📸 Saving Instagram username to context:', trimmedUsername);
+    setData((prev) => {
+      const newData = { ...prev, instagramUsername: trimmedUsername };
+      console.log('📸 Updated context data:', newData);
+      return newData;
+    });
+    router.push("/signup/interests");
   };
 
-  const canContinue = instagramUsername.trim().length > 0;
+  const canContinue = instagramUsername.trim().length > 0; // Instagram is required
 
   return (
-    <LinearGradient 
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]} 
-      locations={[0, 0.55, 1]} 
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
+    <AnimatedBackground>
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : "height"} 
-          style={styles.keyboardAvoidingView}
-        >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.container}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
+          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
+            <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
               {/* Header */}
-              <View style={styles.header}>
+              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                  <Ionicons name="arrow-back" size={24} color="#FFE8FF" />
+                  <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: '80%' }]} />
-                  </View>
-                  <Text style={styles.progressText}>Step 4 of 5</Text>
+                <View style={styles.brandRow}>
+                  <Image 
+                    source={require('@/assets/logo/circle-logo.png')} 
+                    style={styles.brandLogo}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.appName}>Circle</Text>
                 </View>
-              </View>
+                <CircularProgress progress={80} currentStep={4} totalSteps={5} />
+              </Animated.View>
 
-              {/* Content */}
-              <View style={styles.content}>
-                <View style={styles.iconContainer}>
-                  <View style={styles.instagramIconBg}>
-                    <Ionicons name="logo-instagram" size={48} color="#FFFFFF" />
-                  </View>
-                </View>
-
-                <Text style={styles.title}>Connect Your Instagram</Text>
+              {/* Welcome block */}
+              <Animated.View 
+                style={[
+                  styles.welcomeBlock, 
+                  { 
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
+              >
+                <Text style={styles.title}>Connect your Instagram 📸</Text>
                 <Text style={styles.subtitle}>
-                  Add your Instagram username to help others discover you and build meaningful connections.
+                  Share your Instagram handle so others can see more of your world. This helps build trust and authenticity!
                 </Text>
+                <Text style={styles.nextStep}>✨ Next: Choose interests 🎯</Text>
+              </Animated.View>
 
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Instagram Username</Text>
+              {/* Glassmorphism card */}
+              <Animated.View 
+                style={[
+                  styles.glassCard,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
+              >
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>📷 Instagram Username</Text>
                   <View style={styles.inputWrapper}>
                     <Text style={styles.atSymbol}>@</Text>
                     <TextInput
-                      style={[styles.input, error ? styles.inputError : null]}
                       value={instagramUsername}
-                      onChangeText={handleUsernameChange}
-                      placeholder="username"
-                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      onChangeText={setInstagramUsername}
+                      placeholder="yourusername"
+                      placeholderTextColor="rgba(31, 17, 71, 0.4)"
                       autoCapitalize="none"
                       autoCorrect={false}
-                      autoComplete="off"
-                      returnKeyType="next"
-                      onSubmitEditing={onNext}
+                      style={styles.input}
                     />
                   </View>
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
                 </View>
 
-                <View style={styles.infoBox}>
-                  <Ionicons name="information-circle" size={20} color="#FFD6F2" />
-                  <Text style={styles.infoText}>
-                    This helps verify your identity and allows others to connect with you on Instagram.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Footer */}
-              <View style={styles.footer}>
                 <TouchableOpacity 
-                  style={[styles.nextButton, !canContinue && styles.nextButtonDisabled]} 
-                  onPress={onNext}
+                  activeOpacity={0.85} 
+                  style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
+                  onPress={onNext} 
                   disabled={!canContinue}
                 >
-                  <Text style={[styles.nextButtonText, !canContinue && styles.nextButtonTextDisabled]}>
-                    Continue
-                  </Text>
-                  <Ionicons 
-                    name="arrow-forward" 
-                    size={20} 
-                    color={canContinue ? "#7C2B86" : "rgba(124, 43, 134, 0.5)"} 
-                  />
+                  <Text style={styles.primaryButtonText}>Continue</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </LinearGradient>
+    </AnimatedBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
   },
-  keyboardAvoidingView: {
+  flex: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  container: {
+  scrollView: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 24,
+  },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  scrollContentLarge: {
+    paddingHorizontal: 60,
+    paddingTop: 40,
+    paddingBottom: 60,
+    alignItems: 'center',
+  },
+  contentWrapper: {
+    width: '100%',
+  },
+  contentWrapperLarge: {
+    maxWidth: 800,
+    width: '100%',
   },
   header: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 40,
-    gap: 16,
   },
   backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
-  progressContainer: {
-    flex: 1,
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  brandLogo: { 
+    width: 48, 
+    height: 48,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#FFD6F2",
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.7)",
-    fontWeight: "500",
-  },
+  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
   content: {
     flex: 1,
     alignItems: "center",
     paddingTop: 20,
+  },
+  nextStep: {
+    fontSize: 14,
+    color: "rgba(255, 214, 242, 0.95)",
+    fontWeight: "600",
+    marginBottom: 32,
+    textAlign: "center",
   },
   iconContainer: {
     marginBottom: 32,
@@ -241,18 +236,19 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "800",
     color: "#FFFFFF",
     textAlign: "center",
     marginBottom: 12,
+    lineHeight: 38,
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: "rgba(255, 255, 255, 0.9)",
     textAlign: "center",
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 12,
     paddingHorizontal: 20,
   },
   inputContainer: {
@@ -318,28 +314,106 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFD6F2",
-    borderRadius: 16,
-    paddingVertical: 16,
+    backgroundColor: "#A16AE8",
+    borderRadius: 999,
+    paddingVertical: 18,
     paddingHorizontal: 24,
     gap: 8,
-    shadowColor: "#FFD6F2",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: "#A16AE8",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButtonDisabled: {
-    backgroundColor: "rgba(255, 214, 242, 0.3)",
-    shadowOpacity: 0,
-    elevation: 0,
+    opacity: 0.5,
+    backgroundColor: "#D1C9FF",
   },
   nextButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#7C2B86",
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
-  nextButtonTextDisabled: {
-    color: "rgba(124, 43, 134, 0.5)",
+  
+  // Primary button styles (for consistency with other pages)
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#A16AE8",
+    borderRadius: 999,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    gap: 8,
+    shadowColor: "#A16AE8",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#D1C9FF",
+  },
+  primaryButtonText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  
+  // Form styles
+  glassCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    borderRadius: 22,
+    padding: 24,
+    gap: 20,
+    shadowColor: "rgba(18, 8, 43, 0.35)",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#58468B",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(93, 95, 239, 0.25)",
+    backgroundColor: "rgba(246, 245, 255, 0.9)",
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  atSymbol: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#A16AE8",
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1F1147",
+    fontWeight: "500",
+  },
+  errorText: {
+    fontSize: 13,
+    color: "#EF4444",
+    fontWeight: "600",
+  },
+  welcomeBlock: {
+    marginBottom: 20,
+    gap: 8,
   },
 });

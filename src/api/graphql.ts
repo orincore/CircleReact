@@ -58,6 +58,7 @@ export async function meGql(token?: string | null) {
         interests
         needs
         profilePhotoUrl
+        instagramUsername
         location {
           latitude
           longitude
@@ -98,6 +99,7 @@ export async function updateMeGql(input: any, token?: string | null) {
         interests
         needs
         profilePhotoUrl
+        instagramUsername
         location {
           latitude
           longitude
@@ -163,6 +165,7 @@ export async function nearbyUsersGql(
         age
         gender
         profilePhotoUrl
+        instagramUsername
         interests
         needs
         distance
@@ -196,6 +199,7 @@ export async function usersInAreaGql(
         age
         gender
         profilePhotoUrl
+        instagramUsername
         interests
         needs
         distance
