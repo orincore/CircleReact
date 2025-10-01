@@ -206,11 +206,23 @@ export function useVoiceCall() {
     try {
       console.log('📞 Starting voice call to:', receiverId);
       
-      // Navigate to voice call screen
+      // Start the call first to get the real call ID
+      const success = await voiceCallService.startCall(receiverId, token);
+      
+      if (!success) {
+        console.error('❌ Failed to start call');
+        Alert.alert('Call Failed', 'Failed to start the call. Please try again.');
+        return false;
+      }
+      
+      // Now navigate with the actual call ID from the service
+      const actualCallId = voiceCallService.currentCallId;
+      console.log('📞 Navigating to call screen with call ID:', actualCallId);
+      
       router.push({
         pathname: '/secure/voice-call',
         params: {
-          callId: 'pending',
+          callId: actualCallId,
           callerId: receiverId,
           callerName: receiverName || 'Unknown',
           callerAvatar: receiverAvatar || '',
@@ -218,18 +230,10 @@ export function useVoiceCall() {
         }
       });
       
-      // Start the call
-      const success = await voiceCallService.startCall(receiverId, token);
-      
-      if (!success) {
-        console.error('❌ Failed to start call');
-        router.back();
-        return false;
-      }
-      
       return true;
     } catch (error) {
       console.error('❌ Error starting call:', error);
+      Alert.alert('Call Failed', error.message || 'Failed to start the call. Please try again.');
       return false;
     }
   };

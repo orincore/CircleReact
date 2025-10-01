@@ -118,6 +118,9 @@ export default function VoiceCallScreen() {
       // Just sync UI state with service state, don't trigger state change
       setCallState(voiceCallService.callState);
       console.log('📞 Synced UI state with service:', voiceCallService.callState);
+    } else if (!isIncomingCall && callId === 'pending') {
+      // For outgoing calls with 'pending' callId, wait for service to generate real callId
+      console.log('📞 Outgoing call - waiting for service to generate call ID');
     }
     
     // Fade in animation
