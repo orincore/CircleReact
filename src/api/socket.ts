@@ -357,7 +357,8 @@ function createSocket(token?: string | null) {
     // Connection state refresh response
     socket.on('connection-state-refreshed', (data: any) => {
       console.log('🔄 Connection state refreshed:', data);
-      socketService.notifyConnectionState('refreshed');
+      // Keep state as 'connected' - no need to change it
+      // socketService.notifyConnectionState('refreshed');
     });
 
     // Authentication error

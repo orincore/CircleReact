@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { usePathname } from 'expo-router';
 import { socketService, forceReconnect } from '../api/socket';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -8,6 +9,7 @@ export default function ConnectionStatus() {
   const [connectionState, setConnectionState] = useState('disconnected');
   const [showDetails, setShowDetails] = useState(false);
   const { token } = useAuth();
+  const pathname = usePathname();
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export default function ConnectionStatus() {
   const getStatusConfig = () => {
     switch (connectionState) {
       case 'connected':
+      case 'refreshed': // Treat refreshed as connected
         return {
           icon: 'wifi',
           color: '#4CAF50',
@@ -93,6 +96,13 @@ export default function ConnectionStatus() {
           text: 'Auth Failed',
           description: 'Please log in again'
         };
+      case 'error':
+        return {
+          icon: 'alert-circle',
+          color: '#FF4D67',
+          text: 'Connection Error',
+          description: 'An error occurred'
+        };
       default:
         return {
           icon: 'help-circle',
@@ -111,8 +121,16 @@ export default function ConnectionStatus() {
 
   const config = getStatusConfig();
 
-  // Don't show if connected (to avoid clutter)
-  if (connectionState === 'connected' && !showDetails) {
+  // Don't show on authentication pages (landing, login, signup)
+  const authPages = ['/', '/login', '/signup'];
+  const isAuthPage = authPages.includes(pathname);
+  
+  if (isAuthPage) {
+    return null;
+  }
+
+  // Don't show if connected or refreshed (to avoid clutter)
+  if ((connectionState === 'connected' || connectionState === 'refreshed') && !showDetails) {
     return null;
   }
 
