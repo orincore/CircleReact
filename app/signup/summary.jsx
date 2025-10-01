@@ -1,12 +1,13 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { socialAccountsApi } from "@/src/api/social-accounts";
+import { ProfilePictureService } from "@/src/services/profilePictureService";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 
 export default function SignupSummary() {
@@ -18,16 +19,42 @@ export default function SignupSummary() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateCompleted, setUpdateCompleted] = useState(false);
   const [displayData, setDisplayData] = useState(data);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Update profile with about and Instagram information
+  // Update profile with about, Instagram, and profile picture
   const updateProfileInformation = async () => {
-    if (!token || !data.about || !data.instagramUsername || updateCompleted) return;
+    if (!token || updateCompleted) return;
     
     setIsUpdating(true);
-    console.log('🔄 Updating profile with about and Instagram information...');
+    console.log('🔄 Updating profile with complete information...');
     
     try {
-      // 1. Update profile with about information
+      // 1. Upload profile picture to S3 (if provided)
+      if (data.profileImage) {
+        try {
+          setUploadingPhoto(true);
+          console.log('📸 Uploading profile picture to S3...');
+          const photoUrl = await ProfilePictureService.uploadProfilePicture(
+            data.profileImage,
+            token
+          );
+          console.log('✅ Profile picture uploaded:', photoUrl);
+          
+          // Update local state to show uploaded photo
+          setUploadedPhotoUrl(photoUrl);
+          
+          // Update profile with photo URL
+          await updateProfile({ profilePhotoUrl: photoUrl });
+          setUploadingPhoto(false);
+        } catch (photoError) {
+          console.error('❌ Failed to upload profile picture:', photoError);
+          setUploadingPhoto(false);
+          // Continue with other updates even if photo upload fails
+        }
+      }
+
+      // 2. Update profile with about information
       if (data.about && data.about.trim()) {
         console.log('📝 Updating about field:', data.about);
         await updateProfile({
@@ -35,7 +62,7 @@ export default function SignupSummary() {
         });
       }
 
-      // 2. Link Instagram account
+      // 3. Link Instagram account
       if (data.instagramUsername && data.instagramUsername.trim()) {
         console.log('📸 Linking Instagram account:', data.instagramUsername);
         
@@ -43,7 +70,7 @@ export default function SignupSummary() {
         await socialAccountsApi.verifyInstagram(cleanUsername, token);
       }
 
-      // 3. Refresh user data to get updated information
+      // 4. Refresh user data to get updated information
       console.log('🔄 Refreshing user data...');
       await refreshUser();
       
@@ -169,6 +196,34 @@ export default function SignupSummary() {
               {isUpdating ? 'Setting up your profile...' : 'Here\'s what we\'ve got for you:'}
             </Text>
 
+            {/* Profile Picture Section */}
+            {(data.profileImage || uploadedPhotoUrl) && (
+              <View style={styles.profilePhotoSection}>
+                <View style={styles.profilePhotoContainer}>
+                  {uploadingPhoto ? (
+                    <View style={styles.profilePhotoPlaceholder}>
+                      <ActivityIndicator size="large" color="#7C2B86" />
+                      <Text style={styles.uploadingText}>Uploading to cloud...</Text>
+                    </View>
+                  ) : uploadedPhotoUrl ? (
+                    <>
+                      <Image source={{ uri: uploadedPhotoUrl }} style={styles.profilePhoto} />
+                      <View style={styles.uploadSuccessBadge}>
+                        <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                      </View>
+                    </>
+                  ) : (
+                    <Image source={{ uri: data.profileImage }} style={styles.profilePhoto} />
+                  )}
+                </View>
+                {uploadedPhotoUrl && (
+                  <Text style={styles.profilePhotoLabel}>
+                    <Ionicons name="cloud-done" size={14} color="#4CAF50" /> Profile photo uploaded
+                  </Text>
+                )}
+              </View>
+            )}
+
             <View style={styles.summaryRow}><Text style={styles.label}>Name</Text><Text style={styles.value}>{displayData.firstName} {displayData.lastName}</Text></View>
             <View style={styles.summaryRow}><Text style={styles.label}>Gender</Text><Text style={styles.value}>{formatTitleCase(displayData.gender)}</Text></View>
             <View style={styles.summaryRow}><Text style={styles.label}>Age</Text><Text style={styles.value}>{displayData.age}</Text></View>
@@ -274,4 +329,66 @@ const styles = StyleSheet.create({
   sparkleBL: { bottom: 90, left: 44 },
   confetti: { position: 'absolute', top: 100, borderRadius: 2 },
   shimmer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 40, overflow: 'hidden' },
+  
+  // Profile Photo Styles
+  profilePhotoSection: {
+    alignItems: 'center',
+    marginVertical: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(93, 95, 239, 0.08)',
+  },
+  profilePhotoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#7C2B86',
+    backgroundColor: '#F5F5F5',
+    position: 'relative',
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  profilePhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  profilePhotoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFD6F2',
+    gap: 8,
+  },
+  uploadingText: {
+    fontSize: 12,
+    color: '#7C2B86',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  uploadSuccessBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  profilePhotoLabel: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginTop: 8,
+    textAlign: 'center',
+  },
 });

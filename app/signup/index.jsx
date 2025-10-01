@@ -23,14 +23,7 @@ import { SignupWizardContext } from "./_layout";
 import { authApi } from "@/src/api/auth";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
-
-// Optional: Image picker (requires development build, not available in Expo Go)
-let ImagePicker = null;
-try {
-  ImagePicker = require('expo-image-picker');
-} catch (error) {
-  console.log('📸 Image picker not available in Expo Go');
-}
+import ProfilePictureUpload from "@/components/ProfilePictureUpload";
 
 const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
@@ -130,31 +123,9 @@ export default function SignupStepOne() {
     setErrors(next);
   };
 
-  const pickImage = async () => {
-    if (!ImagePicker) {
-      Alert.alert(
-        'Feature Not Available',
-        'Profile picture upload requires a development build. This feature is not available in Expo Go.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled) {
-        setProfileImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
-    }
+  const handleImageSelected = (uri) => {
+    setProfileImage(uri);
+    console.log('📸 Profile image selected:', uri);
   };
 
   const generateUsernameSuggestions = (base) => {
@@ -280,19 +251,11 @@ export default function SignupStepOne() {
               ]}
             >
               {/* Profile Picture Upload */}
-              <View style={styles.profilePictureSection}>
-                <Text style={styles.sectionLabel}>📸 Profile Photo (Optional)</Text>
-                <TouchableOpacity style={styles.profilePictureButton} onPress={pickImage} activeOpacity={0.8}>
-                  {profileImage ? (
-                    <Image source={{ uri: profileImage }} style={styles.profilePicture} />
-                  ) : (
-                    <View style={styles.profilePlaceholder}>
-                      <Ionicons name="camera" size={32} color="#A16AE8" />
-                      <Text style={styles.profilePlaceholderText}>Add Photo</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <ProfilePictureUpload
+                currentImage={profileImage}
+                onImageSelected={handleImageSelected}
+                size={120}
+              />
 
               {/* Name inputs */}
               <View style={styles.row2}>

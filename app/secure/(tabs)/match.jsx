@@ -98,6 +98,25 @@ export default function MatchScreen() {
     setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2200);
   };
 
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    if (hour >= 17 && hour < 22) return 'Good Evening';
+    return 'Good Night';
+  };
+
+  // Get user's first name
+  const getUserFirstName = () => {
+    return user?.firstName || user?.first_name || 'there';
+  };
+
+  // Navigate to settings with score improvement suggestions
+  const handleSettingsPress = () => {
+    router.push('/secure/profile/settings');
+  };
+
   // Helper function to generate dynamic description
   const generateDescription = (interests, needs) => {
     const commonInterests = interests?.slice(0, 2) || [];
@@ -905,314 +924,571 @@ export default function MatchScreen() {
     setShowUserProfile(true);
   };
 
+  const handleSendFriendRequest = async (user) => {
+    if (!user?.id || !token) return;
+    
+    try {
+      const { FriendRequestService } = await import('@/src/services/FriendRequestService');
+      const result = await FriendRequestService.sendFriendRequest(user.id, token);
+      
+      if (result.success) {
+        showToast(`Friend request sent to ${user.name}!`, 'success');
+      } else {
+        showToast(result.error || 'Failed to send friend request', 'error');
+      }
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      showToast('Failed to send friend request. Please try again.', 'error');
+    }
+  };
+
   return (
-    <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-      locations={[0, 0.55, 1]}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <View style={styles.blurCircleLarge} />
-      <View style={styles.blurCircleSmall} />
+    <View style={styles.container}>
+      {/* Animated Background */}
+      <LinearGradient
+        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+        style={styles.backgroundGradient}
+      >
+        {/* Floating orbs */}
+        <View style={[styles.floatingOrb, styles.orb1]} />
+        <View style={[styles.floatingOrb, styles.orb2]} />
+        <View style={[styles.floatingOrb, styles.orb3]} />
+      </LinearGradient>
 
       <Toast visible={toast.visible} text={toast.text} type={toast.type} />
 
-      <ScrollView
-        contentContainerStyle={[styles.content, isLargeScreen && styles.contentLarge]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#7C2B86', '#FF6FB5']}  // Android
-            tintColor="#7C2B86"             // iOS
-            title="Pull to refresh"         // iOS
-            titleColor="#7C2B86"           // iOS
-          />
-        }
-      >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Today feels lucky</Text>
-            <Text style={styles.subtitle}>Explore new matches curated for you.</Text>
-          </View>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options" size={22} color="#FFE8FF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Browser Notification Permission Banner */}
-        <NotificationPermissionBanner />
-
-        <View style={[styles.matchCtaCard, isLargeScreen && styles.matchCtaCardLarge]}>
-          <View style={styles.matchCtaHeader}>
-            <View style={styles.liveIndicator}>
-              <Animated.View
-                style={[
-                  styles.liveDot,
-                  {
-                    opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
-                  },
-                ]}
-              />
-              <Text style={styles.liveText}>Start a live match</Text>
-            </View>
-            <Ionicons name="flash" size={18} color="#FF4D67" />
-          </View>
-
-          <Text style={styles.matchCtaTitle}>Ready when you are</Text>
-          <Text style={styles.matchCtaSubtitle}>
-            Circle is keeping an eye out for members who share your vibe. Tap the button and we’ll
-            begin searching instantly.
-          </Text>
-          {isSearching && !showModal && (
-            <View style={styles.searchingInline}>
-              <Ionicons name="sparkles" size={16} color="#7C2B86" />
-              <Text style={styles.searchingInlineText}>{SEARCH_PHRASES[phraseIdx]}</Text>
-            </View>
-          )}
-
-          <TouchableOpacity activeOpacity={0.85} style={styles.liveMatchButton} onPress={handleStartMatch}>
-            <Text style={styles.liveMatchButtonText}>Start Match</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.locationCard}>
-          <View style={styles.locationHeader}>
-            <Text style={styles.locationTitle}>Search match by location</Text>
-            <Ionicons name="location" size={18} color="#7C2B86" />
-          </View>
-          <Text style={styles.locationDescription}>
-            Pinpoint connections in cities you love or places you plan to visit next.
-          </Text>
-          <TouchableOpacity style={styles.locationButton} activeOpacity={0.85} onPress={handleLocationSearch}>
-            <Ionicons name="search" size={18} color="#7C2B86" />
-            <Text style={styles.locationButtonText}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Live Activity Feed */}
-        <LiveActivityFeed isVisible={true} maxItems={50} />
-
-        <View style={styles.featureCard}>
-          {loadingStats ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#7C2B86" />
-              <Text style={styles.loadingText}>Loading your Circle score...</Text>
-            </View>
-          ) : circleStats && circleStats.stats ? (
-            <>
-              <View style={styles.circleScoreHeader}>
-                <Text style={styles.featureTitle}>
-                  {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).icon} Circle Score: {circleStats.stats.circle_points || 0}
-                </Text>
-                <View style={[styles.scoreTierBadge, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
-                  <Text style={styles.scoreTierText}>
-                    {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
-                  </Text>
-                </View>
+      {isLargeScreen ? (
+        // DESKTOP/WEB VIEW - Dashboard Style
+        <View style={styles.desktopContainer}>
+          {/* Left Sidebar */}
+          <View style={styles.sidebar}>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sidebarContent}
+            >
+              {/* Header */}
+              <View style={styles.sidebarHeader}>
+                <Text style={styles.desktopTitle}>Circle Match</Text>
+                <Text style={styles.desktopSubtitle}>Find Your Perfect Connection</Text>
               </View>
-              <Text style={styles.featureDescription}>
-                {circleStats.performanceMessage || "Building your Circle score..."}
-              </Text>
-              
-              {/* Stats Grid with Attention Indicators */}
-              <View style={styles.statsGrid}>
-                {/* Debug logging for Messages stat */}
-                {console.log('📊 Messages stat debug:', {
-                  messages_sent: circleStats.stats.messages_sent,
-                  messages_received: circleStats.stats.messages_received,
-                  total: (circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0),
-                  needsAttention: ((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) < 5
-                })}
-                <View style={[styles.statItem, (circleStats.stats.total_matches || 0) < 3 && styles.statItemNeedsAttention]}>
-                  <Text style={[styles.statNumber, (circleStats.stats.total_matches || 0) < 3 && styles.statNumberAlert]}>
-                    {circleStats.stats.total_matches || 0}
-                    {(circleStats.stats.total_matches || 0) < 3 && <Text style={styles.attentionIcon}> ⚠️</Text>}
-                  </Text>
-                  <Text style={styles.statLabel}>Matches</Text>
-                </View>
-                <View style={[styles.statItem, (circleStats.stats.total_friends || 0) < 3 && styles.statItemNeedsAttention]}>
-                  <Text style={[styles.statNumber, (circleStats.stats.total_friends || 0) < 3 && styles.statNumberAlert]}>
-                    {circleStats.stats.total_friends || 0}
-                    {(circleStats.stats.total_friends || 0) < 3 && <Text style={styles.attentionIcon}> 📢</Text>}
-                  </Text>
-                  <Text style={styles.statLabel}>Friends</Text>
-                </View>
-                <View style={[styles.statItem, ((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) < 5 && styles.statItemNeedsAttention]}>
-                  <Text style={[styles.statNumber, ((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) < 5 && styles.statNumberAlert]}>
-                    {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
-                    {((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) < 5 && <Text style={styles.attentionIcon}> 💬</Text>}
-                  </Text>
-                  <Text style={styles.statLabel}>Messages</Text>
-                </View>
-                <View style={[styles.statItem, (circleStats.stats.profile_visits_received || 0) < 3 && styles.statItemNeedsAttention]}>
-                  <Text style={[styles.statNumber, (circleStats.stats.profile_visits_received || 0) < 3 && styles.statNumberAlert]}>
-                    {circleStats.stats.profile_visits_received || 0}
-                    {(circleStats.stats.profile_visits_received || 0) < 3 && <Text style={styles.attentionIcon}> 👁️</Text>}
-                  </Text>
-                  <Text style={styles.statLabel}>Profile Views</Text>
-                </View>
-              </View>
-              
-              {/* Smart Suggestions Based on User Data */}
-              <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsTitle}>💡 Boost Your Score</Text>
-                <View style={styles.suggestionsList}>
-                  {(circleStats.stats.total_matches || 0) < 3 && (
-                    <View style={styles.suggestionItem}>
-                      <Text style={styles.suggestionIcon}>🎯</Text>
-                      <Text style={styles.suggestionText}>Try matchmaking to find more connections</Text>
-                    </View>
-                  )}
-                  {(circleStats.stats.total_friends || 0) < 3 && (
-                    <View style={styles.suggestionItem}>
-                      <Text style={styles.suggestionIcon}>👥</Text>
-                      <Text style={styles.suggestionText}>Send friend requests to grow your network</Text>
-                    </View>
-                  )}
-                  {((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) < 5 && (
-                    <View style={styles.suggestionItem}>
-                      <Text style={styles.suggestionIcon}>💌</Text>
-                      <Text style={styles.suggestionText}>Start conversations with your connections</Text>
-                    </View>
-                  )}
-                  {(circleStats.stats.profile_visits_received || 0) < 3 && (
-                    <View style={styles.suggestionItem}>
-                      <Text style={styles.suggestionIcon}>✨</Text>
-                      <Text style={styles.suggestionText}>Update your profile with photos and bio</Text>
-                    </View>
-                  )}
-                  {/* Show positive reinforcement if user is doing well */}
-                  {(circleStats.stats.total_matches || 0) > 0 && (circleStats.stats.total_friends || 0) >= 3 && (
-                    <View style={styles.suggestionItem}>
-                      <Text style={styles.suggestionIcon}>🌟</Text>
-                      <Text style={styles.suggestionText}>Great job! Keep engaging to maintain your momentum</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.featureTitle}>Start Your Circle Journey</Text>
-              <Text style={styles.featureDescription}>
-                Initialize your Circle score to begin tracking your engagement and connections.
-              </Text>
-              <TouchableOpacity 
-                style={[styles.featureButton, { backgroundColor: '#22C55E', marginTop: 12 }]}
-                onPress={handleInitializeCirclePoints}
-              >
-                <Text style={styles.featureButtonText}>Initialize Circle Score</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          <TouchableOpacity style={styles.featureButton} onPress={handleImproveMatches}>
-            <Text style={styles.featureButtonText}>Improve my matches</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Friend Requests Card */}
-        <View style={styles.friendRequestsCard}>
-          <View style={styles.friendRequestsHeader}>
-            <Text style={styles.friendRequestsTitle}>Friend Requests</Text>
-            <Ionicons name="people" size={18} color="#7C2B86" />
-          </View>
-          
-          {friendRequests.length > 0 ? (
-            <View style={styles.friendRequestsList}>
-              {friendRequests.slice(0, 3).map((request) => {
-                // Extract display name using the correct field names
-                const displayName = (() => {
-                  // Use first_name and last_name from sender
-                  if (request.sender?.first_name) {
-                    const fullName = `${request.sender.first_name} ${request.sender.last_name || ''}`.trim();
-                    return fullName;
-                  }
-                  
-                  // Try to extract name from the message "Hi [Name]! I'd like to connect with you."
-                  if (request.message) {
-                    const messageMatch = request.message.match(/Hi\s+([^!]+)!/);
-                    if (messageMatch && messageMatch[1]) {
-                      return messageMatch[1].trim();
-                    }
-                  }
-                  
-                  // If sender has a real name (not generic User ID)
-                  if (request.sender?.name && !request.sender.name.startsWith('User ')) {
-                    return request.sender.name;
-                  }
-                  
-                  // Try to get name from email
-                  if (request.sender?.email) {
-                    const emailName = request.sender.email.split('@')[0];
-                    // If it's not just numbers, use it
-                    if (!/^\d+$/.test(emailName)) {
-                      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
-                    }
-                  }
-                  
-                  // Fallback to a generic name
-                  return 'Someone';
-                })();
-
-                return (
-                  <View key={request.id} style={styles.friendRequestItem}>
-                    <TouchableOpacity 
-                      style={styles.friendRequestAvatar}
-                      onPress={() => handleViewProfile({
-                        id: request.sender.id,
-                        name: displayName,
-                        email: request.sender.email,
-                        avatar: request.sender.avatar
-                      })}
-                    >
-                      <Text style={styles.friendRequestAvatarText}>
-                        {displayName.charAt(0).toUpperCase()}
+              {/* Quick Stats */}
+              {circleStats && circleStats.stats && (
+                <View style={styles.quickStatsCard}>
+                  <View style={styles.quickStatsHeader}>
+                    <Text style={styles.quickStatsTitle}>Your Stats</Text>
+                    <View style={[styles.tierBadge, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
+                      <Text style={styles.tierBadgeText}>
+                        {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
                       </Text>
-                    </TouchableOpacity>
-                    <View style={styles.friendRequestInfo}>
-                      <Text style={styles.friendRequestName}>{displayName}</Text>
-                      <Text style={styles.friendRequestMessage} numberOfLines={1}>
-                        {request.message || 'Wants to connect'}
-                      </Text>
-                    </View>
-                    <View style={styles.friendRequestActions}>
-                      <TouchableOpacity 
-                        style={styles.friendRequestReject}
-                        onPress={() => handleRejectRequest(request)}
-                      >
-                        <Ionicons name="close" size={16} color="#FF4444" />
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.friendRequestAccept}
-                        onPress={() => handleAcceptRequest(request)}
-                      >
-                        <Ionicons name="checkmark" size={16} color="#00AA55" />
-                      </TouchableOpacity>
                     </View>
                   </View>
-                );
-              })}
-              {friendRequests.length > 3 && (
-                <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={styles.viewAllText}>View all {friendRequests.length} requests</Text>
-                </TouchableOpacity>
+                  <View style={styles.quickStatsGrid}>
+                    <View style={styles.quickStatItem}>
+                      <Text style={styles.quickStatNumber}>{circleStats.stats.total_matches || 0}</Text>
+                      <Text style={styles.quickStatLabel}>Matches</Text>
+                    </View>
+                    <View style={styles.quickStatItem}>
+                      <Text style={styles.quickStatNumber}>{circleStats.stats.total_friends || 0}</Text>
+                      <Text style={styles.quickStatLabel}>Friends</Text>
+                    </View>
+                  </View>
+                </View>
               )}
-            </View>
-          ) : (
-            <View style={styles.noRequestsContainer}>
-              <Ionicons name="people-outline" size={32} color="rgba(124, 43, 134, 0.4)" />
-              <Text style={styles.noRequestsTitle}>No requests</Text>
-              <Text style={styles.noRequestsDescription}>
-                Your friend requests will appear here
-              </Text>
-            </View>
-          )}
-        </View>
 
-      </ScrollView>
+              {/* Live Match Button */}
+              <TouchableOpacity 
+                style={styles.desktopLiveMatchButton}
+                onPress={handleStartMatch}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={['#7C2B86', '#5D5FEF', '#FF6FB5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.liveMatchGradient}
+                >
+                  <View style={styles.liveMatchContent}>
+                    <Animated.View
+                      style={[
+                        styles.livePulse,
+                        {
+                          opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+                          transform: [{
+                            scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] })
+                          }]
+                        },
+                      ]}
+                    />
+                    <Ionicons name="flash" size={24} color="#FFFFFF" />
+                    <Text style={styles.liveMatchText}>Start Live Match</Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Location Search */}
+              <TouchableOpacity 
+                style={styles.sidebarButton}
+                onPress={handleLocationSearch}
+                activeOpacity={0.8}
+              >
+                <View style={styles.sidebarButtonIcon}>
+                  <Ionicons name="location" size={20} color="#7C2B86" />
+                </View>
+                <View style={styles.sidebarButtonContent}>
+                  <Text style={styles.sidebarButtonTitle}>Location Search</Text>
+                  <Text style={styles.sidebarButtonSubtitle}>Find nearby matches</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+
+              {/* Settings */}
+              <TouchableOpacity 
+                style={styles.sidebarButton}
+                onPress={handleImproveMatches}
+                activeOpacity={0.8}
+              >
+                <View style={styles.sidebarButtonIcon}>
+                  <Ionicons name="settings" size={20} color="#7C2B86" />
+                </View>
+                <View style={styles.sidebarButtonContent}>
+                  <Text style={styles.sidebarButtonTitle}>Preferences</Text>
+                  <Text style={styles.sidebarButtonSubtitle}>Improve matches</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+
+              {/* Friend Requests */}
+              {friendRequests.length > 0 && (
+                <View style={styles.sidebarFriendRequests}>
+                  <Text style={styles.sidebarSectionTitle}>Friend Requests</Text>
+                  {friendRequests.slice(0, 3).map((request) => {
+                    const displayName = request.sender?.first_name || 'Someone';
+                    return (
+                      <View key={request.id} style={styles.sidebarRequestItem}>
+                        <View style={styles.sidebarRequestAvatar}>
+                          <Text style={styles.sidebarRequestAvatarText}>
+                            {displayName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.sidebarRequestInfo}>
+                          <Text style={styles.sidebarRequestName}>{displayName}</Text>
+                        </View>
+                        <View style={styles.sidebarRequestActions}>
+                          <TouchableOpacity 
+                            style={styles.sidebarRequestReject}
+                            onPress={() => handleRejectRequest(request)}
+                          >
+                            <Ionicons name="close" size={14} color="#FF4444" />
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={styles.sidebarRequestAccept}
+                            onPress={() => handleAcceptRequest(request)}
+                          >
+                            <Ionicons name="checkmark" size={14} color="#00AA55" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+
+          {/* Right Panel - Matches Grid */}
+          <View style={styles.mainPanel}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.mainPanelContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#7C2B86', '#FF6FB5']}
+                  tintColor="#7C2B86"
+                />
+              }
+            >
+              {/* Browser Notification Banner */}
+              <NotificationPermissionBanner />
+
+              {/* Best Match Today - Hero Card */}
+              {nearbyUsers.length > 0 && (
+                <View style={styles.heroMatchCard}>
+                  <View style={styles.heroMatchBadge}>
+                    <Ionicons name="star" size={16} color="#FFD700" />
+                    <Text style={styles.heroMatchBadgeText}>Best Match Today</Text>
+                  </View>
+                  <View style={styles.heroMatchContent}>
+                    <View style={styles.heroAvatarContainer}>
+                      <View style={styles.heroAvatarGlow} />
+                      <Image
+                        source={{ uri: nearbyUsers[0].photoUrl || 'https://i.pravatar.cc/300' }}
+                        style={styles.heroAvatar}
+                      />
+                      <View style={styles.compatibilityRing}>
+                        <Text style={styles.compatibilityRingText}>{nearbyUsers[0].compatibility}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.heroMatchInfo}>
+                      <Text style={styles.heroMatchName}>{nearbyUsers[0].name}</Text>
+                      <Text style={styles.heroMatchAge}>{nearbyUsers[0].age} years old</Text>
+                      <View style={styles.heroMatchTags}>
+                        {nearbyUsers[0].interests?.slice(0, 3).map((interest, idx) => (
+                          <View key={idx} style={styles.heroTag}>
+                            <Text style={styles.heroTagText}>{interest}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <View style={styles.heroMatchActions}>
+                        <TouchableOpacity 
+                          style={styles.heroPassButton}
+                          onPress={() => handleViewProfile(nearbyUsers[0])}
+                        >
+                          <Ionicons name="eye" size={22} color="#818CF8" />
+                          <Text style={[styles.heroActionText, { color: '#818CF8' }]}>View Profile</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.heroLikeButton}
+                          onPress={() => handleSendFriendRequest(nearbyUsers[0])}
+                        >
+                          <LinearGradient
+                            colors={['#7C2B86', '#FF6FB5']}
+                            style={styles.heroLikeGradient}
+                          >
+                            <Ionicons name="person-add" size={22} color="#FFFFFF" />
+                            <Text style={styles.heroLikeText}>Send Request</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Matches Grid */}
+              <View style={styles.matchesSection}>
+                <Text style={styles.matchesSectionTitle}>Discover Matches</Text>
+                <View style={styles.matchesGrid}>
+                  {nearbyUsers.slice(1, 7).map((user) => (
+                    <TouchableOpacity
+                      key={user.id}
+                      style={styles.matchCard}
+                      activeOpacity={0.9}
+                      onPress={() => handleViewProfile(user)}
+                    >
+                      <View style={styles.matchCardGlow} />
+                      <View style={styles.matchCardContent}>
+                        <View style={styles.matchAvatarContainer}>
+                          <Image
+                            source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
+                            style={styles.matchAvatar}
+                          />
+                          <View style={styles.matchCompatibilityBadge}>
+                            <Text style={styles.matchCompatibilityText}>{user.compatibility}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.matchCardInfo}>
+                          <Text style={styles.matchCardName}>{user.name}</Text>
+                          <Text style={styles.matchCardAge}>{user.age}</Text>
+                          <View style={styles.matchCardTags}>
+                            {user.interests?.slice(0, 2).map((interest, idx) => (
+                              <View key={idx} style={styles.matchTag}>
+                                <Text style={styles.matchTagText}>{interest}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                        <View style={styles.matchCardActions}>
+                          <TouchableOpacity style={styles.matchCardPassButton}>
+                            <Ionicons name="close" size={16} color="#FF6B6B" />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.matchCardLikeButton}>
+                            <Ionicons name="heart" size={16} color="#FF6FB5" />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.matchCardMessageButton}>
+                            <Ionicons name="chatbubble" size={16} color="#5D5FEF" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Live Activity Feed */}
+              <LiveActivityFeed isVisible={true} maxItems={50} />
+            </ScrollView>
+          </View>
+        </View>
+      ) : (
+        // MOBILE VIEW - Swipeable Cards
+        <View style={styles.mobileContainer}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.mobileContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#7C2B86', '#FF6FB5']}
+                tintColor="#7C2B86"
+              />
+            }
+          >
+            {/* Mobile Header */}
+            <View style={styles.mobileHeader}>
+              <View style={styles.mobileHeaderLeft}>
+                <Text style={styles.greetingText}>{getGreeting()}, {getUserFirstName()}!</Text>
+                <Text style={styles.mobileSubtitle}>Find your perfect match</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.settingsButton}
+                onPress={handleSettingsPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Browser Notification Banner */}
+            <NotificationPermissionBanner />
+
+            {/* Special Feature Cards - Highlighted at Top */}
+            <View style={styles.specialFeaturesContainer}>
+              <TouchableOpacity 
+                style={styles.specialFeatureCard}
+                onPress={handleStartMatch}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={['#7C2B86', '#5D5FEF', '#FF6FB5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.specialFeatureGradient}
+                >
+                  <View style={styles.specialFeatureGlow} />
+                  <View style={styles.specialFeatureContent}>
+                    <View style={styles.specialFeatureIconContainer}>
+                      <Ionicons name="flash" size={40} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.specialFeatureTextContainer}>
+                      <Text style={styles.specialFeatureTitle}>Live Match</Text>
+                      <Text style={styles.specialFeatureSubtitle}>Find your perfect match instantly</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={28} color="rgba(255,255,255,0.8)" />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.specialFeatureCard}
+                onPress={handleLocationSearch}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={['#5D5FEF', '#7C2B86', '#FF6FB5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.specialFeatureGradient}
+                >
+                  <View style={styles.specialFeatureGlow} />
+                  <View style={styles.specialFeatureContent}>
+                    <View style={styles.specialFeatureIconContainer}>
+                      <Ionicons name="location" size={40} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.specialFeatureTextContainer}>
+                      <Text style={styles.specialFeatureTitle}>Location Search</Text>
+                      <Text style={styles.specialFeatureSubtitle}>Explore matches near you</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={28} color="rgba(255,255,255,0.8)" />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* Main Swipeable Card */}
+            {nearbyUsers.length > 0 ? (
+              <View style={styles.swipeCardContainer}>
+                <View style={styles.swipeCard}>
+                  {/* Background glow */}
+                  <View style={styles.swipeCardGlow} />
+                  
+                  {/* Profile Image */}
+                  <View style={styles.swipeImageContainer}>
+                    <Image
+                      source={{ uri: nearbyUsers[0].photoUrl || 'https://i.pravatar.cc/300' }}
+                      style={styles.swipeImage}
+                    />
+                    <LinearGradient
+                      colors={['transparent', 'rgba(26, 11, 46, 0.9)']}
+                      style={styles.swipeImageGradient}
+                    />
+                  </View>
+
+                  {/* Profile Info */}
+                  <View style={styles.swipeCardInfo}>
+                    <View style={styles.swipeCardHeader}>
+                      <View>
+                        <Text style={styles.swipeCardName}>{nearbyUsers[0].name}</Text>
+                        <Text style={styles.swipeCardAge}>{nearbyUsers[0].age} years old</Text>
+                      </View>
+                      <View style={styles.swipeCompatibilityCircle}>
+                        <Text style={styles.swipeCompatibilityText}>{nearbyUsers[0].compatibility}</Text>
+                      </View>
+                    </View>
+
+                    {/* Interests */}
+                    <View style={styles.swipeInterests}>
+                      {nearbyUsers[0].interests?.slice(0, 4).map((interest, idx) => (
+                        <View key={idx} style={styles.swipeInterestPill}>
+                          <Text style={styles.swipeInterestText}>{interest}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.swipeActions}>
+                  <TouchableOpacity style={styles.swipePassButton} activeOpacity={0.8}>
+                    <View style={styles.swipeButtonGlow} />
+                    <Ionicons name="close" size={36} color="#FF6B6B" />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={styles.swipeFriendRequestButton} activeOpacity={0.8}>
+                    <LinearGradient
+                      colors={['#7C2B86', '#FF6FB5']}
+                      style={styles.swipeFriendRequestGradient}
+                    >
+                      <View style={styles.swipeButtonGlow} />
+                      <Ionicons name="person-add" size={32} color="#FFFFFF" />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              // No Users Available State
+              <View style={styles.noUsersContainer}>
+                <View style={styles.noUsersContent}>
+                  <View style={styles.noUsersIconContainer}>
+                    <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
+                  </View>
+                  <Text style={styles.noUsersTitle}>No Users Nearby</Text>
+                  <Text style={styles.noUsersSubtitle}>
+                    There are no users in your area right now.
+                  </Text>
+                  <Text style={styles.noUsersHint}>
+                    Try using Live Match or Location Search to find connections!
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Mini Queue Preview - Only show if there are users */}
+            {nearbyUsers.length > 1 && (
+              <View style={styles.miniQueue}>
+                <Text style={styles.miniQueueTitle}>Up Next</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.miniQueueScroll}
+                >
+                  {nearbyUsers.slice(1, 6).map((user) => (
+                    <TouchableOpacity
+                      key={user.id}
+                      style={styles.miniQueueCard}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
+                        style={styles.miniQueueImage}
+                      />
+                      <View style={styles.miniQueueBadge}>
+                        <Text style={styles.miniQueueBadgeText}>{user.compatibility}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Friend Requests */}
+            {friendRequests.length > 0 && (
+              <View style={styles.mobileFriendRequests}>
+                <Text style={styles.mobileFriendRequestsTitle}>Friend Requests</Text>
+                {friendRequests.slice(0, 3).map((request) => {
+                  const displayName = request.sender?.first_name || 'Someone';
+                  return (
+                    <View key={request.id} style={styles.mobileFriendRequestItem}>
+                      <View style={styles.mobileFriendRequestAvatar}>
+                        <Text style={styles.mobileFriendRequestAvatarText}>
+                          {displayName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.mobileFriendRequestInfo}>
+                        <Text style={styles.mobileFriendRequestName}>{displayName}</Text>
+                        <Text style={styles.mobileFriendRequestMessage} numberOfLines={1}>
+                          {request.message || 'Wants to connect'}
+                        </Text>
+                      </View>
+                      <View style={styles.mobileFriendRequestActions}>
+                        <TouchableOpacity 
+                          style={styles.mobileFriendRequestReject}
+                          onPress={() => handleRejectRequest(request)}
+                        >
+                          <Ionicons name="close" size={16} color="#FF4444" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.mobileFriendRequestAccept}
+                          onPress={() => handleAcceptRequest(request)}
+                        >
+                          <Ionicons name="checkmark" size={16} color="#00AA55" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Circle Stats */}
+            {circleStats && circleStats.stats && (
+              <View style={styles.mobileStatsCard}>
+                <View style={styles.mobileStatsHeader}>
+                  <Text style={styles.mobileStatsTitle}>Your Circle Score</Text>
+                  <View style={[styles.mobileTierBadge, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
+                    <Text style={styles.mobileTierBadgeText}>
+                      {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.mobileStatsPoints}>{circleStats.stats.circle_points || 0} points</Text>
+                <View style={styles.mobileStatsGrid}>
+                  <View style={styles.mobileStatItem}>
+                    <Text style={styles.mobileStatNumber}>{circleStats.stats.total_matches || 0}</Text>
+                    <Text style={styles.mobileStatLabel}>Matches</Text>
+                  </View>
+                  <View style={styles.mobileStatItem}>
+                    <Text style={styles.mobileStatNumber}>{circleStats.stats.total_friends || 0}</Text>
+                    <Text style={styles.mobileStatLabel}>Friends</Text>
+                  </View>
+                  <View style={styles.mobileStatItem}>
+                    <Text style={styles.mobileStatNumber}>
+                      {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
+                    </Text>
+                    <Text style={styles.mobileStatLabel}>Messages</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Live Activity Feed */}
+            <LiveActivityFeed isVisible={true} maxItems={50} />
+          </ScrollView>
+        </View>
+      )}
 
       <Modal animationType="fade" transparent visible={showModal && (isSearching || matchedUser !== null)}>
         <View style={styles.modalOverlay}>
@@ -1420,12 +1696,1030 @@ export default function MatchScreen() {
         userName={selectedUser?.name}
         userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
       />
-
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Main Container
+  container: {
+    flex: 1,
+    backgroundColor: '#1a0b2e',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  floatingOrb: {
+    position: 'absolute',
+    borderRadius: 9999,
+    opacity: 0.15,
+  },
+  orb1: {
+    width: 300,
+    height: 300,
+    backgroundColor: '#7C2B86',
+    top: -100,
+    right: -50,
+  },
+  orb2: {
+    width: 250,
+    height: 250,
+    backgroundColor: '#5D5FEF',
+    bottom: 100,
+    left: -80,
+  },
+  orb3: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#FF6FB5',
+    top: '40%',
+    right: '10%',
+  },
+
+  // DESKTOP/WEB STYLES
+  desktopContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: 320,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(20px)',
+  },
+  sidebarContent: {
+    padding: 24,
+    gap: 20,
+  },
+  sidebarHeader: {
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  desktopTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  desktopSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 4,
+  },
+  quickStatsCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  quickStatsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickStatsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  tierBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tierBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  quickStatsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  quickStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  quickStatNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  quickStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 4,
+  },
+  desktopLiveMatchButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  liveMatchGradient: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    borderRadius: 16,
+  },
+  liveMatchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  livePulse: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    left: -20,
+  },
+  liveMatchText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sidebarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 12,
+  },
+  sidebarButtonIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarButtonContent: {
+    flex: 1,
+  },
+  sidebarButtonTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  sidebarButtonSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2,
+  },
+  sidebarFriendRequests: {
+    marginTop: 8,
+  },
+  sidebarSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  sidebarRequestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 10,
+    marginBottom: 8,
+    gap: 10,
+  },
+  sidebarRequestAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarRequestAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sidebarRequestInfo: {
+    flex: 1,
+  },
+  sidebarRequestName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  sidebarRequestActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  sidebarRequestReject: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarRequestAccept: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 170, 85, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Main Panel (Desktop)
+  mainPanel: {
+    flex: 1,
+  },
+  mainPanelContent: {
+    padding: 32,
+    gap: 32,
+  },
+  heroMatchCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroMatchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  heroMatchBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
+  heroMatchContent: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  heroAvatarContainer: {
+    position: 'relative',
+  },
+  heroAvatarGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: '#7C2B86',
+    opacity: 0.3,
+    top: -10,
+    left: -10,
+  },
+  heroAvatar: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  compatibilityRing: {
+    position: 'absolute',
+    bottom: -10,
+    right: -10,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#5D5FEF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#1a0b2e',
+  },
+  compatibilityRingText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroMatchInfo: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 12,
+  },
+  heroMatchName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroMatchAge: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  heroMatchTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  heroTag: {
+    backgroundColor: 'rgba(124, 43, 134, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.5)',
+  },
+  heroTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  heroMatchActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  heroPassButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 28,
+    backgroundColor: 'rgba(129, 140, 248, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(129, 140, 248, 0.4)',
+  },
+  heroActionText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#818CF8',
+  },
+  heroLikeButton: {
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
+  heroLikeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  heroLikeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  heroMessageButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(93, 95, 239, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(93, 95, 239, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Matches Grid
+  matchesSection: {
+    gap: 20,
+  },
+  matchesSectionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  matchesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 20,
+  },
+  matchCard: {
+    width: '31%',
+    minWidth: 200,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+  },
+  matchCardGlow: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#7C2B86',
+    opacity: 0.15,
+  },
+  matchCardContent: {
+    padding: 16,
+    gap: 12,
+  },
+  matchAvatarContainer: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  matchAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  matchCompatibilityBadge: {
+    position: 'absolute',
+    bottom: -8,
+    right: -8,
+    backgroundColor: '#5D5FEF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#1a0b2e',
+  },
+  matchCompatibilityText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  matchCardInfo: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  matchCardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  matchCardAge: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  matchCardTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  matchTag: {
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  matchTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  matchCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
+  matchCardPassButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchCardLikeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchCardMessageButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(93, 95, 239, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // MOBILE STYLES
+  mobileContainer: {
+    flex: 1,
+  },
+  mobileContent: {
+    padding: 20,
+    gap: 24,
+    paddingTop: 60,
+  },
+  mobileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  mobileHeaderLeft: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  mobileTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
+  mobileSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
+  },
+  settingsButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(124, 43, 134, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.4)',
+  },
+  mobileFilterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+
+  // Swipeable Card
+  swipeCardContainer: {
+    gap: 20,
+  },
+  swipeCard: {
+    height: 500,
+    borderRadius: 32,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    position: 'relative',
+  },
+  swipeCardGlow: {
+    position: 'absolute',
+    top: -100,
+    left: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: '#7C2B86',
+    opacity: 0.2,
+  },
+  swipeImageContainer: {
+    height: '65%',
+    position: 'relative',
+  },
+  swipeImage: {
+    width: '100%',
+    height: '100%',
+  },
+  swipeImageGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+  },
+  swipeCardInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 24,
+    gap: 16,
+  },
+  swipeCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  swipeCardName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  swipeCardAge: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 4,
+  },
+  swipeCompatibilityCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#5D5FEF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  swipeCompatibilityText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  swipeInterests: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  swipeInterestPill: {
+    backgroundColor: 'rgba(124, 43, 134, 0.4)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  swipeInterestText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Special Features Container
+  specialFeaturesContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  specialFeatureCard: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    elevation: 12,
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+  },
+  specialFeatureGradient: {
+    padding: 28,
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: 120,
+  },
+  specialFeatureGlow: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  specialFeatureContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  specialFeatureIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  specialFeatureTextContainer: {
+    flex: 1,
+  },
+  specialFeatureTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  specialFeatureSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 20,
+  },
+
+  // Swipe Actions
+  swipeActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 32,
+  },
+  swipePassButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 107, 107, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  swipeFriendRequestButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  swipeFriendRequestGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swipeButtonGlow: {
+    position: 'absolute',
+    width: '150%',
+    height: '150%',
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    opacity: 0.5,
+  },
+
+  // No Users State
+  noUsersContainer: {
+    height: 500,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  noUsersContent: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  noUsersIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  noUsersTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  noUsersSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  noUsersHint: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+
+  // Mini Queue
+  miniQueue: {
+    gap: 12,
+  },
+  miniQueueTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  miniQueueScroll: {
+    gap: 12,
+  },
+  miniQueueCard: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'relative',
+  },
+  miniQueueImage: {
+    width: '100%',
+    height: '100%',
+  },
+  miniQueueBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: '#5D5FEF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#1a0b2e',
+  },
+  miniQueueBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Quick Actions
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  quickActionGradient: {
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickActionContent: {
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Mobile Friend Requests
+  mobileFriendRequests: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mobileFriendRequestsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mobileFriendRequestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+  },
+  mobileFriendRequestAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileFriendRequestAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mobileFriendRequestInfo: {
+    flex: 1,
+  },
+  mobileFriendRequestName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  mobileFriendRequestMessage: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+  },
+  mobileFriendRequestActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mobileFriendRequestReject: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileFriendRequestAccept: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 170, 85, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Mobile Stats Card
+  mobileStatsCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mobileStatsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mobileStatsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mobileTierBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  mobileTierBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mobileStatsPoints: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  mobileStatsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  mobileStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 16,
+  },
+  mobileStatNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  mobileStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 4,
+  },
+
+  // Keep old styles for compatibility
   gradient: {
     flex: 1,
   },

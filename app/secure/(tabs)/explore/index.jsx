@@ -19,7 +19,7 @@ import { exploreApi } from '@/src/api/explore';
 import UserProfileModal from '@/src/components/UserProfileModal';
 
 export default function ExploreScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [topUsers, setTopUsers] = useState([]);
   const [newUsers, setNewUsers] = useState([]);
   const [compatibleUsers, setCompatibleUsers] = useState([]);
@@ -198,30 +198,36 @@ export default function ExploreScreen() {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-        locations={[0, 0.55, 1]}
-        style={styles.gradient}
-      >
+      <View style={styles.container}>
+        <LinearGradient
+          colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+          style={styles.backgroundGradient}
+        >
+          <View style={[styles.floatingOrb, styles.orb1]} />
+          <View style={[styles.floatingOrb, styles.orb2]} />
+          <View style={[styles.floatingOrb, styles.orb3]} />
+        </LinearGradient>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFE8FF" />
           <Text style={styles.loadingText}>Loading explore...</Text>
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-      locations={[0, 0.55, 1]}
-      style={styles.gradient}
-    >
-      <View style={styles.blurCircleLarge} />
-      <View style={styles.blurCircleSmall} />
+    <View style={styles.container}>
+      <LinearGradient
+        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+        style={styles.backgroundGradient}
+      >
+        <View style={[styles.floatingOrb, styles.orb1]} />
+        <View style={[styles.floatingOrb, styles.orb2]} />
+        <View style={[styles.floatingOrb, styles.orb3]} />
+      </LinearGradient>
 
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         refreshControl={
           <RefreshControl
@@ -235,23 +241,28 @@ export default function ExploreScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Explore</Text>
-          <Text style={styles.subtitle}>Discover new connections</Text>
+          <View style={styles.headerIconContainer}>
+            <Ionicons name="compass" size={32} color="#FF6FB5" />
+          </View>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.exploreTitle}>Explore</Text>
+            <Text style={styles.subtitle}>Find your next connection</Text>
+          </View>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="rgba(31, 17, 71, 0.45)" />
+            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" />
             <TextInput
               placeholder="Search by name, username, or email"
-              placeholderTextColor="rgba(31, 17, 71, 0.45)"
+              placeholderTextColor="rgba(255, 255, 255, 0.4)"
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searching && (
-              <ActivityIndicator size="small" color="#7C2B86" />
+              <ActivityIndicator size="small" color="#FFD6F2" />
             )}
           </View>
         </View>
@@ -300,15 +311,49 @@ export default function ExploreScreen() {
         userName={selectedUser?.name}
         userAvatar={selectedUser?.profilePhoto}
       />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
+    flex: 1,
+    backgroundColor: '#1a0b2e',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  floatingOrb: {
+    position: 'absolute',
+    borderRadius: 9999,
+    opacity: 0.15,
+  },
+  orb1: {
+    width: 300,
+    height: 300,
+    backgroundColor: '#7C2B86',
+    top: -100,
+    right: -50,
+  },
+  orb2: {
+    width: 250,
+    height: 250,
+    backgroundColor: '#5D5FEF',
+    bottom: 100,
+    left: -80,
+  },
+  orb3: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#FF6FB5',
+    top: '40%',
+    right: '10%',
+  },
+  scrollView: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
@@ -317,7 +362,38 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 24,
+    gap: 16,
+  },
+  headerIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 107, 181, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 181, 0.3)',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  exploreTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
   title: {
     fontSize: 32,
@@ -326,8 +402,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
   },
   searchContainer: {
     marginBottom: 24,
@@ -336,15 +413,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 20,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#1F1147',
+    color: '#FFFFFF',
   },
   searchResultsContainer: {
     marginBottom: 24,
@@ -412,10 +491,12 @@ const styles = StyleSheet.create({
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 18,
     gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   userAvatar: {
     position: 'relative',
@@ -453,19 +534,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1F1147',
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   userUsername: {
     fontSize: 14,
-    color: 'rgba(31, 17, 71, 0.6)',
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 4,
   },
   userAge: {
-    fontSize: 12,
-    color: 'rgba(31, 17, 71, 0.5)',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
     marginBottom: 8,
   },
   compatibilityBadge: {
@@ -507,20 +588,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   interestTag: {
-    backgroundColor: 'rgba(124, 43, 134, 0.1)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    backgroundColor: 'rgba(255, 107, 181, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 181, 0.3)',
   },
   interestText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#7C2B86',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFD6F2',
   },
   moreInterests: {
-    fontSize: 10,
-    color: 'rgba(31, 17, 71, 0.5)',
-    fontWeight: '500',
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

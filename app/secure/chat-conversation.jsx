@@ -589,6 +589,27 @@ export default function InstagramChatScreen() {
   const { token, user } = useAuth();
   const myUserId = user?.id ?? "me";
   const responsive = useResponsiveDimensions();
+  
+  // Responsive detection
+  const [screenData, setScreenData] = useState(() => {
+    const { width } = Dimensions.get('window');
+    return {
+      width,
+      isDesktop: width >= 768,
+      isBrowser: Platform.OS === 'web'
+    };
+  });
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenData({
+        width: window.width,
+        isDesktop: window.width >= 768,
+        isBrowser: Platform.OS === 'web'
+      });
+    });
+    return () => subscription?.remove();
+  }, []);
 
   const [composer, setComposer] = useState("");
   const [messages, setMessages] = useState([]);
@@ -2036,7 +2057,9 @@ export default function InstagramChatScreen() {
 
   // Handle sending "Hi" message from empty state
   const handleSendHi = () => {
-    const hiMessage = "Hi! 👋";
+    const myFirstName = user?.firstName || user?.username || 'there';
+    const otherFirstName = conversationName.split(' ')[0] || conversationName;
+    const hiMessage = `Hey ${otherFirstName}, I am ${myFirstName}. How are you?`;
     setComposer(hiMessage);
     
     // Auto-send the message
@@ -2045,6 +2068,244 @@ export default function InstagramChatScreen() {
     }, 100);
   };
 
+  // Desktop Web View
+  if (screenData.isDesktop && screenData.isBrowser) {
+    return (
+      <View style={styles.desktopContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        
+        {/* Desktop Header */}
+        <View style={styles.desktopHeader}>
+          <View style={styles.desktopHeaderContent}>
+            <TouchableOpacity 
+              style={styles.desktopBackButton}
+              onPress={() => router.replace('/secure/chat')}
+            >
+              <Ionicons name="arrow-back" size={24} color="#1F1147" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.desktopUserInfo}
+              onPress={handleAvatarClick}
+            >
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={styles.desktopAvatar} />
+              ) : (
+                <View style={styles.desktopAvatarFallback}>
+                  <Text style={styles.desktopAvatarText}>
+                    {String(conversationName).charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.desktopUserText}>
+                <Text style={styles.desktopUserName}>{conversationName}</Text>
+                <View style={styles.desktopStatusRow}>
+                  <View style={[styles.desktopStatusDot, { 
+                    backgroundColor: isOnline ? '#10B981' : '#9CA3AF' 
+                  }]} />
+                  <Text style={styles.desktopStatusText}>
+                    {isOnline ? 'Active now' : 'Offline'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.desktopHeaderActions}>
+              {friendshipStatus === 'friends' && (
+                <TouchableOpacity 
+                  style={styles.desktopActionButton}
+                  onPress={handleStartVoiceCall}
+                >
+                  <Ionicons name="call" size={20} color="#7C2B86" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={styles.desktopActionButton}
+                onPress={() => setShowChatMenu(true)}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#7C2B86" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        
+        {/* Desktop Chat Area */}
+        <View style={styles.desktopChatArea}>
+          {/* Messages */}
+          <FlatList
+            ref={listRef}
+            data={displayedMessages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <MessageBubble
+                message={item}
+                isMine={item.senderId === myUserId}
+                conversationName={conversationName}
+                userAvatar={userAvatar}
+              />
+            )}
+            contentContainerStyle={styles.desktopMessageList}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            ListEmptyComponent={
+              <EmptyChatAnimation 
+                conversationName={conversationName}
+                onSendHi={handleSendHi}
+              />
+            }
+            ListHeaderComponent={() => {
+              const hasMoreToLoad = messages.length > messageLimit;
+              const hasMoreFromServer = hasMore;
+              
+              if (!hasMoreToLoad && !hasMoreFromServer) return null;
+              
+              return (
+                <TouchableOpacity 
+                  style={styles.desktopLoadMoreButton}
+                  onPress={hasMoreToLoad ? loadMoreMessages : loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? (
+                    <ActivityIndicator size="small" color="#7C2B86" />
+                  ) : (
+                    <View style={styles.desktopLoadMoreContent}>
+                      <Ionicons name="chevron-up" size={16} color="#7C2B86" />
+                      <Text style={styles.desktopLoadMoreText}>
+                        {hasMoreToLoad 
+                          ? `Load more messages (${messages.length - messageLimit} remaining)` 
+                          : 'Load earlier messages'}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+            ListFooterComponent={() => (
+              typingUsers.length > 0 && <TypingDots label={`${conversationName} is typing`} />
+            )}
+          />
+          
+          {/* Blocked/Not Friends Messages */}
+          {blockStatus.isBlocked || blockStatus.isBlockedBy ? (
+            <BlockedMessage blockStatus={blockStatus} conversationName={conversationName} />
+          ) : friendshipStatus === 'not_friends' ? (
+            <NotFriendsMessage 
+              conversationName={conversationName}
+              otherUserId={otherUserId}
+              onFriendRequestSent={() => setFriendshipStatus('pending')}
+              requestStatus={friendRequestStatus}
+            />
+          ) : null}
+          
+          {/* Desktop Input */}
+          {friendshipStatus === 'friends' && !blockStatus.isBlocked && !blockStatus.isBlockedBy && (
+            <View style={styles.desktopInputContainer}>
+              <View style={styles.desktopInputWrapper}>
+                <TextInput
+                  style={styles.desktopInput}
+                  value={composer}
+                  onChangeText={handleTypingChange}
+                  placeholder={`Message ${conversationName}...`}
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  maxLength={2000}
+                  onSubmitEditing={() => {
+                    if (composer.trim()) handleSend();
+                  }}
+                />
+                <TouchableOpacity 
+                  style={[
+                    styles.desktopSendButton,
+                    !composer.trim() && styles.desktopSendButtonDisabled
+                  ]}
+                  onPress={() => composer.trim() && handleSend()}
+                  disabled={!composer.trim()}
+                >
+                  <LinearGradient
+                    colors={composer.trim() ? ["#7C2B86", "#9333EA"] : ["#E5E7EB", "#E5E7EB"]}
+                    style={styles.desktopSendGradient}
+                  >
+                    <Ionicons 
+                      name="send" 
+                      size={18} 
+                      color={composer.trim() ? "#FFFFFF" : "#9CA3AF"} 
+                    />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+        
+        {/* Modals */}
+        {showChatMenu && (
+          <ChatOptionsMenu
+            visible={showChatMenu}
+            onClose={() => setShowChatMenu(false)}
+            onClearChat={handleClearChat}
+            onMuteToggle={handleMuteToggle}
+            isMuted={isChatMuted}
+            blockStatus={blockStatus}
+            conversationName={conversationName}
+          />
+        )}
+        
+        {showUserProfile && (
+          <UserProfileModal
+            visible={showUserProfile}
+            onClose={() => setShowUserProfile(false)}
+            userId={otherUserId}
+            userName={conversationName}
+            userAvatar={userAvatar}
+          />
+        )}
+        
+        {showVoiceCall && voiceCallData && (
+          <VoiceCallModal
+            visible={showVoiceCall}
+            onClose={() => {
+              setShowVoiceCall(false);
+              setVoiceCallData(null);
+            }}
+            callData={voiceCallData}
+            onAccept={handleAcceptCall}
+            onDecline={handleDeclineCall}
+          />
+        )}
+        
+        {showDeleteConfirm && (
+          <ConfirmationDialog
+            visible={showDeleteConfirm}
+            title="Delete Message"
+            message="Are you sure you want to delete this message? This action cannot be undone."
+            onConfirm={handleDeleteMessage}
+            onCancel={() => {
+              setShowDeleteConfirm(false);
+              setMessageToDelete(null);
+            }}
+            confirmText="Delete"
+            cancelText="Cancel"
+            destructive
+          />
+        )}
+        
+        {showClearChatConfirm && (
+          <ConfirmationDialog
+            visible={showClearChatConfirm}
+            title="Clear Chat"
+            message={`Are you sure you want to clear all messages in this chat? This will only clear messages for you.`}
+            onConfirm={confirmClearChat}
+            onCancel={() => setShowClearChatConfirm(false)}
+            confirmText="Clear"
+            cancelText="Cancel"
+            destructive
+          />
+        )}
+      </View>
+    );
+  }
+  
+  // Mobile View
   return (
     <LinearGradient
       colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
@@ -3366,5 +3627,171 @@ const styles = StyleSheet.create({
     height: 80,
     top: '60%',
     right: '20%',
+  },
+  
+  // Desktop Styles
+  desktopContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  desktopHeader: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  desktopHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: 1000,
+    marginHorizontal: 'auto',
+    width: '100%',
+  },
+  desktopBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  desktopUserInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  desktopAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#7C2B86',
+  },
+  desktopAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desktopAvatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  desktopUserText: {
+    flex: 1,
+  },
+  desktopUserName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 2,
+  },
+  desktopStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  desktopStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  desktopStatusText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  desktopHeaderActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  desktopActionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desktopChatArea: {
+    flex: 1,
+    maxWidth: 1000,
+    marginHorizontal: 'auto',
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 0,
+  },
+  desktopMessageList: {
+    padding: 24,
+    paddingBottom: 100,
+  },
+  desktopInputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    padding: 16,
+  },
+  desktopInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  desktopInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1F1147',
+    maxHeight: 120,
+    paddingVertical: 8,
+    outlineStyle: 'none',
+  },
+  desktopSendButton: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  desktopSendButtonDisabled: {
+    opacity: 0.5,
+  },
+  desktopSendGradient: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  desktopLoadMoreButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  desktopLoadMoreContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  desktopLoadMoreText: {
+    color: '#7C2B86',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

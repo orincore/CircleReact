@@ -281,6 +281,74 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* Score Improvement Suggestions */}
+          <View style={styles.suggestionsCard}>
+            <View style={styles.suggestionsHeader}>
+              <Ionicons name="bulb" size={24} color="#FFD700" />
+              <Text style={styles.suggestionsTitle}>Improve Your Match Score</Text>
+            </View>
+            <Text style={styles.suggestionsSubtitle}>
+              Follow these tips to get better matches and increase your visibility
+            </Text>
+            
+            <View style={styles.suggestionsList}>
+              <View style={styles.suggestionItem}>
+                <View style={styles.suggestionIcon}>
+                  <Ionicons name="heart" size={18} color="#FF6FB5" />
+                </View>
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionText}>
+                    <Text style={styles.suggestionBold}>Add more interests</Text> - Users with 5+ interests get 3x more matches
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.suggestionItem}>
+                <View style={styles.suggestionIcon}>
+                  <Ionicons name="location" size={18} color="#5D5FEF" />
+                </View>
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionText}>
+                    <Text style={styles.suggestionBold}>Enable location tracking</Text> - Get matched with nearby users automatically
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.suggestionItem}>
+                <View style={styles.suggestionIcon}>
+                  <Ionicons name="chatbubbles" size={18} color="#7C2B86" />
+                </View>
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionText}>
+                    <Text style={styles.suggestionBold}>Be active</Text> - Regular activity boosts your profile visibility by 50%
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.suggestionItem}>
+                <View style={styles.suggestionIcon}>
+                  <Ionicons name="image" size={18} color="#FF6FB5" />
+                </View>
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionText}>
+                    <Text style={styles.suggestionBold}>Update your profile photo</Text> - Profiles with photos get 10x more views
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.suggestionItem}>
+                <View style={styles.suggestionIcon}>
+                  <Ionicons name="people" size={18} color="#5D5FEF" />
+                </View>
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionText}>
+                    <Text style={styles.suggestionBold}>Specify what you're looking for</Text> - Clear needs help find compatible matches
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
           {/* Location Preferences */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -665,6 +733,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.78)",
     marginTop: 2,
+  },
+  suggestionsCard: {
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+    marginBottom: 8,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  suggestionsTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  suggestionsSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.85)",
+    lineHeight: 20,
+  },
+  suggestionsList: {
+    gap: 14,
+    marginTop: 4,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  suggestionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 20,
+  },
+  suggestionBold: {
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   sectionCard: {
     backgroundColor: "rgba(255, 255, 255, 0.12)",

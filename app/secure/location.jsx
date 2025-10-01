@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
   RefreshControl,
+  Modal,
+  PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isLargeScreen = screenWidth >= 768; // Tablet/Desktop breakpoint
+const isDesktop = screenWidth >= 1024; // Desktop breakpoint
 
 export default function LocationPage() {
   const router = useRouter();
@@ -48,9 +51,14 @@ export default function LocationPage() {
       width,
       height,
       isLandscape: width > height,
-      isBrowser: Platform.OS === 'web'
+      isBrowser: Platform.OS === 'web',
+      isDesktop: width >= 1024
     };
   });
+  const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [drawerHeight] = useState(new Animated.Value(screenHeight * 0.4));
+  const [hoveredUserId, setHoveredUserId] = useState(null);
   const [userCategories, setUserCategories] = useState({
     nearby: [],
     far: []
@@ -73,12 +81,51 @@ export default function LocationPage() {
         width: window.width,
         height: window.height,
         isLandscape: window.width > window.height,
-        isBrowser: Platform.OS === 'web'
+        isBrowser: Platform.OS === 'web',
+        isDesktop: window.width >= 1024
       });
     });
 
     return () => subscription?.remove();
   }, []);
+
+  // Pan responder for mobile drawer
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newHeight = screenHeight * 0.4 - gestureState.dy;
+        if (newHeight >= screenHeight * 0.2 && newHeight <= screenHeight * 0.8) {
+          drawerHeight.setValue(newHeight);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const velocity = gestureState.vy;
+        const currentHeight = drawerHeight._value;
+        
+        let targetHeight;
+        if (velocity > 0.5) {
+          targetHeight = screenHeight * 0.2; // Minimize
+        } else if (velocity < -0.5) {
+          targetHeight = screenHeight * 0.8; // Maximize
+        } else {
+          targetHeight = currentHeight > screenHeight * 0.5 
+            ? screenHeight * 0.8 
+            : screenHeight * 0.4;
+        }
+        
+        Animated.spring(drawerHeight, {
+          toValue: targetHeight,
+          useNativeDriver: false,
+          tension: 50,
+          friction: 8,
+        }).start();
+      },
+    })
+  ).current;
 
   // Load user location and nearby users on mount
   useEffect(() => {
@@ -774,6 +821,183 @@ export default function LocationPage() {
     );
   }
 
+  // Render desktop filter panel
+  const renderDesktopFilterPanel = () => {
+    if (!screenData.isDesktop) return null;
+    
+    return (
+      <View style={styles.desktopFilterPanel}>
+        <View style={styles.filterPanelHeader}>
+          <Ionicons name="options-outline" size={20} color="#7C2B86" />
+          <Text style={styles.filterPanelTitle}>Filters</Text>
+        </View>
+        
+        {/* Distance Filter */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterSectionTitle}>Distance</Text>
+          {['all', 'nearby', 'close'].map((dist) => (
+            <TouchableOpacity
+              key={dist}
+              style={styles.filterOption}
+              onPress={() => setFilterDistance(dist)}
+            >
+              <View style={[
+                styles.filterRadio,
+                filterDistance === dist && styles.filterRadioActive
+              ]}>
+                {filterDistance === dist && (
+                  <View style={styles.filterRadioDot} />
+                )}
+              </View>
+              <Text style={styles.filterOptionText}>
+                {dist === 'all' ? 'All distances' : dist === 'nearby' ? 'Nearby (≤10km)' : 'Close (≤5km)'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
+        {/* User Stats */}
+        <View style={styles.filterStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{filteredCategories.nearby.length}</Text>
+            <Text style={styles.statLabel}>Nearby</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{filteredCategories.far.length}</Text>
+            <Text style={styles.statLabel}>Far</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Render mobile drawer
+  const renderMobileDrawer = () => {
+    if (screenData.isDesktop || viewMode !== 'map') return null;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.mobileDrawer,
+          { height: drawerHeight }
+        ]}
+      >
+        {/* Drawer Handle */}
+        <View 
+          style={styles.drawerHandle}
+          {...panResponder.panHandlers}
+        >
+          <View style={styles.drawerHandleBar} />
+          <Text style={styles.drawerTitle}>
+            {totalFilteredUsers} {totalFilteredUsers === 1 ? 'Person' : 'People'} Nearby
+          </Text>
+        </View>
+        
+        {/* Drawer Content */}
+        <ScrollView 
+          style={styles.drawerContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#7C2B86']}
+              tintColor="#7C2B86"
+            />
+          }
+        >
+          {totalFilteredUsers > 0 ? (
+            <View style={styles.drawerUserList}>
+              {filteredCategories.nearby.length > 0 && (
+                <>
+                  <View style={styles.drawerSection}>
+                    <Ionicons name="location" size={14} color="#8B5CF6" />
+                    <Text style={styles.drawerSectionTitle}>
+                      Nearby ({filteredCategories.nearby.length})
+                    </Text>
+                  </View>
+                  {filteredCategories.nearby.map((user) => renderMiniUserCard(user))}
+                </>
+              )}
+              
+              {filteredCategories.far.length > 0 && (
+                <>
+                  <View style={[styles.drawerSection, { marginTop: 16 }]}>
+                    <Ionicons name="map" size={14} color="#EC4899" />
+                    <Text style={styles.drawerSectionTitle}>
+                      Far ({filteredCategories.far.length})
+                    </Text>
+                  </View>
+                  {filteredCategories.far.map((user) => renderMiniUserCard(user))}
+                </>
+              )}
+            </View>
+          ) : (
+            <View style={styles.drawerEmpty}>
+              <Ionicons name="people-outline" size={32} color="rgba(124, 43, 134, 0.3)" />
+              <Text style={styles.drawerEmptyText}>No people found nearby</Text>
+            </View>
+          )}
+        </ScrollView>
+      </Animated.View>
+    );
+  };
+
+  // Render mini user card for drawer
+  const renderMiniUserCard = (user) => {
+    const isSelected = selectedUserId === user.id;
+    
+    return (
+      <TouchableOpacity
+        key={user.id}
+        style={[styles.miniUserCard, isSelected && styles.miniUserCardSelected]}
+        onPress={() => handleUserSelect(user)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.miniUserAvatar}>
+          {user.photoUrl ? (
+            <Image source={{ uri: user.photoUrl }} style={styles.miniAvatarImage} />
+          ) : (
+            <LinearGradient
+              colors={['#FF6FB5', '#A16AE8', '#5D5FEF']}
+              style={styles.miniAvatarImage}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.miniAvatarText}>
+                {user.name.charAt(0).toUpperCase()}
+              </Text>
+            </LinearGradient>
+          )}
+          {user.compatibility && (
+            <View style={styles.miniCompatBadge}>
+              <Text style={styles.miniCompatText}>{user.compatibility}</Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.miniUserInfo}>
+          <Text style={styles.miniUserName} numberOfLines={1}>{user.name}</Text>
+          <View style={styles.miniUserMeta}>
+            <Text style={styles.miniUserAge}>{user.age}</Text>
+            <View style={styles.miniMetaDot} />
+            <Ionicons 
+              name={user.gender === 'female' ? 'female' : user.gender === 'male' ? 'male' : 'transgender'} 
+              size={12} 
+              color="#8B5CF6" 
+            />
+            <View style={styles.miniMetaDot} />
+            <Ionicons name="location" size={10} color="#7C2B86" />
+            <Text style={styles.miniDistance}>{user.distance?.toFixed(1)}km</Text>
+          </View>
+        </View>
+        
+        <Ionicons name="chevron-forward" size={18} color="#8B5CF6" />
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       <Stack.Screen 
@@ -784,7 +1008,10 @@ export default function LocationPage() {
         }} 
       />
       <LinearGradient
-        colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
+        colors={screenData.isDesktop 
+          ? ["#1F1147", "#2D1B69", "#1F1147"] // Dark theme for desktop
+          : ["#FF6FB5", "#A16AE8", "#5D5FEF"] // Gradient for mobile
+        }
         locations={[0, 0.55, 1]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
@@ -798,7 +1025,9 @@ export default function LocationPage() {
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Nearby Matches</Text>
+            <Text style={styles.headerTitle}>
+              {screenData.isDesktop ? 'Location Explorer' : 'Nearby Matches'}
+            </Text>
             <Text style={styles.headerSubtitle}>
               {totalFilteredUsers === 0 
                 ? `No users found near ${currentLocationName || 'this location'}`
@@ -807,12 +1036,30 @@ export default function LocationPage() {
             </Text>
           </View>
           
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setShowFilters(!showFilters)}
-          >
-            <Ionicons name="options" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Desktop: View toggle, Mobile: Filter button */}
+          {screenData.isDesktop ? (
+            <View style={styles.viewToggle}>
+              <TouchableOpacity
+                style={[styles.viewToggleBtn, viewMode === 'map' && styles.viewToggleBtnActive]}
+                onPress={() => setViewMode('map')}
+              >
+                <Ionicons name="map" size={18} color={viewMode === 'map' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewToggleBtn, viewMode === 'list' && styles.viewToggleBtnActive]}
+                onPress={() => setViewMode('list')}
+              >
+                <Ionicons name="grid" size={18} color={viewMode === 'list' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setShowFilters(!showFilters)}
+            >
+              <Ionicons name="options" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search Bar */}
@@ -835,72 +1082,242 @@ export default function LocationPage() {
         </View>
 
         {/* Filters */}
-        {showFilters && renderFilters()}
+        {!screenData.isDesktop && showFilters && renderFilters()}
 
         {/* Content */}
-        <View style={[
-          styles.contentContainer,
-          screenData.isBrowser && screenData.isLandscape && styles.contentContainerLandscape
-        ]}>
-          {/* Map Section */}
-          <View style={[
-            styles.mapSection,
-            screenData.isBrowser && screenData.isLandscape && styles.mapSectionLandscape
-          ]}>
-            <View style={styles.mapHeader}>
-              <Text style={styles.mapTitle}>Location Map</Text>
-              <View style={styles.mapCountBadge}>
-                <Ionicons name="location" size={14} color="#FFFFFF" />
-                <Text style={styles.mapCountText}>{totalFilteredUsers}</Text>
-              </View>
-            </View>
+        {screenData.isDesktop ? (
+          // Desktop Layout: Filter Panel + Map/List View
+          <View style={styles.desktopLayout}>
+            {renderDesktopFilterPanel()}
             
-            {mapRegion ? (
-              <>
-                <LocationMap
-                  key={`map-${screenData.width}-${screenData.height}`} // Force re-render on screen change
-                  region={mapRegion}
-                  nearby={nearbyUsers.map(user => ({
-                    ...user,
-                    isHighlighted: highlightedPin === user.id,
-                    pulseScale: highlightedPin === user.id ? pulseAnim : new Animated.Value(1)
-                  }))}
-                  style={styles.map}
-                  onUserPress={handleUserSelect}
-                  highlightedUserId={highlightedPin}
-                  onRegionChange={handleMapRegionChange}
-                />
-                
-                {/* Loading indicator for when users are being loaded */}
-                {isLoadingUsers && (
-                  <View style={styles.mapLoadingOverlay}>
-                    <ActivityIndicator size="small" color="#7C2B86" />
-                    <Text style={styles.mapLoadingText}>Loading users...</Text>
+            <View style={styles.desktopMainContent}>
+              {viewMode === 'map' ? (
+                // Map View with Hover Cards
+                <View style={styles.desktopMapContainer}>
+                  <View style={styles.desktopMapHeader}>
+                    <Text style={styles.desktopMapTitle}>Location Map</Text>
+                    <View style={styles.desktopMapBadge}>
+                      <Ionicons name="location" size={14} color="#FFFFFF" />
+                      <Text style={styles.desktopMapBadgeText}>{totalFilteredUsers} nearby</Text>
+                    </View>
                   </View>
-                )}
+                  
+                  {mapRegion ? (
+                    <>
+                      <LocationMap
+                        key={`map-${screenData.width}-${screenData.height}`}
+                        region={mapRegion}
+                        nearby={nearbyUsers.map(user => ({
+                          ...user,
+                          isHighlighted: highlightedPin === user.id || hoveredUserId === user.id,
+                          pulseScale: (highlightedPin === user.id || hoveredUserId === user.id) ? pulseAnim : new Animated.Value(1)
+                        }))}
+                        style={styles.desktopMap}
+                        onUserPress={handleUserSelect}
+                        highlightedUserId={highlightedPin || hoveredUserId}
+                        onRegionChange={handleMapRegionChange}
+                      />
+                      
+                      {isLoadingUsers && (
+                        <View style={styles.mapLoadingOverlay}>
+                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Text style={styles.mapLoadingText}>Loading users...</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View style={styles.mapPlaceholder}>
+                      {loading ? (
+                        <>
+                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Text style={styles.mapPlaceholderText}>Loading map...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="map-outline" size={48} color="rgba(124, 43, 134, 0.3)" />
+                          <Text style={styles.mapPlaceholderText}>No location data available</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
+                </View>
+              ) : (
+                // List/Grid View
+                <ScrollView 
+                  style={styles.desktopGridContainer}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.desktopGridContent}
+                >
+                  {totalFilteredUsers > 0 ? (
+                    <View style={styles.desktopGrid}>
+                      {[...filteredCategories.nearby, ...filteredCategories.far].map((user) => (
+                        <View 
+                          key={user.id}
+                          style={styles.desktopGridItem}
+                          onMouseEnter={() => Platform.OS === 'web' && setHoveredUserId(user.id)}
+                          onMouseLeave={() => Platform.OS === 'web' && setHoveredUserId(null)}
+                        >
+                          {renderUserItem(user)}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons name="people-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
+                      <Text style={[styles.emptyStateTitle, { color: '#FFFFFF' }]}>No matches found</Text>
+                      <Text style={[styles.emptyStateText, { color: 'rgba(255, 255, 255, 0.7)' }]}>
+                        {searchQuery 
+                          ? 'Try adjusting your search or filters' 
+                          : `No people found near ${currentLocationName || 'this location'}`
+                        }
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        ) : (
+          // Mobile Layout: Map with Drawer OR List View
+          <View style={styles.mobileLayout}>
+            {viewMode === 'map' ? (
+              <>
+                {/* Full Screen Map */}
+                <View style={styles.mobileMapContainer}>
+                  {mapRegion ? (
+                    <>
+                      <LocationMap
+                        key={`map-${screenData.width}-${screenData.height}`}
+                        region={mapRegion}
+                        nearby={nearbyUsers.map(user => ({
+                          ...user,
+                          isHighlighted: highlightedPin === user.id,
+                          pulseScale: highlightedPin === user.id ? pulseAnim : new Animated.Value(1)
+                        }))}
+                        style={styles.mobileMap}
+                        onUserPress={handleUserSelect}
+                        highlightedUserId={highlightedPin}
+                        onRegionChange={handleMapRegionChange}
+                      />
+                      
+                      {isLoadingUsers && (
+                        <View style={styles.mapLoadingOverlay}>
+                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Text style={styles.mapLoadingText}>Loading users...</Text>
+                        </View>
+                      )}
+                      
+                      {/* Floating Action Buttons */}
+                      <View style={styles.floatingActions}>
+                        <TouchableOpacity 
+                          style={styles.floatingButton}
+                          onPress={() => setShowFilters(!showFilters)}
+                        >
+                          <Ionicons name="options" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.floatingButton}
+                          onPress={async () => {
+                            const { status } = await Location.requestForegroundPermissionsAsync();
+                            if (status === 'granted') {
+                              const position = await Location.getCurrentPositionAsync();
+                              setMapRegion({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                                latitudeDelta: 0.05,
+                                longitudeDelta: 0.05,
+                              });
+                            }
+                          }}
+                        >
+                          <Ionicons name="locate" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.mapPlaceholder}>
+                      {loading ? (
+                        <>
+                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Text style={styles.mapPlaceholderText}>Loading map...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="map-outline" size={48} color="rgba(124, 43, 134, 0.3)" />
+                          <Text style={styles.mapPlaceholderText}>No location data available</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
+                </View>
+                
+                {/* Swipe-up Drawer */}
+                {renderMobileDrawer()}
               </>
             ) : (
-              <View style={styles.mapPlaceholder}>
-                {loading ? (
-                  <>
-                    <ActivityIndicator size="large" color="#7C2B86" />
-                    <Text style={styles.mapPlaceholderText}>Loading map...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="map-outline" size={48} color="rgba(124, 43, 134, 0.3)" />
-                    <Text style={styles.mapPlaceholderText}>No location data available</Text>
-                  </>
-                )}
-              </View>
-            )}
-          </View>
+              // Mobile List View (Original Layout)
+              <View style={[
+                styles.contentContainer,
+                screenData.isBrowser && screenData.isLandscape && styles.contentContainerLandscape
+              ]}>
+                {/* Map Section */}
+                <View style={[
+                  styles.mapSection,
+                  screenData.isBrowser && screenData.isLandscape && styles.mapSectionLandscape
+                ]}>
+                  <View style={styles.mapHeader}>
+                    <Text style={styles.mapTitle}>Location Map</Text>
+                    <View style={styles.mapCountBadge}>
+                      <Ionicons name="location" size={14} color="#FFFFFF" />
+                      <Text style={styles.mapCountText}>{totalFilteredUsers}</Text>
+                    </View>
+                  </View>
+                  
+                  {mapRegion ? (
+                    <>
+                      <LocationMap
+                        key={`map-${screenData.width}-${screenData.height}`}
+                        region={mapRegion}
+                        nearby={nearbyUsers.map(user => ({
+                          ...user,
+                          isHighlighted: highlightedPin === user.id,
+                          pulseScale: highlightedPin === user.id ? pulseAnim : new Animated.Value(1)
+                        }))}
+                        style={styles.map}
+                        onUserPress={handleUserSelect}
+                        highlightedUserId={highlightedPin}
+                        onRegionChange={handleMapRegionChange}
+                      />
+                      
+                      {isLoadingUsers && (
+                        <View style={styles.mapLoadingOverlay}>
+                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Text style={styles.mapLoadingText}>Loading users...</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View style={styles.mapPlaceholder}>
+                      {loading ? (
+                        <>
+                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Text style={styles.mapPlaceholderText}>Loading map...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="map-outline" size={48} color="rgba(124, 43, 134, 0.3)" />
+                          <Text style={styles.mapPlaceholderText}>No location data available</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
+                </View>
 
-          {/* Users List Section */}
-          <View style={[
-            styles.listSection,
-            screenData.isBrowser && screenData.isLandscape && styles.listSectionLandscape
-          ]}>
+                {/* Users List Section */}
+                <View style={[
+                  styles.listSection,
+                  screenData.isBrowser && screenData.isLandscape && styles.listSectionLandscape
+                ]}>
             <View style={styles.listHeader}>
               <Text style={styles.listTitle}>People in {currentLocationName || 'Area'}</Text>
               <View style={styles.countBadge}>
@@ -967,8 +1384,11 @@ export default function LocationPage() {
                 </Text>
               </View>
             )}
+                </View>
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
         {/* User Profile Modal */}
         <UserProfileModal
@@ -1420,5 +1840,351 @@ const styles = StyleSheet.create({
     color: 'rgba(31, 17, 71, 0.7)',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  
+  // Desktop Styles
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  viewToggleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewToggleBtnActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  desktopLayout: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    gap: 24,
+  },
+  desktopFilterPanel: {
+    width: 280,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  filterPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  filterPanelTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+  },
+  filterRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterRadioActive: {
+    borderColor: '#FFD6F2',
+  },
+  filterRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFD6F2',
+  },
+  filterOptionText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  filterStats: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 16,
+    gap: 16,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  desktopMainContent: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  desktopMapContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  desktopMapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  desktopMapTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  desktopMapBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(124, 43, 134, 0.8)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  desktopMapBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  desktopMap: {
+    flex: 1,
+    width: '100%',
+  },
+  desktopGridContainer: {
+    flex: 1,
+  },
+  desktopGridContent: {
+    padding: 20,
+  },
+  desktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 20,
+  },
+  desktopGridItem: {
+    width: '48%',
+    minWidth: 300,
+  },
+  
+  // Mobile Styles
+  mobileLayout: {
+    flex: 1,
+  },
+  mobileMapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  mobileMap: {
+    flex: 1,
+    width: '100%',
+  },
+  floatingActions: {
+    position: 'absolute',
+    bottom: screenHeight * 0.45,
+    right: 16,
+    gap: 12,
+  },
+  floatingButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  mobileDrawer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  drawerHandle: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(124, 43, 134, 0.1)',
+  },
+  drawerHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(124, 43, 134, 0.3)',
+    marginBottom: 12,
+  },
+  drawerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F1147',
+  },
+  drawerContent: {
+    flex: 1,
+  },
+  drawerUserList: {
+    padding: 16,
+    gap: 8,
+  },
+  drawerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  drawerSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  drawerEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  drawerEmptyText: {
+    fontSize: 14,
+    color: 'rgba(31, 17, 71, 0.6)',
+    marginTop: 8,
+  },
+  miniUserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  miniUserCardSelected: {
+    borderColor: '#8B5CF6',
+    borderWidth: 2,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+  },
+  miniUserAvatar: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  miniAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniAvatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  miniCompatBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#00D4AA',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  miniCompatText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  miniUserInfo: {
+    flex: 1,
+  },
+  miniUserName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F1147',
+    marginBottom: 4,
+  },
+  miniUserMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniUserAge: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#7C2B86',
+  },
+  miniMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(124, 43, 134, 0.4)',
+  },
+  miniDistance: {
+    fontSize: 11,
+    color: 'rgba(31, 17, 71, 0.6)',
   },
 });

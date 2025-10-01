@@ -14,6 +14,20 @@ export default function ChatListScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
   const responsive = useResponsiveDimensions();
+  
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    if (hour >= 17 && hour < 22) return 'Good Evening';
+    return 'Good Night';
+  };
+
+  // Get user's first name
+  const getUserFirstName = () => {
+    return user?.firstName || user?.first_name || 'there';
+  };
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -260,19 +274,31 @@ export default function ChatListScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-      locations={[0, 0.55, 1]}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <View style={styles.blurCircleLarge} />
-      <View style={styles.blurCircleSmall} />
+    <View style={styles.container}>
+      {/* Animated Background */}
+      <LinearGradient
+        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+        style={styles.backgroundGradient}
+      >
+        {/* Floating orbs */}
+        <View style={[styles.floatingOrb, styles.orb1]} />
+        <View style={[styles.floatingOrb, styles.orb2]} />
+        <View style={[styles.floatingOrb, styles.orb3]} />
+      </LinearGradient>
 
-      <View style={[styles.container, { paddingHorizontal: responsive.horizontalPadding }]}>
+      <View style={[styles.contentContainer, { paddingHorizontal: responsive.horizontalPadding }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { fontSize: responsive.fontSize.xxlarge }]}>Messages</Text>
+          <View style={styles.headerIconContainer}>
+            <Ionicons name="chatbubbles" size={28} color="#7C2B86" />
+          </View>
+          <View style={styles.headerTextContainer}>
+            <Text style={[styles.messagesTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>
+              Messages
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
           <TouchableOpacity 
             style={[styles.newMessageButton, { 
               width: responsive.buttonHeight, 
@@ -281,15 +307,15 @@ export default function ChatListScreen() {
             }]}
             onPress={() => setShowFriendsModal(true)}
           >
-            <Ionicons name="people" size={responsive.isSmallScreen ? 20 : 22} color="#FFE8FF" />
+            <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
         <View style={[styles.searchBar, { paddingHorizontal: responsive.spacing.lg }]}>
-          <Ionicons name="search" size={18} color="rgba(31, 17, 71, 0.45)" />
+          <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" />
           <TextInput
             placeholder="Search conversations"
-            placeholderTextColor="rgba(31, 17, 71, 0.45)"
+            placeholderTextColor="rgba(255, 255, 255, 0.4)"
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -421,21 +447,55 @@ export default function ChatListScreen() {
           )}
         </View>
 
-        {/* Friends List Modal */}
-        <FriendsListModal
-          visible={showFriendsModal}
-          onClose={() => setShowFriendsModal(false)}
-          onChatCreated={handleChatCreated}
-        />
-      </LinearGradient>
-    );
+      {/* Friends List Modal */}
+      <FriendsListModal
+        visible={showFriendsModal}
+        onClose={() => setShowFriendsModal(false)}
+        onChatCreated={handleChatCreated}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
+    flex: 1,
+    backgroundColor: '#1a0b2e',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  floatingOrb: {
+    position: 'absolute',
+    borderRadius: 9999,
+    opacity: 0.15,
+  },
+  orb1: {
+    width: 300,
+    height: 300,
+    backgroundColor: '#7C2B86',
+    top: -100,
+    right: -50,
+  },
+  orb2: {
+    width: 250,
+    height: 250,
+    backgroundColor: '#5D5FEF',
+    bottom: 100,
+    left: -80,
+  },
+  orb3: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#FF6FB5',
+    top: '40%',
+    right: '10%',
+  },
+  contentContainer: {
     flex: 1,
     paddingTop: Platform.OS === 'web' ? 32 : 42,
     paddingBottom: 24,
@@ -448,8 +508,39 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 16,
     marginBottom: 20,
+  },
+  headerIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 214, 242, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 214, 242, 0.3)',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  messagesTitle: {
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -1,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greetingText: {
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.6)",
+    marginTop: 2,
   },
   title: {
     fontWeight: "800",
@@ -458,22 +549,24 @@ const styles = StyleSheet.create({
   newMessageButton: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(124, 43, 134, 0.3)",
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.5)",
+    borderColor: "rgba(255, 214, 242, 0.4)",
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.88)",
-    borderRadius: 18,
-    paddingVertical: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#1F1147",
+    color: "#FFFFFF",
   },
   listContent: {
     paddingVertical: 24,
@@ -484,8 +577,10 @@ const styles = StyleSheet.create({
   chatCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
   },
   avatar: {
     position: 'relative',
@@ -532,10 +627,10 @@ const styles = StyleSheet.create({
   },
   chatName: {
     fontWeight: "700",
-    color: "#1F1147",
+    color: "#FFFFFF",
   },
   chatTime: {
-    color: "rgba(31, 17, 71, 0.55)",
+    color: "rgba(255, 255, 255, 0.5)",
   },
   messageRow: {
     flexDirection: 'row',
@@ -543,7 +638,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chatMessage: {
-    color: "rgba(31, 17, 71, 0.65)",
+    color: "rgba(255, 255, 255, 0.7)",
     flex: 1,
   },
   messageStatus: {
@@ -567,24 +662,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
-  },
-  blurCircleLarge: {
-    position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(255, 214, 242, 0.24)",
-    top: -120,
-    right: -60,
-  },
-  blurCircleSmall: {
-    position: "absolute",
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    bottom: 20,
-    left: -70,
   },
   loadingContainer: {
     flex: 1,

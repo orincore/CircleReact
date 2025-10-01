@@ -211,21 +211,92 @@ export default function LocationMapWeb({ region, nearby, style, onUserPress, hig
           const style = document.createElement("style");
           style.id = styleId;
           style.textContent = `
+            /* High contrast dark theme map container */
+            .leaflet-container {
+              background: #0f172a;
+            }
+            
+            /* Improve road and label visibility */
+            .leaflet-tile-pane {
+              filter: contrast(1.1) brightness(1.05);
+            }
+            
+            /* Popup styling */
             .leaflet-container .leaflet-popup-content {
-              margin: 0; /* remove default margin */
-              overflow: visible; /* allow card shadows to render */
+              margin: 0;
+              overflow: visible;
             }
             .leaflet-container .leaflet-popup-content-wrapper {
-              padding: 0; /* our card handles spacing */
-              background: transparent; /* let our card background show */
-              box-shadow: none; /* avoid double shadow */
-              border-radius: 0; /* our card has its own radius */
+              padding: 0;
+              background: transparent;
+              box-shadow: none;
+              border-radius: 0;
             }
             .leaflet-container .leaflet-popup-tip {
-              background: #ffffff; /* subtle tip; can be transparent if desired */
-              box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+              background: #ffffff;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             }
-            .leaflet-container .circle-nearby-popup { z-index: 5000; }
+            .leaflet-container .circle-nearby-popup { 
+              z-index: 5000; 
+            }
+            
+            /* Marker animations */
+            .marker-highlighted {
+              animation: pulse-glow 2s ease-in-out infinite;
+            }
+            
+            .marker-user-location {
+              animation: pulse-user 3s ease-in-out infinite;
+            }
+            
+            @keyframes pulse-glow {
+              0%, 100% { 
+                filter: drop-shadow(0 0 8px rgba(255, 111, 181, 0.6)) drop-shadow(0 0 16px rgba(161, 106, 232, 0.4));
+                transform: scale(1);
+              }
+              50% { 
+                filter: drop-shadow(0 0 12px rgba(255, 111, 181, 0.8)) drop-shadow(0 0 24px rgba(161, 106, 232, 0.6));
+                transform: scale(1.05);
+              }
+            }
+            
+            @keyframes pulse-user {
+              0%, 100% { 
+                filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.5));
+              }
+              50% { 
+                filter: drop-shadow(0 0 12px rgba(37, 99, 235, 0.7));
+              }
+            }
+            
+            /* Map controls - high contrast */
+            .leaflet-control-zoom a {
+              background-color: rgba(15, 23, 42, 0.95) !important;
+              color: #ffffff !important;
+              border: 2px solid rgba(255, 255, 255, 0.3) !important;
+              font-weight: bold !important;
+            }
+            
+            .leaflet-control-zoom a:hover {
+              background-color: rgba(124, 43, 134, 0.95) !important;
+              border-color: rgba(255, 111, 181, 0.6) !important;
+            }
+            
+            .leaflet-bar {
+              box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+              border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            }
+            
+            /* Improve attribution contrast */
+            .leaflet-control-attribution {
+              background-color: rgba(15, 23, 42, 0.8) !important;
+              color: rgba(255, 255, 255, 0.7) !important;
+              border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            }
+            
+            .leaflet-control-attribution a {
+              color: #A16AE8 !important;
+            }
           `;
           document.head.appendChild(style);
         }
@@ -257,54 +328,82 @@ export default function LocationMapWeb({ region, nearby, style, onUserPress, hig
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
+      // User location marker - modern pin design with strong contrast
       const userMarkerSvg = `
-        <svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="44" height="56" viewBox="0 0 44 56" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="userGradient" x1="18" y1="0" x2="18" y2="36" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#4F46E5" />
-              <stop offset="100%" stop-color="#2563EB" />
-            </linearGradient>
-            <filter id="userShadow" x="0" y="0" width="36" height="48" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-              <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(37, 99, 235, 0.35)" />
+            <filter id="userShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.5"/>
             </filter>
           </defs>
           <g filter="url(#userShadow)">
-            <path d="M18 46s13-12 13-22.5C31 9.729 25.075 4 18 4S5 9.729 5 23.5C5 34 18 46 18 46z" fill="url(#userGradient)" />
-            <circle cx="18" cy="20" r="6" fill="#EEF2FF" />
+            <!-- Outer glow ring -->
+            <circle cx="22" cy="22" r="16" fill="#3B82F6" opacity="0.3"/>
+            <!-- Pin body -->
+            <path d="M22 52C22 52 38 36 38 22C38 11.5066 29.9411 3 22 3C14.0589 3 6 11.5066 6 22C6 36 22 52 22 52Z" fill="#3B82F6" stroke="#FFFFFF" stroke-width="3"/>
+            <!-- Inner white circle -->
+            <circle cx="22" cy="22" r="10" fill="#FFFFFF"/>
+            <!-- Inner blue dot -->
+            <circle cx="22" cy="22" r="6" fill="#3B82F6"/>
           </g>
         </svg>
       `;
 
       const userIcon = L.icon({
         iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(userMarkerSvg)}`,
-        iconSize: [36, 48],
-        iconAnchor: [18, 46],
-        popupAnchor: [0, -38],
+        iconSize: [44, 56],
+        iconAnchor: [22, 52],
+        popupAnchor: [0, -44],
+        className: 'marker-user-location'
       });
 
-      const createNearbyMarkerSvg = (isHighlighted = false) => `
-        <svg width="32" height="44" viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      // Nearby user markers - modern pin design with high contrast
+      const createNearbyMarkerSvg = (isHighlighted = false) => {
+        const size = isHighlighted ? 48 : 40;
+        const height = isHighlighted ? 60 : 52;
+        const cx = size / 2;
+        const cy = cx;
+        
+        return `
+        <svg width="${size}" height="${height}" viewBox="0 0 ${size} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="nearbyGradient${isHighlighted ? 'Highlighted' : ''}" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="${isHighlighted ? '#8B5CF6' : '#22C55E'}" />
-              <stop offset="100%" stop-color="${isHighlighted ? '#7C3AED' : '#16A34A'}" />
+            <linearGradient id="pinGradient${isHighlighted ? 'H' : 'N'}" x1="${cx}" y1="0" x2="${cx}" y2="${cy * 2}" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="${isHighlighted ? '#FF6FB5' : '#A16AE8'}" />
+              <stop offset="100%" stop-color="${isHighlighted ? '#C026D3' : '#7C3AED'}" />
             </linearGradient>
-            <filter id="nearbyShadow${isHighlighted ? 'Highlighted' : ''}" x="0" y="0" width="32" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-              <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="${isHighlighted ? 'rgba(139, 92, 246, 0.5)' : 'rgba(22, 163, 74, 0.35)'}" />
+            <filter id="pinShadow${isHighlighted ? 'H' : 'N'}" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="${isHighlighted ? 6 : 4}" stdDeviation="${isHighlighted ? 5 : 3}" flood-color="#000000" flood-opacity="0.4"/>
             </filter>
           </defs>
-          <g filter="url(#nearbyShadow${isHighlighted ? 'Highlighted' : ''})">
-            <path d="M16 42s12-11 12-20.75C28 9.389 22.627 4 16 4S4 9.389 4 21.25C4 31 16 42 16 42z" fill="url(#nearbyGradient${isHighlighted ? 'Highlighted' : ''})" />
-            <circle cx="16" cy="18" r="5" fill="${isHighlighted ? '#F5F3FF' : '#ECFDF5'}" />
+          <g filter="url(#pinShadow${isHighlighted ? 'H' : 'N'})">
+            ${isHighlighted ? `<circle cx="${cx}" cy="${cy}" r="${cx - 4}" fill="#FF6FB5" opacity="0.25"/>` : ''}
+            <!-- Pin body with white stroke for contrast -->
+            <path d="M${cx} ${height - 4}C${cx} ${height - 4} ${size - 4} ${cy + 10} ${size - 4} ${cy}C${size - 4} ${cy * 0.45} ${cx + (cx * 0.45)} 4 ${cx} 4C${cx - (cx * 0.45)} 4 4 ${cy * 0.45} 4 ${cy}C4 ${cy + 10} ${cx} ${height - 4} ${cx} ${height - 4}Z" 
+                  fill="url(#pinGradient${isHighlighted ? 'H' : 'N'})" 
+                  stroke="#FFFFFF" 
+                  stroke-width="${isHighlighted ? 3 : 2.5}"/>
+            <!-- Inner white circle -->
+            <circle cx="${cx}" cy="${cy}" r="${isHighlighted ? 11 : 9}" fill="#FFFFFF"/>
+            <!-- Inner colored dot -->
+            <circle cx="${cx}" cy="${cy}" r="${isHighlighted ? 7 : 5}" fill="${isHighlighted ? '#FF6FB5' : '#A16AE8'}"/>
+            ${isHighlighted ? `
+            <!-- Animated ring for highlighted pins -->
+            <circle cx="${cx}" cy="${cy}" r="${cx - 6}" fill="none" stroke="#FF6FB5" stroke-width="2" opacity="0.6">
+              <animate attributeName="r" values="${cx - 8};${cx - 4};${cx - 8}" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            ` : ''}
           </g>
         </svg>
       `;
+      };
 
       const createNearbyIcon = (isHighlighted = false) => L.icon({
         iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(createNearbyMarkerSvg(isHighlighted))}`,
-        iconSize: isHighlighted ? [36, 48] : [32, 44],
-        iconAnchor: isHighlighted ? [18, 46] : [16, 42],
-        popupAnchor: [0, isHighlighted ? -38 : -34],
+        iconSize: isHighlighted ? [48, 60] : [40, 52],
+        iconAnchor: isHighlighted ? [24, 56] : [20, 48],
+        popupAnchor: [0, isHighlighted ? -48 : -40],
+        className: isHighlighted ? 'marker-highlighted' : 'marker-normal'
       });
 
       // Save icons on ref for reuse in search
@@ -325,8 +424,18 @@ export default function LocationMapWeb({ region, nearby, style, onUserPress, hig
         return;
       }
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
+      // High contrast dark theme map tiles for better visibility
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map);
+      
+      // Add labels layer on top for better readability
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
+        subdomains: 'abcd',
+        maxZoom: 20,
+        pane: 'shadowPane'
       }).addTo(map);
 
       // Add region change listener
@@ -514,7 +623,7 @@ export default function LocationMapWeb({ region, nearby, style, onUserPress, hig
   };
 
   const handleSelectSuggestion = (item) => {
-    setQuery(item.display_name);
+    setQuery('');
     setShowSuggestions(false);
     if (!mapRef.current || !LRef.current) return;
     const lat = parseFloat(item.lat);
@@ -524,28 +633,39 @@ export default function LocationMapWeb({ region, nearby, style, onUserPress, hig
 
     map.setView([lat, lon], 13, { animate: true });
 
+    // Search result marker - modern pin design with distinct color
     const searchMarkerSvg = `
-      <svg width="32" height="44" viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="44" height="56" viewBox="0 0 44 56" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="searchGradient" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#8B5CF6" />
-            <stop offset="100%" stop-color="#7C3AED" />
+          <linearGradient id="searchGradient" x1="22" y1="0" x2="22" y2="44" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#10B981" />
+            <stop offset="100%" stop-color="#059669" />
           </linearGradient>
-          <filter id="searchShadow" x="0" y="0" width="32" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-            <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(124, 58, 237, 0.35)" />
+          <filter id="searchShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.5"/>
           </filter>
         </defs>
         <g filter="url(#searchShadow)">
-          <path d="M16 42s12-11 12-20.75C28 9.389 22.627 4 16 4S4 9.389 4 21.25C4 31 16 42 16 42z" fill="url(#searchGradient)" />
-          <circle cx="16" cy="18" r="5" fill="#F5F3FF" />
+          <!-- Outer glow ring -->
+          <circle cx="22" cy="22" r="16" fill="#10B981" opacity="0.3"/>
+          <!-- Pin body with white stroke -->
+          <path d="M22 52C22 52 38 36 38 22C38 11.5066 29.9411 3 22 3C14.0589 3 6 11.5066 6 22C6 36 22 52 22 52Z" 
+                fill="url(#searchGradient)" 
+                stroke="#FFFFFF" 
+                stroke-width="3"/>
+          <!-- Inner white circle -->
+          <circle cx="22" cy="22" r="10" fill="#FFFFFF"/>
+          <!-- Search icon -->
+          <circle cx="22" cy="21" r="5" fill="none" stroke="#10B981" stroke-width="2"/>
+          <line x1="25.5" y1="24.5" x2="28" y2="27" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
         </g>
       </svg>
     `;
     const searchIcon = L.icon({
       iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(searchMarkerSvg)}`,
-      iconSize: [32, 44],
-      iconAnchor: [16, 42],
-      popupAnchor: [0, -34],
+      iconSize: [44, 56],
+      iconAnchor: [22, 52],
+      popupAnchor: [0, -44],
     });
 
     if (searchMarkerRef.current) {
