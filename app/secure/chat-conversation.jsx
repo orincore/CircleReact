@@ -38,6 +38,7 @@ import ReactionPicker from "@/src/components/ReactionPicker";
 import VoiceCallModal from "@/components/VoiceCallModal";
 import { voiceCallService } from "@/src/services/VoiceCallService";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
+import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -587,6 +588,7 @@ export default function InstagramChatScreen() {
   const initialAvatar = typeof avatar === "string" && avatar.trim() ? avatar.trim() : null;
   const { token, user } = useAuth();
   const myUserId = user?.id ?? "me";
+  const responsive = useResponsiveDimensions();
 
   const [composer, setComposer] = useState("");
   const [messages, setMessages] = useState([]);
@@ -2492,6 +2494,8 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' && {
       minHeight: '100vh',
       width: '100%',
+      maxWidth: 800,
+      alignSelf: 'center',
     }),
   },
   safeArea: {
@@ -2545,9 +2549,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'web' ? 12 : 16,
+    paddingBottom: Platform.OS === 'web' ? 12 : 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },

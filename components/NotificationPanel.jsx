@@ -131,6 +131,27 @@ export default function NotificationPanel({ visible, onClose }) {
       }));
     });
 
+    // Listen for friend request notification removal (accept/decline)
+    socket.on('notification:friend_request_removed', ({ otherUserId }) => {
+      console.log('🗑️ Friend request notification removed for user:', otherUserId);
+      setNotifications(prev => prev.filter(notification => {
+        // Remove friend request notifications from this user
+        return !(
+          notification.type === 'friend_request' && 
+          notification.sender?.id === otherUserId
+        );
+      }));
+      // Update unread count
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    });
+
+    // Listen for single notification deletion
+    socket.on('notification:deleted', ({ notificationId }) => {
+      console.log('🗑️ Notification deleted:', notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    });
+
     // Keep existing friend request listeners for compatibility
     socket.on('friend:request:received', ({ request, sender }) => {
       console.log('🤝 Friend request received:', { request, sender });
@@ -191,6 +212,8 @@ export default function NotificationPanel({ visible, onClose }) {
     const socket = getSocket(token);
     socket.off('notification:new');
     socket.off('notification:removed');
+    socket.off('notification:friend_request_removed');
+    socket.off('notification:deleted');
     socket.off('friend:request:received');
     socket.off('friend:request:accept:confirmed');
     socket.off('friend:request:decline:confirmed');

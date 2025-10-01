@@ -1,17 +1,19 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, RefreshControl, Image } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, RefreshControl, Image, Platform } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { chatApi } from "@/src/api/chat";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSocket } from "@/src/api/socket";
 import socketService from "@/src/services/socketService";
 import FriendsListModal from "@/components/FriendsListModal";
+import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 
 export default function ChatListScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
+  const responsive = useResponsiveDimensions();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -268,18 +270,22 @@ export default function ChatListScreen() {
       <View style={styles.blurCircleLarge} />
       <View style={styles.blurCircleSmall} />
 
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingHorizontal: responsive.horizontalPadding }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Messages</Text>
+          <Text style={[styles.title, { fontSize: responsive.fontSize.xxlarge }]}>Messages</Text>
           <TouchableOpacity 
-            style={styles.newMessageButton}
+            style={[styles.newMessageButton, { 
+              width: responsive.buttonHeight, 
+              height: responsive.buttonHeight,
+              borderRadius: responsive.buttonHeight / 2 
+            }]}
             onPress={() => setShowFriendsModal(true)}
           >
-            <Ionicons name="people" size={22} color="#FFE8FF" />
+            <Ionicons name="people" size={responsive.isSmallScreen ? 20 : 22} color="#FFE8FF" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchBar}>
+        <View style={[styles.searchBar, { paddingHorizontal: responsive.spacing.lg }]}>
           <Ionicons name="search" size={18} color="rgba(31, 17, 71, 0.45)" />
           <TextInput
             placeholder="Search conversations"
@@ -323,18 +329,32 @@ export default function ChatListScreen() {
               
               return (
                 <TouchableOpacity
-                  style={styles.chatCard}
+                  style={[styles.chatCard, { 
+                    paddingHorizontal: responsive.spacing.lg,
+                    paddingVertical: responsive.spacing.md,
+                    gap: responsive.spacing.md 
+                  }]}
                   onPress={() => handleChatPress(chatId, item.otherName, item.otherProfilePhoto)}
                 >
                   <View style={styles.avatar}>
                     {item.otherProfilePhoto && item.otherProfilePhoto.trim() ? (
                       <Image 
                         source={{ uri: item.otherProfilePhoto }} 
-                        style={styles.avatarImage}
+                        style={[styles.avatarImage, { 
+                          width: responsive.avatarSize, 
+                          height: responsive.avatarSize,
+                          borderRadius: responsive.avatarSize / 2 
+                        }]}
                       />
                     ) : (
-                      <View style={styles.fallbackAvatar}>
-                        <Text style={styles.fallbackAvatarText}>
+                      <View style={[styles.fallbackAvatar, { 
+                        width: responsive.avatarSize, 
+                        height: responsive.avatarSize,
+                        borderRadius: responsive.avatarSize / 2 
+                      }]}>
+                        <Text style={[styles.fallbackAvatarText, { 
+                          fontSize: responsive.isSmallScreen ? 18 : 20 
+                        }]}>
                           {(item.otherName && item.otherName.charAt(0).toUpperCase()) || '?'}
                         </Text>
                       </View>
@@ -347,12 +367,17 @@ export default function ChatListScreen() {
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
-                      <Text style={styles.chatName}>{item.otherName || 'Unknown'}</Text>
-                      <Text style={styles.chatTime}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
+                      <Text style={[styles.chatName, { fontSize: responsive.fontSize.large }]}>
+                        {item.otherName || 'Unknown'}
+                      </Text>
+                      <Text style={[styles.chatTime, { fontSize: responsive.fontSize.small }]}>
+                        {formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}
+                      </Text>
                     </View>
                     <View style={styles.messageRow}>
                       <Text style={[
                         styles.chatMessage,
+                        { fontSize: responsive.fontSize.medium },
                         isTyping && styles.typingText
                       ]} numberOfLines={1}>
                         {isTyping 
@@ -412,25 +437,25 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 42,
+    paddingTop: Platform.OS === 'web' ? 32 : 42,
     paddingBottom: 24,
+    ...(Platform.OS === 'web' && {
+      maxWidth: 600,
+      alignSelf: 'center',
+      width: '100%',
+    }),
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 28,
     fontWeight: "800",
     color: "#FFFFFF",
   },
   newMessageButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255, 255, 255, 0.12)",
@@ -443,7 +468,6 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: "rgba(255, 255, 255, 0.88)",
     borderRadius: 18,
-    paddingHorizontal: 18,
     paddingVertical: 14,
   },
   searchInput: {
@@ -462,28 +486,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 16,
   },
   avatar: {
     position: 'relative',
   },
   avatarImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    // Responsive sizes applied inline
   },
   fallbackAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
     backgroundColor: "rgba(255, 214, 242, 0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
   fallbackAvatarText: {
-    fontSize: 20,
     fontWeight: '700',
     color: '#7C2B86',
   },
@@ -516,12 +531,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   chatName: {
-    fontSize: 16,
     fontWeight: "700",
     color: "#1F1147",
   },
   chatTime: {
-    fontSize: 12,
     color: "rgba(31, 17, 71, 0.55)",
   },
   messageRow: {
@@ -530,7 +543,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chatMessage: {
-    fontSize: 14,
     color: "rgba(31, 17, 71, 0.65)",
     flex: 1,
   },
