@@ -125,10 +125,24 @@ class VoiceCallService {
     this.socket.on('voice:incoming-call', async (data) => {
       console.log('📞 Incoming call received:', data);
       
-      // Prevent duplicate call setup for same call ID
-      if (this.currentCallId === data.callId) {
+      // Only prevent duplicate if we're already in an active call with the same ID
+      // Allow new calls even from the same user after previous call ended
+      if (this.currentCallId === data.callId && this.callState !== 'idle' && this.callState !== 'ended') {
         console.log('⚠️ Duplicate incoming call event for same call ID, ignoring');
         return;
+      }
+      
+      // If there's an active call with a different ID, ignore new incoming calls
+      if (this.currentCallId && this.currentCallId !== data.callId && 
+          this.callState !== 'idle' && this.callState !== 'ended') {
+        console.log('⚠️ Already in another call, ignoring new incoming call');
+        return;
+      }
+      
+      // Clean up any previous call state before accepting new call
+      if (this.callState !== 'idle') {
+        console.log('🧹 Cleaning up previous call state before accepting new call');
+        this.cleanup();
       }
       
       this.currentCallId = data.callId;
@@ -293,6 +307,7 @@ class VoiceCallService {
       });
     }
     
+    this.setCallState('ended');
     this.cleanup();
   }
 
@@ -800,7 +815,12 @@ class VoiceCallService {
 
   // Cleanup
   cleanup() {
-    console.log('🧹 Cleaning up call resources...');
+    console.log('🧹 Cleaning up call resources...', {
+      currentCallId: this.currentCallId,
+      callState: this.callState,
+      hasLocalStream: !!this.localStream,
+      hasPeerConnection: !!this.peerConnection
+    });
     
     this.stopCallTimer();
     this.stopNotificationLoop();
@@ -845,6 +865,7 @@ class VoiceCallService {
     }
     
     // Reset state
+    const previousCallId = this.currentCallId;
     this.currentCallId = null;
     this.isInitiator = false;
     this.callStartTime = null;
@@ -856,7 +877,11 @@ class VoiceCallService {
     
     this.setCallState('idle');
     
-    console.log('✅ Cleanup complete - all resources released');
+    console.log('✅ Cleanup complete - all resources released', {
+      previousCallId,
+      newCallState: this.callState,
+      currentCallId: this.currentCallId
+    });
   }
 
   // Get current state

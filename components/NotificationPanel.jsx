@@ -43,8 +43,8 @@ export default function NotificationPanel({ visible, onClose }) {
         return notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted');
       case 'Messages':
         return notifications.filter(n => n.type === 'message' || n.type === 'message_request');
-      case 'Likes':
-        return notifications.filter(n => n.type === 'like' || n.type === 'profile_visit');
+      case 'Profile Visits':
+        return notifications.filter(n => n.type === 'profile_visit');
       default:
         return notifications;
     }
@@ -55,7 +55,7 @@ export default function NotificationPanel({ visible, onClose }) {
       'All': notifications.length,
       'Friend Requests': notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted').length,
       'Messages': notifications.filter(n => n.type === 'message' || n.type === 'message_request').length,
-      'Likes': notifications.filter(n => n.type === 'like' || n.type === 'profile_visit').length,
+      'Profile Visits': notifications.filter(n => n.type === 'profile_visit').length,
     };
   };
 
@@ -567,7 +567,7 @@ export default function NotificationPanel({ visible, onClose }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScrollContent}
           >
-            {['All', 'Friend Requests', 'Messages', 'Likes'].map((tab) => {
+            {['All', 'Friend Requests', 'Messages', 'Profile Visits'].map((tab) => {
               const count = getTabCounts()[tab];
               const isSelected = selectedTab === tab;
               
