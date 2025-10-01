@@ -2205,9 +2205,10 @@ export default function InstagramChatScreen() {
         )}
 
         <KeyboardAvoidingView
-          behavior={Platform.select({ ios: 'padding', android: 'height' })}
+          behavior={Platform.OS === 'web' ? undefined : Platform.select({ ios: 'padding', android: 'height' })}
           style={styles.flex}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          enabled={Platform.OS !== 'web'}
         >
           {/* Blocked Message */}
           {chatDisabled && (blockStatus.isBlocked || blockStatus.isBlockedBy) && (
@@ -2341,7 +2342,11 @@ export default function InstagramChatScreen() {
             style={[
               styles.composerContainer,
               Platform.OS === 'web' ? styles.glassWeb : null,
-              { paddingBottom: isKeyboardVisible ? 12 : Math.max((insets?.bottom || 0), 8) }
+              { 
+                paddingBottom: Platform.OS === 'web' 
+                  ? 24 // Fixed padding for mobile browsers
+                  : (isKeyboardVisible ? 12 : Math.max((insets?.bottom || 0), 8))
+              }
             ]}
           >
             {Platform.OS !== 'web' && (
@@ -2842,7 +2847,10 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
     paddingTop: 12,
-    paddingBottom: 12,
+    paddingBottom: Platform.OS === 'web' ? 20 : 12, // Extra padding for mobile browsers
+    ...(Platform.OS === 'web' && {
+      marginBottom: 0, // Ensure no extra margin on web
+    }),
   },
   composerBlur: {
     position: 'absolute',

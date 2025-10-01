@@ -35,6 +35,7 @@ export default function UserProfileModal({
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [friendStatus, setFriendStatus] = useState('none');
+  const [friendRequestId, setFriendRequestId] = useState(null); // Store request ID
   const [canMessage, setCanMessage] = useState(false);
   const [messagePermission, setMessagePermission] = useState(null);
   const [blockStatus, setBlockStatus] = useState({ isBlocked: false, isBlockedBy: false });
@@ -309,10 +310,12 @@ export default function UserProfileModal({
         if (data.error) {
           console.error('Friend status error:', data.error);
           setFriendStatus('none');
+          setFriendRequestId(null);
           setCanMessage(false);
         } else {
           console.log('Setting friendStatus to:', data.status);
           setFriendStatus(data.status);
+          setFriendRequestId(data.requestId || null); // Store request ID
           
           // Set message permissions based on friend status
           if (data.status === 'friends') {
@@ -487,6 +490,99 @@ export default function UserProfileModal({
     }
   };
 
+  const handleAcceptFriendRequest = async () => {
+    if (!token || !friendRequestId) {
+      console.error('Missing token or friendRequestId for accept request');
+      return;
+    }
+
+    console.log('Accepting friend request:', friendRequestId);
+
+    try {
+      const socket = getSocket(token);
+      
+      // Emit accept event
+      socket.emit('friend:request:accept', { requestId: friendRequestId });
+      
+      // Set up listeners for response
+      const handleAccepted = (data) => {
+        socket.off('friend:request:accepted', handleAccepted);
+        socket.off('friend:request:error', handleError);
+        console.log('Friend request accepted:', data);
+        setFriendStatus('friends');
+        setCanMessage(true);
+        setFriendRequestId(null);
+        Alert.alert('Success', `You are now friends with ${userName}!`);
+      };
+
+      const handleError = (error) => {
+        socket.off('friend:request:accepted', handleAccepted);
+        socket.off('friend:request:error', handleError);
+        console.error('Failed to accept friend request:', error);
+        Alert.alert('Error', error.error || 'Failed to accept friend request. Please try again.');
+      };
+
+      socket.on('friend:request:accepted', handleAccepted);
+      socket.on('friend:request:error', handleError);
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        socket.off('friend:request:accepted', handleAccepted);
+        socket.off('friend:request:error', handleError);
+      }, 10000);
+
+    } catch (error) {
+      console.error('Failed to accept friend request:', error);
+      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
+    }
+  };
+
+  const handleDeclineFriendRequest = async () => {
+    if (!token || !friendRequestId) {
+      console.error('Missing token or friendRequestId for decline request');
+      return;
+    }
+
+    console.log('Declining friend request:', friendRequestId);
+
+    try {
+      const socket = getSocket(token);
+      
+      // Emit decline event
+      socket.emit('friend:request:decline', { requestId: friendRequestId });
+      
+      // Set up listeners for response
+      const handleDeclined = (data) => {
+        socket.off('friend:request:declined', handleDeclined);
+        socket.off('friend:request:error', handleError);
+        console.log('Friend request declined:', data);
+        setFriendStatus('none');
+        setFriendRequestId(null);
+        Alert.alert('Request Declined', `You declined the friend request from ${userName}.`);
+      };
+
+      const handleError = (error) => {
+        socket.off('friend:request:declined', handleDeclined);
+        socket.off('friend:request:error', handleError);
+        console.error('Failed to decline friend request:', error);
+        Alert.alert('Error', error.error || 'Failed to decline friend request. Please try again.');
+      };
+
+      socket.on('friend:request:declined', handleDeclined);
+      socket.on('friend:request:error', handleError);
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        socket.off('friend:request:declined', handleDeclined);
+        socket.off('friend:request:error', handleError);
+      }, 10000);
+
+    } catch (error) {
+      console.error('Failed to decline friend request:', error);
+      Alert.alert('Error', 'Failed to decline friend request. Please try again.');
+    }
+  };
+
   const handleCancelMessageRequest = async () => {
     if (!token || !userId) return;
     
@@ -581,12 +677,13 @@ export default function UserProfileModal({
   };
 
   const getAddFriendButtonText = () => {
-    if (userId === user?.id) return 'Settings';
     if (blockStatus.isBlocked) return 'Blocked';
     if (blockStatus.isBlockedBy) return 'Blocked You';
     if (friendStatus === 'friends') return 'Friends ✓';
-    if (friendStatus === 'pending') return 'Cancel Request';
+    if (friendStatus === 'pending_sent') return 'Cancel Request';
+    if (friendStatus === 'pending_received') return 'Accept Request';
     if (friendStatus === 'cancelling') return 'Cancelling...';
+    if (userId === user?.id) return 'Settings';
     return 'Add Friend';
   };
 
@@ -766,43 +863,71 @@ export default function UserProfileModal({
                   
                   {userId !== user?.id && !blockStatus.isBlockedBy && (
                     <>
-                      {/* Friend/Add Friend Button */}
+                      {/* Friend/Add Friend Button or Accept/Decline Buttons */}
                       {!blockStatus.isBlocked && (
-                        <TouchableOpacity 
-                          style={[
-                            styles.actionButtonSecondary,
-                            friendStatus === 'friends' && styles.actionButtonFriends,
-                            friendStatus === 'pending' && styles.actionButtonCancel
-                          ]} 
-                          onPress={
-                            friendStatus === 'friends' 
-                              ? () => setShowUnfriendConfirm(true)
-                              : friendStatus === 'pending'
-                                ? handleCancelFriendRequest
-                                : handleSendFriendRequest
-                          }
-                        >
-                          <Ionicons 
-                            name={
-                              friendStatus === 'friends' ? "checkmark-circle" : 
-                              friendStatus === 'pending' ? "close-outline" : 
-                              "person-add-outline"
-                            } 
-                            size={20} 
-                            color={
-                              friendStatus === 'friends' ? "#00AA55" : 
-                              friendStatus === 'pending' ? "#FF4444" : 
-                              "#7C2B86"
-                            } 
-                          />
-                          <Text style={[
-                            styles.actionButtonSecondaryText,
-                            friendStatus === 'friends' && styles.actionButtonFriendsText,
-                            friendStatus === 'pending' && styles.actionButtonCancelText
-                          ]}>
-                            {getAddFriendButtonText()}
-                          </Text>
-                        </TouchableOpacity>
+                        <>
+                          {friendStatus === 'pending_received' ? (
+                            // Show Accept and Decline buttons for received requests
+                            <View style={styles.requestButtonsContainer}>
+                              <TouchableOpacity 
+                                style={[styles.actionButtonSecondary, styles.acceptButton]} 
+                                onPress={handleAcceptFriendRequest}
+                              >
+                                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                                <Text style={[styles.actionButtonSecondaryText, { color: '#FFFFFF' }]}>
+                                  Accept Request
+                                </Text>
+                              </TouchableOpacity>
+                              
+                              <TouchableOpacity 
+                                style={[styles.actionButtonSecondary, styles.declineButton]} 
+                                onPress={handleDeclineFriendRequest}
+                              >
+                                <Ionicons name="close" size={20} color="#FF4444" />
+                                <Text style={[styles.actionButtonSecondaryText, { color: '#FF4444' }]}>
+                                  Decline
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            // Show single button for other statuses
+                            <TouchableOpacity 
+                              style={[
+                                styles.actionButtonSecondary,
+                                friendStatus === 'friends' && styles.actionButtonFriends,
+                                friendStatus === 'pending_sent' && styles.actionButtonCancel
+                              ]} 
+                              onPress={
+                                friendStatus === 'friends' 
+                                  ? () => setShowUnfriendConfirm(true)
+                                  : friendStatus === 'pending_sent'
+                                    ? handleCancelFriendRequest
+                                    : handleSendFriendRequest
+                              }
+                            >
+                              <Ionicons 
+                                name={
+                                  friendStatus === 'friends' ? "checkmark-circle" : 
+                                  friendStatus === 'pending_sent' ? "close-outline" : 
+                                  "person-add-outline"
+                                } 
+                                size={20} 
+                                color={
+                                  friendStatus === 'friends' ? "#00AA55" : 
+                                  friendStatus === 'pending_sent' ? "#FF4444" : 
+                                  "#7C2B86"
+                                } 
+                              />
+                              <Text style={[
+                                styles.actionButtonSecondaryText,
+                                friendStatus === 'friends' && styles.actionButtonFriendsText,
+                                friendStatus === 'pending_sent' && styles.actionButtonCancelText
+                              ]}>
+                                {getAddFriendButtonText()}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -1132,6 +1257,21 @@ const styles = StyleSheet.create({
     color: '#00AA55',
   },
   actionButtonCancel: {
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  requestButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  acceptButton: {
+    flex: 1,
+    backgroundColor: '#22C55E',
+    borderColor: '#16A34A',
+  },
+  declineButton: {
+    flex: 1,
     backgroundColor: 'rgba(255, 68, 68, 0.1)',
     borderColor: 'rgba(255, 68, 68, 0.3)',
   },
