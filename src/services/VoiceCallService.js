@@ -104,11 +104,6 @@ class VoiceCallService {
         return false;
       }
 
-      console.log('✅ Socket initialized for voice calls:', {
-        connected: this.socket.connected,
-        id: this.socket.id
-      });
-
       this.setupSocketListeners();
       return true;
     } catch (error) {

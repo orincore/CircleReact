@@ -171,10 +171,11 @@ export default function SignupStepOne() {
       !!gender &&
       !!age && ageNum >= 13 && ageNum <= 120 &&
       username.trim().length >= 3 &&
-      password.length >= 6
+      password.length >= 6 &&
+      !!profileImage // Profile picture is now mandatory
     );
     return baseOk && (usernameAvail !== false);
-  }, [firstName, lastName, gender, age, username, password, usernameAvail]);
+  }, [firstName, lastName, gender, age, username, password, usernameAvail, profileImage]);
 
   const onNext = () => {
     if (!canContinue) return;

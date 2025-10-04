@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSocket } from '../src/hooks/useSocket';
@@ -91,10 +92,7 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
         Math.abs(new Date(existing.timestamp) - new Date()) < 5000 // Within 5 seconds
       );
       
-      if (isDuplicate) {
-        console.log('🚫 Duplicate activity prevented:', activity.type);
-        return prev;
-      }
+      if (isDuplicate) return prev;
 
       const updated = [newActivity, ...prev];
       const limitedUpdated = updated.slice(0, maxItems); // Keep only latest items
@@ -146,7 +144,6 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
     if (!socket) return;
 
     const handleActivity = (activityData) => {
-      console.log('📢 Live activity received:', activityData);
       addActivity(activityData);
     };
 
@@ -181,7 +178,6 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
     if (!socket) return;
 
     const handleInitialActivities = (data) => {
-      console.log('📋 Initial activities loaded:', data.activities?.length);
       if (data.activities && Array.isArray(data.activities)) {
         const processedActivities = data.activities.map(activity => ({
           ...activity,
@@ -193,7 +189,6 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
         setActivities(processedActivities);
         setCurrentPage(0); // Reset to first page
         updateDisplayedActivities(processedActivities, 0);
-        console.log('✅ Activities set:', processedActivities.length);
       }
     };
 
@@ -220,6 +215,14 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
+  // Get avatar URL from activity data
+  const getAvatarUrl = (activity) => {
+    const { data } = activity;
+    // Try to get avatar from different possible fields
+    return data.user1_avatar || data.user2_avatar || data.visitor_avatar || 
+           data.sender_avatar || data.user_avatar || data.profile_avatar || null;
+  };
+
   // Render activity item
   const renderActivity = (activity, index) => {
     const config = activityConfig[activity.type] || {
@@ -227,6 +230,8 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
       color: '#999',
       format: () => 'Unknown activity',
     };
+
+    const avatarUrl = getAvatarUrl(activity);
 
     return (
       <View
@@ -236,9 +241,16 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
           activity.isNew && styles.newActivityItem, // Highlight new activities
         ]}
       >
-        <View style={[styles.activityIcon, { backgroundColor: config.color }]}>
-          <Ionicons name={config.icon} size={16} color="white" />
-        </View>
+        {avatarUrl ? (
+          <Image 
+            source={{ uri: avatarUrl }} 
+            style={styles.activityAvatar}
+          />
+        ) : (
+          <View style={[styles.activityIcon, { backgroundColor: config.color }]}>
+            <Ionicons name={config.icon} size={16} color="white" />
+          </View>
+        )}
         
         <View style={styles.activityContent}>
           <Text style={styles.activityText} numberOfLines={2}>
@@ -418,6 +430,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  activityAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#7C2B86',
   },
   activityContent: {
     flex: 1,

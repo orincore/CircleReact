@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { getUserPreferences, saveUserPreferences, syncPreferencesWithBackend, loadPreferencesFromUser, LOCATION_PREFERENCES, AGE_PREFERENCES } from "@/utils/preferences";
 import { useAuth } from "@/contexts/AuthContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
-import SocialAccountsManager from "@/src/components/SocialAccountsManager";
+import CustomDropdown from "@/components/CustomDropdown";
 
 const LOCATION_OPTIONS = [
   { id: 'local', label: 'Local Only', description: 'Within 10km of your location' },
@@ -60,8 +60,7 @@ export default function SettingsScreen() {
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
   const [lastLocationUpdate, setLastLocationUpdate] = useState(null);
   
-  // Social accounts
-  const [showSocialAccountsModal, setShowSocialAccountsModal] = useState(false);
+  // Removed social accounts modal state - moved to edit profile
   
   const [loading, setLoading] = useState(true);
 
@@ -242,8 +241,8 @@ export default function SettingsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-        locations={[0, 0.55, 1]}
+        colors={["#1F1147", "#2D1B69", "#1F1147"]}
+        locations={[0, 0.5, 1]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -259,8 +258,8 @@ export default function SettingsScreen() {
 
   return (
     <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-      locations={[0, 0.55, 1]}
+      colors={["#1F1147", "#2D1B69", "#1F1147"]}
+      locations={[0, 0.5, 1]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -359,39 +358,13 @@ export default function SettingsScreen() {
               Choose how far you're willing to match with other users
             </Text>
             
-            {LOCATION_OPTIONS.map((pref) => (
-              <TouchableOpacity
-                key={pref.id}
-                style={[
-                  styles.preferenceOption,
-                  locationPreference === pref.id && styles.preferenceOptionSelected
-                ]}
-                onPress={() => setLocationPreference(pref.id)}
-              >
-                <View style={styles.preferenceContent}>
-                  <Text style={[
-                    styles.preferenceLabel,
-                    locationPreference === pref.id && styles.preferenceLabelSelected
-                  ]}>
-                    {pref.label}
-                  </Text>
-                  <Text style={[
-                    styles.preferenceDescription,
-                    locationPreference === pref.id && styles.preferenceDescriptionSelected
-                  ]}>
-                    {pref.description}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.radioButton,
-                  locationPreference === pref.id && styles.radioButtonSelected
-                ]}>
-                  {locationPreference === pref.id && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
+            <CustomDropdown
+              options={LOCATION_OPTIONS}
+              selectedValue={locationPreference}
+              onValueChange={setLocationPreference}
+              placeholder="Select location preference"
+              style={styles.dropdown}
+            />
           </View>
 
           {/* Age Preferences */}
@@ -404,33 +377,13 @@ export default function SettingsScreen() {
               Set your preferred age range for matches
             </Text>
             
-            {AGE_OPTIONS.map((pref) => (
-              <TouchableOpacity
-                key={pref.id}
-                style={[
-                  styles.preferenceOption,
-                  agePreference === pref.id && styles.preferenceOptionSelected
-                ]}
-                onPress={() => setAgePreference(pref.id)}
-              >
-                <View style={styles.preferenceContent}>
-                  <Text style={[
-                    styles.preferenceLabel,
-                    agePreference === pref.id && styles.preferenceLabelSelected
-                  ]}>
-                    {pref.label}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.radioButton,
-                  agePreference === pref.id && styles.radioButtonSelected
-                ]}>
-                  {agePreference === pref.id && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
+            <CustomDropdown
+              options={AGE_OPTIONS}
+              selectedValue={agePreference}
+              onValueChange={setAgePreference}
+              placeholder="Select age preference"
+              style={styles.dropdown}
+            />
           </View>
 
           {/* Interests Section */}
@@ -562,30 +515,7 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Social Accounts */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="link" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Social Accounts</Text>
-            </View>
-            <Text style={styles.sectionDescription}>
-              Link your Spotify and Instagram accounts to show them on your profile and help others discover your interests
-            </Text>
-            
-            <TouchableOpacity 
-              style={styles.socialAccountsButton} 
-              onPress={() => setShowSocialAccountsModal(true)}
-            >
-              <View style={styles.socialAccountsButtonContent}>
-                <View style={styles.socialAccountsIcons}>
-                  <Ionicons name="musical-notes" size={18} color="#1DB954" />
-                  <Ionicons name="camera" size={18} color="#E4405F" />
-                </View>
-                <Text style={styles.socialAccountsButtonText}>Manage Social Accounts</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#FFD6F2" />
-            </TouchableOpacity>
-          </View>
+          {/* Social Accounts section removed - moved to edit profile */}
 
           {/* Location Tracking */}
           <View style={styles.sectionCard}>
@@ -670,15 +600,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
-
-      {/* Social Accounts Modal */}
-      <Modal
-        visible={showSocialAccountsModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SocialAccountsManager onClose={() => setShowSocialAccountsModal(false)} />
-      </Modal>
     </LinearGradient>
   );
 }
@@ -811,56 +732,8 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.72)",
     lineHeight: 20,
   },
-  preferenceOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  preferenceOptionSelected: {
-    borderColor: '#FFD6F2',
-    backgroundColor: 'rgba(255, 214, 242, 0.15)',
-  },
-  preferenceContent: {
-    flex: 1,
-  },
-  preferenceLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFE8FF',
-  },
-  preferenceLabelSelected: {
-    color: '#FFD6F2',
-  },
-  preferenceDescription: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 2,
-  },
-  preferenceDescriptionSelected: {
-    color: 'rgba(255, 214, 242, 0.8)',
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioButtonSelected: {
-    borderColor: '#FFD6F2',
-  },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FFD6F2',
+  dropdown: {
+    marginTop: 8,
   },
   switchOption: {
     flexDirection: 'row',
@@ -1029,30 +902,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#7C2B86',
-  },
-  socialAccountsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 214, 242, 0.3)',
-    marginTop: 8,
-  },
-  socialAccountsButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  socialAccountsIcons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  socialAccountsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFE8FF',
   },
 });

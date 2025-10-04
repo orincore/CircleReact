@@ -16,7 +16,6 @@ export default function ConnectionStatus() {
     // Listen to connection state changes
     const handleConnectionChange = (state) => {
       setConnectionState(state);
-      console.log('🔌 Connection state changed:', state);
     };
 
     socketService.addConnectionListener(handleConnectionChange);

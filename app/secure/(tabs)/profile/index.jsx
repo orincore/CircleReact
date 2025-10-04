@@ -600,6 +600,19 @@ function renderAboutTab(user) {
                 <Text style={styles.infoValue}>{user.phoneNumber}</Text>
               </View>
             )}
+            
+            {user?.instagramUsername && (
+              <View style={styles.infoItem}>
+                <LinearGradient
+                  colors={['#E4405F', '#F77737']}
+                  style={styles.infoIconLarge}
+                >
+                  <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.infoLabel}>Instagram</Text>
+                <Text style={styles.infoValue}>@{user.instagramUsername}</Text>
+              </View>
+            )}
           </View>
         </View>
         
@@ -718,6 +731,23 @@ function renderAboutTab(user) {
             <View style={styles.mobileInfoText}>
               <Text style={styles.mobileInfoLabel}>Phone Number</Text>
               <Text style={styles.mobileInfoValue}>{user.phoneNumber}</Text>
+            </View>
+          </LinearGradient>
+        </View>
+      )}
+      
+      {user?.instagramUsername && (
+        <View style={styles.mobileInfoCard}>
+          <LinearGradient
+            colors={['#E4405F', '#F77737']}
+            style={styles.mobileInfoGradient}
+          >
+            <View style={styles.mobileInfoIcon}>
+              <Ionicons name="logo-instagram" size={24} color="#FFFFFF" />
+            </View>
+            <View style={styles.mobileInfoText}>
+              <Text style={styles.mobileInfoLabel}>Instagram</Text>
+              <Text style={styles.mobileInfoValue}>@{user.instagramUsername}</Text>
             </View>
           </LinearGradient>
         </View>

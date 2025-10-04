@@ -26,26 +26,29 @@ export default function RootLayout() {
       // Set page title
       document.title = 'Circle - Find Your Circle';
 
-      // Set favicon
-      const favicon = document.querySelector('link[rel="icon"]');
-      if (favicon) {
-        favicon.href = '/favicon.png';
-      } else {
-        const link = document.createElement('link');
-        link.rel = 'icon';
-        link.type = 'image/png';
-        link.href = '/favicon.png';
-        document.head.appendChild(link);
-      }
+      // Remove existing favicons
+      const existingFavicons = document.querySelectorAll('link[rel*="icon"]');
+      existingFavicons.forEach(link => link.remove());
+
+      // Add favicon
+      const favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.type = 'image/png';
+      favicon.href = '/favicon.png?' + Date.now(); // Cache bust
+      document.head.appendChild(favicon);
+
+      // Add shortcut icon
+      const shortcutIcon = document.createElement('link');
+      shortcutIcon.rel = 'shortcut icon';
+      shortcutIcon.type = 'image/png';
+      shortcutIcon.href = '/favicon.png?' + Date.now();
+      document.head.appendChild(shortcutIcon);
 
       // Add apple touch icon
-      const appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]');
-      if (!appleTouchIcon) {
-        const link = document.createElement('link');
-        link.rel = 'apple-touch-icon';
-        link.href = '/icon.png';
-        document.head.appendChild(link);
-      }
+      const appleTouchIcon = document.createElement('link');
+      appleTouchIcon.rel = 'apple-touch-icon';
+      appleTouchIcon.href = '/icon.png?' + Date.now();
+      document.head.appendChild(appleTouchIcon);
 
       // Fix body height for mobile browsers
       document.body.style.height = '100vh';

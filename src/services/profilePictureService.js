@@ -61,12 +61,47 @@ export class ProfilePictureService {
       // Create FormData
       const formData = new FormData()
       
-      // For React Native, append file with proper structure
-      formData.append('photo', {
-        uri,
-        type,
-        name: filename,
-      })
+      // Platform-specific file handling
+      if (Platform.OS === 'web') {
+        // For web, convert URI to Blob
+        console.log('🌐 Web platform: Converting URI to Blob...')
+        
+        try {
+          // Fetch the image as blob
+          const response = await fetch(uri)
+          const blob = await response.blob()
+          
+          console.log('✅ Blob created:', {
+            size: blob.size,
+            type: blob.type,
+          })
+          
+          if (blob.size === 0) {
+            throw new Error('No file uploaded')
+          }
+          
+          // Create a File object from the blob
+          const file = new File([blob], filename, { type: blob.type || type })
+          formData.append('photo', file)
+          
+          console.log('✅ File appended to FormData:', {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          })
+        } catch (blobError) {
+          console.error('❌ Failed to create blob:', blobError)
+          throw new Error('Failed to process image file')
+        }
+      } else {
+        // For React Native, append file with proper structure
+        formData.append('photo', {
+          uri,
+          type,
+          name: filename,
+        })
+        console.log('📱 Mobile platform: File appended with URI')
+      }
 
       console.log('📤 Starting fetch upload...')
 

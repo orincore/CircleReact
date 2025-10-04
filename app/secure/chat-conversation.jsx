@@ -42,6 +42,24 @@ import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Hide scrollbar on web
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    *::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* Hide scrollbar for IE, Edge and Firefox */
+    * {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // Modern Empty Chat Component
 const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -203,13 +221,106 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
   );
 };
 
-// Simple MessageBubble component
-const MessageBubble = ({ message, isMine, conversationName, userAvatar }) => {
+// Enhanced MessageBubble component with interactions
+const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, onDelete, onReact }) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const isBrowser = Platform.OS === 'web';
+  
+  // Debug logging for 3-dot menu visibility
+  console.log('🔍 MessageBubble render:', { 
+    messageId: message.id, 
+    isBrowser, 
+    isMine, 
+    showMenu,
+    platform: Platform.OS 
+  });
+  
+  const handleLongPress = () => {
+    if (isMine && onEdit && onDelete) {
+      // Show edit/delete options for own messages
+      Alert.alert(
+        'Message Options',
+        'What would you like to do?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Edit', onPress: () => onEdit(message) },
+          { text: 'Delete', style: 'destructive', onPress: () => onDelete(message) },
+        ]
+      );
+    } else if (onReact) {
+      // Show reaction options for any message
+      onReact(message);
+    }
+  };
+
+  const handlePress = () => {
+    // For non-own messages on browser, show emoji picker for reactions
+    if (!isMine && isBrowser && onReact) {
+      onReact(message);
+    }
+  };
+
+  const handleMenuPress = (e) => {
+    console.log('🔘 Menu button pressed', { 
+      showMenu, 
+      isBrowser, 
+      messageId: message.id,
+      willShow: !showMenu 
+    });
+    if (isBrowser && e?.stopPropagation) {
+      e.stopPropagation();
+    }
+    setShowMenu(!showMenu);
+    console.log('🔘 Menu state after toggle:', !showMenu);
+  };
+
+  const handleMenuAction = (action) => {
+    console.log('Menu action triggered:', action, { onEdit: !!onEdit, onDelete: !!onDelete, onReact: !!onReact });
+    setShowMenu(false);
+    
+    // Add small delay to ensure menu closes first
+    setTimeout(() => {
+      switch (action) {
+        case 'edit':
+          if (onEdit) {
+            console.log('Calling onEdit with message:', message.id);
+            onEdit(message);
+          }
+          break;
+        case 'delete':
+          if (onDelete) {
+            console.log('Calling onDelete with message:', message.id);
+            onDelete(message);
+          }
+          break;
+        case 'react':
+          if (onReact) {
+            console.log('Calling onReact with message:', message.id);
+            onReact(message);
+          }
+          break;
+      }
+    }, 100);
+  };
+
+  // Close menu when clicking outside (for browser)
+  useEffect(() => {
+    if (isBrowser && showMenu) {
+      const handleClickOutside = () => setShowMenu(false);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showMenu, isBrowser]);
+
   return (
-    <View style={[
-      styles.messageRow,
-      isMine ? styles.messageRowMine : styles.messageRowTheirs
-    ]}>
+    <Pressable
+      onLongPress={handleLongPress}
+      onPress={handlePress}
+      style={[
+        styles.messageRow,
+        isMine ? styles.messageRowMine : styles.messageRowTheirs
+      ]}
+    >
       {!isMine && (
         <View style={styles.avatarContainer}>
           {userAvatar && userAvatar.trim() ? (
@@ -238,6 +349,16 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar }) => {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
+            {/* 3-dot menu for browser users - inside bubble - only for own messages */}
+            {isBrowser && isMine && (
+              <TouchableOpacity 
+                style={[styles.messageMenuButton, styles.messageMenuButtonMine]}
+                onPress={handleMenuPress}
+              >
+                <Ionicons name="ellipsis-vertical" size={16} color="#7C2B86" />
+              </TouchableOpacity>
+            )}
+            
             <Text style={styles.myMessageText}>
               {message.text}
             </Text>
@@ -276,6 +397,7 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar }) => {
           </LinearGradient>
         ) : (
           <>
+            
             <Text style={styles.theirMessageText}>
               {message.text}
             </Text>
@@ -293,7 +415,73 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar }) => {
           </>
         )}
       </View>
-    </View>
+      
+      {/* Dropdown menu positioned relative to message bubble - only for own messages */}
+      {isBrowser && showMenu && isMine && (
+        <>
+          {/* Invisible overlay to catch outside clicks */}
+          <TouchableOpacity 
+            style={styles.menuOverlay}
+            onPress={() => setShowMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={[
+            styles.messageDropdown,
+            isMine ? styles.messageDropdownMine : styles.messageDropdownTheirs
+          ]}>
+            {console.log('🎯 Dropdown menu rendering!', { 
+              messageId: message.id, 
+              isBrowser, 
+              showMenu, 
+              isMine,
+              hasOnReact: !!onReact,
+              hasOnEdit: !!onEdit,
+              hasOnDelete: !!onDelete,
+              willShowReact: !!onReact,
+              willShowEdit: isMine && !!onEdit,
+              willShowDelete: isMine && !!onDelete
+            })}
+            {isMine && onEdit && (
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleMenuAction('edit');
+                }}
+              >
+                <Ionicons name="create-outline" size={14} color="#7C2B86" />
+                <Text style={styles.menuItemText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            {isMine && onEdit && onDelete && <View style={styles.menuSeparator} />}
+            {isMine && onDelete && (
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleMenuAction('delete');
+                }}
+              >
+                <Ionicons name="trash-outline" size={14} color="#FF4444" />
+                <Text style={[styles.menuItemText, { color: '#FF4444' }]}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </>
+      )}
+      
+      {/* Show reactions if any - WhatsApp style */}
+      {message.reactions && message.reactions.length > 0 && (
+        <View style={styles.reactionsContainer}>
+          {message.reactions.map((reaction, index) => (
+            <View key={index} style={styles.reactionBubble}>
+              <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
+              <Text style={styles.reactionCount}>{reaction.count || 1}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </Pressable>
   );
 };
 
@@ -593,19 +781,35 @@ export default function InstagramChatScreen() {
   // Responsive detection
   const [screenData, setScreenData] = useState(() => {
     const { width } = Dimensions.get('window');
+    const isBrowser = Platform.OS === 'web';
+    const isMobileBrowser = isBrowser && (
+      typeof navigator !== 'undefined' && 
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    );
+    const isDesktop = width >= 768 && !isMobileBrowser;
+    
     return {
       width,
-      isDesktop: width >= 768,
-      isBrowser: Platform.OS === 'web'
+      isDesktop,
+      isBrowser,
+      isMobileBrowser
     };
   });
   
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const isBrowser = Platform.OS === 'web';
+      const isMobileBrowser = isBrowser && (
+        typeof navigator !== 'undefined' && 
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      );
+      const isDesktop = window.width >= 768 && !isMobileBrowser;
+      
       setScreenData({
         width: window.width,
-        isDesktop: window.width >= 768,
-        isBrowser: Platform.OS === 'web'
+        isDesktop,
+        isBrowser,
+        isMobileBrowser
       });
     });
     return () => subscription?.remove();
@@ -653,6 +857,10 @@ export default function InstagramChatScreen() {
   const typingTimer = useRef(null);
   const composerHeight = useRef(new Animated.Value(50)).current;
   const typingFade = useRef(new Animated.Value(0)).current;
+  const invisibleMarginRef = useRef(null);
+  const [composerMarginHeight, setComposerMarginHeight] = useState(screenData.isDesktop ? 60 : 40);
+  const [composerContainerHeight, setComposerContainerHeight] = useState(0);
+  const [desktopComposerHeight, setDesktopComposerHeight] = useState(160);
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -682,6 +890,13 @@ export default function InstagramChatScreen() {
   const [requestStatus, setRequestStatus] = useState(null); // { type: 'friend_request', direction: 'sent'/'received', requestId: 'id' }
   const [chatDisabled, setChatDisabled] = useState(false);
   const [userAvatar, setUserAvatar] = useState(initialAvatar);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiPickerMessage, setEmojiPickerMessage] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [originalMessageText, setOriginalMessageText] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [retryCount, setRetryCount] = useState(0);
+  const [retryTimer, setRetryTimer] = useState(null);
   
   // Debug avatar state changes
   useEffect(() => {
@@ -821,9 +1036,7 @@ export default function InstagramChatScreen() {
     if (typingUsers.length > 0 && !showScrollToBottom) {
       // Small delay to ensure typing indicator is rendered
       const timer = setTimeout(() => {
-        if (listRef.current) {
-          listRef.current.scrollToEnd({ animated: true });
-        }
+        scrollToBottom();
       }, 150);
       
       return () => clearTimeout(timer);
@@ -850,12 +1063,18 @@ export default function InstagramChatScreen() {
     };
   }, []);
 
-
+  // Auto-scroll when new messages arrive
   useEffect(() => {
-    const timer = setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-    return () => clearTimeout(timer);
+    if (messages.length > 0) {
+      const timer = setTimeout(() => {
+        try {
+          scrollToBottom();
+        } catch (error) {
+          console.log('Scroll error:', error);
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
   }, [messages.length]);
 
   // Animate typing indicator
@@ -867,6 +1086,68 @@ export default function InstagramChatScreen() {
       useNativeDriver: true,
     }).start();
   }, [typingUsers.length, typingFade]);
+
+  // Socket connection monitoring and auto-retry
+  useEffect(() => {
+    if (!token) return;
+
+    const { socketService: apiSocketService } = require('@/src/api/socket');
+    
+    // Connection state listener
+    const handleConnectionState = (state) => {
+      console.log('🔌 Socket connection state changed:', state);
+      setConnectionStatus(state);
+      
+      if (state === 'disconnected' || state === 'reconnecting') {
+        // Start auto-retry every 5 seconds
+        if (retryTimer) {
+          clearInterval(retryTimer);
+        }
+        
+        const timer = setInterval(() => {
+          setRetryCount(prev => prev + 1);
+          console.log('🔄 Attempting socket reconnection...');
+          
+          try {
+            const s = getSocket(token);
+            if (s && s.connected) {
+              console.log('✅ Socket reconnected successfully');
+              setConnectionStatus('connected');
+              setRetryCount(0);
+              clearInterval(timer);
+              setRetryTimer(null);
+            }
+          } catch (error) {
+            console.error('❌ Reconnection attempt failed:', error);
+          }
+        }, 5000);
+        
+        setRetryTimer(timer);
+      } else if (state === 'connected') {
+        // Clear retry timer when connected
+        if (retryTimer) {
+          clearInterval(retryTimer);
+          setRetryTimer(null);
+        }
+        setRetryCount(0);
+      }
+    };
+
+    // Add connection listener
+    apiSocketService.addConnectionListener(handleConnectionState);
+    
+    // Initial connection state
+    const initialState = apiSocketService.getConnectionState();
+    setConnectionStatus(initialState);
+
+    return () => {
+      apiSocketService.removeConnectionListener(handleConnectionState);
+      if (retryTimer) {
+        clearInterval(retryTimer);
+        setRetryTimer(null);
+      }
+    };
+  }, [token, retryTimer]);
 
   // Socket connection logic (same as original)
   useEffect(() => {
@@ -1084,8 +1365,8 @@ export default function InstagramChatScreen() {
           
           // Auto-scroll to bottom if user is already near bottom or if it's their own message
           setTimeout(() => {
-            if (listRef.current && (!showScrollToBottom || message.senderId === myUserId)) {
-              listRef.current.scrollToEnd({ animated: true });
+            if (!showScrollToBottom || message.senderId === myUserId) {
+              scrollToBottom();
             }
           }, 100);
           
@@ -1129,9 +1410,7 @@ export default function InstagramChatScreen() {
       // Auto-scroll to bottom when typing indicator appears (but only if user is near bottom)
       if (!wasTyping && isNowTyping && !showScrollToBottom) {
         setTimeout(() => {
-          if (listRef.current) {
-            listRef.current.scrollToEnd({ animated: true });
-          }
+          scrollToBottom();
         }, 200); // Small delay to let the typing indicator render
       }
     };
@@ -1720,26 +1999,35 @@ export default function InstagramChatScreen() {
   };
 
   const handleReactToMessage = (message, event) => {
-    setSelectedMessage(message);
+    console.log('🎭 React to message called:', { messageId: message.id, isBrowser: Platform.OS === 'web' });
     
-    // Position reaction bar above the message
-    let position;
-    if (event && event.nativeEvent) {
-      const { pageX, pageY } = event.nativeEvent;
-      position = { 
-        x: Math.max(20, Math.min(pageX - 150, screenWidth - 320)), 
-        y: pageY - 60 
-      };
+    if (Platform.OS === 'web') {
+      // Show emoji picker on browser
+      setEmojiPickerMessage(message);
+      setShowEmojiPicker(true);
     } else {
-      // Fallback position when called from menu (center of screen)
-      position = { 
-        x: Math.max(20, screenWidth / 2 - 150), 
-        y: 200 
-      };
+      // Mobile: Show reaction bar
+      setSelectedMessage(message);
+      
+      // Position reaction bar above the message
+      let position;
+      if (event && event.nativeEvent) {
+        const { pageX, pageY } = event.nativeEvent;
+        position = { 
+          x: Math.max(20, Math.min(pageX - 150, screenWidth - 320)), 
+          y: pageY - 60 
+        };
+      } else {
+        // Fallback position when called from menu (center of screen)
+        position = { 
+          x: Math.max(20, screenWidth / 2 - 150), 
+          y: 200 
+        };
+      }
+      
+      setReactionBarPosition(position);
+      setShowReactionBar(true);
     }
-    
-    setReactionBarPosition(position);
-    setShowReactionBar(true);
   };
 
   const handleQuickReaction = async (emoji) => {
@@ -1786,8 +2074,22 @@ export default function InstagramChatScreen() {
   };
 
   const startEditMessage = (message) => {
+    console.log('✏️ Starting edit for message:', message.id);
     setEditingMessage(message);
+    setEditingMessageId(message.id);
+    setOriginalMessageText(message.text);
     setComposer(message.text);
+    
+    // Focus the input on web
+    if (Platform.OS === 'web') {
+      setTimeout(() => {
+        const input = document.querySelector('textarea[placeholder*="Type"]');
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 100);
+    }
   };
 
   const handleTypingChange = (text) => {
@@ -1802,11 +2104,13 @@ export default function InstagramChatScreen() {
   };
 
   const handleInputContentSizeChange = (e) => {
-    const h = e?.nativeEvent?.contentSize?.height ?? 50;
-    const clamped = Math.min(120, Math.max(50, Math.ceil(h) + 14));
+    const height = e?.nativeEvent?.contentSize?.height ?? 40;
+    // Use different max heights for desktop vs mobile
+    const maxHeight = screenData.isDesktop ? 300 : 120;
+    const clamped = Math.min(maxHeight, Math.max(40, height));
     Animated.timing(composerHeight, {
       toValue: clamped,
-      duration: 120,
+      duration: 100,
       useNativeDriver: false,
     }).start();
   };
@@ -1851,13 +2155,22 @@ export default function InstagramChatScreen() {
   // Handle scroll events to show/hide scroll-to-bottom button
   const handleScroll = (event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const isNearBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
+    // Use the invisible margin height as the reference point for web browsers
+    const threshold = Platform.OS === 'web' 
+      ? Math.max(composerContainerHeight, composerMarginHeight) + (screenData.isDesktop ? 140 : 120) // Use measured composer height
+      : 100;
+    const isNearBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - threshold;
     setShowScrollToBottom(!isNearBottom);
   };
 
-  // Scroll to bottom function
+  // Store content size for scroll calculations
+  const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
+  const [layoutSize, setLayoutSize] = useState({ width: 0, height: 0 });
+
+  // Scroll to bottom function that respects invisible margin
   const scrollToBottom = () => {
     if (listRef.current) {
+      // Just use scrollToEnd - the paddingBottom will handle the spacing
       listRef.current.scrollToEnd({ animated: true });
       setShowScrollToBottom(false);
     }
@@ -2071,8 +2384,12 @@ export default function InstagramChatScreen() {
   // Desktop Web View
   if (screenData.isDesktop && screenData.isBrowser) {
     return (
-      <View style={styles.desktopContainer}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <LinearGradient
+        colors={["#1F1147", "#2D1B69", "#1F1147"]}
+        locations={[0, 0.5, 1]}
+        style={styles.desktopContainer}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="transparent" />
         
         {/* Desktop Header */}
         <View style={styles.desktopHeader}>
@@ -2081,7 +2398,7 @@ export default function InstagramChatScreen() {
               style={styles.desktopBackButton}
               onPress={() => router.replace('/secure/chat')}
             >
-              <Ionicons name="arrow-back" size={24} color="#1F1147" />
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -2116,35 +2433,43 @@ export default function InstagramChatScreen() {
                   style={styles.desktopActionButton}
                   onPress={handleStartVoiceCall}
                 >
-                  <Ionicons name="call" size={20} color="#7C2B86" />
+                  <Ionicons name="call" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               )}
               <TouchableOpacity 
                 style={styles.desktopActionButton}
                 onPress={() => setShowChatMenu(true)}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color="#7C2B86" />
+                <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
         </View>
         
         {/* Desktop Chat Area */}
-        <View style={styles.desktopChatArea}>
+        <View style={[styles.desktopChatArea, { paddingBottom: desktopComposerHeight + 24 }]}>
           {/* Messages */}
           <FlatList
             ref={listRef}
             data={displayedMessages}
             keyExtractor={(item) => item.id}
+            inverted={false}
             renderItem={({ item }) => (
               <MessageBubble
                 message={item}
                 isMine={item.senderId === myUserId}
                 conversationName={conversationName}
                 userAvatar={userAvatar}
+                onEdit={startEditMessage}
+                onDelete={handleDeleteMessage}
+                onReact={handleReactToMessage}
               />
             )}
-            contentContainerStyle={styles.desktopMessageList}
+            contentContainerStyle={[
+              styles.desktopMessageList,
+              { paddingTop: 10, paddingBottom: 24 }
+            ]}
+            showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
             ListEmptyComponent={
@@ -2181,7 +2506,13 @@ export default function InstagramChatScreen() {
               );
             }}
             ListFooterComponent={() => (
-              typingUsers.length > 0 && <TypingDots label={`${conversationName} is typing`} />
+              <View>
+                {typingUsers.length > 0 ? (
+                  <TypingDots label={`${conversationName} is typing`} />
+                ) : null}
+                {/* Spacer to keep last message fully visible above absolute composer */}
+                <View style={{ height: desktopComposerHeight + 24 }} />
+              </View>
             )}
           />
           
@@ -2199,18 +2530,22 @@ export default function InstagramChatScreen() {
           
           {/* Desktop Input */}
           {friendshipStatus === 'friends' && !blockStatus.isBlocked && !blockStatus.isBlockedBy && (
-            <View style={styles.desktopInputContainer}>
+            <View style={styles.desktopInputContainer} onLayout={(e) => setDesktopComposerHeight(e.nativeEvent.layout.height)}>
               <View style={styles.desktopInputWrapper}>
                 <TextInput
                   style={styles.desktopInput}
                   value={composer}
                   onChangeText={handleTypingChange}
                   placeholder={`Message ${conversationName}...`}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
                   multiline
+                  scrollEnabled={true}
                   maxLength={2000}
-                  onSubmitEditing={() => {
-                    if (composer.trim()) handleSend();
+                  onKeyPress={(e) => {
+                    if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+                      e.preventDefault();
+                      if (composer.trim()) handleSend();
+                    }
                   }}
                 />
                 <TouchableOpacity 
@@ -2222,13 +2557,13 @@ export default function InstagramChatScreen() {
                   disabled={!composer.trim()}
                 >
                   <LinearGradient
-                    colors={composer.trim() ? ["#7C2B86", "#9333EA"] : ["#E5E7EB", "#E5E7EB"]}
+                    colors={composer.trim() ? ["#7C2B86", "#FF6FB5"] : ["rgba(255, 255, 255, 0.2)", "rgba(255, 255, 255, 0.2)"]}
                     style={styles.desktopSendGradient}
                   >
                     <Ionicons 
                       name="send" 
                       size={18} 
-                      color={composer.trim() ? "#FFFFFF" : "#9CA3AF"} 
+                      color={composer.trim() ? "#FFFFFF" : "rgba(255, 255, 255, 0.5)"} 
                     />
                   </LinearGradient>
                 </TouchableOpacity>
@@ -2278,7 +2613,7 @@ export default function InstagramChatScreen() {
             visible={showDeleteConfirm}
             title="Delete Message"
             message="Are you sure you want to delete this message? This action cannot be undone."
-            onConfirm={handleDeleteMessage}
+            onConfirm={confirmDeleteMessage}
             onCancel={() => {
               setShowDeleteConfirm(false);
               setMessageToDelete(null);
@@ -2301,14 +2636,14 @@ export default function InstagramChatScreen() {
             destructive
           />
         )}
-      </View>
+      </LinearGradient>
     );
   }
   
   // Mobile View
   return (
     <LinearGradient
-      colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
+      colors={["#1F1147", "#2D1B69", "#1F1147"]}
       locations={[0, 0.55, 1]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
@@ -2466,7 +2801,7 @@ export default function InstagramChatScreen() {
         )}
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'web' ? undefined : Platform.select({ ios: 'padding', android: 'height' })}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           enabled={Platform.OS !== 'web'}
@@ -2504,6 +2839,7 @@ export default function InstagramChatScreen() {
             ref={listRef}
             data={deduplicateMessages(displayedMessages)}
             keyExtractor={(item, index) => `${item.id}-${index}`}
+            inverted={false}
             removeClippedSubviews={true}
             maxToRenderPerBatch={10}
             updateCellsBatchingPeriod={50}
@@ -2523,7 +2859,17 @@ export default function InstagramChatScreen() {
                 userAvatar={userAvatar}
               />
             )}
-            contentContainerStyle={styles.messagesContainer}
+            contentContainerStyle={[
+              styles.messagesContainer,
+              {
+                // Inverted FlatList means paddingTop becomes visual bottom padding
+                paddingTop: Platform.OS === 'web' ? 16 : 8,
+                paddingBottom: 16, // Visual top padding (inverted)
+              },
+              screenData.isDesktop && {
+                paddingHorizontal: 40,
+              }
+            ]}
             showsVerticalScrollIndicator={false}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
@@ -2531,6 +2877,11 @@ export default function InstagramChatScreen() {
             scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            onContentSizeChange={(width, height) => setContentSize({ width, height })}
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              setLayoutSize({ width, height });
+            }}
             ListHeaderComponent={() => {
               const hasMoreToLoad = messages.length > messageLimit;
               const hasMoreFromServer = hasMore;
@@ -2565,11 +2916,7 @@ export default function InstagramChatScreen() {
                 </View>
               );
             }}
-            ListFooterComponent={typingUsers.length ? (
-              <Animated.View style={{ opacity: typingFade }}>
-                <TypingDots label={`${String(conversationName).split(" ")[0]} is typing`} />
-              </Animated.View>
-            ) : null}
+            ListFooterComponent={null}
             ListEmptyComponent={() => (
               !chatDisabled && deduplicateMessages(displayedMessages).length === 0 ? (
                 <EmptyChatAnimation 
@@ -2580,10 +2927,25 @@ export default function InstagramChatScreen() {
             )}
           />
 
+          {/* Typing indicator directly above the composer (mobile) */}
+          {typingUsers.length ? (
+            <Animated.View style={[styles.typingIndicatorWrapper, { opacity: typingFade }]}>
+              <TypingDots label={`${String(conversationName).split(" ")[0]} is typing`} />
+            </Animated.View>
+          ) : null}
+
           {/* Scroll to Bottom Button */}
           {showScrollToBottom && (
             <TouchableOpacity 
-              style={styles.scrollToBottomButton}
+              style={[
+                styles.scrollToBottomButton,
+                Platform.OS === 'web' && (
+                  screenData.isDesktop
+                    ? { bottom: desktopComposerHeight + 40, right: 40 }
+                    : { bottom: composerMarginHeight + 100, right: 20 }
+                ),
+                (Platform.OS !== 'web' && composerContainerHeight > 0) && { bottom: composerContainerHeight + 20 }
+              ]}
               onPress={scrollToBottom}
               activeOpacity={0.8}
             >
@@ -2598,34 +2960,112 @@ export default function InstagramChatScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Invisible margin/spacer above composer */}
+          {Platform.OS === 'web' && (
+            <View 
+              ref={invisibleMarginRef}
+              onLayout={(event) => {
+                const { height } = event.nativeEvent.layout;
+                setComposerMarginHeight(height);
+              }}
+              style={{
+                height: screenData.isDesktop ? 60 : 40, // Invisible margin height
+                backgroundColor: 'transparent',
+                pointerEvents: 'none',
+                // Add a subtle visual indicator in development (remove in production)
+                ...__DEV__ && { borderTopWidth: 1, borderTopColor: 'rgba(255, 0, 0, 0.1)' }
+              }}
+            />
+          )}
+
           {/* Composer */}
           <View
             style={[
               styles.composerContainer,
               Platform.OS === 'web' ? styles.glassWeb : null,
+              screenData.isDesktop && {
+                paddingTop: 20,
+                paddingBottom: 24,
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              },
               { 
+                backgroundColor: Platform.OS === 'web' 
+                  ? (screenData.isDesktop ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.4)') // Keep background for web
+                  : 'transparent', // Transparent background for mobile
+                borderTopWidth: Platform.OS === 'web' ? 1 : 0, // Remove top border on mobile
+                paddingTop: Platform.OS === 'web' 
+                  ? 12 // Keep default for web
+                  : (isKeyboardVisible ? 8 : 12), // Reduce top padding when keyboard is visible
                 paddingBottom: Platform.OS === 'web' 
-                  ? 24 // Fixed padding for mobile browsers
-                  : (isKeyboardVisible ? 12 : Math.max((insets?.bottom || 0), 8))
+                  ? (screenData.isDesktop ? 24 : 20) // More padding for web browsers
+                  : (isKeyboardVisible ? 0 : Math.max((insets?.bottom || 0), 20))
               }
             ]}
+            onLayout={(e) => setComposerContainerHeight(e.nativeEvent.layout.height)}
           >
             {Platform.OS !== 'web' && (
               <BlurView intensity={25} tint="dark" style={styles.composerBlur} />
             )}
-            <View style={styles.composerWrapper}>
-              <Animated.View style={[styles.inputContainer, { height: composerHeight }]}>
-                
-                {/* Custom placeholder overlay to ensure exact vertical centering - only show when not blocked */}
-                {!composer.trim().length && !chatDisabled && (
-                  <View pointerEvents="none" style={styles.inputPlaceholder}>
-                    <Text style={styles.placeholderText} numberOfLines={1}>
-                      {editingMessage ? 'Edit message...' : 'Message...'}
+            <View style={[
+              styles.composerWrapper,
+              screenData.isDesktop && {
+                paddingHorizontal: 40,
+                gap: 16,
+              }
+            ]}>
+              {/* Edit Message Indicator */}
+              {editingMessageId && (
+                <View style={styles.editMessageIndicator}>
+                  <View style={styles.editMessageContent}>
+                    <Ionicons name="create-outline" size={16} color="#7C2B86" />
+                    <Text style={styles.editMessageText}>
+                      Editing message: "{originalMessageText.length > 50 ? originalMessageText.substring(0, 50) + '...' : originalMessageText}"
                     </Text>
                   </View>
-                )}
+                  <TouchableOpacity 
+                    style={styles.editMessageCancel}
+                    onPress={() => {
+                      setEditingMessageId(null);
+                      setEditingMessage(null);
+                      setOriginalMessageText('');
+                      setComposer('');
+                    }}
+                  >
+                    <Ionicons name="close" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              <View style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 25,
+                  paddingHorizontal: 18,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 214, 242, 0.2)',
+                },
+                screenData.isDesktop && {
+                  borderRadius: 28,
+                  paddingHorizontal: 24,
+                  paddingVertical: 18,
+                  borderColor: 'rgba(255, 214, 242, 0.3)',
+                }
+              ]}>
                 <TextInput
-                  style={[styles.textInput, chatDisabled && styles.textInputDisabled]}
+                  style={[
+                    styles.textInput,
+                    chatDisabled && styles.textInputDisabled,
+                    { 
+                      height: undefined, 
+                      minHeight: 40, 
+                      maxHeight: 120, // Match the style maxHeight
+                      backgroundColor: 'transparent',
+                      paddingHorizontal: 0,
+                      paddingVertical: 0,
+                    }
+                  ]}
                   placeholder={
                     chatDisabled 
                       ? (blockStatus.isBlocked 
@@ -2633,7 +3073,7 @@ export default function InstagramChatScreen() {
                           : blockStatus.isBlockedBy 
                             ? "This user has blocked you"
                             : "Send a friend request to message")
-                      : "" // Remove placeholder when not blocked to avoid duplication with overlay
+                      : "Type a message..."
                   }
                   placeholderTextColor={chatDisabled ? (friendshipStatus === 'not_friends' ? "rgba(124, 43, 134, 0.6)" : "rgba(255, 68, 68, 0.6)") : "rgba(255, 255, 255, 0.6)"}
                   value={composer}
@@ -2641,35 +3081,39 @@ export default function InstagramChatScreen() {
                   onKeyPress={chatDisabled ? undefined : handleKeyPress}
                   onContentSizeChange={chatDisabled ? undefined : handleInputContentSizeChange}
                   multiline
-                  scrollEnabled={false}
+                  scrollEnabled={true}
                   maxLength={2000}
                   editable={!chatDisabled}
                 />
-              </Animated.View>
-              
-              {editingMessage && (
-                <TouchableOpacity 
-                  style={styles.cancelButton} 
-                  onPress={() => {
-                    setEditingMessage(null);
-                    setComposer("");
-                  }}
-                >
-                  <Ionicons name="close" size={18} color="#FF4444" />
-                </TouchableOpacity>
-              )}
-              
+              </View>
+
               {composer.trim() && !chatDisabled ? (
-                <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+                <TouchableOpacity style={[
+                  styles.sendButton,
+                  screenData.isDesktop && {
+                    marginLeft: 16,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    marginBottom: 8,
+                  }
+                ]} onPress={handleSend}>
                   <LinearGradient
                     colors={["#7C2B86", "#A16AE8"]}
-                    style={styles.sendGradient}
+                    style={[
+                      styles.sendGradient,
+                      screenData.isDesktop && {
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                      }
+                    ]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
                     <Ionicons 
                       name={editingMessage ? "checkmark" : "paper-plane"} 
-                      size={20} 
+                      size={screenData.isDesktop ? 24 : 20} 
                       color="#FFFFFF" 
                       style={editingMessage ? {} : { transform: [{ rotate: '45deg' }] }}
                     />
@@ -2705,6 +3149,52 @@ export default function InstagramChatScreen() {
         onClose={() => setShowReactionPicker(false)}
         onSelectEmoji={handleAddReaction}
       />
+
+      {/* Browser Emoji Picker */}
+      {Platform.OS === 'web' && showEmojiPicker && (
+        <View style={styles.emojiPickerOverlay}>
+          <View style={styles.emojiPickerContainer}>
+            <View style={styles.emojiPickerHeader}>
+              <Text style={styles.emojiPickerTitle}>React to message</Text>
+              <TouchableOpacity 
+                style={styles.emojiPickerClose}
+                onPress={() => {
+                  setShowEmojiPicker(false);
+                  setEmojiPickerMessage(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.emojiGrid}>
+              {['❤️', '😂', '😮', '😢', '😡', '👍', '👎', '🎉', '🔥', '💯', '😍', '🤔', '😊', '😎', '🙄', '😴'].map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={styles.emojiButton}
+                  onPress={async () => {
+                    if (emojiPickerMessage) {
+                      try {
+                        const s = getSocket(token);
+                        s.emit('chat:reaction:toggle', { 
+                          chatId: conversationId, 
+                          messageId: emojiPickerMessage.id, 
+                          emoji 
+                        });
+                        setShowEmojiPicker(false);
+                        setEmojiPickerMessage(null);
+                      } catch (error) {
+                        console.error('Failed to add reaction:', error);
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      )}
 
       <ConfirmationDialog
         visible={showDeleteConfirm}
@@ -2759,11 +3249,17 @@ const styles = StyleSheet.create({
     flex: 1,
     ...(Platform.OS === 'web' && {
       minHeight: '100vh',
-      height: '100vh', // Fixed height for mobile browsers
-      width: '100%',
-      maxWidth: 800,
-      alignSelf: 'center',
-      overflow: 'hidden', // Prevent scrolling issues
+      height: '100vh',
+      width: '100vw',
+      maxWidth: '100vw',
+      margin: 0,
+      padding: 0,
+      overflow: 'hidden',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
     }),
   },
   safeArea: {
@@ -2819,9 +3315,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'web' ? 12 : 16,
-    paddingBottom: Platform.OS === 'web' ? 12 : 16,
+    paddingHorizontal: Platform.OS === 'web' ? 40 : 16,
+    paddingTop: Platform.OS === 'web' ? 20 : 16,
+    paddingBottom: Platform.OS === 'web' ? 20 : 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -2904,9 +3400,9 @@ const styles = StyleSheet.create({
   
   // Messages Styles
   messagesContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 20, // Use consistent padding, will be overridden by desktop styles
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 16,
     flexGrow: 1,
   },
   messageRow: {
@@ -2949,54 +3445,61 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   messageBubble: {
-    maxWidth: '75%', // Reduced from 78% to 75% - smaller bubbles
-    borderRadius: 16, // Reduced from 20 to 16 - smaller radius
+    maxWidth: Platform.OS === 'web' ? '70%' : '75%',
+    minWidth: Platform.OS === 'web' ? 100 : 60,
+    borderRadius: 18,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6, // Reduced from 8 to 6
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   myMessageBubble: {
     alignSelf: 'flex-end',
     borderBottomRightRadius: 6,
-    marginLeft: 40,
+    marginLeft: Platform.OS === 'web' ? 100 : 40,
   },
   theirMessageBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderBottomLeftRadius: 6,
-    marginRight: 40,
+    marginRight: Platform.OS === 'web' ? 100 : 40,
     backdropFilter: 'blur(10px)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 50,
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    }),
   },
   myBubbleGradient: {
-    borderRadius: 16, // Reduced from 20 to 16
+    borderRadius: 18,
     borderBottomRightRadius: 6,
-    paddingHorizontal: 12, // Reduced from 16 to 12 - smaller padding
-    paddingVertical: 8, // Reduced from 12 to 8 - smaller padding
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   myMessageText: {
     color: '#7C2B86',
-    fontSize: 15, // Reduced from 16 to 15 - smaller text
-    lineHeight: 20, // Reduced from 22 to 20
+    fontSize: Platform.OS === 'web' ? 15 : 15,
+    lineHeight: Platform.OS === 'web' ? 22 : 20,
     fontWeight: '500',
   },
   theirMessageText: {
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontSize: 15, // Reduced from 16 to 15 - smaller text
-    lineHeight: 20, // Reduced from 22 to 20
-    fontWeight: '400',
-    paddingHorizontal: 12, // Reduced from 16 to 12 - smaller padding
-    paddingTop: 8, // Reduced from 12 to 8 - smaller padding
-    paddingBottom: 4, // Reduced from 6 to 4
+    color: '#FFFFFF',
+    fontSize: Platform.OS === 'web' ? 15 : 15,
+    lineHeight: Platform.OS === 'web' ? 22 : 20,
+    fontWeight: '500',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 2, // Reduced from 4 to 2
-    paddingHorizontal: 12, // Reduced from 16 to 12
-    paddingBottom: 8, // Reduced from 12 to 8 - smaller padding
+    marginTop: 4,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
   },
   myTimestamp: {
     color: 'rgba(124, 43, 134, 0.7)',
@@ -3019,39 +3522,34 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   
-  // Reactions - WhatsApp/Instagram style at bottom of bubble
+  // Reactions - WhatsApp style at bottom-right of bubble
   reactionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     position: 'absolute',
-    bottom: -8,
-    zIndex: 10,
-  },
-  reactionsContainerMine: {
+    bottom: -6,
     right: 8,
+    zIndex: 15,
+    maxWidth: 200,
     justifyContent: 'flex-end',
-  },
-  reactionsContainerTheirs: {
-    left: 48, // Account for avatar space
-    justifyContent: 'flex-start',
   },
   reactionBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginRight: 4,
+    paddingVertical: 3,
+    marginLeft: 2,
     marginBottom: 2,
     borderWidth: 1,
-    borderColor: 'rgba(255, 214, 242, 0.4)',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    minWidth: 28,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    minWidth: 24,
     justifyContent: 'center',
   },
   reactionEmoji: {
@@ -3062,6 +3560,187 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#7C2B86',
     fontWeight: '700',
+  },
+  
+  // 3-dot menu styles for browser - WhatsApp style
+  messageMenuButton: {
+    position: 'absolute',
+    top: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.2)',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      ':hover': {
+        backgroundColor: 'rgba(255, 255, 255, 1)',
+        transform: 'scale(1.1)',
+        shadowOpacity: 0.4,
+      },
+    }),
+  },
+  messageMenuButtonMine: {
+    right: 4,
+  },
+  messageMenuButtonTheirs: {
+    right: 4,
+  },
+  messageDropdown: {
+    position: 'absolute',
+    top: 28,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingVertical: 4,
+    minWidth: 90,
+    maxWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 20,
+    zIndex: 9999,
+    borderWidth: 1,
+    borderColor: '#7C2B86',
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+    }),
+  },
+  messageDropdownMine: {
+    right: -10,
+  },
+  messageDropdownTheirs: {
+    left: -10,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    minHeight: 32,
+    borderRadius: 4,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      ':hover': {
+        backgroundColor: 'rgba(124, 43, 134, 0.1)',
+      },
+    }),
+  },
+  menuItemText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#7C2B86',
+  },
+  menuSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    marginHorizontal: 8,
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    zIndex: 9998,
+  },
+  
+  // Emoji Picker Styles
+  emojiPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 10000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emojiPickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  emojiPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emojiPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  emojiPickerClose: {
+    padding: 4,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  emojiButton: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  emojiText: {
+    fontSize: 24,
+  },
+  
+  // Edit Message Indicator Styles
+  editMessageIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(124, 43, 134, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#7C2B86',
+    transform: [{ skewX: '-2deg' }], // Tilted effect
+  },
+  editMessageContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  editMessageText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#7C2B86',
+    fontWeight: '500',
+    flex: 1,
+  },
+  editMessageCancel: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
   },
   
   // Typing Indicator
@@ -3106,21 +3785,18 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     marginBottom: 4,
   },
+  typingIndicatorWrapper: {
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+  },
   
   // Composer Styles
   composerContainer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'web' ? 16 : 12,
-    ...(Platform.OS === 'web' && {
-      marginBottom: 0,
-      position: 'relative',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      zIndex: 10,
-    }),
+    borderTopWidth: 0, // No default border
+    borderTopColor: 'rgba(255, 214, 242, 0.2)',
+    paddingTop: 12, // Default mobile padding
+    paddingBottom: 12, // Default mobile padding
+    backgroundColor: 'transparent', // Transparent by default
   },
   composerBlur: {
     position: 'absolute',
@@ -3131,35 +3807,35 @@ const styles = StyleSheet.create({
   },
   composerWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    gap: 12,
+    alignItems: 'center',
+    paddingHorizontal: 20, // Default mobile padding
+    gap: 12, // Default mobile gap
   },
   inputContainer: {
     flex: 1,
-    backgroundColor: 'transparent',
-    borderRadius: 25,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    backgroundColor: 'transparent', // Now transparent by default
+    borderRadius: 0, // No default radius
+    paddingHorizontal: 0, // No default padding
+    paddingVertical: 0, // No default padding
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 50,
-    maxHeight: 120,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 214, 242, 0.2)',
+    minHeight: 50, // Default mobile height
+    maxHeight: 120, // Default mobile max height
+    borderWidth: 0, // No default border
+    borderColor: 'transparent', // Transparent border
     position: 'relative',
   },
   textInput: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 16, // Default mobile font size
+    lineHeight: 22, // Default mobile line height
     fontWeight: '400',
-    maxHeight: 100,
+    maxHeight: 120, // Increased for better scrolling
     paddingTop: 0,
     paddingBottom: 0,
     // Ensure vertical centering on Android
-    textAlignVertical: Platform.OS === 'android' ? 'center' : 'auto',
+    textAlignVertical: Platform.OS === 'android' ? 'top' : 'top', // Changed to 'top' for better scrolling
   },
   inputPlaceholder: {
     position: 'absolute',
@@ -3172,16 +3848,16 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 16, // Default mobile font size
+    lineHeight: 22, // Default mobile line height
     fontWeight: '400',
     includeFontPadding: false,
   },
   sendButton: {
-    marginLeft: 12,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    marginLeft: 12, // Default mobile margin
+    width: 48, // Default mobile size
+    height: 48, // Default mobile size
+    borderRadius: 24, // Default mobile radius
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
@@ -3191,19 +3867,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
     alignSelf: 'flex-end',
+    marginBottom: 1, // Default mobile alignment
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
       boxShadow: '0px 2px 6px rgba(124, 43, 134, 0.25)',
-      marginBottom: 6, // Better alignment on web
-    }),
-    ...(Platform.OS !== 'web' && {
-      marginBottom: 1, // Keep original mobile alignment
     }),
   },
   sendGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 48, // Default mobile size
+    height: 48, // Default mobile size
+    borderRadius: 24, // Default mobile radius
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -3250,8 +3923,8 @@ const styles = StyleSheet.create({
   // Scroll to Bottom Button
   scrollToBottomButton: {
     position: 'absolute',
-    bottom: Platform.OS === 'web' ? 100 : 120,
-    right: 20,
+    bottom: 120, // Default mobile position
+    right: 20, // Default mobile position
     zIndex: 1000,
     elevation: 10,
     ...(Platform.OS === 'web' && {
@@ -3632,14 +4305,14 @@ const styles = StyleSheet.create({
   // Desktop Styles
   desktopContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   desktopHeader: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    backdropFilter: 'blur(20px)',
   },
   desktopHeaderContent: {
     flexDirection: 'row',
@@ -3652,7 +4325,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -3689,7 +4362,7 @@ const styles = StyleSheet.create({
   desktopUserName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F1147',
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   desktopStatusRow: {
@@ -3704,7 +4377,7 @@ const styles = StyleSheet.create({
   },
   desktopStatusText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   desktopHeaderActions: {
     flexDirection: 'row',
@@ -3714,7 +4387,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3723,55 +4396,71 @@ const styles = StyleSheet.create({
     maxWidth: 1000,
     marginHorizontal: 'auto',
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderRadius: 0,
   },
   desktopMessageList: {
     padding: 24,
-    paddingBottom: 100,
+    paddingBottom: 160,
   },
   desktopInputContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    padding: 16,
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
+    padding: 20,
   },
   desktopInputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'flex-end', // Align to bottom so send button stays at bottom
     gap: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: 'transparent',
+    borderRadius: 25,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 214, 242, 0.2)',
+    maxWidth: 1000,
+    marginHorizontal: 'auto',
+    width: '100%',
+    minHeight: 50,
+    maxHeight: 320, // Add reasonable max height to prevent excessive growth
   },
   desktopInput: {
     flex: 1,
-    fontSize: 15,
-    color: '#1F1147',
-    maxHeight: 120,
-    paddingVertical: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#FFFFFF',
+    minHeight: 44, // Increased minimum height
+    maxHeight: 300, // Large enough for about 13-14 lines
+    padding: 8, // Add some padding for better text visibility
+    margin: 0,
     outlineStyle: 'none',
+    backgroundColor: 'transparent',
+    border: 'none',
+    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontWeight: '400',
+    resize: 'none', // Prevent manual resizing on web
+    overflow: 'auto', // Enable scrolling when needed
+    height: 'auto', // Let height adjust automatically
+    verticalAlign: 'top', // Align text to top
   },
   desktopSendButton: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
+    flexShrink: 0,
   },
   desktopSendButtonDisabled: {
     opacity: 0.5,
   },
   desktopSendGradient: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: 24,
   },
   desktopLoadMoreButton: {
     alignItems: 'center',
@@ -3792,6 +4481,33 @@ const styles = StyleSheet.create({
   desktopLoadMoreText: {
     color: '#7C2B86',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Reaction Styles
+  reactionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+    marginHorizontal: 8,
+  },
+  reactionBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 4,
+    marginBottom: 2,
+  },
+  reactionEmoji: {
+    fontSize: 14,
+    marginRight: 2,
+  },
+  reactionCount: {
+    fontSize: 12,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

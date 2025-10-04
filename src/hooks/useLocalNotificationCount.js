@@ -51,7 +51,6 @@ export const useLocalNotificationCount = () => {
       setIsLoading(true);
       const stored = await AsyncStorage.getItem(getStorageKey());
       const count = stored ? parseInt(stored, 10) : 0;
-      console.log('📱 Loaded local notification count:', count);
       setNotificationCount(count);
     } catch (error) {
       console.error('❌ Failed to load local notification count:', error);

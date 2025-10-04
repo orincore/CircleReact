@@ -112,7 +112,7 @@ export default function SignupInstagram() {
               >
                 <Text style={styles.title}>Connect your Instagram 📸</Text>
                 <Text style={styles.subtitle}>
-                  Share your Instagram handle so others can see more of your world. This helps build trust and authenticity!
+                  Share your Instagram username so others can see more of your world. This is required to help build trust and authenticity!
                 </Text>
                 <Text style={styles.nextStep}>✨ Next: Choose interests 🎯</Text>
               </Animated.View>

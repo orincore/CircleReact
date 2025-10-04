@@ -49,7 +49,6 @@ export function useVoiceCall() {
   const { token } = useAuth();
   
   useEffect(() => {
-    console.log('🎙️ Voice call hook initialized');
     
     // Initialize voice call service
     if (token) {
@@ -195,7 +194,6 @@ export function useVoiceCall() {
     };
     
     return () => {
-      console.log('🧹 Voice call hook cleanup');
       voiceCallService.onIncomingCall = null;
       notificationSubscription.remove();
     };

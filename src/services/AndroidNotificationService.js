@@ -40,7 +40,6 @@ class AndroidNotificationService {
       this.setupNotificationListeners();
       
       this.isInitialized = true;
-      console.log('✅ Android notification service initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize Android notification service:', error);
     }
@@ -87,7 +86,6 @@ class AndroidNotificationService {
           projectId,
         })).data;
         
-        console.log('✅ Expo push token:', token);
         this.expoPushToken = token;
       } catch (e) {
         console.error('❌ Error getting push token:', e);

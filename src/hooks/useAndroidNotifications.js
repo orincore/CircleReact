@@ -19,15 +19,8 @@ export default function useAndroidNotifications() {
   useEffect(() => {
     // Only run on mobile platforms (not web)
     if (Platform.OS === 'web' || !token || !user) {
-      console.log('🔔 Skipping Android notifications:', { 
-        platform: Platform.OS, 
-        hasToken: !!token, 
-        hasUser: !!user 
-      });
       return;
     }
-
-    console.log('🔔 Initializing Android notifications for user:', user.id);
 
     // Initialize socket and set up listeners
     const initializeSocket = async () => {
@@ -35,27 +28,16 @@ export default function useAndroidNotifications() {
         const socket = getSocket(token);
         socketRef.current = socket;
         
-        console.log('🔌 Socket initialization status for Android notifications:', {
-          connected: socket?.connected,
-          id: socket?.id,
-          hasToken: !!token,
-          userId: user?.id
-        });
         
         // Set up listeners
         setupNotificationListeners(socket);
         
         // Wait for connection if not connected
         if (!socket.connected) {
-          console.log('🔄 Waiting for socket connection...');
-          
           socket.on('connect', () => {
-            console.log('✅ Socket connected for Android notifications');
             setupNotificationListeners(socket);
           });
         }
-        
-        console.log('✅ Socket ready for Android notifications');
         
       } catch (error) {
         console.error('❌ Error initializing socket for Android notifications:', error);
@@ -63,12 +45,11 @@ export default function useAndroidNotifications() {
         setTimeout(initializeSocket, 2000);
       }
     };
-
+    
     initializeSocket();
 
     // Cleanup function
     return () => {
-      console.log('🔔 Cleaning up Android notifications...');
       if (socketRef.current) {
         cleanupNotificationListeners(socketRef.current);
       }
@@ -80,7 +61,6 @@ export default function useAndroidNotifications() {
   const setupNotificationListeners = (socket) => {
     if (listenersSetupRef.current) return; // Prevent duplicate setup
     
-    console.log('🔔 Setting up Android notification listeners...');
     
     // Clean up existing listeners first
     cleanupNotificationListeners(socket);
@@ -94,7 +74,6 @@ export default function useAndroidNotifications() {
   const cleanupNotificationListeners = (socket) => {
     if (!socket) return;
     
-    console.log('🧹 Cleaning up Android notification listeners...');
     socket.off('notification:new', handleGenericNotification);
     socket.off('friend:request:received', handleFriendRequestReceived);
     socket.off('friend:request:accepted', handleFriendRequestAccepted);
@@ -112,8 +91,6 @@ export default function useAndroidNotifications() {
 
   // Generic notification handler
   const handleGenericNotification = ({ notification }) => {
-    console.log('🔔 Generic notification received for Android:', notification);
-    
     if (!notification) {
       console.error('❌ No notification data received');
       return;
@@ -165,13 +142,11 @@ export default function useAndroidNotifications() {
         break;
         
       default:
-        console.log('🔔 Unknown notification type for Android notification:', notification.type);
     }
   };
 
   // Friend request notifications
   const handleFriendRequestReceived = ({ request }) => {
-    console.log('🔔 Friend request received for Android notification:', request);
     
     const senderName = request.sender?.first_name 
       ? `${request.sender.first_name} ${request.sender.last_name || ''}`.trim()
@@ -185,27 +160,27 @@ export default function useAndroidNotifications() {
   };
 
   // Friend request accepted notifications
-  const handleFriendRequestAccepted = ({ request }) => {
-    console.log('🔔 Friend request accepted for Android notification:', request);
+  const handleFriendRequestAccepted = ({ friendship, friend }) => {
+    // Backend sends { friendship, friend } structure
+    // friend = the user who accepted the request (for sender)
+    // or the user who sent the request (for receiver)
     
-    const acceptedByName = request.acceptedBy?.first_name 
-      ? `${request.acceptedBy.first_name} ${request.acceptedBy.last_name || ''}`.trim()
+    const acceptedByName = friend?.first_name 
+      ? `${friend.first_name} ${friend.last_name || ''}`.trim()
       : 'Someone';
 
     androidNotificationService.showFriendRequestNotification({
       senderName: `${acceptedByName} accepted your friend request`,
-      senderId: request.acceptedBy?.id,
-      requestId: request.id
+      senderId: friend?.id,
+      requestId: friendship?.id
     });
   };
 
   // Message notifications
   const handleMessageReceived = ({ message }) => {
-    console.log('🔔 Message received for Android notification:', message);
     
     // Don't show notification if user is in the same chat
     if (currentChatIdRef.current === message.chatId) {
-      console.log('🔔 User is in active chat, not showing notification');
       return;
     }
 
@@ -219,7 +194,6 @@ export default function useAndroidNotifications() {
 
   // Message request notifications
   const handleMessageRequestReceived = ({ request }) => {
-    console.log('🔔 Message request received for Android notification:', request);
     
     const senderName = request.sender?.first_name 
       ? `${request.sender.first_name} ${request.sender.last_name || ''}`.trim()
@@ -235,7 +209,6 @@ export default function useAndroidNotifications() {
 
   // Match notifications
   const handleMatchFound = ({ other }) => {
-    console.log('🔔 Match found for Android notification:', other);
     
     const matchedUserName = other?.first_name 
       ? `${other.first_name} ${other.last_name || ''}`.trim()
@@ -249,11 +222,9 @@ export default function useAndroidNotifications() {
 
   // Reaction notifications
   const handleReactionReceived = ({ reaction, message, sender, chatId }) => {
-    console.log('🔔 Reaction received for Android notification:', { reaction, message, sender });
     
     // Don't show notification if user is in the same chat
     if (currentChatIdRef.current === chatId) {
-      console.log('🔔 User is in active chat, not showing reaction notification');
       return;
     }
 
@@ -271,7 +242,6 @@ export default function useAndroidNotifications() {
 
   // Voice call notifications
   const handleIncomingVoiceCall = ({ callId, callerId, callerName, callerAvatar }) => {
-    console.log('📞 Incoming voice call for Android notification:', { callId, callerId, callerName });
 
     androidNotificationService.showVoiceCallNotification({
       callerName: callerName || 'Someone',
@@ -282,7 +252,6 @@ export default function useAndroidNotifications() {
 
   // Activity notifications
   const handleUserJoinedActivity = (activity) => {
-    console.log('🔔 User joined activity for Android notification:', activity);
     
     androidNotificationService.showUserJoinedNotification({
       userName: activity.data.user_name,
@@ -292,7 +261,6 @@ export default function useAndroidNotifications() {
   };
 
   const handleFriendsConnectedActivity = (activity) => {
-    console.log('🔔 Friends connected activity for Android notification:', activity);
     
     androidNotificationService.showFriendsConnectedNotification({
       user1Name: activity.data.user1_name,
@@ -303,7 +271,6 @@ export default function useAndroidNotifications() {
   };
 
   const handleUserMatchedActivity = (activity) => {
-    console.log('🔔 User matched activity for Android notification:', activity);
     
     androidNotificationService.showUserMatchedNotification({
       user1Name: activity.data.user1_name,
@@ -314,7 +281,6 @@ export default function useAndroidNotifications() {
   };
 
   const handleLocationUpdatedActivity = (activity) => {
-    console.log('🔔 Location updated activity for Android notification:', activity);
     
     androidNotificationService.showLocationUpdatedNotification({
       userName: activity.data.user_name,
@@ -324,7 +290,6 @@ export default function useAndroidNotifications() {
   };
 
   const handleInterestUpdatedActivity = (activity) => {
-    console.log('🔔 Interest updated activity for Android notification:', activity);
     
     androidNotificationService.showInterestUpdatedNotification({
       userName: activity.data.user_name,
@@ -335,73 +300,59 @@ export default function useAndroidNotifications() {
 
   // Register event listeners
   const registerEventListeners = (socket) => {
-    console.log('🔔 Registering Android notification event listeners...');
     
     // Generic notification listener
     socket.on('notification:new', ({ notification }) => {
-      console.log('🔔 RAW notification:new event received (Android):', { notification });
       handleGenericNotification({ notification });
     });
     
     // Specific event listeners
     socket.on('friend:request:received', (data) => {
-      console.log('🔔 RAW friend:request:received event (Android):', data);
       handleFriendRequestReceived(data);
     });
 
     socket.on('friend:request:accepted', (data) => {
-      console.log('🔔 RAW friend:request:accepted event (Android):', data);
       handleFriendRequestAccepted(data);
     });
 
     socket.on('chat:message:background', (data) => {
-      console.log('🔔 RAW chat:message:background event (Android):', data);
       handleMessageReceived(data);
     });
 
     socket.on('message:request:received', (data) => {
-      console.log('🔔 RAW message:request:received event (Android):', data);
       handleMessageRequestReceived(data);
     });
 
     socket.on('matchmaking:proposal', (data) => {
-      console.log('🔔 RAW matchmaking:proposal event (Android):', data);
       handleMatchFound(data);
     });
 
     socket.on('chat:reaction:received', (data) => {
-      console.log('🔔 RAW chat:reaction:received event (Android):', data);
       handleReactionReceived(data);
     });
 
     socket.on('voice:incoming-call', (data) => {
-      console.log('🔔 RAW voice:incoming-call event (Android):', data);
       handleIncomingVoiceCall(data);
     });
 
     // Activity event listeners
     socket.on('activity:user_joined', (data) => {
-      console.log('🔔 RAW activity:user_joined event (Android):', data);
       handleUserJoinedActivity(data);
     });
 
     socket.on('activity:friends_connected', (data) => {
-      console.log('🔔 RAW activity:friends_connected event (Android):', data);
       handleFriendsConnectedActivity(data);
     });
 
     socket.on('activity:user_matched', (data) => {
-      console.log('🔔 RAW activity:user_matched event (Android):', data);
       handleUserMatchedActivity(data);
     });
 
     socket.on('activity:location_updated', (data) => {
-      console.log('🔔 RAW activity:location_updated event (Android):', data);
       handleLocationUpdatedActivity(data);
     });
 
     socket.on('activity:interest_updated', (data) => {
-      console.log('🔔 RAW activity:interest_updated event (Android):', data);
       handleInterestUpdatedActivity(data);
     });
   };

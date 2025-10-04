@@ -19,11 +19,6 @@ export default function useBrowserNotifications() {
   useEffect(() => {
     // Only run on web platform
     if (Platform.OS !== 'web' || !token || !user) {
-      console.log('🔔 Skipping browser notifications:', { 
-        platform: Platform.OS, 
-        hasToken: !!token, 
-        hasUser: !!user 
-      });
       return;
     }
 
@@ -229,31 +224,34 @@ export default function useBrowserNotifications() {
   };
 
   // Friend request notifications
-  const handleFriendRequestReceived = ({ request }) => {
-    console.log('🔔 Friend request received for browser notification:', request);
+  const handleFriendRequestReceived = ({ request, sender }) => {
+    console.log('🔔 Friend request received for browser notification:', { request, sender });
     
-    const senderName = request.sender?.first_name 
-      ? `${request.sender.first_name} ${request.sender.last_name || ''}`.trim()
-      : 'Someone';
+    const senderName = sender?.first_name 
+      ? `${sender.first_name} ${sender.last_name || ''}`.trim()
+      : (request.sender?.first_name 
+        ? `${request.sender.first_name} ${request.sender.last_name || ''}`.trim()
+        : 'Someone');
 
     browserNotificationService.showFriendRequestNotification({
       senderName,
-      senderId: request.sender?.id,
+      senderId: sender?.id || request.sender?.id,
       requestId: request.id
     });
   };
 
   // Friend request accepted notifications
-  const handleFriendRequestAccepted = ({ request, acceptedBy }) => {
-    console.log('🔔 Friend request accepted for browser notification:', { request, acceptedBy });
+  const handleFriendRequestAccepted = ({ friendship, friend }) => {
+    // Backend sends { friendship, friend } structure
+    console.log('🔔 Friend request accepted for browser notification:', { friendship, friend });
     
-    const friendName = acceptedBy?.first_name 
-      ? `${acceptedBy.first_name} ${acceptedBy.last_name || ''}`.trim()
+    const friendName = friend?.first_name 
+      ? `${friend.first_name} ${friend.last_name || ''}`.trim()
       : 'Someone';
 
     browserNotificationService.showFriendAcceptedNotification({
       friendName,
-      friendId: acceptedBy?.id
+      friendId: friend?.id
     });
   };
 

@@ -17,7 +17,6 @@ export default function LocationMap({ region, nearby, style, onUserPress, highli
       const isUserLocation = region.latitude !== 37.7749 || region.longitude !== -122.4194;
       
       if (isUserLocation) {
-        console.log('Animating to user location:', region);
         mapRef.current.animateToRegion(region, 1000);
         hasAnimatedToInitialRegion.current = true;
       }

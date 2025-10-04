@@ -178,7 +178,7 @@ export default function LocationPage() {
           longitudeDelta: 0.05,
         });
         setHasSetUserLocation(true);
-        console.log('Set initial user location:', { latitude, longitude });
+       
       }
 
       // Load nearby users
@@ -199,7 +199,6 @@ export default function LocationPage() {
 
   // Get structured location data from coordinates with robust parsing
   const getLocationData = async (latitude, longitude) => {
-    console.log('Getting location data for coordinates:', { latitude, longitude });
     
     try {
       // Try Expo Location first (works on mobile)
@@ -212,7 +211,6 @@ export default function LocationPage() {
           
           if (reverseGeocode.length > 0) {
             const location = reverseGeocode[0];
-            console.log('Expo Location result:', location);
             
             const city = location.city || location.district || location.subregion || location.name;
             const country = location.country;
@@ -689,6 +687,7 @@ export default function LocationPage() {
 
   const handleUserSelect = (user) => {
     console.log('LocationPage handleUserSelect called for user:', user.id, user.name);
+    console.log('Complete user object:', JSON.stringify(user, null, 2));
     setSelectedUserId(user.id);
     setHighlightedPin(user.id);
     setSelectedUser(user);
@@ -1008,11 +1007,8 @@ export default function LocationPage() {
         }} 
       />
       <LinearGradient
-        colors={screenData.isDesktop 
-          ? ["#1F1147", "#2D1B69", "#1F1147"] // Dark theme for desktop
-          : ["#FF6FB5", "#A16AE8", "#5D5FEF"] // Gradient for mobile
-        }
-        locations={[0, 0.55, 1]}
+        colors={["#1F1147", "#2D1B69", "#1F1147"]}
+        locations={[0, 0.5, 1]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -1393,7 +1389,12 @@ export default function LocationPage() {
         {/* User Profile Modal */}
         <UserProfileModal
           visible={showUserProfile}
-          onClose={() => setShowUserProfile(false)}
+          onClose={() => {
+            setShowUserProfile(false);
+            setSelectedUser(null);  // Clear state to prevent stale data
+            setSelectedUserId(null);
+            setHighlightedPin(null);
+          }}
           userId={selectedUser?.id}
           userName={selectedUser?.name}
           userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}

@@ -460,17 +460,20 @@ export default function MatchScreen() {
     };
   }, [token, hasActiveSession]);
 
-  // Load friend requests
+  // Load friend requests via REST API (fallback for page refresh)
   const loadFriendRequests = async () => {
     if (!token) return;
     
     try {
+      // Use REST API to ensure requests are loaded even after page refresh
       const response = await friendsApi.getPendingRequests(token);
       
       let requests = response.requests || [];
       
-      
       setFriendRequests(requests);
+      
+      // Don't request via socket since REST API already has the data
+      // Socket will handle real-time updates for new requests
     } catch (error) {
       console.error('Failed to load friend requests:', error);
       setFriendRequests([]);
@@ -483,14 +486,29 @@ export default function MatchScreen() {
 
     const socket = getSocket(token);
 
+    // Listen for pending requests list
+    socket.on('friend:requests:pending_list', ({ requests }) => {
+      console.log('📋 Pending friend requests loaded via socket:', requests);
+      
+      // Only update if we have requests from socket
+      if (requests && requests.length > 0) {
+        setFriendRequests(requests);
+      }
+    });
+
     // Listen for new friend requests
-    socket.on('friend:request:received', ({ request }) => {
+    socket.on('friend:request:received', ({ request, sender }) => {
       console.log('📨 New friend request received:', request);
-      console.log('📨 Sender info:', request.sender);
-      setFriendRequests(prev => [request, ...prev]);
+      console.log('📨 Sender info:', sender);
+      
+      // Attach sender info to request for display
+      const requestWithSender = { ...request, sender };
+      setFriendRequests(prev => [requestWithSender, ...prev]);
       
       // Show alert notification
-      const senderName = request.sender?.first_name || 'Someone';
+      const senderName = sender?.first_name 
+        ? `${sender.first_name} ${sender.last_name || ''}`.trim()
+        : 'Someone';
       Alert.alert(
         'Friend Request',
         `${senderName} wants to be your friend`,
@@ -499,14 +517,19 @@ export default function MatchScreen() {
     });
 
     // Listen for friend request acceptance
-    socket.on('friend:request:accepted', ({ request, acceptedBy }) => {
-      console.log('✅ Friend request accepted:', request);
+    socket.on('friend:request:accepted', ({ request, acceptedBy, friendship, friend }) => {
+      console.log('✅ Friend request accepted:', { request, acceptedBy, friendship, friend });
       
-      // Remove from pending requests
-      setFriendRequests(prev => prev.filter(req => req.id !== request.id));
+      // Remove from pending requests - use friendship.id if request is undefined
+      const requestId = request?.id || friendship?.id;
+      if (requestId) {
+        setFriendRequests(prev => prev.filter(req => req.id !== requestId));
+      }
       
       // Show success alert
-      const acceptorName = acceptedBy?.first_name || 'Someone';
+      const acceptorName = (friend?.first_name || acceptedBy?.first_name) 
+        ? `${friend?.first_name || acceptedBy?.first_name} ${friend?.last_name || acceptedBy?.last_name || ''}`.trim()
+        : 'Someone';
       Alert.alert(
         'Friend Request Accepted',
         `${acceptorName} accepted your friend request!`,
@@ -519,7 +542,9 @@ export default function MatchScreen() {
       console.log('❌ Friend request declined:', request);
       
       // Remove from pending requests
-      setFriendRequests(prev => prev.filter(req => req.id !== request.id));
+      if (request && request.id) {
+        setFriendRequests(prev => prev.filter(req => req.id !== request.id));
+      }
     });
 
     // Listen for friend request cancellation
@@ -527,7 +552,9 @@ export default function MatchScreen() {
       console.log('🚫 Friend request cancelled:', request);
       
       // Remove from pending requests
-      setFriendRequests(prev => prev.filter(req => req.id !== request.id));
+      if (request && request.id) {
+        setFriendRequests(prev => prev.filter(req => req.id !== request.id));
+      }
       
       // Show toast notification
       setToast({
@@ -586,6 +613,7 @@ export default function MatchScreen() {
     });
 
     return () => {
+      socket.off('friend:requests:pending_list');
       socket.off('friend:request:received');
       socket.off('friend:request:accepted');
       socket.off('friend:request:declined');
@@ -595,6 +623,12 @@ export default function MatchScreen() {
       socket.off('friend:request:sent');
       socket.off('friend:request:error');
     };
+  }, [token]);
+  // Load friend requests on mount
+  useEffect(() => {
+    if (token) {
+      loadFriendRequests();
+    }
   }, [token]);
 
   // Refresh when user interests/needs change (after settings update)
@@ -612,17 +646,14 @@ export default function MatchScreen() {
     }
     
     try {
-      console.log('🔄 Loading Circle stats...');
       setLoadingStats(true);
       
       const response = await circleStatsApi.getStats(token);
-      console.log('📊 Circle stats API response:', response);
       
       setCircleStats(response);
       
       // Update user activity
       await circleStatsApi.updateActivity(token);
-      console.log('✅ Circle stats loaded successfully');
     } catch (error) {
       console.error('❌ Error loading Circle stats:', error);
       showToast("Failed to load Circle stats", "error");
@@ -924,21 +955,38 @@ export default function MatchScreen() {
     setShowUserProfile(true);
   };
 
-  const handleSendFriendRequest = async (user) => {
-    if (!user?.id || !token) return;
+  const handleSendFriendRequest = async (userOrId) => {
+    // Handle both user object and user ID
+    const userId = typeof userOrId === 'string' ? userOrId : userOrId?.id;
+    const userName = typeof userOrId === 'string' ? 'this user' : userOrId?.name || 'this user';
+    
+    if (!userId || !token) return;
     
     try {
-      const { FriendRequestService } = await import('@/src/services/FriendRequestService');
-      const result = await FriendRequestService.sendFriendRequest(user.id, token);
+      const socket = getSocket(token);
+      socket.emit('friend:request:send', { receiverId: userId });
       
-      if (result.success) {
-        showToast(`Friend request sent to ${user.name}!`, 'success');
-      } else {
-        showToast(result.error || 'Failed to send friend request', 'error');
-      }
+      showToast(`Friend request sent to ${userName}!`, 'success');
     } catch (error) {
       console.error('Error sending friend request:', error);
       showToast('Failed to send friend request. Please try again.', 'error');
+    }
+  };
+
+  const handleSendMessageRequest = async (userId) => {
+    if (!userId || !token) return;
+    
+    try {
+      const response = await matchmakingApi.sendMessageRequest(userId, token);
+      
+      if (response.success) {
+        showToast('Message request sent!', 'success');
+      } else {
+        showToast(response.error || 'Failed to send message request', 'error');
+      }
+    } catch (error) {
+      console.error('Error sending message request:', error);
+      showToast('Failed to send message request. Please try again.', 'error');
     }
   };
 
@@ -1201,14 +1249,23 @@ export default function MatchScreen() {
                           </View>
                         </View>
                         <View style={styles.matchCardActions}>
-                          <TouchableOpacity style={styles.matchCardPassButton}>
+                          <TouchableOpacity 
+                            style={styles.matchCardPassButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              // Pass on this user
+                            }}
+                          >
                             <Ionicons name="close" size={16} color="#FF6B6B" />
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.matchCardLikeButton}>
+                          <TouchableOpacity 
+                            style={styles.matchCardLikeButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleSendFriendRequest(user.id);
+                            }}
+                          >
                             <Ionicons name="heart" size={16} color="#FF6FB5" />
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.matchCardMessageButton}>
-                            <Ionicons name="chatbubble" size={16} color="#5D5FEF" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1311,7 +1368,11 @@ export default function MatchScreen() {
             {/* Main Swipeable Card */}
             {nearbyUsers.length > 0 ? (
               <View style={styles.swipeCardContainer}>
-                <View style={styles.swipeCard}>
+                <TouchableOpacity 
+                  style={styles.swipeCard}
+                  onPress={() => handleViewProfile(nearbyUsers[0])}
+                  activeOpacity={0.95}
+                >
                   {/* Background glow */}
                   <View style={styles.swipeCardGlow} />
                   
@@ -1348,7 +1409,7 @@ export default function MatchScreen() {
                       ))}
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Action Buttons */}
                 <View style={styles.swipeActions}>
@@ -1400,6 +1461,7 @@ export default function MatchScreen() {
                       key={user.id}
                       style={styles.miniQueueCard}
                       activeOpacity={0.8}
+                      onPress={() => handleViewProfile(user)}
                     >
                       <Image
                         source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
@@ -2114,12 +2176,17 @@ const styles = StyleSheet.create({
   matchCard: {
     width: '31%',
     minWidth: 200,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    aspectRatio: 1, // Makes it square
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 0,
     position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   matchCardGlow: {
     position: 'absolute',
@@ -2129,33 +2196,35 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 75,
     backgroundColor: '#7C2B86',
-    opacity: 0.15,
+    opacity: 0.05,
   },
   matchCardContent: {
-    padding: 16,
+    padding: 18,
     gap: 12,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   matchAvatarContainer: {
     position: 'relative',
     alignSelf: 'center',
   },
   matchAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: '#7C2B86',
   },
   matchCompatibilityBadge: {
     position: 'absolute',
-    bottom: -8,
-    right: -8,
+    bottom: -6,
+    right: -6,
     backgroundColor: '#5D5FEF',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#1a0b2e',
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   matchCompatibilityText: {
     fontSize: 11,
@@ -2167,13 +2236,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   matchCardName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1F1147',
   },
   matchCardAge: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666666',
   },
   matchCardTags: {
     flexDirection: 'row',
@@ -2183,35 +2253,35 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   matchTag: {
-    backgroundColor: 'rgba(124, 43, 134, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: '#F0E6F6',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   matchTagText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#FFD6F2',
+    color: '#7C2B86',
   },
   matchCardActions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
     marginTop: 8,
   },
   matchCardPassButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFE5E5',
     alignItems: 'center',
     justifyContent: 'center',
   },
   matchCardLikeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFE5F4',
     alignItems: 'center',
     justifyContent: 'center',
   },

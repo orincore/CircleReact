@@ -187,7 +187,7 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
       </TouchableOpacity>
 
       <Text style={styles.helperText}>
-        {currentImage ? 'Tap to change or remove' : 'Optional - Add a profile picture'}
+        {currentImage ? 'Tap to change or remove' : 'Required - Add a profile picture'}
       </Text>
     </View>
   )

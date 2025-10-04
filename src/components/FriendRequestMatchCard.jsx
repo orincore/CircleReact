@@ -5,7 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -21,6 +22,26 @@ export default function FriendRequestMatchCard({
   const [loading, setLoading] = useState(false);
   const { token } = useAuth();
 
+  // Get sender name from different possible formats
+  const getSenderName = () => {
+    if (!request.sender) return 'Someone';
+    if (request.sender.name) return request.sender.name;
+    if (request.sender.first_name) {
+      return `${request.sender.first_name} ${request.sender.last_name || ''}`.trim();
+    }
+    return 'Someone';
+  };
+
+  const senderName = getSenderName();
+  
+  // Debug: Check profile photo URL
+  console.log('🖼️ Profile photo check:', {
+    hasSender: !!request.sender,
+    hasPhotoUrl: !!request.sender?.profile_photo_url,
+    photoUrl: request.sender?.profile_photo_url,
+    fullSender: request.sender
+  });
+
   const handleAccept = async () => {
     if (loading) return;
     
@@ -28,7 +49,7 @@ export default function FriendRequestMatchCard({
     try {
       await friendsApi.acceptFriendRequest(request.id, token);
       onAccept(request);
-      Alert.alert('Friend Request Accepted!', `You and ${request.sender.name} are now friends.`);
+      Alert.alert('Friend Request Accepted!', `You and ${senderName} are now friends.`);
     } catch (error) {
       console.error('Failed to accept friend request:', error);
       Alert.alert('Error', 'Failed to accept friend request. Please try again.');
@@ -42,7 +63,7 @@ export default function FriendRequestMatchCard({
     
     Alert.alert(
       'Reject Friend Request',
-      `Are you sure you want to reject ${request.sender.name}'s friend request?`,
+      `Are you sure you want to reject ${senderName}'s friend request?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -66,22 +87,36 @@ export default function FriendRequestMatchCard({
   };
 
   return (
-    <View style={styles.matchCard}>
-      <TouchableOpacity 
-        style={styles.matchAvatar}
-        onPress={() => onViewProfile(request.sender)}
-      >
-        <LinearGradient
-          colors={['#FF6FB5', '#A16AE8', '#5D5FEF']}
-          style={styles.avatarGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.avatarEmoji}>👋</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+    <TouchableOpacity 
+      style={styles.matchCard}
+      onPress={() => onViewProfile(request.sender)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.matchAvatar}>
+        {request.sender?.profile_photo_url ? (
+          <Image 
+            source={{ uri: request.sender.profile_photo_url }}
+            style={styles.avatarImage}
+            onError={(error) => {
+              console.error('Failed to load profile image:', error);
+            }}
+            defaultSource={require('@/assets/images/default-avatar.png')}
+          />
+        ) : (
+          <LinearGradient
+            colors={['#FF6FB5', '#A16AE8', '#5D5FEF']}
+            style={styles.avatarGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.avatarEmoji}>
+              {request.sender?.first_name?.charAt(0)?.toUpperCase() || '👋'}
+            </Text>
+          </LinearGradient>
+        )}
+      </View>
       
-      <Text style={styles.matchName}>{request.sender.name}</Text>
+      <Text style={styles.matchName}>{senderName}</Text>
       <Text style={styles.matchLocation}>Friend Request</Text>
       
       <View style={styles.matchFooter}>
@@ -93,7 +128,10 @@ export default function FriendRequestMatchCard({
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.rejectAction}
-            onPress={handleReject}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleReject();
+            }}
             disabled={loading}
           >
             <Ionicons name="close" size={16} color="#FF4444" />
@@ -101,7 +139,10 @@ export default function FriendRequestMatchCard({
           
           <TouchableOpacity 
             style={styles.acceptAction}
-            onPress={handleAccept}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleAccept();
+            }}
             disabled={loading}
           >
             <LinearGradient
@@ -115,7 +156,7 @@ export default function FriendRequestMatchCard({
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -149,6 +190,13 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },

@@ -48,11 +48,12 @@ export default function UserProfileModal({
 
   useEffect(() => {
     if (visible && userId) {
-      console.log('UserProfileModal opened for user:', userId);
-      console.log('User name:', userName);
-      console.log('User avatar:', userAvatar);
-      console.log('Modal visible:', visible);
-      console.log('Current logged-in user:', user?.id);
+      console.log('🔍 UserProfileModal opened for user:', userId);
+      console.log('🔍 User name:', userName);
+      console.log('🔍 User avatar:', userAvatar);
+      console.log('🔍 Modal visible:', visible);
+      console.log('🔍 Current logged-in user:', user?.id);
+      console.log('🔍 userId type:', typeof userId, 'value:', userId);
       loadUserProfile();
       
       // Set up socket listeners for cancelled requests
@@ -129,7 +130,7 @@ export default function UserProfileModal({
         };
       }
     } else {
-      console.log('UserProfileModal not opening - visible:', visible, 'userId:', userId);
+      //;
     }
   }, [visible, userId, token, userName, user?.id]);
 
@@ -243,12 +244,13 @@ export default function UserProfileModal({
         username: actualUserData?.username ? `@${actualUserData.username}` : (userName ? `@${userName}` : '@user'),
         avatar: actualUserData?.profilePhoto || userAvatar,
         bio: actualUserData?.about || 'No bio available',
+        instagramUsername: actualUserData?.instagramUsername || null,
         location: 'Location not specified',
         joinedDate: actualUserData?.joinedDate ? `Joined ${new Date(actualUserData.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
         stats: {
-          chats: Math.floor(Math.random() * 50) + 10,
-          friends: Math.floor(Math.random() * 200) + 50,
-          photos: Math.floor(Math.random() * 100) + 20
+          chats: actualUserData?.stats?.chats || 0,
+          friends: actualUserData?.stats?.friends || 0,
+          messages: (actualUserData?.stats?.messagesSent || 0) + (actualUserData?.stats?.messagesReceived || 0)
         },
         interests: actualUserData?.interests || ['Photography', 'Travel', 'Coffee', 'Art', 'Music'],
         isOnline: actualUserData?.isOnline || Math.random() > 0.5,
@@ -409,19 +411,20 @@ export default function UserProfileModal({
     console.log('Current user:', user?.id);
     
     try {
+      // Instantly update UI to show "Request Sent"
+      setFriendStatus('pending_sent');
+      
       // Use Socket.IO instead of API
       const socket = getSocket(token);
       socket.emit('friend:request:send', { receiverId: userId });
-      
-      // Optimistically update UI
-      setFriendStatus('pending');
       
       // Set up listeners for response
       const handleSent = (data) => {
         socket.off('friend:request:sent', handleSent);
         socket.off('friend:request:error', handleError);
         if (data.success) {
-          Alert.alert('Friend Request Sent', `Friend request sent to ${userName}!`);
+          console.log('✅ Friend request sent successfully');
+          // Keep the pending_sent status
         }
       };
       
@@ -661,8 +664,8 @@ export default function UserProfileModal({
       socket.on('friend:unfriend:confirmed', handleUnfriendConfirmed);
       socket.on('friend:unfriend:error', handleUnfriendError);
       
-      // Send unfriend request
-      socket.emit('friend:unfriend', { userId });
+      // Send unfriend request - backend expects friendId
+      socket.emit('friend:unfriend', { friendId: userId });
       
       // Timeout after 10 seconds
       setTimeout(() => {
@@ -785,8 +788,8 @@ export default function UserProfileModal({
                       <Text style={styles.statLabel}>Friends</Text>
                     </View>
                     <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>{profileData.stats.photos}</Text>
-                      <Text style={styles.statLabel}>Photos</Text>
+                      <Text style={styles.statNumber}>{profileData.stats.messages}</Text>
+                      <Text style={styles.statLabel}>Messages</Text>
                     </View>
                   </View>
                 </View>
@@ -812,6 +815,49 @@ export default function UserProfileModal({
                     isExpanded={spotifyExpanded}
                     onToggle={() => setSpotifyExpanded(!spotifyExpanded)}
                   />
+                )}
+
+                {/* Instagram Card - Prominent Display */}
+                {profileData.instagramUsername && (
+                  <View style={styles.section}>
+                    <TouchableOpacity 
+                      style={styles.instagramCard}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        const instagramUrl = `https://instagram.com/${profileData.instagramUsername}`;
+                        if (Platform.OS === 'web') {
+                          window.open(instagramUrl, '_blank');
+                        } else {
+                          const { Linking } = require('react-native');
+                          Linking.openURL(instagramUrl).catch(err => {
+                            console.error('Failed to open Instagram:', err);
+                            Alert.alert('Error', 'Could not open Instagram profile');
+                          });
+                        }
+                      }}
+                    >
+                      <LinearGradient
+                        colors={['#833AB4', '#C13584', '#E1306C', '#FD1D1D', '#F77737']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.instagramGradient}
+                      >
+                        <View style={styles.instagramContent}>
+                          <View style={styles.instagramIconContainer}>
+                            <Ionicons name="logo-instagram" size={36} color="#FFFFFF" />
+                          </View>
+                          <View style={styles.instagramTextContainer}>
+                            <Text style={styles.instagramLabel}>Follow on Instagram</Text>
+                            <Text style={styles.instagramUsername}>@{profileData.instagramUsername}</Text>
+                            <Text style={styles.instagramSubtext}>Tap to view profile</Text>
+                          </View>
+                          <View style={styles.instagramArrowContainer}>
+                            <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 )}
 
                 {/* Social Accounts */}
@@ -1418,6 +1464,81 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#FF4444',
     marginTop: 16,
+  },
+  // Instagram Card Styles
+  instagramCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#C13584',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'transform 0.2s ease',
+    }),
+  },
+  instagramGradient: {
+    padding: 24,
+    borderRadius: 20,
+  },
+  instagramContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  instagramIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  instagramTextContainer: {
+    flex: 1,
+  },
+  instagramLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginBottom: 6,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  instagramUsername: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  instagramSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+    letterSpacing: 0.3,
+  },
+  instagramArrowContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     marginBottom: 24,
   },
   retryButton: {

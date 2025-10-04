@@ -40,11 +40,15 @@ export default function NotificationPanel({ visible, onClose }) {
       case 'All':
         return notifications;
       case 'Friend Requests':
-        return notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted');
-      case 'Messages':
-        return notifications.filter(n => n.type === 'message' || n.type === 'message_request');
+        return notifications.filter(n => 
+          n.type === 'friend_request' || 
+          n.type === 'friend_accepted' || 
+          n.type === 'friend_request_accepted'
+        );
       case 'Profile Visits':
         return notifications.filter(n => n.type === 'profile_visit');
+      case 'Suggestions':
+        return notifications.filter(n => n.type === 'new_user_suggestion' || n.type === 'profile_suggestion');
       default:
         return notifications;
     }
@@ -53,9 +57,13 @@ export default function NotificationPanel({ visible, onClose }) {
   const getTabCounts = () => {
     return {
       'All': notifications.length,
-      'Friend Requests': notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted').length,
-      'Messages': notifications.filter(n => n.type === 'message' || n.type === 'message_request').length,
+      'Friend Requests': notifications.filter(n => 
+        n.type === 'friend_request' || 
+        n.type === 'friend_accepted' || 
+        n.type === 'friend_request_accepted'
+      ).length,
       'Profile Visits': notifications.filter(n => n.type === 'profile_visit').length,
+      'Suggestions': notifications.filter(n => n.type === 'new_user_suggestion' || n.type === 'profile_suggestion').length,
     };
   };
 
@@ -507,7 +515,10 @@ export default function NotificationPanel({ visible, onClose }) {
       case 'friend_request':
         return 'sent you a friend request';
       case 'friend_accepted':
-        return ''; // We'll show the custom message instead
+      case 'friend_request_accepted':
+        return 'accepted your friend request';
+      case 'new_user_suggestion':
+        return 'just joined Circle';
       case 'message':
         return 'sent you a message';
       case 'match':
@@ -548,6 +559,22 @@ export default function NotificationPanel({ visible, onClose }) {
     setRefreshing(false);
   };
 
+  const markAllAsRead = async () => {
+    try {
+      const response = await notificationApi.markAllAsRead(token);
+      if (response.success) {
+        // Update local state
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+        resetNotificationCount();
+        console.log('✅ All notifications marked as read');
+      }
+    } catch (error) {
+      console.error('❌ Error marking all as read:', error);
+      Alert.alert('Error', 'Failed to mark all notifications as read');
+    }
+  };
+
   const renderNotification = ({ item }) => {
     return (
       <SwipeableNotification 
@@ -576,9 +603,18 @@ export default function NotificationPanel({ visible, onClose }) {
           
           <View style={styles.headerRight}>
             {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-              </View>
+              <>
+                <TouchableOpacity 
+                  style={styles.markAllButton}
+                  onPress={markAllAsRead}
+                >
+                  <Ionicons name="checkmark-done" size={20} color="#7C2B86" />
+                  <Text style={styles.markAllText}>Mark all read</Text>
+                </TouchableOpacity>
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                </View>
+              </>
             )}
           </View>
         </View>
@@ -590,7 +626,7 @@ export default function NotificationPanel({ visible, onClose }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScrollContent}
           >
-            {['All', 'Friend Requests', 'Messages', 'Profile Visits'].map((tab) => {
+            {['All', 'Friend Requests', 'Profile Visits', 'Suggestions'].map((tab) => {
               const count = getTabCounts()[tab];
               const isSelected = selectedTab === tab;
               
@@ -686,8 +722,23 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   headerRight: {
-    width: 40,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  markAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(124, 43, 134, 0.1)',
+  },
+  markAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7C2B86',
   },
   filterContainer: {
     backgroundColor: '#FFFFFF',

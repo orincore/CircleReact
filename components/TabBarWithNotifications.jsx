@@ -53,7 +53,6 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        console.log('🔄 Periodic refresh of unread count');
         loadTotalUnreadMessages();
       }
     }, 30000); // 30 seconds
@@ -80,18 +79,16 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     try {
       const response = await chatApi.getInbox(token);
       const totalUnread = response.inbox.reduce((sum, item) => sum + (item.unreadCount || 0), 0);
-      console.log('📊 Total unread messages loaded:', totalUnread);
       setTotalUnreadMessages(totalUnread);
       
       // Also initialize the chat unread counts map
       const unreadMap = {};
       response.inbox.forEach(item => {
-        if (item.unreadCount > 0) {
-          unreadMap[item.chat.id] = item.unreadCount;
+        if (item.chatId && item.unreadCount > 0) {
+          unreadMap[item.chatId] = item.unreadCount;
         }
       });
       setChatUnreadCounts(unreadMap);
-      console.log('📊 Chat unread counts initialized:', unreadMap);
     } catch (error) {
       console.error('Failed to load total unread messages:', error);
     }

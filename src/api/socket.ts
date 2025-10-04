@@ -99,11 +99,9 @@ function attemptReconnection(token?: string | null) {
   reconnectAttempts++;
   const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000); // Exponential backoff, max 30s
   
-  console.log(`🔄 Attempting reconnection ${reconnectAttempts}/${maxReconnectAttempts} in ${delay}ms...`);
   socketService.notifyConnectionState('reconnecting');
 
   reconnectTimer = setTimeout(() => {
-    console.log(`🔄 Reconnection attempt ${reconnectAttempts}...`);
     createSocket(token);
   }, delay);
 }
@@ -120,12 +118,6 @@ function createSocket(token?: string | null) {
       socket.disconnect();
     }
     clearIntervals();
-
-    console.log('🔌 Creating new socket connection...', {
-      platform: Platform.OS,
-      url: API_BASE_URL,
-      hasToken: !!token
-    });
     socketService.notifyConnectionState('connecting');
 
     // Enhanced socket configuration for production
@@ -163,68 +155,39 @@ function createSocket(token?: string | null) {
       }),
     };
     
-    console.log('🔧 Socket configuration for', isProduction ? 'PRODUCTION' : 'LOCAL', ':', {
-      url: API_BASE_URL,
-      transports: socketConfig.transports,
-      timeout: socketConfig.timeout,
-      upgrade: socketConfig.upgrade,
-      platform: Platform.OS
-    });
 
     socket = io(API_BASE_URL, socketConfig);
 
     // Connection successful
     socket.on('connect', () => {
-      const transport = socket.io.engine.transport.name;
-      console.log('✅ Socket connected successfully', {
-        id: socket.id,
-        transport: transport,
-        platform: Platform.OS,
-        url: API_BASE_URL,
-        isProduction: isProduction,
-        timestamp: new Date().toISOString()
-      });
-      
+      const transport = socket.io.engine.transport.name;      
       // Production-specific connection validation
       if (isProduction) {
-        console.log('🏭 PRODUCTION CONNECTION ESTABLISHED:', {
-          socketId: socket.id,
-          transport: transport,
-          readyState: socket.io.engine.readyState,
-          upgraded: socket.io.engine.upgraded,
-          url: API_BASE_URL,
-          timestamp: new Date().toISOString()
-        });
         
         // Test production connection immediately
         setTimeout(() => {
           if (socket && socket.connected) {
-            console.log('🧪 Testing production connection stability...');
             socket.emit('ping', { test: 'production-stability', timestamp: Date.now() });
           }
         }, 1000);
       }
       
       reconnectAttempts = 0; // Reset attempts on successful connection
-      isInitialized = true;
       socketService.notifyConnectionState('connected');
       
       // Enhanced connection verification - ensure user room membership
       setTimeout(() => {
         if (socket && socket.connected) {
-          console.log('🏠 Verifying user room membership...');
           socket.emit('verify-room-membership', { timestamp: Date.now() });
           
           // Force refresh socket state for voice calls
-          console.log('🔄 Refreshing socket state for voice calls...');
           socket.emit('refresh-connection-state', { timestamp: Date.now() });
         }
       }, 2000);
-      
+
       // Additional verification after 5 seconds for reliability
       setTimeout(() => {
         if (socket && socket.connected) {
-          console.log('🔄 Secondary connection verification...');
           socket.emit('verify-room-membership', { timestamp: Date.now() });
         }
       }, 5000);
@@ -235,7 +198,6 @@ function createSocket(token?: string | null) {
       // Re-join any active chat
       const currentChatId = socketService.getCurrentChatId();
       if (currentChatId) {
-        console.log('🔄 Re-joining chat after reconnection:', currentChatId);
         socket.emit('chat:join', { chatId: currentChatId });
       }
     });
@@ -339,26 +301,17 @@ function createSocket(token?: string | null) {
 
     // Pong response
     socket.on('pong', (data: any) => {
-      console.log('💓 Heartbeat received');
-      if (data?.ts) {
-        const latency = Date.now() - data.ts;
-        console.log(`📊 Socket latency: ${latency}ms`);
-      }
+      // Heartbeat received
     });
 
     // Room membership verification response
     socket.on('room-membership-verified', (data: any) => {
-      console.log('🏠 Room membership verified:', data);
-      if (!data.isInRoom) {
-        console.warn('⚠️ User not in room after verification attempt!');
-      }
+      // Room membership verified
     });
 
     // Connection state refresh response
     socket.on('connection-state-refreshed', (data: any) => {
-      console.log('🔄 Connection state refreshed:', data);
-      // Keep state as 'connected' - no need to change it
-      // socketService.notifyConnectionState('refreshed');
+      // Connection state refreshed
     });
 
     // Authentication error
@@ -367,9 +320,9 @@ function createSocket(token?: string | null) {
       socketService.notifyConnectionState('auth_failed');
     });
 
-    // Transport upgrade events for debugging
+    // Transport upgrade events
     socket.io.on('upgrade', () => {
-      console.log('🚀 Socket transport upgraded to:', socket.io.engine.transport.name);
+      // Transport upgraded
     });
 
     socket.io.on('upgradeError', (error: any) => {
@@ -399,10 +352,6 @@ function startHeartbeat() {
       };
       
       socket.emit('ping', pingData);
-      console.log('💓 Sending heartbeat...', isProduction ? '(PRODUCTION)' : '(LOCAL)', {
-        transport: pingData.transport,
-        interval: heartbeatInterval
-      });
       
       // Production-specific connection monitoring
       if (isProduction) {
@@ -415,7 +364,6 @@ function startHeartbeat() {
           timestamp: new Date().toISOString()
         };
         
-        console.log('🏭 Production connection health:', connectionHealth);
         
         // Detect potential issues
         if (socket.io?.engine?.readyState !== 'open') {
@@ -435,7 +383,6 @@ function startHeartbeat() {
 export function getSocket(token?: string | null): any {
   // Update token if provided and different
   if (token && token !== currentToken) {
-    console.log('🔄 Token changed, reconnecting socket...');
     closeSocket();
     createSocket(token);
     return socket;
@@ -448,12 +395,6 @@ export function getSocket(token?: string | null): any {
 
   // Create new socket if none exists or connection is broken
   if (!socket || !socket.connected || connectionState === 'disconnected') {
-    console.log('🔌 Creating socket - current state:', {
-      hasSocket: !!socket,
-      connected: socket?.connected,
-      connectionState,
-      platform: Platform.OS
-    });
     createSocket(token || currentToken);
   }
   
@@ -494,7 +435,6 @@ export function ensureSocketConnection(token?: string | null): Promise<any> {
 }
 
 export function closeSocket() {
-  console.log('🔌 Closing socket connection...');
   clearIntervals();
   reconnectAttempts = 0;
   
@@ -513,7 +453,6 @@ export function closeSocket() {
 
 // Force reconnection (useful for debugging or manual reconnection)
 export function forceReconnect(token?: string | null) {
-  console.log('🔄 Forcing socket reconnection...');
   closeSocket();
   reconnectAttempts = 0;
   createSocket(token);
