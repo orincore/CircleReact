@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
@@ -323,31 +323,33 @@ export default function SettingsScreen() {
       await LocationTrackingService.updateLocationNow();
       const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
       setLastLocationUpdate(lastUpdate);
-      
-      Alert.alert('Location Updated', 'Your location has been updated successfully.');
+      Alert.alert('Success', 'Location updated successfully');
     } catch (error) {
       console.error('Error updating location:', error);
       Alert.alert('Error', 'Failed to update location. Please check your location permissions.');
     }
   };
 
-  if (loading) {
-    return (
-      <LinearGradient
-        colors={["#1F1147", "#2D1B69", "#1F1147"]}
-        locations={[0, 0.5, 1]}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading preferences...</Text>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will open a web page where you can permanently delete your account. Are you sure you want to continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            const deleteUrl = `https://circle.orincore.com/delete-account.html?email=${encodeURIComponent(user?.email || '')}`;
+            Linking.openURL(deleteUrl).catch(err => {
+              console.error('Failed to open URL:', err);
+              Alert.alert('Error', 'Failed to open deletion page');
+            });
+          }
+        }
+      ]
     );
-  }
+  };
 
   return (
     <LinearGradient
@@ -735,6 +737,24 @@ export default function SettingsScreen() {
             <Text style={styles.saveButtonText}>Save Preferences</Text>
             <Ionicons name="checkmark" size={20} color="#7C2B86" />
           </TouchableOpacity>
+
+          {/* Delete Account Section */}
+          <View style={styles.dangerZone}>
+            <View style={styles.dangerHeader}>
+              <Ionicons name="warning" size={24} color="#FF4D67" />
+              <Text style={styles.dangerTitle}>Danger Zone</Text>
+            </View>
+            <Text style={styles.dangerDescription}>
+              Once you delete your account, there is no going back. Please be certain.
+            </Text>
+            <TouchableOpacity 
+              style={styles.deleteButton} 
+              onPress={handleDeleteAccount}
+            >
+              <Ionicons name="trash" size={20} color="#FFFFFF" />
+              <Text style={styles.deleteButtonText}>Delete My Account</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -1039,5 +1059,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#7C2B86',
+  },
+  dangerZone: {
+    backgroundColor: 'rgba(255, 77, 103, 0.1)',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 77, 103, 0.3)',
+    marginTop: 20,
+  },
+  dangerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  dangerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FF4D67',
+  },
+  dangerDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FF4D67',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useSegments } from "expo-router";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
+import { AppState } from "react-native";
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
@@ -17,20 +18,81 @@ export function AuthProvider({ children }) {
   const AUTH_STORAGE_KEY = "@circle:isAuthenticated";
   const TOKEN_KEY = "@circle:access_token";
   const USER_KEY = "@circle:user";
+  const statusCheckIntervalRef = useRef(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  const checkAccountStatus = useCallback(async (userData, accessToken) => {
+    // Check if account is deleted or suspended
+    if (userData.deleted_at) {
+      console.log('❌ Account is deleted');
+      router.replace({
+        pathname: '/account-blocked',
+        params: {
+          status: 'deleted',
+          reason: userData.deletion_reason || 'Your account has been deleted',
+          username: userData.username || '',
+          email: userData.email || '',
+        }
+      });
+      return false;
+    }
+    
+    if (userData.is_suspended) {
+      console.log('⚠️ Account is suspended');
+      router.replace({
+        pathname: '/account-blocked',
+        params: {
+          status: 'suspended',
+          reason: userData.suspension_reason || 'Your account has been suspended',
+          username: userData.username || '',
+          email: userData.email || '',
+          suspensionEndsAt: userData.suspension_ends_at || '',
+        }
+      });
+      return false;
+    }
+    
+    return true;
+  }, [router]);
 
   const applyAuth = useCallback(async (resp, opts = { navigate: true }) => {
     setToken(resp.access_token);
     // Immediately fetch full profile via GraphQL
+    let fullUser;
     try {
-      const fullUser = await meGql(resp.access_token);
+      fullUser = await meGql(resp.access_token);
       setUser(fullUser || resp.user || null);
     } catch (_e) {
+      fullUser = resp.user;
       setUser(resp.user || null);
     }
+    
+    // Check account status before proceeding
+    const accountOk = await checkAccountStatus(fullUser || resp.user, resp.access_token);
+    if (!accountOk) {
+      // Don't set authenticated if account is blocked
+      return;
+    }
+    
     setIsAuthenticated(true);
     
     // Initialize socket service for background messaging
     socketService.initialize(resp.access_token);
+    
+    // Save push notification token to database after authentication
+    try {
+      const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+      const notificationService = AndroidNotificationService.default;
+      const pushToken = notificationService.getPushToken();
+      
+      if (pushToken && pushToken !== 'undefined') {
+        console.log('💾 Saving push token to database after authentication');
+        // Pass the auth token directly to avoid AsyncStorage timing issues
+        await notificationService.savePushTokenToDatabase(pushToken, resp.access_token);
+      }
+    } catch (error) {
+      console.error('Failed to save push token:', error);
+    }
     
     // Initialize location tracking if it was previously enabled
     try {
@@ -56,7 +118,7 @@ export function AuthProvider({ children }) {
     if (opts?.navigate) {
       router.replace("/secure/match");
     }
-  }, [router]);
+  }, [router, checkAccountStatus]);
 
   const logIn = useCallback(async (identifier, password) => {
     const resp = await authApi.login({ identifier, password });
@@ -118,19 +180,61 @@ export function AuthProvider({ children }) {
           AsyncStorage.getItem(USER_KEY),
         ]);
         const authed = flag === "true" && !!savedToken;
-        setIsAuthenticated(authed);
         setToken(savedToken);
         let snapshot = savedUser ? JSON.parse(savedUser) : null;
         if (authed && savedToken) {
-          // Initialize socket service for restored auth
-          socketService.initialize(savedToken);
-          
           try {
             const fullUser = await meGql(savedToken);
             snapshot = fullUser || snapshot;
           } catch (_e) {
             // keep snapshot
           }
+          
+          // Check account status before restoring auth
+          if (snapshot) {
+            const accountOk = await checkAccountStatus(snapshot, savedToken);
+            if (!accountOk) {
+              // Account is blocked, don't restore auth
+              setIsAuthenticated(false);
+              setUser(null);
+              setToken(null);
+              setIsRestoring(false);
+              return;
+            }
+          }
+          
+          // Account is OK, restore auth
+          setIsAuthenticated(true);
+          // Initialize socket service for restored auth
+          socketService.initialize(savedToken);
+          
+          // Save push notification token after auth is restored
+          // Wait a bit for the notification service to initialize
+          setTimeout(async () => {
+            try {
+              const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+              const notificationService = AndroidNotificationService.default;
+              const pushToken = notificationService.getPushToken();
+              
+              console.log('🔍 Checking push token after delay:', {
+                hasPushToken: !!pushToken,
+                tokenValue: pushToken,
+                authToken: savedToken ? 'present' : 'missing'
+              });
+              
+              if (pushToken && pushToken !== 'undefined') {
+                console.log('💾 Saving push token after auth restoration');
+                // Pass the auth token directly to avoid AsyncStorage timing issues
+                await notificationService.savePushTokenToDatabase(pushToken, savedToken);
+              } else {
+                console.log('⏳ Push token not ready yet, will save on next login');
+              }
+            } catch (error) {
+              console.error('Failed to save push token after auth restoration:', error);
+            }
+          }, 2000); // Wait 2 seconds for notification service to initialize
+        } else {
+          setIsAuthenticated(false);
         }
         setUser(snapshot);
       } catch (e) {
@@ -139,7 +243,7 @@ export function AuthProvider({ children }) {
         setIsRestoring(false);
       }
     })();
-  }, []);
+  }, [checkAccountStatus]);
 
   useEffect(() => {
     if (isRestoring) {
@@ -182,6 +286,63 @@ export function AuthProvider({ children }) {
       return null;
     }
   }, [token]);
+
+  const checkCurrentAccountStatus = useCallback(async () => {
+    if (!token || !isAuthenticated) return;
+    
+    try {
+      const fullUser = await meGql(token);
+      if (fullUser) {
+        const accountOk = await checkAccountStatus(fullUser, token);
+        if (!accountOk) {
+          // Account is blocked, force logout
+          console.log('⚠️ Account blocked, forcing logout');
+          await logOut();
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to check account status", e);
+    }
+  }, [token, isAuthenticated, checkAccountStatus, logOut]);
+
+  // Periodic account status check (every 30 seconds)
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      // Check immediately
+      checkCurrentAccountStatus();
+      
+      // Set up interval for periodic checks
+      statusCheckIntervalRef.current = setInterval(() => {
+        checkCurrentAccountStatus();
+      }, 30000); // Check every 30 seconds
+      
+      return () => {
+        if (statusCheckIntervalRef.current) {
+          clearInterval(statusCheckIntervalRef.current);
+        }
+      };
+    }
+  }, [isAuthenticated, token, checkCurrentAccountStatus]);
+
+  // Check account status when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        isAuthenticated &&
+        token
+      ) {
+        console.log('📱 App came to foreground, checking account status');
+        checkCurrentAccountStatus();
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [isAuthenticated, token, checkCurrentAccountStatus]);
 
   const value = useMemo(() => ({
     isAuthenticated,
