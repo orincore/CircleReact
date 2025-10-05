@@ -44,6 +44,15 @@ export default function LandingPage({ onSignUp, onLogIn }) {
     setScrollY(event.nativeEvent.contentOffset.y);
   };
 
+  const scrollToSection = (sectionId) => {
+    if (Platform.OS === 'web') {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
+
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   
@@ -159,7 +168,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               <TouchableOpacity style={styles.navLink}>
                 <Text style={styles.navLinkText}>Features</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.navLink}>
+              <TouchableOpacity style={styles.navLink} onPress={() => scrollToSection('how-it-works')}>
                 <Text style={styles.navLinkText}>How It Works</Text>
               </TouchableOpacity>
               {/* Testimonials nav link removed */}
@@ -219,19 +228,23 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 
                 <View style={styles.heroRight}>
                   <View style={styles.mockupContainer}>
-                    <View style={styles.mockupPhone}>
-                      <LinearGradient
-                        colors={['#FF6FB5', '#A16AE8']}
-                        style={styles.mockupScreen}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                          <View style={styles.mockupIconCircle}>
-                            <Ionicons name="heart" size={64} color="#FFFFFF" />
-                          </View>
-                        </Animated.View>
-                      </LinearGradient>
+                    <View style={styles.phoneWrapper}>
+                      {/* Power Button */}
+                      <View style={styles.powerButton} />
+                      
+                      {/* Volume Buttons */}
+                      <View style={styles.volumeButtonUp} />
+                      <View style={styles.volumeButtonDown} />
+                      
+                      <View style={styles.mockupPhone}>
+                        <View style={styles.mockupScreen}>
+                          <Image 
+                            source={require('@/assets/images/screenshot.png')} 
+                            style={styles.mockupScreenshot}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -332,7 +345,47 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               </View>
             </View>
 
-            {/* Testimonials Section removed */}
+            {/* How It Works Section */}
+            <View style={[styles.section, styles.sectionLarge]} nativeID="how-it-works">
+              <Text style={[styles.sectionTitle, styles.sectionTitleLarge]}>
+                How Circle Works
+              </Text>
+              <Text style={[styles.sectionSubtitle, styles.sectionSubtitleLarge]}>
+                Simple steps to find your perfect connections
+              </Text>
+              
+              <View style={[styles.stepsContainer, styles.stepsContainerLarge]}>
+                <View style={[styles.stepCard, styles.stepCardLarge]}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>1</Text>
+                  </View>
+                  <Text style={styles.stepTitle}>Create Your Profile</Text>
+                  <Text style={styles.stepDescription}>
+                    Sign up and tell us about yourself, your interests, and what you're looking for in connections.
+                  </Text>
+                </View>
+                
+                <View style={[styles.stepCard, styles.stepCardLarge]}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>2</Text>
+                  </View>
+                  <Text style={styles.stepTitle}>Smart Matching</Text>
+                  <Text style={styles.stepDescription}>
+                    Our AI algorithm analyzes compatibility and suggests perfect matches based on your preferences.
+                  </Text>
+                </View>
+                
+                <View style={[styles.stepCard, styles.stepCardLarge]}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>3</Text>
+                  </View>
+                  <Text style={styles.stepTitle}>Connect & Chat</Text>
+                  <Text style={styles.stepDescription}>
+                    Start conversations with your matches and build meaningful relationships through our secure chat.
+                  </Text>
+                </View>
+              </View>
+            </View>
 
             {/* CTA Section */}
             <View style={[styles.ctaSection, styles.ctaSectionLarge]}>
@@ -366,7 +419,9 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 <View style={styles.footerColumn}>
                   <Text style={styles.footerColumnTitle}>Product</Text>
                   <TouchableOpacity><Text style={styles.footerLink}>Features</Text></TouchableOpacity>
-                  <TouchableOpacity><Text style={styles.footerLink}>How It Works</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => scrollToSection('how-it-works')}>
+                    <Text style={styles.footerLink}>How It Works</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity><Text style={styles.footerLink}>Pricing</Text></TouchableOpacity>
                 </View>
                 <View style={styles.footerColumn}>
@@ -688,6 +743,14 @@ const styles = StyleSheet.create({
   mockupContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 40, // Add gap between header and phone
+  },
+  phoneWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 320, // Wider than phone to accommodate buttons
+    height: 580, // Slightly taller than phone
   },
   mockupPhone: {
     width: 280,
@@ -697,26 +760,63 @@ const styles = StyleSheet.create({
     borderWidth: 8,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
+    position: 'relative',
   },
   mockupScreen: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mockupIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  mockupScreenshot: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+  },
+  // Phone Buttons - Positioned to match real phone layout
+  powerButton: {
+    position: 'absolute',
+    right: 14, // Position relative to phoneWrapper center (320/2 - 280/2 - 6 = 14)
+    top: 140, // Moved down to middle section of phone
+    width: 4,
+    height: 50,
+    backgroundColor: 'rgba(180, 180, 180, 0.95)',
+    borderRadius: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 15,
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 1, height: 1 },
+    elevation: 6,
+    zIndex: 10,
+  },
+  volumeButtonUp: {
+    position: 'absolute',
+    left: 14, // Position relative to phoneWrapper center
+    top: 120, // Moved down for more realistic positioning
+    width: 4,
+    height: 35,
+    backgroundColor: 'rgba(180, 180, 180, 0.95)',
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: -1, height: 1 },
+    elevation: 6,
+    zIndex: 10,
+  },
+  volumeButtonDown: {
+    position: 'absolute',
+    left: 14, // Position relative to phoneWrapper center
+    top: 165, // Moved down, below volume up
+    width: 4,
+    height: 35,
+    backgroundColor: 'rgba(180, 180, 180, 0.95)',
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: -1, height: 1 },
+    elevation: 6,
+    zIndex: 10,
   },
   heroCTA: {
     flexDirection: 'column',
@@ -1126,5 +1226,58 @@ const styles = StyleSheet.create({
       cursor: 'pointer',
       transition: 'all 0.3s ease',
     }),
+  },
+  
+  // How It Works Section
+  stepsContainer: {
+    gap: 24,
+    marginTop: 32,
+  },
+  stepsContainerLarge: {
+    flexDirection: 'row',
+    gap: 40,
+    marginTop: 48,
+  },
+  stepCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  stepCardLarge: {
+    flex: 1,
+    padding: 32,
+  },
+  stepNumber: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  stepNumberText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  stepTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  stepDescription: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 24,
+    textAlign: 'center',
   },
 });
