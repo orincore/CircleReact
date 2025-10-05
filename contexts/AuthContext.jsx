@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useSegments } from "expo-router";
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AppState } from 'react-native';
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
