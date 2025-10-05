@@ -22,6 +22,7 @@ const CachedMediaImage = ({
   const [imageSource, setImageSource] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [errorType, setErrorType] = useState(null);
   const [showControls, setShowControls] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -76,7 +77,19 @@ const CachedMediaImage = ({
   };
 
   const handleImageError = (error) => {
-    console.error('Image load error:', error);
+    // Check if it's a 403 error (expired S3 URL)
+    const is403Error = error?.nativeEvent?.responseCode === 403 || 
+                       error?.nativeEvent?.error?.includes('403') ||
+                       error?.nativeEvent?.error?.includes('Forbidden');
+    
+    if (is403Error) {
+      console.log('⏰ S3 URL expired for message:', messageId, '- URL needs refresh');
+      setErrorType('expired');
+    } else {
+      console.log('❌ Image load error for message:', messageId);
+      setErrorType('general');
+    }
+    
     setHasError(true);
     setIsLoading(false);
     if (onError) onError(error);
@@ -103,7 +116,13 @@ const CachedMediaImage = ({
   if (hasError) {
     return (
       <View style={[styles.errorContainer, style]}>
-        <Text style={styles.errorText}>Failed to load image</Text>
+        <Ionicons name="image-outline" size={32} color="#999" />
+        <Text style={styles.errorText}>
+          {errorType === 'expired' ? 'Image link expired' : 'Failed to load image'}
+        </Text>
+        {errorType === 'expired' && (
+          <Text style={styles.errorSubtext}>Refresh chat to reload</Text>
+        )}
       </View>
     );
   }
@@ -209,13 +228,21 @@ const styles = StyleSheet.create({
   errorContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffebee',
+    backgroundColor: '#f5f5f5',
     borderRadius: 12,
+    padding: 16,
   },
   errorText: {
-    fontSize: 12,
-    color: '#d32f2f',
+    fontSize: 13,
+    color: '#666',
     textAlign: 'center',
+    marginTop: 8,
+  },
+  errorSubtext: {
+    fontSize: 11,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
 

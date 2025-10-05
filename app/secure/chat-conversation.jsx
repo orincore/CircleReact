@@ -983,15 +983,15 @@ export default function InstagramChatScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const [retryTimer, setRetryTimer] = useState(null);
   
-  // Debug avatar state changes
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-      console.log('🖼️ Fetching profile picture for user:', otherUserId);
+  // Fetch user profile function (defined outside useEffect so it can be reused)
+  const fetchUserProfile = async (userId) => {
+    try {
+      const targetUserId = userId || otherUserId;
+      console.log('🖼️ Fetching profile picture for user:', targetUserId);
       console.log('🌐 Platform:', Platform.OS);
-      console.log('🔗 API URL:', `${API_BASE_URL}/api/friends/user/${otherUserId}/profile`);
+      console.log('🔗 API URL:', `${API_BASE_URL}/api/friends/user/${targetUserId}/profile`);
       
-      const response = await fetch(`${API_BASE_URL}/api/friends/user/${otherUserId}/profile`, {
+      const response = await fetch(`${API_BASE_URL}/api/friends/user/${targetUserId}/profile`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1017,10 +1017,12 @@ export default function InstagramChatScreen() {
         console.log('❌ Error response:', errorText);
       }
     } catch (error) {
-        console.error('❌ Error fetching user profile:', error);
-      }
-    };
-    
+      console.error('❌ Error fetching user profile:', error);
+    }
+  };
+
+  // Debug avatar state changes
+  useEffect(() => {
     if (otherUserId && token) {
       fetchUserProfile();
     }

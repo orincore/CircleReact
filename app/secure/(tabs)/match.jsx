@@ -326,6 +326,7 @@ export default function MatchScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [matchedUser, setMatchedUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showConnectionAnimation, setShowConnectionAnimation] = useState(false);
   const [nearbyMatches, setNearbyMatches] = useState([]);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
@@ -1831,189 +1832,563 @@ export default function MatchScreen() {
               )}
 
               {matchedUser && (
-                <View style={styles.modalMatchContainer}>
-                  {/* Floating particles background */}
-                  <View style={styles.particlesContainer}>
-                    <View style={[styles.particle, styles.particle1]} />
-                    <View style={[styles.particle, styles.particle2]} />
-                    <View style={[styles.particle, styles.particle3]} />
-                    <View style={[styles.particle, styles.particle4]} />
-                  </View>
-                  
-                  {/* Header with sparkles */}
-                  <View style={styles.matchHeader}>
-                    <View style={styles.sparkleContainer}>
-                      <Ionicons name="sparkles" size={24} color="#FFD700" style={styles.sparkle1} />
-                      <Ionicons name="heart" size={32} color="#FF69B4" style={styles.heartIcon} />
-                      <Ionicons name="sparkles" size={20} color="#FFD700" style={styles.sparkle2} />
-                    </View>
-                    <Text style={styles.matchFoundTitle}>Perfect Match!</Text>
-                    <Text style={styles.matchFoundSubtitle}>✨ {matchedUser.compatibility} ✨</Text>
-                  </View>
-
-                  {/* Profile Card */}
-                  <View style={styles.profileCard}>
-                    <View style={styles.avatarContainer}>
-                      <View style={styles.avatarGlow}>
-                        <Image
-                          source={{ uri: matchedUser.avatar }}
-                          style={styles.profileAvatar}
-                          defaultSource={{ uri: "https://i.pravatar.cc/300?img=12" }}
-                          onError={() => {
-                            // Fallback to default avatar if image fails to load
-                            setMatchedUser(prev => prev ? {
-                              ...prev,
-                              avatar: "https://i.pravatar.cc/300?img=12"
-                            } : null);
-                          }}
-                        />
-                        <View style={styles.onlineIndicator} />
-                      </View>
-                      <View style={styles.verifiedBadge}>
-                        <Ionicons name="checkmark-circle" size={24} color="#00D4AA" />
-                      </View>
-                    </View>
-                    
-                    <View style={styles.profileInfo}>
-                      <Text style={styles.profileName}>
-                        {`${matchedUser.firstName} ${matchedUser.lastName.charAt(0)}.`}
-                      </Text>
-                      
-                      <View style={styles.profileStats}>
-                        <View style={styles.statItem}>
-                          <View style={styles.statIcon}>
-                            <Ionicons name="calendar-outline" size={16} color="#8B5CF6" />
-                          </View>
-                          <Text style={styles.statText}>{matchedUser.age}</Text>
-                        </View>
-                        
-                        <View style={styles.statDivider} />
-                        
-                        <View style={styles.statItem}>
-                          <View style={styles.statIcon}>
-                            <Ionicons name="location-outline" size={16} color="#8B5CF6" />
-                          </View>
-                          <Text style={styles.statText}>{matchedUser.location}</Text>
-                        </View>
-                        
-                        <View style={styles.statDivider} />
-                        
-                        <View style={styles.statItem}>
-                          <View style={styles.statIcon}>
-                            <Ionicons
-                              name={matchedUser.gender === "female" ? "female" : matchedUser.gender === "male" ? "male" : "transgender"}
-                              size={16}
-                              color="#8B5CF6"
-                            />
-                          </View>
-                          <Text style={styles.statText}>
-                            {matchedUser.gender === "non-binary" ? "NB" : matchedUser.gender.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.descriptionContainer}>
-                        <Text style={styles.descriptionText}>{matchedUser.description}</Text>
-                      </View>
-                      
-                      {/* Compatibility Score */}
-                      <View style={styles.compatibilityContainer}>
-                        <Text style={styles.compatibilityLabel}>Compatibility Score</Text>
-                        <View style={styles.compatibilityBar}>
-                          <View style={styles.compatibilityFill} />
-                          <Text style={styles.compatibilityScore}>94%</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Action Buttons */}
-                  <View style={styles.actionButtonsContainer}>
-                    <TouchableOpacity 
-                      style={styles.passButtonNew} 
-                      onPress={handlePass}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.buttonIconContainer}>
-                        <Ionicons name="close" size={24} color="#FF6B6B" />
-                      </View>
-                      <Text style={styles.passButtonText}>Pass</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={[styles.chatButtonNew, isConnectPressed && styles.chatButtonPressed]} 
-                      onPress={handleStartChat}
-                      activeOpacity={0.8}
-                      disabled={isConnectPressed}
-                    >
-                      <LinearGradient
-                        colors={isConnectPressed ? ['#4ade80', '#22c55e'] : ['#8b5cf6', '#a855f7', '#ec4899']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.chatButtonGradient}
-                      >
-                        <View style={[styles.buttonIconContainer, isConnectPressed && styles.buttonIconPressed]}>
-                          {isConnectPressed ? (
-                            <Ionicons name="checkmark" size={24} color="#FFFFFF" />
-                          ) : (
-                            <Ionicons name="heart" size={24} color="#FFFFFF" />
-                          )}
-                        </View>
-                        <Text style={styles.chatButtonText}>
-                          {isConnectPressed ? "Sent!" : "Connect"}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Close Button */}
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={async () => {
-                      try {
-                        // Cancel matchmaking on server
-                        await matchmakingApi.cancel(token);
-                        // Reset all local state
-                        setMatchedUser(null);
-                        setShowModal(false);
-                        setIsSearching(false);
-                        setIsConnectPressed(false);
-                        setHasActiveSession(false);
-                        acceptedNotifiedRef.current = false;
-                        showToast("Matchmaking stopped", "info");
-                      } catch (error) {
-                        console.error('Failed to cancel matchmaking:', error);
-                        // Still reset local state even if server call fails
-                        setMatchedUser(null);
-                        setShowModal(false);
-                        setIsSearching(false);
-                        setIsConnectPressed(false);
-                        setHasActiveSession(false);
-                        showToast("Matchmaking stopped", "info");
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.closeButtonText}>Maybe Later</Text>
-                  </TouchableOpacity>
-                </View>
+                <MatchFoundCard 
+                  matchedUser={matchedUser}
+                  isConnectPressed={isConnectPressed}
+                  onPass={handlePass}
+                  onConnect={handleStartChat}
+                  onClose={async () => {
+                    try {
+                      await matchmakingApi.cancel(token);
+                      setMatchedUser(null);
+                      setShowModal(false);
+                      setIsSearching(false);
+                      setIsConnectPressed(false);
+                      setHasActiveSession(false);
+                    } catch (error) {
+                      console.error('Error closing match:', error);
+                    }
+                  }}
+                />
               )}
             </LinearGradient>
           </View>
         </View>
       </Modal>
 
-      {/* User Profile Modal */}
-      <UserProfileModal
-        visible={showUserProfile}
-        onClose={() => setShowUserProfile(false)}
-        userId={selectedUser?.id}
-        userName={selectedUser?.name}
-        userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
-      />
+      {/* Connection Animation Modal */}
+      {showConnectionAnimation && (
+        <Modal animationType="fade" transparent visible={showConnectionAnimation}>
+          <View style={styles.modalOverlay}>
+            <ConnectionAnimation 
+              userName={matchedUser?.firstName || 'User'}
+              onComplete={() => setShowConnectionAnimation(false)}
+            />
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
+
+// Connection Animation Component
+const ConnectionAnimation = ({ userName, onComplete }) => {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const particleAnims = useRef(
+    Array.from({ length: 12 }, () => new Animated.Value(0))
+  ).current;
+
+  useEffect(() => {
+    // Scale and fade in
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Particle burst animation
+    particleAnims.forEach((anim, index) => {
+      Animated.sequence([
+        Animated.delay(index * 50),
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+
+    // Auto close after 3 seconds
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => onComplete());
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        connectionStyles.container,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      {/* Particle burst */}
+      {particleAnims.map((anim, index) => {
+        const angle = (index / particleAnims.length) * 2 * Math.PI;
+        const translateX = anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, Math.cos(angle) * 150],
+        });
+        const translateY = anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, Math.sin(angle) * 150],
+        });
+        const opacity = anim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [1, 1, 0],
+        });
+
+        return (
+          <Animated.View
+            key={index}
+            style={[
+              connectionStyles.particle,
+              {
+                opacity,
+                transform: [{ translateX }, { translateY }],
+              },
+            ]}
+          >
+            <Ionicons name="heart" size={20} color="#FF69B4" />
+          </Animated.View>
+        );
+      })}
+
+      {/* Main content */}
+      <View style={connectionStyles.content}>
+        <Ionicons name="link" size={64} color="#FFFFFF" />
+        <Text style={connectionStyles.title}>Creating Connection</Text>
+        <Text style={connectionStyles.subtitle}>with {userName}</Text>
+        <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 20 }} />
+      </View>
+    </Animated.View>
+  );
+};
+
+const connectionStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 43, 134, 0.95)',
+  },
+  particle: {
+    position: 'absolute',
+  },
+  content: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+});
+
+// Enhanced Match Found Card Component
+const MatchFoundCard = ({ matchedUser, isConnectPressed, onPass, onConnect, onClose }) => {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const heartBeatAnim = useRef(new Animated.Value(1)).current;
+  const compatibilityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Entry animation
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Heart beat animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartBeatAnim, {
+          toValue: 1.2,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartBeatAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Compatibility bar animation
+    Animated.timing(compatibilityAnim, {
+      toValue: 1,
+      duration: 1500,
+      delay: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, []);
+
+  const compatibilityWidth = compatibilityAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', `${matchedUser.compatibilityScore || 94}%`],
+  });
+
+  // Get real about text or generate from interests/needs
+  const getAboutText = () => {
+    if (matchedUser.about) {
+      return matchedUser.about;
+    }
+    
+    const interests = matchedUser.interests?.slice(0, 2).join(' and ') || 'various interests';
+    const needs = matchedUser.needs?.[0] || 'connection';
+    return `Shares your love for ${interests} and is also looking for ${needs}. This could be a great connection!`;
+  };
+
+  return (
+    <Animated.View
+      style={[
+        matchCardStyles.container,
+        {
+          transform: [{ scale: scaleAnim }, { translateY: slideAnim }],
+        },
+      ]}
+    >
+      {/* Close button */}
+      <TouchableOpacity style={matchCardStyles.closeButton} onPress={onClose}>
+        <Ionicons name="close" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Header with animated heart */}
+      <View style={matchCardStyles.header}>
+        <Animated.View style={{ transform: [{ scale: heartBeatAnim }] }}>
+          <Ionicons name="heart" size={48} color="#FF69B4" />
+        </Animated.View>
+        <Text style={matchCardStyles.title}>Perfect Match!</Text>
+        <Text style={matchCardStyles.subtitle}>
+          ✨ {matchedUser.compatibility || 'High match'} ✨
+        </Text>
+      </View>
+
+      {/* Profile section */}
+      <View style={matchCardStyles.profileSection}>
+        <View style={matchCardStyles.avatarContainer}>
+          <View style={matchCardStyles.avatarGlow}>
+            <Image
+              source={{ uri: matchedUser.avatar || matchedUser.profile_photo_url }}
+              style={matchCardStyles.avatar}
+            />
+          </View>
+          <View style={matchCardStyles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={28} color="#00D4AA" />
+          </View>
+        </View>
+
+        <Text style={matchCardStyles.name}>
+          {`${matchedUser.firstName || matchedUser.first_name} ${(matchedUser.lastName || matchedUser.last_name)?.charAt(0)}.`}
+        </Text>
+
+        {/* Stats row */}
+        <View style={matchCardStyles.statsRow}>
+          <View style={matchCardStyles.statChip}>
+            <Ionicons name="calendar-outline" size={16} color="#8B5CF6" />
+            <Text style={matchCardStyles.statText}>{matchedUser.age}</Text>
+          </View>
+          <View style={matchCardStyles.statChip}>
+            <Ionicons name="location-outline" size={16} color="#8B5CF6" />
+            <Text style={matchCardStyles.statText}>{matchedUser.location || 'Nearby'}</Text>
+          </View>
+          <View style={matchCardStyles.statChip}>
+            <Ionicons
+              name={matchedUser.gender === 'female' ? 'female' : matchedUser.gender === 'male' ? 'male' : 'transgender'}
+              size={16}
+              color="#8B5CF6"
+            />
+            <Text style={matchCardStyles.statText}>
+              {matchedUser.gender === 'non-binary' ? 'NB' : matchedUser.gender?.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        </View>
+
+        {/* About section */}
+        <View style={matchCardStyles.aboutSection}>
+          <Text style={matchCardStyles.aboutText}>{getAboutText()}</Text>
+        </View>
+
+        {/* Compatibility score */}
+        <View style={matchCardStyles.compatibilitySection}>
+          <Text style={matchCardStyles.compatibilityLabel}>Compatibility Score</Text>
+          <View style={matchCardStyles.compatibilityBarContainer}>
+            <Animated.View
+              style={[
+                matchCardStyles.compatibilityBar,
+                { width: compatibilityWidth },
+              ]}
+            />
+            <Text style={matchCardStyles.compatibilityScore}>
+              {matchedUser.compatibilityScore || 94}%
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Action buttons */}
+      <View style={matchCardStyles.actionsContainer}>
+        <TouchableOpacity
+          style={matchCardStyles.passButton}
+          onPress={onPass}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="close-circle" size={32} color="#FF6B6B" />
+          <Text style={matchCardStyles.passText}>Pass</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[matchCardStyles.connectButton, isConnectPressed && matchCardStyles.connectButtonPressed]}
+          onPress={onConnect}
+          activeOpacity={0.8}
+          disabled={isConnectPressed}
+        >
+          <LinearGradient
+            colors={isConnectPressed ? ['#4ade80', '#22c55e'] : ['#7C2B86', '#B24592', '#F15F79']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={matchCardStyles.connectGradient}
+          >
+            <Ionicons
+              name={isConnectPressed ? 'checkmark-circle' : 'heart-circle'}
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={matchCardStyles.connectText}>
+              {isConnectPressed ? 'Sent!' : 'Connect'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+};
+
+const matchCardStyles = StyleSheet.create({
+  container: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#7C2B86',
+    marginTop: 12,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#B24592',
+    marginTop: 4,
+  },
+  profileSection: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatarGlow: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    padding: 4,
+    backgroundColor: 'linear-gradient(135deg, #7C2B86, #B24592)',
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  avatar: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: '#F5F5F5',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 2,
+  },
+  name: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  statText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7C2B86',
+  },
+  aboutSection: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  aboutText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  compatibilitySection: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  compatibilityLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  compatibilityBarContainer: {
+    height: 32,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  compatibilityBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#7C2B86',
+    borderRadius: 16,
+  },
+  compatibilityScore: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    zIndex: 1,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+  },
+  passButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E2',
+  },
+  passText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FF6B6B',
+  },
+  connectButton: {
+    flex: 2,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  connectButtonPressed: {
+    opacity: 0.9,
+  },
+  connectGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+  },
+  connectText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+});
+
+// Note: The new MatchFoundCard and ConnectionAnimation components are defined above.
+// To use them, add this state to the main MatchScreen component (around line 296):
+// const [showConnectionAnimation, setShowConnectionAnimation] = useState(false);
 
 const styles = StyleSheet.create({
   // Main Container
