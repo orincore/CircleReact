@@ -143,12 +143,15 @@ export default function LandingPage({ onSignUp, onLogIn }) {
         >
           <View style={[styles.navContent, styles.navContentLarge]}>
             <View style={styles.logoContainer}>
-              <Image 
-                source={require('@/assets/logo/circle-logo.png')} 
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.logoName}>Circle</Text>
+              <View>
+                <Image 
+                  source={require('@/assets/logo/circle-logo.png')} 
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.logoName}>Circle</Text>
+              </View>
+              <Text style={styles.brandingText}>An App by ORINCORE Technologies</Text>
             </View>
             
             <View style={styles.navLinks}>
@@ -158,9 +161,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               <TouchableOpacity style={styles.navLink}>
                 <Text style={styles.navLinkText}>How It Works</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.navLink}>
-                <Text style={styles.navLinkText}>Testimonials</Text>
-              </TouchableOpacity>
+              {/* Testimonials nav link removed */}
             </View>
             
             <View style={styles.navActions}>
@@ -212,20 +213,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                     Join thousands making meaningful friendships and finding love through smart matching, real-time chat, and authentic community.
                   </Text>
                   
-                  <View style={styles.heroStats}>
-                    <View style={styles.stat}>
-                      <Text style={styles.statNumber}>50K+</Text>
-                      <Text style={styles.statLabel}>Active Users</Text>
-                    </View>
-                    <View style={styles.stat}>
-                      <Text style={styles.statNumber}>1M+</Text>
-                      <Text style={styles.statLabel}>Matches Made</Text>
-                    </View>
-                    <View style={styles.stat}>
-                      <Text style={styles.statNumber}>4.9★</Text>
-                      <Text style={styles.statLabel}>App Rating</Text>
-                    </View>
-                  </View>
+                  {/* Stats removed for browser */}
                 </View>
                 
                 <View style={styles.heroRight}>
@@ -302,15 +290,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 <Ionicons name="arrow-forward" size={20} color={isLargeScreen ? '#FFFFFF' : '#7C2B86'} />
               </TouchableOpacity>
 
-              {isLargeScreen && (
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={onLogIn}
-                >
-                  <Ionicons name="play-circle" size={20} color="#FFFFFF" />
-                  <Text style={styles.secondaryButtonText}>Watch Demo</Text>
-                </TouchableOpacity>
-              )}
+              {/* Watch Demo button removed */}
             </View>
             
             {!isLargeScreen && (
@@ -351,34 +331,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               </View>
             </View>
 
-            {/* Testimonials Section */}
-            <View style={[styles.section, styles.testimonialsSection, styles.sectionLarge]}>
-              <Text style={[styles.sectionTitle, styles.sectionTitleLarge]}>
-                Loved by Thousands
-              </Text>
-              <Text style={[styles.sectionSubtitle, styles.sectionSubtitleLarge]}>
-                Real stories from real people
-              </Text>
-              
-              <View style={[styles.testimonialsGrid, styles.testimonialsGridLarge]}>
-                {testimonials.map((testimonial, index) => (
-                  <View key={index} style={[styles.testimonialCard, styles.testimonialCardLarge]}>
-                    <View style={styles.testimonialHeader}>
-                      <Text style={styles.testimonialAvatar}>{testimonial.avatar}</Text>
-                      <View style={styles.testimonialInfo}>
-                        <Text style={styles.testimonialName}>{testimonial.name}</Text>
-                        <View style={styles.testimonialRating}>
-                          {[...Array(testimonial.rating)].map((_, i) => (
-                            <Ionicons key={i} name="star" size={14} color="#FFD6F2" />
-                          ))}
-                        </View>
-                      </View>
-                    </View>
-                    <Text style={styles.testimonialText}>{testimonial.text}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+            {/* Testimonials Section removed */}
 
             {/* CTA Section */}
             <View style={[styles.ctaSection, styles.ctaSectionLarge]}>
@@ -423,22 +376,70 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 </View>
                 <View style={styles.footerColumn}>
                   <Text style={styles.footerColumnTitle}>Legal</Text>
-                  <TouchableOpacity><Text style={styles.footerLink}>Privacy</Text></TouchableOpacity>
-                  <TouchableOpacity><Text style={styles.footerLink}>Terms</Text></TouchableOpacity>
-                  <TouchableOpacity><Text style={styles.footerLink}>Contact</Text></TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.location.href = '/privacy';
+                      }
+                    }}
+                  >
+                    <Text style={styles.footerLink}>Privacy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.location.href = '/terms';
+                      }
+                    }}
+                  >
+                    <Text style={styles.footerLink}>Terms</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.location.href = '/contact';
+                      }
+                    }}
+                  >
+                    <Text style={styles.footerLink}>Contact</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
               
               <View style={styles.footerBottom}>
-                <Text style={styles.footerCopyright}>© 2025 Circle. All rights reserved.</Text>
+                <View>
+                  <Text style={styles.footerCopyright}>© 2025 Circle. All rights reserved.</Text>
+                  <Text style={styles.footerBranding}>An App by ORINCORE Technologies</Text>
+                </View>
                 <View style={styles.footerSocials}>
-                  <TouchableOpacity style={styles.socialIcon}>
+                  <TouchableOpacity 
+                    style={styles.socialIcon}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.open('https://x.com/orincore_tweet', '_blank');
+                      }
+                    }}
+                  >
                     <Ionicons name="logo-twitter" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.socialIcon}>
+                  <TouchableOpacity 
+                    style={styles.socialIcon}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.open('https://instagram.com/ig_orincore', '_blank');
+                      }
+                    }}
+                  >
                     <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.socialIcon}>
+                  <TouchableOpacity 
+                    style={styles.socialIcon}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.open('https://www.facebook.com/orincore', '_blank');
+                      }
+                    }}
+                  >
                     <Ionicons name="logo-facebook" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -480,7 +481,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 24,
+  },
+  brandingText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   logoImage: {
     width: 40,
@@ -1097,6 +1103,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.6)',
   },
+  footerBranding: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 4,
+  },
   footerSocials: {
     flexDirection: 'row',
     gap: 16,
@@ -1108,5 +1119,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+    }),
   },
 });

@@ -45,6 +45,32 @@ class AndroidNotificationService {
     }
   }
 
+  async saveTokenIfAuthenticated() {
+    try {
+      const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+      const authToken = await AsyncStorage.getItem('token');
+      
+      console.log('🔍 Checking auth status:', {
+        hasAuthToken: !!authToken,
+        hasExpoPushToken: !!this.expoPushToken,
+        tokenValue: this.expoPushToken
+      });
+      
+      if (authToken && this.expoPushToken && this.expoPushToken !== 'undefined') {
+        console.log('🔄 User already authenticated, saving push token now');
+        await this.savePushTokenToDatabase(this.expoPushToken);
+      } else {
+        console.log('⏳ Conditions not met for token save:', {
+          hasAuthToken: !!authToken,
+          hasExpoPushToken: !!this.expoPushToken,
+          isValidToken: this.expoPushToken !== 'undefined'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error checking authentication for token save:', error);
+    }
+  }
+
   async registerForPushNotificationsAsync() {
     let token;
 
@@ -87,6 +113,12 @@ class AndroidNotificationService {
         })).data;
         
         this.expoPushToken = token;
+        console.log('✅ Expo push token obtained:', token);
+        
+        // Try to save token immediately if user is already authenticated
+        this.saveTokenIfAuthenticated().catch(err => {
+          console.log('⏳ Will save token after login');
+        });
       } catch (e) {
         console.error('❌ Error getting push token:', e);
         token = `${e}`;
@@ -236,6 +268,11 @@ class AndroidNotificationService {
         case 'voice_call':
           // Handle voice call
           console.log('📱 Handling voice call');
+          break;
+        case 'marketing_campaign':
+          // Handle marketing campaign notification
+          console.log('📱 Marketing campaign notification:', data.campaignId);
+          // Can navigate to specific campaign landing page if needed
           break;
         default:
           console.log('📱 Unknown notification type:', data.type);
@@ -431,6 +468,55 @@ class AndroidNotificationService {
   async setBadgeCount(count) {
     if (Platform.OS === 'ios') {
       await Notifications.setBadgeCountAsync(count);
+    }
+  }
+
+  // Save push token to database
+  async savePushTokenToDatabase(token, authTokenOverride = null) {
+    try {
+      const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+      const { API_BASE_URL } = await import('../api/config');
+      
+      const authToken = authTokenOverride || await AsyncStorage.getItem('token');
+      if (!authToken) {
+        console.log('⚠️ No auth token, skipping push token save');
+        return;
+      }
+
+      const deviceType = Platform.OS;
+      const deviceName = Device.deviceName || `${Platform.OS} Device`;
+
+      console.log('💾 Saving push token to database:', { 
+        token, 
+        deviceType, 
+        deviceName,
+        apiUrl: `${API_BASE_URL}/api/notifications/register-token`
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications/register-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          token,
+          deviceType,
+          deviceName,
+        }),
+      });
+
+      console.log('📡 Response status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Push token saved to database:', data);
+      } else {
+        const error = await response.text();
+        console.error('❌ Failed to save push token. Status:', response.status, 'Error:', error);
+      }
+    } catch (error) {
+      console.error('❌ Error saving push token to database:', error);
     }
   }
 

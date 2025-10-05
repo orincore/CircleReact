@@ -411,7 +411,7 @@ export default function ChatListScreen() {
                           : (item.lastMessage && item.lastMessage.text) || 'No messages yet'
                         }
                       </Text>
-                      {item.lastMessage && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
+                      {item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
                         <Ionicons
                           name={
                             item.lastMessage.status === 'read' ? 'checkmark-done' : 

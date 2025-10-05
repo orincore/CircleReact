@@ -10,7 +10,8 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  TextInput
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -41,6 +42,9 @@ export default function UserProfileModal({
   const [blockStatus, setBlockStatus] = useState({ isBlocked: false, isBlockedBy: false });
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showUnfriendConfirm, setShowUnfriendConfirm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportType, setReportType] = useState('');
+  const [reportReason, setReportReason] = useState('');
   const [spotifyData, setSpotifyData] = useState(null);
   const [spotifyExpanded, setSpotifyExpanded] = useState(false);
   const insets = useSafeAreaInsets();
@@ -635,6 +639,69 @@ export default function UserProfileModal({
     }
   };
 
+  const handleReportUser = async () => {
+    if (!reportType || !reportReason.trim()) {
+      Alert.alert('Error', 'Please select a report type and provide a reason');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080'}/api/reports`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportedUserId: userId,
+          reportType,
+          reason: reportReason,
+        }),
+      });
+
+      if (response.ok) {
+        setShowReportModal(false);
+        setReportType('');
+        setReportReason('');
+        
+        // Show success message
+        Alert.alert(
+          '✅ Report Submitted',
+          'Thank you for your report. Our moderation team will review it shortly and take appropriate action.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Handle specific error codes
+        if (response.status === 429) {
+          Alert.alert(
+            'Report Already Submitted',
+            errorData.message || 'You have already reported this user recently. Please wait 24 hours before submitting another report.',
+            [{ text: 'OK', style: 'default' }]
+          );
+        } else {
+          Alert.alert(
+            'Error',
+            errorData.message || 'Failed to submit report. Please try again.',
+            [{ text: 'OK', style: 'default' }]
+          );
+        }
+        
+        // Close modal on error too
+        setShowReportModal(false);
+        setReportType('');
+        setReportReason('');
+      }
+    } catch (error) {
+      console.error('Failed to report user:', error);
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      setShowReportModal(false);
+      setReportType('');
+      setReportReason('');
+    }
+  };
+
   const handleUnfriend = async () => {
     if (!token || !userId) return;
     
@@ -705,10 +772,11 @@ export default function UserProfileModal({
   if (!visible) return null;
 
   return (
+    <>
     <Modal
       visible={visible}
-      transparent={true}
       animationType={Platform.OS === 'ios' ? 'slide' : 'fade'}
+      transparent={true}
       onRequestClose={onClose}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       statusBarTranslucent={true}
@@ -745,22 +813,23 @@ export default function UserProfileModal({
                 {/* Test element to ensure rendering */}
                 {/* Avatar and Basic Info */}
                 <View style={styles.profileHeader}>
-                  <Avatar 
-                    user={{
-                      id: userId,
-                      first_name: profileData.name.split(' ')[0],
-                      last_name: profileData.name.split(' ')[1],
-                      profile_photo_url: profileData.avatar,
-                      name: profileData.name
-                    }}
-                    size={100}
-                    disabled={true}
-                    style={styles.avatarContainer}
-                  />
-                  <View style={[
-                    styles.onlineIndicator, 
-                    { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
-                  ]} />
+                  <View style={styles.avatarContainer}>
+                    <Avatar 
+                      user={{
+                        id: userId,
+                        first_name: profileData.name.split(' ')[0],
+                        last_name: profileData.name.split(' ')[1],
+                        profile_photo_url: profileData.avatar,
+                        name: profileData.name
+                      }}
+                      size={100}
+                      disabled={true}
+                    />
+                    <View style={[
+                      styles.onlineIndicator, 
+                      { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
+                    ]} />
+                  </View>
                   
                   <Text style={styles.name}>{profileData.name}</Text>
                   <Text style={styles.username}>{profileData.username}</Text>
@@ -979,7 +1048,7 @@ export default function UserProfileModal({
                   )}
                 </View>
 
-                {/* Block/Unblock Section */}
+                {/* Block/Report Section */}
                 {userId !== user?.id && !blockStatus.isBlockedBy && (
                   <View style={styles.blockSection}>
                     {blockStatus.isBlocked ? (
@@ -991,64 +1060,27 @@ export default function UserProfileModal({
                         <Text style={styles.unblockButtonText}>Unblock {userName}</Text>
                       </TouchableOpacity>
                     ) : (
-                      <TouchableOpacity 
-                        style={styles.blockButton}
-                        onPress={() => setShowBlockConfirm(true)}
-                      >
-                        <Ionicons name="ban-outline" size={18} color="#FF4444" />
-                        <Text style={styles.blockButtonText}>Block User</Text>
-                      </TouchableOpacity>
+                      <>
+                        <TouchableOpacity 
+                          style={styles.blockButton}
+                          onPress={() => setShowBlockConfirm(true)}
+                        >
+                          <Ionicons name="ban-outline" size={18} color="#FF4444" />
+                          <Text style={styles.blockButtonText}>Block User</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          style={styles.reportButton}
+                          onPress={() => setShowReportModal(true)}
+                        >
+                          <Ionicons name="flag-outline" size={18} color="#FF9800" />
+                          <Text style={styles.reportButtonText}>Report User</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                   </View>
                 )}
 
-                {/* Block Confirmation Dialog */}
-                {showBlockConfirm && (
-                  <View style={styles.confirmDialog}>
-                    <Text style={styles.confirmTitle}>Block {userName}?</Text>
-                    <Text style={styles.confirmMessage}>
-                      They won't be able to message you or see your activity. You'll be removed from each other's friends list.
-                    </Text>
-                    <View style={styles.confirmButtons}>
-                      <TouchableOpacity 
-                        style={styles.confirmCancelButton}
-                        onPress={() => setShowBlockConfirm(false)}
-                      >
-                        <Text style={styles.confirmCancelText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.confirmBlockButton}
-                        onPress={handleBlockUser}
-                      >
-                        <Text style={styles.confirmBlockText}>Block</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {/* Unfriend Confirmation Dialog */}
-                {showUnfriendConfirm && (
-                  <View style={styles.confirmDialog}>
-                    <Text style={styles.confirmTitle}>Remove {userName} as friend?</Text>
-                    <Text style={styles.confirmMessage}>
-                      You'll be removed from each other's friends list and will no longer be able to message each other.
-                    </Text>
-                    <View style={styles.confirmButtons}>
-                      <TouchableOpacity 
-                        style={styles.confirmCancelButton}
-                        onPress={() => setShowUnfriendConfirm(false)}
-                      >
-                        <Text style={styles.confirmCancelText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.confirmUnfriendButton}
-                        onPress={handleUnfriend}
-                      >
-                        <Text style={styles.confirmUnfriendText}>Remove</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
               </ScrollView>
             ) : (
               <View style={styles.errorContainer}>
@@ -1063,6 +1095,129 @@ export default function UserProfileModal({
         </View>
       </View>
     </Modal>
+
+    {/* Block Confirmation Modal */}
+    <Modal
+      visible={showBlockConfirm}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowBlockConfirm(false)}
+    >
+      <View style={styles.popupOverlay}>
+        <View style={styles.popupContainer}>
+          <Text style={styles.popupTitle}>Block {userName}?</Text>
+          <Text style={styles.popupMessage}>
+            They won't be able to message you or see your activity. You'll be removed from each other's friends list.
+          </Text>
+          <View style={styles.popupButtons}>
+            <TouchableOpacity 
+              style={styles.popupCancelButton}
+              onPress={() => setShowBlockConfirm(false)}
+            >
+              <Text style={styles.popupCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.popupActionButton, styles.popupBlockButton]}
+              onPress={handleBlockUser}
+            >
+              <Text style={styles.popupActionText}>Block</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Unfriend Confirmation Modal */}
+    <Modal
+      visible={showUnfriendConfirm}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowUnfriendConfirm(false)}
+    >
+      <View style={styles.popupOverlay}>
+        <View style={styles.popupContainer}>
+          <Text style={styles.popupTitle}>Remove {userName} as friend?</Text>
+          <Text style={styles.popupMessage}>
+            You'll be removed from each other's friends list and will no longer be able to message each other.
+          </Text>
+          <View style={styles.popupButtons}>
+            <TouchableOpacity 
+              style={styles.popupCancelButton}
+              onPress={() => setShowUnfriendConfirm(false)}
+            >
+              <Text style={styles.popupCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.popupActionButton, styles.popupUnfriendButton]}
+              onPress={handleUnfriend}
+            >
+              <Text style={styles.popupActionText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Report User Modal */}
+    <Modal
+      visible={showReportModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowReportModal(false)}
+    >
+      <View style={styles.popupOverlay}>
+        <View style={[styles.popupContainer, styles.reportPopupContainer]}>
+          <Text style={styles.popupTitle}>Report {userName}</Text>
+          <Text style={styles.popupSubtitle}>Please select a reason:</Text>
+          
+          <ScrollView style={styles.reportScrollView} showsVerticalScrollIndicator={false}>
+            <View style={styles.reportTypes}>
+              {['harassment', 'spam', 'inappropriate_content', 'fake_profile', 'underage', 'other'].map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.reportTypeButton, reportType === type && styles.reportTypeButtonActive]}
+                  onPress={() => setReportType(type)}
+                >
+                  <Text style={[styles.reportTypeText, reportType === type && styles.reportTypeTextActive]}>
+                    {type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.reportReasonInput}
+              placeholder="Please provide additional details..."
+              placeholderTextColor="#999"
+              value={reportReason}
+              onChangeText={setReportReason}
+              multiline
+              numberOfLines={4}
+            />
+          </ScrollView>
+
+          <View style={styles.popupButtons}>
+            <TouchableOpacity 
+              style={styles.popupCancelButton}
+              onPress={() => {
+                setShowReportModal(false);
+                setReportType('');
+                setReportReason('');
+              }}
+            >
+              <Text style={styles.popupCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.popupActionButton, styles.popupReportButton]}
+              onPress={handleReportUser}
+            >
+              <Text style={styles.popupActionText}>Submit Report</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  </>
   );
 }
 
@@ -1167,13 +1322,18 @@ const styles = StyleSheet.create({
   },
   onlineIndicator: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 3,
+    bottom: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2.5,
     borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   name: {
     fontSize: 24,
@@ -1548,6 +1708,190 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#FFF3E0',
+    gap: 8,
+    marginTop: 8,
+  },
+  reportButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF9800',
+  },
+  reportModal: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    marginHorizontal: 16,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 8,
+  },
+  reportSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  reportTypes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  reportTypeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  reportTypeButtonActive: {
+    backgroundColor: '#FF9800',
+    borderColor: '#FF9800',
+  },
+  reportTypeText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  reportTypeTextActive: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  reportReasonInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  reportButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reportCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+  },
+  reportCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  reportSubmitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#FF9800',
+    alignItems: 'center',
+  },
+  reportSubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  // Popup Modal Styles
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  popupContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  reportPopupContainer: {
+    maxHeight: '80%',
+  },
+  reportScrollView: {
+    maxHeight: 400,
+  },
+  popupTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  popupSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  popupMessage: {
+    fontSize: 15,
+    color: '#666',
+    lineHeight: 22,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  popupButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  popupCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+  },
+  popupCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  popupActionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  popupBlockButton: {
+    backgroundColor: '#FF4444',
+  },
+  popupUnfriendButton: {
+    backgroundColor: '#FF8C00',
+  },
+  popupReportButton: {
+    backgroundColor: '#FF9800',
+  },
+  popupActionText: {
     fontSize: 16,
     fontWeight: '600',
     color: 'white',

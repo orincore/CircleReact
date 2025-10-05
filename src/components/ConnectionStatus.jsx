@@ -6,13 +6,18 @@ import { socketService, forceReconnect } from '../api/socket';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function ConnectionStatus() {
+  const { token, user } = useAuth();
+  const pathname = usePathname();
   const [connectionState, setConnectionState] = useState('disconnected');
   const [showDetails, setShowDetails] = useState(false);
-  const { token } = useAuth();
-  const pathname = usePathname();
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Only setup listeners if authenticated
+    if (!token || !user) {
+      return;
+    }
+
     // Listen to connection state changes
     const handleConnectionChange = (state) => {
       setConnectionState(state);
@@ -26,7 +31,7 @@ export default function ConnectionStatus() {
     return () => {
       socketService.removeConnectionListener(handleConnectionChange);
     };
-  }, []);
+  }, [token, user]);
 
   // Pulse animation for connecting/reconnecting states
   useEffect(() => {
@@ -49,6 +54,11 @@ export default function ConnectionStatus() {
       return () => pulse.stop();
     }
   }, [connectionState, pulseAnim]);
+
+  // Only show connection status for authenticated users
+  if (!token || !user) {
+    return null;
+  }
 
   const getStatusConfig = () => {
     switch (connectionState) {

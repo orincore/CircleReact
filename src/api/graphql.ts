@@ -60,6 +60,12 @@ export async function meGql(token?: string | null) {
         profilePhotoUrl
         instagramUsername
         invisibleMode
+        is_suspended
+        suspension_reason
+        suspended_at
+        suspension_ends_at
+        deleted_at
+        deletion_reason
         location {
           latitude
           longitude
