@@ -19,7 +19,8 @@ import {
   Animated,
   Easing,
   StatusBar,
-  Keyboard
+  Keyboard,
+  Modal
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,12 +34,17 @@ import { friendsApi } from "@/src/api/friends";
 import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
 import UserProfileModal from "@/src/components/UserProfileModal";
 import { API_BASE_URL } from "@/src/api/config";
-import ReactionBar from "@/src/components/ReactionBar";
 import ReactionPicker from "@/src/components/ReactionPicker";
+import ReactionBar from "@/src/components/ReactionBar";
 import VoiceCallModal from "@/components/VoiceCallModal";
 import { voiceCallService } from "@/src/services/VoiceCallService";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
+import { pickImage, pickVideo, takePhoto } from '@/src/utils/mediaUpload';
+import { uploadMediaToS3 } from '@/src/utils/mediaUpload';
+import MediaCacheService from '@/src/services/MediaCacheService';
+import CachedMediaImage from '@/src/components/CachedMediaImage';
+import MediaSaveService from '@/src/services/MediaSaveService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -226,14 +232,7 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
   const [showMenu, setShowMenu] = useState(false);
   const isBrowser = Platform.OS === 'web';
   
-  // Debug logging for 3-dot menu visibility
-  console.log('🔍 MessageBubble render:', { 
-    messageId: message.id, 
-    isBrowser, 
-    isMine, 
-    showMenu,
-    platform: Platform.OS 
-  });
+ 
   
   const handleLongPress = () => {
     if (isMine && onEdit && onDelete) {
@@ -312,6 +311,13 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
     }
   }, [showMenu, isBrowser]);
 
+
+  // Don't render messages that have no content
+  if ((!message.text || message.text.trim() === '') && !message.mediaUrl) {
+    console.log('⚠️ Skipping empty message:', message.id);
+    return null;
+  }
+
   return (
     <Pressable
       onLongPress={handleLongPress}
@@ -359,9 +365,41 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
               </TouchableOpacity>
             )}
             
-            <Text style={styles.myMessageText}>
-              {message.text}
-            </Text>
+            {/* Media Content */}
+            {message.mediaUrl && (
+              <View style={styles.mediaContainer}>
+                {message.mediaType === 'image' ? (
+                  <CachedMediaImage 
+                    messageId={message.id}
+                    mediaUrl={message.mediaUrl}
+                    mediaType={message.mediaType}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                ) : message.mediaType === 'video' ? (
+                  <View style={styles.videoContainer}>
+                    {message.thumbnail && (
+                      <CachedMediaImage 
+                        messageId={`${message.id}_thumbnail`}
+                        mediaUrl={message.thumbnail}
+                        mediaType="image"
+                        style={styles.messageImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                    <View style={styles.videoPlayButton}>
+                      <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            )}
+            
+            {message.text && (
+              <Text style={styles.myMessageText}>
+                {message.text}
+              </Text>
+            )}
             {message.isEdited && (
               <Text style={styles.editedLabel}>edited</Text>
             )}
@@ -397,10 +435,41 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
           </LinearGradient>
         ) : (
           <>
+            {/* Media Content */}
+            {message.mediaUrl && (
+              <View style={styles.mediaContainer}>
+                {message.mediaType === 'image' ? (
+                  <CachedMediaImage 
+                    messageId={message.id}
+                    mediaUrl={message.mediaUrl}
+                    mediaType={message.mediaType}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                ) : message.mediaType === 'video' ? (
+                  <View style={styles.videoContainer}>
+                    {message.thumbnail && (
+                      <CachedMediaImage 
+                        messageId={`${message.id}_thumbnail`}
+                        mediaUrl={message.thumbnail}
+                        mediaType="image"
+                        style={styles.messageImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                    <View style={styles.videoPlayButton}>
+                      <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            )}
             
-            <Text style={styles.theirMessageText}>
-              {message.text}
-            </Text>
+            {message.text && (
+              <Text style={styles.theirMessageText}>
+                {message.text}
+              </Text>
+            )}
             {message.isEdited && (
               <Text style={styles.editedLabel}>edited</Text>
             )}
@@ -819,6 +888,22 @@ export default function InstagramChatScreen() {
   const [messages, setMessages] = useState([]);
   const [oldestAt, setOldestAt] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
+
+  // Initialize media cache service
+  useEffect(() => {
+    const initializeCache = async () => {
+      try {
+        await MediaCacheService.initialize();
+        console.log('📱 Media cache initialized for chat:', conversationId);
+      } catch (error) {
+        console.error('Failed to initialize media cache:', error);
+      }
+    };
+    
+    initializeCache();
+  }, [conversationId]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
   // Browser notifications - track current chat to prevent notifications
@@ -900,23 +985,13 @@ export default function InstagramChatScreen() {
   
   // Debug avatar state changes
   useEffect(() => {
-    console.log('🖼️ Avatar state changed:', { 
-      userAvatar, 
-      initialAvatar, 
-      platform: Platform.OS 
-    });
-  }, [userAvatar]);
-
-  // Fetch user profile picture if not provided
-  const fetchUserProfile = async (userId) => {
-    if (!userId || !token) return;
-    
-    try {
-      console.log('🖼️ Fetching profile picture for user:', userId);
+    const fetchUserProfile = async () => {
+      try {
+      console.log('🖼️ Fetching profile picture for user:', otherUserId);
       console.log('🌐 Platform:', Platform.OS);
-      console.log('🔗 API URL:', `${API_BASE_URL}/api/friends/user/${userId}/profile`);
+      console.log('🔗 API URL:', `${API_BASE_URL}/api/friends/user/${otherUserId}/profile`);
       
-      const response = await fetch(`${API_BASE_URL}/api/friends/user/${userId}/profile`, {
+      const response = await fetch(`${API_BASE_URL}/api/friends/user/${otherUserId}/profile`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -942,9 +1017,14 @@ export default function InstagramChatScreen() {
         console.log('❌ Error response:', errorText);
       }
     } catch (error) {
-      console.error('❌ Error fetching user profile:', error);
+        console.error('❌ Error fetching user profile:', error);
+      }
+    };
+    
+    if (otherUserId && token) {
+      fetchUserProfile();
     }
-  };
+  }, [otherUserId, token]);
 
   // Check friendship status when otherUserId is available from params
   useEffect(() => {
@@ -1228,17 +1308,25 @@ export default function InstagramChatScreen() {
     const handleHistory = ({ chatId, messages }) => {
       if (chatId !== conversationId) return;
       const asc = [...messages].sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
-      setMessages(asc.map(m => ({
+      const mappedMessages = asc.map(m => ({
         id: m.id,
         senderId: m.senderId,
         text: m.text,
+        mediaUrl: m.mediaUrl,
+        mediaType: m.mediaType,
+        thumbnail: m.thumbnail,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
         isEdited: m.isEdited,
         isDeleted: m.isDeleted,
         reactions: m.reactions || [],
         status: m.senderId === myUserId ? (m.status || 'sent') : undefined, // Use backend status or default to 'sent'
-      })));
+      }));
+      
+      setMessages(mappedMessages);
+      
+      // Preload media cache for all messages with media
+      MediaCacheService.preloadChatMedia(mappedMessages);
       
       // Set pagination state
       if (asc.length) {
@@ -1341,6 +1429,9 @@ export default function InstagramChatScreen() {
             id: message.id,
             senderId: message.senderId,
             text: message.text,
+            mediaUrl: message.mediaUrl,
+            mediaType: message.mediaType,
+            thumbnail: message.thumbnail,
             createdAt: message.createdAt,
             updatedAt: message.updatedAt,
             isEdited: message.isEdited || false,
@@ -1355,6 +1446,9 @@ export default function InstagramChatScreen() {
             id: message.id,
             senderId: message.senderId,
             text: message.text,
+            mediaUrl: message.mediaUrl,
+            mediaType: message.mediaType,
+            thumbnail: message.thumbnail,
             createdAt: message.createdAt,
             updatedAt: message.updatedAt,
             isEdited: message.isEdited || false,
@@ -1940,6 +2034,129 @@ export default function InstagramChatScreen() {
       duration: 150,
       useNativeDriver: false,
     }).start();
+  };
+
+  // Handle media selection and upload
+  const handleMediaPick = async (type) => {
+    console.log('📸 Media pick started:', type);
+    
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('⏱️ Upload timeout - resetting');
+      setUploadingMedia(false);
+      Alert.alert('Timeout', 'Media selection took too long. Please try again.');
+    }, 30000); // 30 second timeout
+    
+    try {
+      setShowMediaOptions(false);
+      setUploadingMedia(true);
+
+      let media = null;
+      
+      console.log('📱 Launching picker for:', type);
+      
+      try {
+        if (type === 'image') {
+          media = await pickImage();
+        } else if (type === 'video') {
+          media = await pickVideo();
+        } else if (type === 'camera') {
+          media = await takePhoto();
+        }
+      } catch (pickerError) {
+        console.error('❌ Picker error:', pickerError);
+        clearTimeout(timeoutId);
+        setUploadingMedia(false);
+        Alert.alert('Picker Error', pickerError.message || 'Failed to open media picker');
+        return;
+      }
+
+      console.log('📸 Media selected:', media);
+
+      if (!media) {
+        console.log('❌ No media selected (user cancelled)');
+        clearTimeout(timeoutId);
+        setUploadingMedia(false);
+        return;
+      }
+
+      // Validate media has required properties
+      if (!media.uri) {
+        console.error('❌ Invalid media object - no URI:', media);
+        clearTimeout(timeoutId);
+        setUploadingMedia(false);
+        Alert.alert('Error', 'Invalid media selected');
+        return;
+      }
+
+      // Upload to S3
+      const mediaType = media.type === 'video' ? 'video' : 'image';
+      console.log('📤 Starting upload:', mediaType, 'URI:', media.uri);
+      
+      try {
+        const uploadResult = await uploadMediaToS3(media.uri, mediaType, token);
+        console.log('✅ Upload complete:', uploadResult);
+
+        // Send media message
+        const tempId = `temp-${Date.now()}`;
+        const tempMessage = {
+          id: tempId,
+          senderId: myUserId,
+          mediaUrl: uploadResult.url,
+          mediaType: uploadResult.type,
+          thumbnail: uploadResult.thumbnail,
+          text: '', // Empty text for media messages
+          createdAt: Date.now(),
+          isEdited: false,
+          isDeleted: false,
+          reactions: [],
+          status: 'sending',
+        };
+
+        // Add temporary message to UI
+        setMessages(prev => [...prev, tempMessage]);
+
+        // Send via socket
+        const s = getSocket(token);
+        const messageData = {
+          chatId: conversationId,
+          text: '',
+          mediaUrl: uploadResult.url,
+          mediaType: uploadResult.type,
+          thumbnail: uploadResult.thumbnail,
+        };
+        console.log('📤 Sending media message via socket:', messageData);
+        s.emit('chat:message', messageData);
+
+        console.log('✅ Media message sent');
+        
+        // Cache media with temporary message ID for now
+        // Will be updated with actual message ID when confirmation is received
+        if (uploadResult.tempCacheId) {
+          await MediaCacheService.cacheMedia(tempId, {
+            mediaUrl: uploadResult.url,
+            mediaType: uploadResult.type,
+            thumbnail: uploadResult.thumbnail,
+            fileName: uploadResult.fileName || `${uploadResult.type}_${Date.now()}`,
+            fileSize: uploadResult.size
+          });
+        }
+      } catch (uploadError) {
+        console.error('❌ Upload error:', uploadError);
+        clearTimeout(timeoutId);
+        setUploadingMedia(false);
+        Alert.alert('Upload Failed', uploadError.message || 'Failed to upload media to server');
+        return;
+      }
+
+      clearTimeout(timeoutId);
+      setUploadingMedia(false);
+    } catch (error) {
+      console.error('❌ Media upload error:', error);
+      clearTimeout(timeoutId);
+      setUploadingMedia(false);
+      Alert.alert('Upload Failed', error.message || 'Failed to upload media');
+    }
   };
 
   const handleEditMessage = async (messageId, newText) => {
@@ -2532,6 +2749,27 @@ export default function InstagramChatScreen() {
           {friendshipStatus === 'friends' && !blockStatus.isBlocked && !blockStatus.isBlockedBy && (
             <View style={styles.desktopInputContainer} onLayout={(e) => setDesktopComposerHeight(e.nativeEvent.layout.height)}>
               <View style={styles.desktopInputWrapper}>
+                {/* Media Picker Button for Desktop */}
+                {!uploadingMedia && (
+                  <TouchableOpacity 
+                    style={styles.desktopMediaButton}
+                    onPress={() => {
+                      console.log('🖥️ Desktop + button clicked, current state:', showMediaOptions);
+                      console.log('🖥️ Platform.OS:', Platform.OS);
+                      setShowMediaOptions(!showMediaOptions);
+                      console.log('🖥️ Setting showMediaOptions to:', !showMediaOptions);
+                    }}
+                  >
+                    <Ionicons name="add-circle" size={32} color="#7C2B86" />
+                  </TouchableOpacity>
+                )}
+
+                {uploadingMedia && (
+                  <View style={styles.desktopMediaButton}>
+                    <ActivityIndicator size="small" color="#7C2B86" />
+                  </View>
+                )}
+
                 <TextInput
                   style={styles.desktopInput}
                   value={composer}
@@ -3036,6 +3274,26 @@ export default function InstagramChatScreen() {
                 </View>
               )}
               
+              {/* Media Picker Button */}
+              {!chatDisabled && !uploadingMedia && (
+                <TouchableOpacity 
+                  style={styles.mediaButton}
+                  onPress={() => {
+                    console.log('📱 Media button clicked, current state:', showMediaOptions);
+                    setShowMediaOptions(!showMediaOptions);
+                    console.log('📱 Setting showMediaOptions to:', !showMediaOptions);
+                  }}
+                >
+                  <Ionicons name="add-circle" size={screenData.isDesktop ? 32 : 28} color="#7C2B86" />
+                </TouchableOpacity>
+              )}
+
+              {uploadingMedia && (
+                <View style={styles.mediaButton}>
+                  <ActivityIndicator size="small" color="#7C2B86" />
+                </View>
+              )}
+
               <View style={[
                 styles.inputContainer,
                 {
@@ -3240,7 +3498,209 @@ export default function InstagramChatScreen() {
         callData={voiceCallData}
         token={token}
       />
-    </LinearGradient>
+
+      {/* Media Options - Portal-style overlay for browser compatibility */}
+      {showMediaOptions && Platform.OS === 'web' && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            paddingBottom: '100px'
+          }}
+          onClick={() => {
+            console.log('🎭 Closing media options (web)');
+            setShowMediaOptions(false);
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'space-around',
+              backgroundColor: '#FFFFFF',
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+              padding: '30px 20px',
+              boxShadow: '0px -4px 20px rgba(0, 0, 0, 0.15)',
+              minWidth: '300px',
+              maxWidth: '400px',
+              width: '90%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              onClick={() => {
+                console.log('📷 Camera option pressed (web)');
+                setShowMediaOptions(false);
+                handleMediaPick('camera');
+              }}
+            >
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '30px',
+                  backgroundColor: '#FF6FB5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  fontSize: '24px'
+                }}
+              >
+                📷
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#333' }}>Camera</span>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              onClick={() => {
+                console.log('🖼️ Photo option pressed (web)');
+                setShowMediaOptions(false);
+                handleMediaPick('image');
+              }}
+            >
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '30px',
+                  backgroundColor: '#7C2B86',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  fontSize: '24px'
+                }}
+              >
+                🖼️
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#333' }}>Photo</span>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              onClick={() => {
+                console.log('🎥 Video option pressed (web)');
+                setShowMediaOptions(false);
+                handleMediaPick('video');
+              }}
+            >
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '30px',
+                  backgroundColor: '#5D5FEF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  fontSize: '24px'
+                }}
+              >
+                🎥
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#333' }}>Video</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Media Options - React Native Modal for mobile */}
+      {showMediaOptions && Platform.OS !== 'web' && (
+        <Modal
+          visible={showMediaOptions}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowMediaOptions(false)}
+        >
+          <View style={styles.mediaOptionsOverlay}>
+            <TouchableOpacity 
+              style={styles.mediaOptionsBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                console.log('🎭 Closing media options');
+                setShowMediaOptions(false);
+              }}
+            />
+            <View style={styles.mediaOptionsContainer}>
+            <TouchableOpacity 
+              style={styles.mediaOption}
+              onPress={() => {
+                console.log('📷 Camera option pressed');
+                setShowMediaOptions(false);
+                handleMediaPick('camera');
+              }}
+            >
+              <View style={[styles.mediaOptionIcon, { backgroundColor: '#FF6FB5' }]}>
+                <Ionicons name="camera" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.mediaOptionText}>Camera</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.mediaOption}
+              onPress={() => {
+                console.log('🖼️ Photo option pressed');
+                setShowMediaOptions(false);
+                handleMediaPick('image');
+              }}
+            >
+              <View style={[styles.mediaOptionIcon, { backgroundColor: '#7C2B86' }]}>
+                <Ionicons name="image" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.mediaOptionText}>Photo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.mediaOption}
+              onPress={() => {
+                console.log('🎥 Video option pressed');
+                setShowMediaOptions(false);
+                handleMediaPick('video');
+              }}
+            >
+              <View style={[styles.mediaOptionIcon, { backgroundColor: '#5D5FEF' }]}>
+                <Ionicons name="videocam" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.mediaOptionText}>Video</Text>
+            </TouchableOpacity>
+          </View>
+          </View>
+        </Modal>
+      )}</LinearGradient>
   );
 }
 
@@ -3797,6 +4257,8 @@ const styles = StyleSheet.create({
     paddingTop: 12, // Default mobile padding
     paddingBottom: 12, // Default mobile padding
     backgroundColor: 'transparent', // Transparent by default
+    zIndex: 10, // Ensure composer is above other elements
+    position: 'relative',
   },
   composerBlur: {
     position: 'absolute',
@@ -3810,6 +4272,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20, // Default mobile padding
     gap: 12, // Default mobile gap
+    zIndex: 11, // Above composer container
+    position: 'relative',
   },
   inputContainer: {
     flex: 1,
@@ -3868,9 +4332,13 @@ const styles = StyleSheet.create({
     elevation: 4,
     alignSelf: 'flex-end',
     marginBottom: 1, // Default mobile alignment
+    zIndex: 12, // Ensure button is clickable
+    position: 'relative',
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
       boxShadow: '0px 2px 6px rgba(124, 43, 134, 0.25)',
+      pointerEvents: 'auto',
+      userSelect: 'none',
     }),
   },
   sendGradient: {
@@ -4509,5 +4977,92 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  // Media Styles
+  mediaButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    zIndex: 12, // Ensure button is clickable
+    position: 'relative',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      userSelect: 'none',
+      pointerEvents: 'auto',
+    }),
+  },
+  desktopMediaButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  mediaOptionsOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 100,
+    backgroundColor: 'transparent',
+  },
+  mediaOptionsBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  mediaOptionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0px -4px 20px rgba(0, 0, 0, 0.15)',
+    }),
+  },
+  mediaOption: {
+    alignItems: 'center',
+    gap: 8,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      userSelect: 'none',
+    }),
+  },
+  mediaOptionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  mediaContainer: {
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  messageImage: {
+    width: 250,
+    height: 250,
+    borderRadius: 12,
+  },
+  videoContainer: {
+    position: 'relative',
+  },
+  videoPlayButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -24 }, { translateY: -24 }],
   },
 });

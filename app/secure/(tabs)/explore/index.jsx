@@ -11,12 +11,16 @@ import {
   Alert,
   Image,
   FlatList,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { exploreApi } from '@/src/api/explore';
 import UserProfileModal from '@/src/components/UserProfileModal';
+
+const isBrowser = Platform.OS === 'web';
 
 export default function ExploreScreen() {
   const { token, user } = useAuth();
@@ -30,10 +34,37 @@ export default function ExploreScreen() {
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [passedUserIds, setPassedUserIds] = useState(new Set());
 
   useEffect(() => {
+    loadPassedUsers();
     loadExploreData();
   }, []);
+
+  // Load passed users from AsyncStorage
+  const loadPassedUsers = async () => {
+    try {
+      const passedData = await AsyncStorage.getItem('explorePassedUsers');
+      if (passedData) {
+        const passedUsers = JSON.parse(passedData);
+        const now = Date.now();
+        
+        // Filter out expired passes (older than 15 days)
+        const validPasses = {};
+        Object.keys(passedUsers).forEach(userId => {
+          if (passedUsers[userId] > now) {
+            validPasses[userId] = passedUsers[userId];
+          }
+        });
+        
+        // Update AsyncStorage with valid passes only
+        await AsyncStorage.setItem('explorePassedUsers', JSON.stringify(validPasses));
+        setPassedUserIds(new Set(Object.keys(validPasses)));
+      }
+    } catch (error) {
+      console.error('Error loading passed users:', error);
+    }
+  };
 
   const loadExploreData = async (isRefresh = false) => {
     if (!token) return;
@@ -95,87 +126,123 @@ export default function ExploreScreen() {
     setShowUserModal(true);
   };
 
+  const handlePassUser = async (userId, userName) => {
+    try {
+      // Add to passed users with 15-day expiry
+      const passedData = await AsyncStorage.getItem('explorePassedUsers');
+      const passedUsers = passedData ? JSON.parse(passedData) : {};
+      
+      const expiryTime = Date.now() + (15 * 24 * 60 * 60 * 1000); // 15 days from now
+      passedUsers[userId] = expiryTime;
+      
+      await AsyncStorage.setItem('explorePassedUsers', JSON.stringify(passedUsers));
+      
+      // Update state to hide the user immediately
+      setPassedUserIds(prev => new Set([...prev, userId]));
+      
+      // Show confirmation
+      Alert.alert('User Passed', `${userName || 'User'} won't appear in your discover section for 15 days.`);
+    } catch (error) {
+      console.error('Error passing user:', error);
+      Alert.alert('Error', 'Failed to pass user. Please try again.');
+    }
+  };
+
   const renderUserCard = ({ item: user, showCompatibility = false }) => (
-    <TouchableOpacity
-      style={styles.userCard}
-      onPress={() => handleUserPress(user)}
-    >
-      <View style={styles.userAvatar}>
-        {user.profilePhoto ? (
-          <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
-        ) : (
-          <View style={styles.fallbackAvatar}>
-            <Text style={styles.fallbackAvatarText}>
-              {user.name?.charAt(0)?.toUpperCase() || '?'}
-            </Text>
-          </View>
-        )}
-        {user.isOnline && <View style={styles.onlineIndicator} />}
-      </View>
+    <View style={styles.userCardContainer}>
+      <TouchableOpacity
+        style={styles.userCard}
+        onPress={() => handleUserPress(user)}
+      >
+        <View style={styles.userAvatar}>
+          {user.profilePhoto ? (
+            <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.fallbackAvatar}>
+              <Text style={styles.fallbackAvatarText}>
+                {user.name?.charAt(0)?.toUpperCase() || '?'}
+              </Text>
+            </View>
+          )}
+          {user.isOnline && <View style={styles.onlineIndicator} />}
+        </View>
 
-      <View style={styles.userInfo}>
-        <Text style={styles.userName} numberOfLines={1}>
-          {user.name || 'Unknown User'}
-        </Text>
-        {user.username && (
-          <Text style={styles.userUsername} numberOfLines={1}>
-            @{user.username}
+        <View style={styles.userInfo}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {user.name || 'Unknown User'}
           </Text>
-        )}
-        {user.age && (
-          <Text style={styles.userAge}>
-            {user.age} years old
-          </Text>
-        )}
-        
-        {showCompatibility && user.compatibilityScore && (
-          <View style={styles.compatibilityBadge}>
-            <Ionicons name="heart" size={12} color="#FF6B9D" />
-            <Text style={styles.compatibilityText}>
-              {user.compatibilityScore}% match
+          {user.username && (
+            <Text style={styles.userUsername} numberOfLines={1}>
+              @{user.username}
             </Text>
-          </View>
-        )}
+          )}
+          {user.age && (
+            <Text style={styles.userAge}>
+              {user.age} years old
+            </Text>
+          )}
+          
+          {showCompatibility && user.compatibilityScore && (
+            <View style={styles.compatibilityBadge}>
+              <Ionicons name="heart" size={12} color="#FF6B9D" />
+              <Text style={styles.compatibilityText}>
+                {user.compatibilityScore}% match
+              </Text>
+            </View>
+          )}
 
-        {user.interests && user.interests.length > 0 && (
-          <View style={styles.interestsContainer}>
-            {user.interests.slice(0, 3).map((interest, index) => (
-              <View key={index} style={styles.interestTag}>
-                <Text style={styles.interestText}>{interest}</Text>
-              </View>
-            ))}
-            {user.interests.length > 3 && (
-              <Text style={styles.moreInterests}>+{user.interests.length - 3}</Text>
-            )}
-          </View>
-        )}
+          {user.interests && user.interests.length > 0 && (
+            <View style={styles.interestsContainer}>
+              {user.interests.slice(0, 3).map((interest, index) => (
+                <View key={index} style={styles.interestTag}>
+                  <Text style={styles.interestText}>{interest}</Text>
+                </View>
+              ))}
+              {user.interests.length > 3 && (
+                <Text style={styles.moreInterests}>+{user.interests.length - 3}</Text>
+              )}
+            </View>
+          )}
 
-        {user.isFriend && (
-          <View style={styles.friendBadge}>
-            <Ionicons name="people" size={12} color="#22C55E" />
-            <Text style={styles.friendText}>Friend</Text>
-          </View>
-        )}
-      </View>
+          {user.isFriend && (
+            <View style={styles.friendBadge}>
+              <Ionicons name="people" size={12} color="#22C55E" />
+              <Text style={styles.friendText}>Friend</Text>
+            </View>
+          )}
+        </View>
 
-      <Ionicons name="chevron-forward" size={20} color="rgba(31, 17, 71, 0.4)" />
-    </TouchableOpacity>
+        <Ionicons name="chevron-forward" size={20} color="rgba(31, 17, 71, 0.4)" />
+      </TouchableOpacity>
+      
+      {/* Pass Button */}
+      <TouchableOpacity 
+        style={styles.passButton}
+        onPress={() => handlePassUser(user.id, user.name)}
+      >
+        <Ionicons name="close-circle" size={20} color="#FF6B9D" />
+        <Text style={styles.passButtonText}>Pass</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   const renderSection = (title, users, icon, showCompatibility = false) => {
+    // Filter out passed users
+    const filteredUsers = users?.filter(user => !passedUserIds.has(user.id)) || [];
+    
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Ionicons name={icon} size={20} color="#7C2B86" />
           <Text style={styles.sectionTitle}>{title}</Text>
           <View style={styles.countBadge}>
-            <Text style={styles.countText}>{users?.length || 0}</Text>
+            <Text style={styles.countText}>{filteredUsers?.length || 0}</Text>
           </View>
         </View>
         
-        {users && users.length > 0 ? (
+        {filteredUsers && filteredUsers.length > 0 ? (
           <FlatList
-            data={users}
+            data={filteredUsers}
             keyExtractor={(item) => item.id}
             renderItem={(props) => renderUserCard({ ...props, showCompatibility })}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -185,10 +252,10 @@ export default function ExploreScreen() {
           <View style={styles.emptySection}>
             <Ionicons name="hourglass-outline" size={32} color="rgba(255, 255, 255, 0.6)" />
             <Text style={styles.emptySectionTitle}>
-              Don't worry, we are expanding our user base
+              We're growing our community!
             </Text>
             <Text style={styles.emptySectionText}>
-              to get you matched with the correct one
+              We're expanding our user base to help you find your perfect match
             </Text>
           </View>
         )}
@@ -488,6 +555,9 @@ const styles = StyleSheet.create({
   separator: {
     height: 12,
   },
+  userCardContainer: {
+    position: 'relative',
+  },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -672,5 +742,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     bottom: 20,
     left: -70,
+  },
+  passButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
+  },
+  passButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF6B9D',
   },
 });

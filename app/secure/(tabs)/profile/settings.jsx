@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
@@ -60,6 +60,9 @@ export default function SettingsScreen() {
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
   const [lastLocationUpdate, setLastLocationUpdate] = useState(null);
   
+  // Invisible mode
+  const [invisibleMode, setInvisibleMode] = useState(false);
+  
   // Removed social accounts modal state - moved to edit profile
   
   const [loading, setLoading] = useState(true);
@@ -94,6 +97,9 @@ export default function SettingsScreen() {
       
       const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
       setLastLocationUpdate(lastUpdate);
+      
+      // Load invisible mode status from user profile
+      setInvisibleMode(user?.invisibleMode || false);
     } catch (error) {
       console.error('Error loading preferences:', error);
     } finally {
@@ -123,6 +129,7 @@ export default function SettingsScreen() {
       await updateProfile({
         interests: interestsArray,
         needs: needsArray,
+        invisibleMode: invisibleMode,
       });
       
       if (syncResult.success) {
@@ -188,6 +195,92 @@ export default function SettingsScreen() {
   );
 
   // Location tracking functions
+  const toggleInvisibleMode = async (enabled) => {
+    console.log('🔄 Toggle invisible mode called, enabled:', enabled);
+    try {
+      if (enabled) {
+        // On web, Alert.alert doesn't support callbacks properly, so handle it differently
+        if (Platform.OS === 'web') {
+          const confirmed = window.confirm(
+            'Enable Invisible Mode?\n\nYou will be hidden from maps, explore, and suggestions. Most features will be disabled until you turn this off. You can only chat with existing friends.'
+          );
+          
+          console.log('✅ User confirmed:', confirmed);
+          
+          if (!confirmed) {
+            // User cancelled, revert the toggle
+            console.log('❌ User cancelled, reverting toggle');
+            setInvisibleMode(false);
+            return;
+          }
+          
+          // User confirmed, proceed with enabling
+          console.log('📝 Setting invisible mode to true...');
+          setInvisibleMode(true);
+          console.log('🔄 Calling updateProfile with invisibleMode: true');
+          const result = await updateProfile({ invisibleMode: true });
+          console.log('✅ UpdateProfile result:', result);
+          window.alert('Invisible Mode Enabled\n\nYou are now hidden from discovery. Most features are disabled. You can turn this off anytime in settings.');
+        } else {
+          // Native mobile - use Alert.alert with callbacks
+          Alert.alert(
+            'Enable Invisible Mode?',
+            'You will be hidden from maps, explore, and suggestions. Most features will be disabled until you turn this off. You can only chat with existing friends.',
+            [
+              { 
+                text: 'Cancel', 
+                style: 'cancel',
+                onPress: () => {
+                  // Revert the toggle
+                  setInvisibleMode(false);
+                }
+              },
+              { 
+                text: 'Enable', 
+                style: 'destructive',
+                onPress: async () => {
+                  setInvisibleMode(true);
+                  await updateProfile({ invisibleMode: true });
+                  Alert.alert(
+                    'Invisible Mode Enabled',
+                    'You are now hidden from discovery. Most features are disabled. You can turn this off anytime in settings.'
+                  );
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        // Disabling invisible mode
+        console.log('📝 Disabling invisible mode...');
+        setInvisibleMode(false);
+        console.log('🔄 Calling updateProfile with invisibleMode: false');
+        const result = await updateProfile({ invisibleMode: false });
+        console.log('✅ UpdateProfile result:', result);
+        
+        if (Platform.OS === 'web') {
+          window.alert('Invisible Mode Disabled\n\nYou are now visible again and can use all features.');
+        } else {
+          Alert.alert(
+            'Invisible Mode Disabled',
+            'You are now visible again and can use all features.'
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling invisible mode:', error);
+      
+      if (Platform.OS === 'web') {
+        window.alert('Error: Failed to change invisible mode. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to change invisible mode. Please try again.');
+      }
+      
+      // Revert the toggle if it failed
+      setInvisibleMode(!enabled);
+    }
+  };
+
   const toggleLocationTracking = async (enabled) => {
     try {
       if (enabled) {
@@ -517,6 +610,44 @@ export default function SettingsScreen() {
 
           {/* Social Accounts section removed - moved to edit profile */}
 
+          {/* Invisible Mode */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="eye-off" size={20} color="#FFD6F2" />
+              <Text style={styles.sectionTitle}>Invisible Mode</Text>
+            </View>
+            <Text style={styles.sectionDescription}>
+              Hide yourself from maps, explore, and suggestions. Most features will be disabled while active.
+            </Text>
+            
+            <View style={styles.switchOption}>
+              <View style={styles.switchContent}>
+                <Text style={styles.switchLabel}>Enable Invisible Mode</Text>
+                <Text style={styles.switchDescription}>
+                  {invisibleMode ? 
+                    "You are currently hidden from discovery. Most features are disabled." :
+                    "Hide from all discovery features. You can only chat with existing friends."
+                  }
+                </Text>
+              </View>
+              <Switch
+                value={invisibleMode}
+                onValueChange={toggleInvisibleMode}
+                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: '#FF6B6B' }}
+                thumbColor={invisibleMode ? '#DC2626' : '#f4f3f4'}
+              />
+            </View>
+
+            {invisibleMode && (
+              <View style={[styles.locationStatus, { backgroundColor: 'rgba(220, 38, 38, 0.1)' }]}>
+                <Ionicons name="warning" size={16} color="#FF6B6B" />
+                <Text style={[styles.locationStatusText, { color: '#FF6B6B' }]}>
+                  Invisible mode is active. Matching, explore, and location features are disabled.
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Location Tracking */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -586,6 +717,12 @@ export default function SettingsScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Looking For:</Text>
               <Text style={styles.summaryValue}>{needs.size} selected</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Invisible Mode:</Text>
+              <Text style={[styles.summaryValue, invisibleMode && { color: '#FF6B6B' }]}>
+                {invisibleMode ? 'Active (Hidden)' : 'Disabled'}
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Location Tracking:</Text>

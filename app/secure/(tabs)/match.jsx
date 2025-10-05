@@ -1,22 +1,23 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
-  StyleSheet,
   View,
   Text,
-  TouchableOpacity,
+  StyleSheet,
   ScrollView,
+  TouchableOpacity,
+  Image,
   RefreshControl,
   useWindowDimensions,
   Modal,
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
   AppState,
   Platform,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Location from "expo-location";
@@ -27,6 +28,255 @@ import { updateLocationGql, nearbyUsersGql } from "@/src/api/graphql";
 import { getSocket, closeSocket } from "@/src/api/socket";
 import FriendRequestsSection from "@/src/components/FriendRequestsSection";
 import FriendRequestMatchCard from "@/src/components/FriendRequestMatchCard";
+
+// Searching Animation Component
+const SearchingAnimation = ({ onClose }) => {
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const particleAnims = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+
+  const searchingMessages = [
+    { title: "Searching for someone special…", subtitle: "Finding you another great match..." },
+    { title: "Looking for your perfect match…", subtitle: "Analyzing compatibility scores..." },
+    { title: "Discovering amazing people…", subtitle: "Matching interests and vibes..." },
+    { title: "Finding your next connection…", subtitle: "Searching nearby and beyond..." },
+    { title: "Seeking your ideal match…", subtitle: "Checking compatibility..." },
+    { title: "Exploring possibilities…", subtitle: "Finding someone who gets you..." },
+    { title: "Connecting hearts…", subtitle: "Matching personalities and interests..." },
+    { title: "Searching for magic…", subtitle: "Finding that special someone..." },
+  ];
+
+  useEffect(() => {
+    // Rotate message every 3 seconds
+    const messageInterval = setInterval(() => {
+      setCurrentMessageIndex((prev) => (prev + 1) % searchingMessages.length);
+    }, 3000);
+
+    // Pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Rotate animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Float animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -20,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Particle animations
+    particleAnims.forEach((anim, index) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 2000 + index * 500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 2000 + index * 500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
+
+    return () => clearInterval(messageInterval);
+  }, []);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const currentMessage = searchingMessages[currentMessageIndex];
+
+  return (
+    <View style={searchingStyles.container}>
+      <TouchableOpacity style={searchingStyles.closeButton} onPress={onClose}>
+        <Ionicons name="close" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Floating particles */}
+      {particleAnims.map((anim, index) => {
+        const translateY = anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -100],
+        });
+        const opacity = anim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [0, 1, 0],
+        });
+
+        return (
+          <Animated.View
+            key={index}
+            style={[
+              searchingStyles.particle,
+              {
+                left: `${20 + index * 15}%`,
+                opacity,
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+            <Ionicons name="heart" size={20} color="rgba(255, 255, 255, 0.6)" />
+          </Animated.View>
+        );
+      })}
+
+      {/* Main content */}
+      <Animated.View style={[searchingStyles.iconContainer, { transform: [{ translateY: floatAnim }] }]}>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <View style={searchingStyles.iconCircle}>
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Ionicons name="search" size={48} color="#FFFFFF" />
+            </Animated.View>
+          </View>
+        </Animated.View>
+      </Animated.View>
+
+      <Animated.View style={[searchingStyles.textContainer, { opacity: 1 }]}>
+        <Text style={searchingStyles.title}>{currentMessage.title}</Text>
+        <Text style={searchingStyles.subtitle}>{currentMessage.subtitle}</Text>
+      </Animated.View>
+
+      {/* Loading dots */}
+      <View style={searchingStyles.dotsContainer}>
+        {[0, 1, 2].map((index) => (
+          <Animated.View
+            key={index}
+            style={[
+              searchingStyles.dot,
+              {
+                opacity: particleAnims[index].interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0.3, 1, 0.3],
+                }),
+              },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+const searchingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  particle: {
+    position: 'absolute',
+    top: '20%',
+  },
+  iconContainer: {
+    marginBottom: 40,
+  },
+  iconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  textContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    marginTop: 30,
+    gap: 8,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFFFFF',
+  },
+});
 import UserProfileModal from "@/src/components/UserProfileModal";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
@@ -93,6 +343,9 @@ export default function MatchScreen() {
   const [hasActiveSession, setHasActiveSession] = useState(false); // Track if user has an active matchmaking session
   const acceptedNotifiedRef = useRef(false);
   const livePulse = useRef(new Animated.Value(0)).current;
+  const [passedMatchIds, setPassedMatchIds] = useState(new Set());
+  
+  
   const showToast = (text, type = "info") => {
     setToast({ visible: true, text, type });
     setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2200);
@@ -399,28 +652,52 @@ export default function MatchScreen() {
   };
 
   // Load nearby users for map display
-  const loadNearbyUsers = async (latitude, longitude, radiusKm = 50) => {
+  const loadNearbyUsers = async (lat, lng, radiusKm = 50) => {
     try {
+      // If no coordinates provided, try to get user's location
+      let latitude = lat;
+      let longitude = lng;
+      
+      if (!latitude || !longitude) {
+        // Try to get from userLocation state
+        if (userLocation?.latitude && userLocation?.longitude) {
+          latitude = userLocation.latitude;
+          longitude = userLocation.longitude;
+        } else {
+          // Request location permission and get current location
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const location = await Location.getCurrentPositionAsync({});
+            latitude = location.coords.latitude;
+            longitude = location.coords.longitude;
+            setUserLocation({ latitude, longitude });
+          } else {
+            console.warn('Location permission denied, cannot load nearby users');
+            return;
+          }
+        }
+      }
+      
+      console.log('📍 Loading nearby users at:', latitude, longitude);
       const users = await nearbyUsersGql(latitude, longitude, radiusKm, 50, token);
       
-      // Transform users for map display
-      const mapUsers = users.map(user => ({
-        id: user.id,
-        name: user.firstName + (user.lastName ? ` ${user.lastName.charAt(0)}.` : ''),
-        age: user.age,
-        gender: user.gender,
-        latitude: user.location.latitude,
-        longitude: user.location.longitude,
-        photoUrl: user.profilePhotoUrl,
-        distance: user.distance,
-        compatibility: `${Math.round(85 + Math.random() * 10)}%`, // Mock compatibility for now
-        interests: user.interests,
-        needs: user.needs
+      // Transform to match expected format
+      const transformedUsers = users.map(u => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`,
+        age: u.age,
+        photoUrl: u.profilePhotoUrl,
+        latitude: u.latitude,
+        longitude: u.longitude,
+        distance: u.distance,
+        compatibility: Math.round(Math.random() * 40 + 60), // Mock compatibility for now
+        interests: u.interests || [],
       }));
       
-      setNearbyUsers(mapUsers);
+      setNearbyUsers(transformedUsers);
     } catch (error) {
       console.error('Failed to load nearby users:', error);
+      showToast('Failed to load nearby users', 'error');
     }
   };
 
@@ -624,6 +901,7 @@ export default function MatchScreen() {
       socket.off('friend:request:error');
     };
   }, [token]);
+  
   // Load friend requests on mount
   useEffect(() => {
     if (token) {
@@ -633,17 +911,29 @@ export default function MatchScreen() {
 
   // Refresh when user interests/needs change (after settings update)
   useEffect(() => {
-    if (user?.interests || user?.needs) {
+    if (user) {
+      console.log('Match screen loaded for user:', user.id);
+      loadPassedMatches();
+      loadNearbyUsers();
       loadFriendRequests();
+      loadCircleStats();
+      
+      // Ensure socket is connected
+      const socket = getSocket();
+      if (socket) {
+        console.log('✅ Socket connected:', socket.connected);
+        if (!socket.connected) {
+          console.log('🔄 Reconnecting socket...');
+          socket.connect();
+        }
+      } else {
+        console.warn('⚠️ Socket not available');
+      }
     }
-  }, [user?.interests, user?.needs]);
-
-  // Load Circle statistics
+  }, [user]);
+  
   const loadCircleStats = async () => {
-    if (!token) {
-      console.log('❌ No token available for Circle stats');
-      return;
-    }
+    if (!token) return;
     
     try {
       setLoadingStats(true);
@@ -670,8 +960,67 @@ export default function MatchScreen() {
   }, [token, user]);
 
   const handleLocationSearch = () => {
+    // Check if invisible mode is enabled
+    if (user?.invisibleMode) {
+      Alert.alert(
+        'Location Search Disabled',
+        'Location search is not available while invisible mode is enabled. Turn off invisible mode in Settings to use this feature.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     router.push('/secure/location');
   };
+
+  // Load passed matches from AsyncStorage
+  const loadPassedMatches = async () => {
+    try {
+      const passedData = await AsyncStorage.getItem('matchPassedUsers');
+      if (passedData) {
+        const passedUsers = JSON.parse(passedData);
+        const now = Date.now();
+        
+        // Filter out expired passes (older than 15 days)
+        const validPasses = {};
+        Object.keys(passedUsers).forEach(userId => {
+          if (passedUsers[userId] > now) {
+            validPasses[userId] = passedUsers[userId];
+          }
+        });
+        
+        // Update AsyncStorage with valid passes only
+        await AsyncStorage.setItem('matchPassedUsers', JSON.stringify(validPasses));
+        setPassedMatchIds(new Set(Object.keys(validPasses)));
+      }
+    } catch (error) {
+      console.error('Error loading passed matches:', error);
+    }
+  };
+
+  // Handle pass match
+  const handlePassMatch = async (userId, userName) => {
+    try {
+      // Add to passed users with 15-day expiry
+      const passedData = await AsyncStorage.getItem('matchPassedUsers');
+      const passedUsers = passedData ? JSON.parse(passedData) : {};
+      
+      const expiryTime = Date.now() + (15 * 24 * 60 * 60 * 1000); // 15 days from now
+      passedUsers[userId] = expiryTime;
+      
+      await AsyncStorage.setItem('matchPassedUsers', JSON.stringify(passedUsers));
+      
+      // Update state to hide the user immediately
+      setPassedMatchIds(prev => new Set([...prev, userId]));
+      
+      // Show confirmation toast
+      showToast(`${userName || 'User'} won't appear for 15 days`, 'info');
+    } catch (error) {
+      console.error('Error passing match:', error);
+      showToast('Failed to pass user', 'error');
+    }
+  };
+
 
   const handleImproveMatches = () => {
     router.push('/secure/profile/settings');
@@ -1020,25 +1369,53 @@ export default function MatchScreen() {
                 <Text style={styles.desktopSubtitle}>Find Your Perfect Connection</Text>
               </View>
 
-              {/* Quick Stats */}
+              {/* Circle Stats - Enhanced Desktop Design */}
               {circleStats && circleStats.stats && (
                 <View style={styles.quickStatsCard}>
-                  <View style={styles.quickStatsHeader}>
-                    <Text style={styles.quickStatsTitle}>Your Stats</Text>
-                    <View style={[styles.tierBadge, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
-                      <Text style={styles.tierBadgeText}>
+                  {/* Header with Tier Badge */}
+                  <View style={styles.statsCardHeader}>
+                    <Text style={styles.statsCardTitle}>Your Stats</Text>
+                    <View style={[styles.tierBadgeInline, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
+                      <Ionicons name="trophy" size={12} color="#FFFFFF" />
+                      <Text style={styles.tierBadgeInlineText}>
                         {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
                       </Text>
                     </View>
                   </View>
+
+                  {/* Points Display - Centered */}
+                  <View style={styles.pointsCenterSection}>
+                    <LinearGradient
+                      colors={['#7C2B86', '#FF6FB5']}
+                      style={styles.pointsGradientCircle}
+                    >
+                      <Ionicons name="star" size={28} color="#FFFFFF" />
+                    </LinearGradient>
+                    <Text style={styles.desktopStatsPoints}>{circleStats.stats.circle_points || 0}</Text>
+                    <Text style={styles.pointsSubLabel}>Circle Points</Text>
+                  </View>
+
+                  {/* Divider */}
+                  <View style={styles.statsDivider} />
+
+                  {/* Stats Grid - Compact */}
                   <View style={styles.quickStatsGrid}>
-                    <View style={styles.quickStatItem}>
-                      <Text style={styles.quickStatNumber}>{circleStats.stats.total_matches || 0}</Text>
-                      <Text style={styles.quickStatLabel}>Matches</Text>
+                    <View style={styles.statCompactItem}>
+                      <Ionicons name="heart" size={20} color="#FF6FB5" />
+                      <Text style={styles.statCompactNumber}>{circleStats.stats.total_matches || 0}</Text>
+                      <Text style={styles.statCompactLabel}>Matches</Text>
                     </View>
-                    <View style={styles.quickStatItem}>
-                      <Text style={styles.quickStatNumber}>{circleStats.stats.total_friends || 0}</Text>
-                      <Text style={styles.quickStatLabel}>Friends</Text>
+                    <View style={styles.statCompactItem}>
+                      <Ionicons name="people" size={20} color="#7C2B86" />
+                      <Text style={styles.statCompactNumber}>{circleStats.stats.total_friends || 0}</Text>
+                      <Text style={styles.statCompactLabel}>Friends</Text>
+                    </View>
+                    <View style={styles.statCompactItem}>
+                      <Ionicons name="chatbubbles" size={20} color="#5D5FEF" />
+                      <Text style={styles.statCompactNumber}>
+                        {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
+                      </Text>
+                      <Text style={styles.statCompactLabel}>Messages</Text>
                     </View>
                   </View>
                 </View>
@@ -1076,18 +1453,21 @@ export default function MatchScreen() {
 
               {/* Location Search */}
               <TouchableOpacity 
-                style={styles.sidebarButton}
+                style={[styles.sidebarButton, user?.invisibleMode && { opacity: 0.5 }]}
                 onPress={handleLocationSearch}
-                activeOpacity={0.8}
+                activeOpacity={user?.invisibleMode ? 1 : 0.8}
+                disabled={user?.invisibleMode}
               >
                 <View style={styles.sidebarButtonIcon}>
-                  <Ionicons name="location" size={20} color="#7C2B86" />
+                  <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={20} color={user?.invisibleMode ? "#999999" : "#7C2B86"} />
                 </View>
                 <View style={styles.sidebarButtonContent}>
-                  <Text style={styles.sidebarButtonTitle}>Location Search</Text>
-                  <Text style={styles.sidebarButtonSubtitle}>Find nearby matches</Text>
+                  <Text style={[styles.sidebarButtonTitle, user?.invisibleMode && { color: '#999999' }]}>Location Search</Text>
+                  <Text style={[styles.sidebarButtonSubtitle, user?.invisibleMode && { color: '#666666' }]}>
+                    {user?.invisibleMode ? 'Disabled' : 'Find nearby matches'}
+                  </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={20} color={user?.invisibleMode ? "#666666" : "rgba(255,255,255,0.4)"} />
               </TouchableOpacity>
 
               {/* Settings */}
@@ -1219,57 +1599,46 @@ export default function MatchScreen() {
               <View style={styles.matchesSection}>
                 <Text style={styles.matchesSectionTitle}>Discover Matches</Text>
                 <View style={styles.matchesGrid}>
-                  {nearbyUsers.slice(1, 7).map((user) => (
-                    <TouchableOpacity
-                      key={user.id}
-                      style={styles.matchCard}
-                      activeOpacity={0.9}
-                      onPress={() => handleViewProfile(user)}
-                    >
-                      <View style={styles.matchCardGlow} />
-                      <View style={styles.matchCardContent}>
-                        <View style={styles.matchAvatarContainer}>
-                          <Image
-                            source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
-                            style={styles.matchAvatar}
-                          />
-                          <View style={styles.matchCompatibilityBadge}>
-                            <Text style={styles.matchCompatibilityText}>{user.compatibility}</Text>
+                  {nearbyUsers.slice(1, 7).filter(user => !passedMatchIds.has(user.id)).map((user) => (
+                    <View key={user.id} style={styles.matchCardWrapper}>
+                      <TouchableOpacity
+                        style={styles.matchCard}
+                        activeOpacity={0.9}
+                        onPress={() => handleViewProfile(user)}
+                      >
+                        <View style={styles.matchCardGlow} />
+                        <View style={styles.matchCardContent}>
+                          <View style={styles.matchAvatarContainer}>
+                            <Image
+                              source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
+                              style={styles.matchAvatar}
+                            />
+                            <View style={styles.matchCompatibilityBadge}>
+                              <Text style={styles.matchCompatibilityText}>{user.compatibility}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.matchCardInfo}>
+                            <Text style={styles.matchCardName}>{user.name}</Text>
+                            <Text style={styles.matchCardAge}>{user.age}</Text>
+                            <View style={styles.matchCardTags}>
+                              {user.interests?.slice(0, 2).map((interest, idx) => (
+                                <View key={idx} style={styles.matchTag}>
+                                  <Text style={styles.matchTagText}>{interest}</Text>
+                                </View>
+                              ))}
+                            </View>
                           </View>
                         </View>
-                        <View style={styles.matchCardInfo}>
-                          <Text style={styles.matchCardName}>{user.name}</Text>
-                          <Text style={styles.matchCardAge}>{user.age}</Text>
-                          <View style={styles.matchCardTags}>
-                            {user.interests?.slice(0, 2).map((interest, idx) => (
-                              <View key={idx} style={styles.matchTag}>
-                                <Text style={styles.matchTagText}>{interest}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
-                        <View style={styles.matchCardActions}>
-                          <TouchableOpacity 
-                            style={styles.matchCardPassButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              // Pass on this user
-                            }}
-                          >
-                            <Ionicons name="close" size={16} color="#FF6B6B" />
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            style={styles.matchCardLikeButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleSendFriendRequest(user.id);
-                            }}
-                          >
-                            <Ionicons name="heart" size={16} color="#FF6FB5" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
+                      </TouchableOpacity>
+                      
+                      {/* Pass Button - Outside card */}
+                      <TouchableOpacity 
+                        style={styles.matchPassButton}
+                        onPress={() => handlePassMatch(user.id, user.name)}
+                      >
+                        <Ionicons name="close-circle" size={24} color="#FF6B9D" />
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               </View>
@@ -1340,12 +1709,13 @@ export default function MatchScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={styles.specialFeatureCard}
+                style={[styles.specialFeatureCard, user?.invisibleMode && styles.disabledCard]}
                 onPress={handleLocationSearch}
-                activeOpacity={0.9}
+                activeOpacity={user?.invisibleMode ? 1 : 0.9}
+                disabled={user?.invisibleMode}
               >
                 <LinearGradient
-                  colors={['#5D5FEF', '#7C2B86', '#FF6FB5']}
+                  colors={user?.invisibleMode ? ['#4A4A4A', '#3A3A3A', '#2A2A2A'] : ['#5D5FEF', '#7C2B86', '#FF6FB5']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.specialFeatureGradient}
@@ -1353,128 +1723,20 @@ export default function MatchScreen() {
                   <View style={styles.specialFeatureGlow} />
                   <View style={styles.specialFeatureContent}>
                     <View style={styles.specialFeatureIconContainer}>
-                      <Ionicons name="location" size={40} color="#FFFFFF" />
+                      <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={40} color={user?.invisibleMode ? "#999999" : "#FFFFFF"} />
                     </View>
                     <View style={styles.specialFeatureTextContainer}>
-                      <Text style={styles.specialFeatureTitle}>Location Search</Text>
-                      <Text style={styles.specialFeatureSubtitle}>Explore matches near you</Text>
+                      <Text style={[styles.specialFeatureTitle, user?.invisibleMode && styles.disabledText]}>Location Search</Text>
+                      <Text style={[styles.specialFeatureSubtitle, user?.invisibleMode && styles.disabledText]}>
+                        {user?.invisibleMode ? 'Disabled in invisible mode' : 'Explore matches near you'}
+                      </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={28} color="rgba(255,255,255,0.8)" />
+                    <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={28} color={user?.invisibleMode ? "#666666" : "rgba(255,255,255,0.8)"} />
                   </View>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
 
-            {/* Main Swipeable Card */}
-            {nearbyUsers.length > 0 ? (
-              <View style={styles.swipeCardContainer}>
-                <TouchableOpacity 
-                  style={styles.swipeCard}
-                  onPress={() => handleViewProfile(nearbyUsers[0])}
-                  activeOpacity={0.95}
-                >
-                  {/* Background glow */}
-                  <View style={styles.swipeCardGlow} />
-                  
-                  {/* Profile Image */}
-                  <View style={styles.swipeImageContainer}>
-                    <Image
-                      source={{ uri: nearbyUsers[0].photoUrl || 'https://i.pravatar.cc/300' }}
-                      style={styles.swipeImage}
-                    />
-                    <LinearGradient
-                      colors={['transparent', 'rgba(26, 11, 46, 0.9)']}
-                      style={styles.swipeImageGradient}
-                    />
-                  </View>
-
-                  {/* Profile Info */}
-                  <View style={styles.swipeCardInfo}>
-                    <View style={styles.swipeCardHeader}>
-                      <View>
-                        <Text style={styles.swipeCardName}>{nearbyUsers[0].name}</Text>
-                        <Text style={styles.swipeCardAge}>{nearbyUsers[0].age} years old</Text>
-                      </View>
-                      <View style={styles.swipeCompatibilityCircle}>
-                        <Text style={styles.swipeCompatibilityText}>{nearbyUsers[0].compatibility}</Text>
-                      </View>
-                    </View>
-
-                    {/* Interests */}
-                    <View style={styles.swipeInterests}>
-                      {nearbyUsers[0].interests?.slice(0, 4).map((interest, idx) => (
-                        <View key={idx} style={styles.swipeInterestPill}>
-                          <Text style={styles.swipeInterestText}>{interest}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Action Buttons */}
-                <View style={styles.swipeActions}>
-                  <TouchableOpacity style={styles.swipePassButton} activeOpacity={0.8}>
-                    <View style={styles.swipeButtonGlow} />
-                    <Ionicons name="close" size={36} color="#FF6B6B" />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.swipeFriendRequestButton} activeOpacity={0.8}>
-                    <LinearGradient
-                      colors={['#7C2B86', '#FF6FB5']}
-                      style={styles.swipeFriendRequestGradient}
-                    >
-                      <View style={styles.swipeButtonGlow} />
-                      <Ionicons name="person-add" size={32} color="#FFFFFF" />
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              // No Users Available State
-              <View style={styles.noUsersContainer}>
-                <View style={styles.noUsersContent}>
-                  <View style={styles.noUsersIconContainer}>
-                    <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
-                  </View>
-                  <Text style={styles.noUsersTitle}>No Users Nearby</Text>
-                  <Text style={styles.noUsersSubtitle}>
-                    There are no users in your area right now.
-                  </Text>
-                  <Text style={styles.noUsersHint}>
-                    Try using Live Match or Location Search to find connections!
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Mini Queue Preview - Only show if there are users */}
-            {nearbyUsers.length > 1 && (
-              <View style={styles.miniQueue}>
-                <Text style={styles.miniQueueTitle}>Up Next</Text>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.miniQueueScroll}
-                >
-                  {nearbyUsers.slice(1, 6).map((user) => (
-                    <TouchableOpacity
-                      key={user.id}
-                      style={styles.miniQueueCard}
-                      activeOpacity={0.8}
-                      onPress={() => handleViewProfile(user)}
-                    >
-                      <Image
-                        source={{ uri: user.photoUrl || 'https://i.pravatar.cc/300' }}
-                        style={styles.miniQueueImage}
-                      />
-                      <View style={styles.miniQueueBadge}>
-                        <Text style={styles.miniQueueBadgeText}>{user.compatibility}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
 
             {/* Friend Requests */}
             {friendRequests.length > 0 && (
@@ -1559,22 +1821,13 @@ export default function MatchScreen() {
           
           <View style={styles.modalContent}>
             <LinearGradient
-              colors={matchedUser ? ["#667eea", "#764ba2", "#f093fb"] : ["#4facfe", "#00f2fe"]}
+              colors={matchedUser ? ["#667eea", "#764ba2", "#f093fb"] : ["#7C2B86", "#B24592", "#F15F79"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.modalGradient}
             >
               {isSearching && !matchedUser && (
-                <>
-                  <TouchableOpacity style={styles.modalCloseX} onPress={handleCloseSearching}>
-                    <Ionicons name="close" size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  <ActivityIndicator color="#FFFFFF" size="large" />
-                  <Text style={styles.modalTitle}>Searching for someone special…</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Finding you another great match...
-                  </Text>
-                </>
+                <SearchingAnimation onClose={handleCloseSearching} />
               )}
 
               {matchedUser && (
@@ -1833,56 +2086,90 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 4,
+    marginBottom: 8,
   },
   quickStatsCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
     padding: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  quickStatsHeader: {
+  statsCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  quickStatsTitle: {
+  statsCardTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  tierBadge: {
-    paddingHorizontal: 10,
+  tierBadgeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  tierBadgeText: {
+  tierBadgeInlineText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  quickStatsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  quickStatItem: {
-    flex: 1,
+  pointsCenterSection: {
     alignItems: 'center',
+    marginBottom: 16,
   },
-  quickStatNumber: {
-    fontSize: 24,
-    fontWeight: '800',
+  pointsGradientCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  desktopStatsPoints: {
+    fontSize: 32,
+    fontWeight: '900',
     color: '#FFFFFF',
+    letterSpacing: -1,
   },
-  quickStatLabel: {
-    fontSize: 11,
+  pointsSubLabel: {
+    fontSize: 12,
+    fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 4,
   },
-  desktopLiveMatchButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
+  statsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 16,
+  },
+  quickStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  statCompactItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  statCompactNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  statCompactLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   liveMatchGradient: {
     padding: 16,
@@ -2169,14 +2456,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   matchesGrid: {
+    display: 'flex',
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 20,
   },
-  matchCard: {
+  matchCardWrapper: {
     width: '31%',
     minWidth: 200,
-    aspectRatio: 1, // Makes it square
+    aspectRatio: 1,
+    position: 'relative',
+  },
+  matchCard: {
+    width: '100%',
+    height: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
@@ -2253,21 +2546,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   matchTag: {
-    backgroundColor: '#F0E6F6',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
+    backgroundColor: 'rgba(124, 43, 134, 0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   matchTagText: {
     fontSize: 11,
     fontWeight: '600',
     color: '#7C2B86',
   },
-  matchCardActions: {
-    flexDirection: 'row',
+  matchPassButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   matchCardPassButton: {
     width: 44,
@@ -3949,5 +4252,40 @@ const styles = StyleSheet.create({
     color: '#1F1147',
     flex: 1,
     fontWeight: '500',
+  },
+  
+  // Disabled state styles
+  disabledCard: {
+    opacity: 0.6,
+  },
+  disabledText: {
+    color: '#999999',
+  },
+  
+  // Swipe indicator styles
+  swipeIndicator: {
+    position: 'absolute',
+    top: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 3,
+  },
+  swipeIndicatorLeft: {
+    left: 20,
+    borderColor: '#FF6B6B',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    transform: [{ rotate: '-20deg' }],
+  },
+  swipeIndicatorRight: {
+    right: 20,
+    borderColor: '#22C55E',
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    transform: [{ rotate: '20deg' }],
+  },
+  swipeIndicatorText: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
 });

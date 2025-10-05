@@ -32,7 +32,7 @@ const isDesktop = screenWidth >= 1024; // Desktop breakpoint
 
 export default function LocationPage() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDistance, setFilterDistance] = useState('all');
@@ -127,9 +127,19 @@ export default function LocationPage() {
     })
   ).current;
 
+  // Redirect if invisible mode is enabled
+  useEffect(() => {
+    if (user?.invisibleMode) {
+      console.log('🚫 User is in invisible mode, redirecting back...');
+      router.back();
+    }
+  }, [user?.invisibleMode]);
+
   // Load user location and nearby users on mount
   useEffect(() => {
-    loadLocationAndUsers();
+    if (!user?.invisibleMode) {
+      loadLocationAndUsers();
+    }
   }, []);
 
   const loadLocationAndUsers = async () => {
@@ -1014,6 +1024,35 @@ export default function LocationPage() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView style={styles.safeArea}>
+        {/* Invisible Mode Check */}
+        {user?.invisibleMode ? (
+          <View style={styles.invisibleModeContainer}>
+            <View style={styles.invisibleModeCard}>
+              <Ionicons name="eye-off" size={48} color="#FF6B6B" />
+              <Text style={styles.invisibleModeTitle}>Location Features Disabled</Text>
+              <Text style={styles.invisibleModeMessage}>
+                You are currently in invisible mode. Location-based features are disabled to protect your privacy.
+              </Text>
+              <Text style={styles.invisibleModeSubtext}>
+                Turn off invisible mode in Settings to use location features and see nearby users.
+              </Text>
+              <TouchableOpacity 
+                style={styles.goToSettingsButton}
+                onPress={() => router.push('/secure/(tabs)/profile/settings')}
+              >
+                <Ionicons name="settings" size={20} color="#FFFFFF" />
+                <Text style={styles.goToSettingsText}>Go to Settings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.backFromInvisibleButton}
+                onPress={() => router.back()}
+              >
+                <Text style={styles.backFromInvisibleText}>Go Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -1399,6 +1438,8 @@ export default function LocationPage() {
           userName={selectedUser?.name}
           userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
         />
+        </>
+        )}
       </SafeAreaView>
     </LinearGradient>
     </>
@@ -2187,5 +2228,69 @@ const styles = StyleSheet.create({
   miniDistance: {
     fontSize: 11,
     color: 'rgba(31, 17, 71, 0.6)',
+  },
+  
+  // Invisible Mode Styles
+  invisibleModeContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  invisibleModeCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+  },
+  invisibleModeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FF6B6B',
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  invisibleModeMessage: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 24,
+  },
+  invisibleModeSubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  goToSettingsButton: {
+    backgroundColor: '#7C2B86',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 8,
+  },
+  goToSettingsText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  backFromInvisibleButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  backFromInvisibleText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

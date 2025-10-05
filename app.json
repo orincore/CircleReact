@@ -17,6 +17,7 @@
         },
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Circle uses your location to find nearby matches and improve your dating experience, even when the app is closed.",
         "NSLocationWhenInUseUsageDescription": "Circle uses your location to find nearby matches and improve your dating experience.",
+        "NSPhotoLibraryUsageDescription": "Circle needs access to your photo library to save images and videos from chat messages.",
         "UIBackgroundModes": [
           "location",
           "location"
@@ -41,6 +42,10 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
         "com.android.vending.BILLING"
       ],
       "edgeToEdgeEnabled": true,
@@ -80,6 +85,14 @@
             "image": "./assets/images/splash-icon.png",
             "backgroundColor": "#1F1147"
           }
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Circle needs access to your photo library to save images and videos from chat messages.",
+          "savePhotosPermission": "Circle needs permission to save images and videos to your photo library.",
+          "isAccessMediaLocationEnabled": true
         }
       ]
     ],

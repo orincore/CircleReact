@@ -59,6 +59,7 @@ export async function meGql(token?: string | null) {
         needs
         profilePhotoUrl
         instagramUsername
+        invisibleMode
         location {
           latitude
           longitude
@@ -100,6 +101,7 @@ export async function updateMeGql(input: any, token?: string | null) {
         needs
         profilePhotoUrl
         instagramUsername
+        invisibleMode
         location {
           latitude
           longitude

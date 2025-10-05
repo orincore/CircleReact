@@ -12,7 +12,8 @@ import {
   Modal,
   Dimensions,
   Animated,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import { friendsApi } from '@/src/api/friends';
 import Avatar from './Avatar';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+const isBrowser = Platform.OS === 'web';
 
 export default function NotificationPanel({ visible, onClose }) {
   const { user, token } = useAuth();
@@ -587,12 +589,19 @@ export default function NotificationPanel({ visible, onClose }) {
   return (
     <Modal
       visible={visible}
-      animationType="slide"
-      transparent={false}
+      animationType={isBrowser ? "fade" : "slide"}
+      transparent={isBrowser}
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.fullScreenContainer}>
+      {isBrowser && (
+        <TouchableOpacity 
+          style={styles.browserOverlay} 
+          activeOpacity={1} 
+          onPress={onClose}
+        />
+      )}
+      <View style={isBrowser ? styles.browserContainer : styles.fullScreenContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={onClose}>
@@ -702,13 +711,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  browserOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  browserContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 420,
+    maxHeight: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 24,
+    overflow: 'hidden',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 50,
+    paddingTop: isBrowser ? 12 : 50,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 0.5,
     borderBottomColor: '#DBDBDB',
