@@ -5,10 +5,87 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import NotificationManager from "@/src/components/NotificationManager";
 import BrowserNotificationProvider from "@/src/components/BrowserNotificationProvider";
 import ConnectionStatus from "@/src/components/ConnectionStatus";
+import UserConsentModal from "@/components/UserConsentModal";
 import { Platform } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+// import analyticsService from '@/src/services/analyticsService';
+// import appVersionService from '@/src/services/appVersionService';
+// import crashReportingService from '@/src/services/crashReportingService';
+import { useUserConsent } from '@/components/UserConsentModal';
 
 export default function RootLayout() {
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const { checkConsent, hasConsent } = useUserConsent();
+
+  useEffect(() => {
+    // Initialize app services
+    const initializeServices = async () => {
+      try {
+        // Check user consent first
+        const consent = await checkConsent();
+        
+        if (!consent) {
+          setShowConsentModal(true);
+          return;
+        }
+
+        // Initialize services based on consent
+        await initializeAppServices(consent);
+      } catch (error) {
+        console.error('Error initializing services:', error);
+      }
+    };
+
+    initializeServices();
+  }, []);
+
+  const initializeAppServices = async (consent) => {
+    try {
+      // TODO: Initialize services when packages are installed
+      console.log('🚀 App services initialization (placeholder)', { consent });
+      
+      // // Always initialize crash reporting (essential for app stability)
+      // await crashReportingService.initialize();
+      // crashReportingService.setEnabled(consent.crashReporting);
+
+      // // Initialize app version tracking
+      // await appVersionService.initialize();
+      // await appVersionService.trackInstallation();
+      // await appVersionService.trackUpgrade();
+
+      // // Initialize analytics only if user consented
+      // if (consent.analytics) {
+      //   analyticsService.setEnabled(true);
+      //   await analyticsService.initialize();
+        
+      //   // Track app launch
+      //   await analyticsService.trackEvent('app_launched', {
+      //     platform: Platform.OS,
+      //     consent_version: consent.version,
+      //   });
+      // } else {
+      //   analyticsService.setEnabled(false);
+      // }
+
+      console.log('🚀 All app services initialized');
+    } catch (error) {
+      console.error('Error initializing app services:', error);
+      // await crashReportingService.reportError(error, { context: 'service_initialization' });
+    }
+  };
+
+  const handleConsentAccept = async () => {
+    setShowConsentModal(false);
+    const consent = await checkConsent();
+    await initializeAppServices(consent);
+  };
+
+  const handleConsentDecline = async () => {
+    setShowConsentModal(false);
+    const consent = await checkConsent();
+    await initializeAppServices(consent);
+  };
+
   useEffect(() => {
     // Fix viewport for mobile browsers
     if (Platform.OS === 'web') {
@@ -66,6 +143,13 @@ export default function RootLayout() {
             <ConnectionStatus />
             <Stack screenOptions={{ headerShown: false }} />
             <NotificationManager />
+            
+            {/* User Consent Modal for GDPR Compliance */}
+            <UserConsentModal
+              visible={showConsentModal}
+              onAccept={handleConsentAccept}
+              onDecline={handleConsentDecline}
+            />
           </BrowserNotificationProvider>
         </AuthProvider>
       </SafeAreaProvider>

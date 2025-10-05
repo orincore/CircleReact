@@ -11,6 +11,7 @@ import {
   View,
   Animated,
   Image,
+  Linking,
 } from 'react-native';
 
 export default function LandingPage({ onSignUp, onLogIn }) {
@@ -370,7 +371,9 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 </View>
                 <View style={styles.footerColumn}>
                   <Text style={styles.footerColumnTitle}>Company</Text>
-                  <TouchableOpacity><Text style={styles.footerLink}>About</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => Linking.openURL('https://orincore.com/about')}>
+                    <Text style={styles.footerLink}>About</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity><Text style={styles.footerLink}>Blog</Text></TouchableOpacity>
                   <TouchableOpacity><Text style={styles.footerLink}>Careers</Text></TouchableOpacity>
                 </View>

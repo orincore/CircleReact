@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
+import { Linking } from "react-native";
 import { useState, useEffect, useRef } from "react";
 import {
   KeyboardAvoidingView,
@@ -213,7 +214,10 @@ export default function Login() {
                           </View>
                         </View>
                         
-                        <TouchableOpacity style={styles.forgotPassword}>
+                        <TouchableOpacity 
+                          style={styles.forgotPassword}
+                          onPress={() => router.push('/auth/forgot-password')}
+                        >
                           <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                         </TouchableOpacity>
                         
@@ -235,6 +239,29 @@ export default function Login() {
                               <Text style={styles.signupLink}>Sign Up</Text>
                             </TouchableOpacity>
                           </Link>
+                        </View>
+                        
+                        {/* Legal Documents Links */}
+                        <View style={styles.legalLinks}>
+                          <TouchableOpacity onPress={() => {
+                            if (Platform.OS === 'web') {
+                              router.push('/terms');
+                            } else {
+                              Linking.openURL('https://circle.orincore.com/terms.html');
+                            }
+                          }}>
+                            <Text style={styles.legalLink}>Terms of Service</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.legalSeparator}> • </Text>
+                          <TouchableOpacity onPress={() => {
+                            if (Platform.OS === 'web') {
+                              router.push('/legal/privacy-policy');
+                            } else {
+                              Linking.openURL('https://circle.orincore.com/privacy.html');
+                            }
+                          }}>
+                            <Text style={styles.legalLink}>Privacy Policy</Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
                     </View>
@@ -307,10 +334,6 @@ export default function Login() {
                         </View>
                       </View>
                       
-                      <TouchableOpacity style={styles.forgotPassword}>
-                        <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-                      </TouchableOpacity>
-                      
                       <TouchableOpacity
                         style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
                         onPress={handleLogin}
@@ -330,6 +353,29 @@ export default function Login() {
                           <Text style={styles.mobileSignupLink}>Sign Up</Text>
                         </TouchableOpacity>
                       </Link>
+                    </View>
+                    
+                    {/* Legal Documents Links */}
+                    <View style={styles.mobileLegalLinks}>
+                      <TouchableOpacity onPress={() => {
+                        if (Platform.OS === 'web') {
+                          router.push('/terms');
+                        } else {
+                          Linking.openURL('https://circle.orincore.com/terms.html');
+                        }
+                      }}>
+                        <Text style={styles.mobileLegalLink}>Terms of Service</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.mobileLegalSeparator}> • </Text>
+                      <TouchableOpacity onPress={() => {
+                        if (Platform.OS === 'web') {
+                          router.push('/legal/privacy-policy');
+                        } else {
+                          Linking.openURL('https://circle.orincore.com/privacy.html');
+                        }
+                      }}>
+                        <Text style={styles.mobileLegalLink}>Privacy Policy</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 )}
@@ -538,6 +584,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     gap: 8,
+    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 13,
@@ -565,7 +612,8 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginTop: -8,
+    marginTop: 12,
+    marginBottom: 8,
   },
   forgotPasswordText: {
     fontSize: 14,
@@ -625,5 +673,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFD6F2',
+  },
+  
+  // Legal Links - Desktop
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  legalLink: {
+    fontSize: 13,
+    color: 'rgba(31, 17, 71, 0.7)',
+    fontWeight: '500',
+  },
+  legalSeparator: {
+    fontSize: 13,
+    color: 'rgba(31, 17, 71, 0.5)',
+  },
+  
+  // Legal Links - Mobile
+  mobileLegalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  mobileLegalLink: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  mobileLegalSeparator: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
 });

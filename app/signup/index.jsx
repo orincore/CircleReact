@@ -14,7 +14,8 @@ import {
   Animated, 
   Image,
   Alert,
-  useWindowDimensions
+  useWindowDimensions,
+  Linking
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -396,6 +397,31 @@ export default function SignupStepOne() {
                   <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </Animated.View>
+
+              {/* Legal Documents Links */}
+              <View style={styles.legalLinks}>
+                <Text style={styles.legalText}>By continuing, you agree to our </Text>
+                <TouchableOpacity onPress={() => {
+                  if (Platform.OS === 'web') {
+                    router.push('/terms');
+                  } else {
+                    Linking.openURL('https://circle.orincore.com/terms.html');
+                  }
+                }}>
+                  <Text style={styles.legalLink}>Terms of Service</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalText}> and </Text>
+                <TouchableOpacity onPress={() => {
+                  if (Platform.OS === 'web') {
+                    router.push('/legal/privacy-policy');
+                  } else {
+                    Linking.openURL('https://circle.orincore.com/privacy.html');
+                  }
+                }}>
+                  <Text style={styles.legalLink}>Privacy Policy</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalText}>.</Text>
+              </View>
             </Animated.View>
             </View>
           </ScrollView>
@@ -681,14 +707,13 @@ const styles = StyleSheet.create({
   
   trustText: {
     fontSize: 12,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "rgba(31, 17, 71, 0.6)",
+    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "#6B7280",
     fontStyle: "italic",
     marginTop: 4,
   },
   
   errorText: { 
     marginTop: 4, 
-    color: "#EF4444", 
     fontSize: 12, 
     fontWeight: "600" 
   },
@@ -758,5 +783,26 @@ const styles = StyleSheet.create({
     fontSize: 16, 
     color: "#1F1147",
     fontWeight: "500",
+  },
+  
+  // Legal Links
+  legalLinks: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 8,
+  },
+  legalText: {
+    fontSize: 13,
+    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 17, 71, 0.7)',
+    textAlign: 'center',
+  },
+  legalLink: {
+    fontSize: 13,
+    color: Platform.OS === 'web' ? '#FFD6F2' : '#A16AE8',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

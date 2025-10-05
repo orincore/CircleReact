@@ -11,6 +11,19 @@ import { ProfilePictureService } from '@/src/services/profilePictureService';
 const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
 
+const INTEREST_OPTIONS = [
+  "art", "music", "coding", "coffee", "running", "yoga", "travel", "books", "movies", "gaming",
+  "fitness", "food", "photography", "fashion", "tech", "design", "writing", "finance", "crypto", "ai",
+];
+const NEED_OPTIONS = [
+  "Friendship",
+  "Boyfriend",
+  "Girlfriend",
+  "Dating",
+  "Relationship",
+  "Casual"
+];
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -23,8 +36,8 @@ export default function EditProfileScreen() {
     gender: user?.gender || "",
     phoneNumber: user?.phoneNumber || "",
     about: user?.about || "",
-    interests: Array.isArray(user?.interests) ? user.interests.join(", ") : "",
-    needs: Array.isArray(user?.needs) ? user.needs.join(", ") : "",
+    interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
+    needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
     profilePhotoUrl: user?.profilePhotoUrl || "",
     instagram: user?.instagramUsername || "",
   }), [user]);
@@ -37,6 +50,8 @@ export default function EditProfileScreen() {
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [ageQuery, setAgeQuery] = useState("");
   const [genderQuery, setGenderQuery] = useState("");
+  const [interestSearch, setInterestSearch] = useState("");
+  const [needSearch, setNeedSearch] = useState("");
 
   const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -54,8 +69,8 @@ export default function EditProfileScreen() {
         gender: user?.gender || "",
         phoneNumber: user?.phoneNumber || "",
         about: user?.about || "",
-        interests: Array.isArray(user?.interests) ? user.interests.join(", ") : "",
-        needs: Array.isArray(user?.needs) ? user.needs.join(", ") : "",
+        interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
+        needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
         profilePhotoUrl: user?.profilePhotoUrl || "",
         instagram: user?.instagramUsername || "",
       });
@@ -63,6 +78,36 @@ export default function EditProfileScreen() {
   }, [user]);
 
   const parseList = (text) => text.split(",").map(s => s.trim()).filter(Boolean);
+
+  const filteredInterests = useMemo(() => INTEREST_OPTIONS.filter(i => i.toLowerCase().includes(interestSearch.toLowerCase())), [interestSearch]);
+  const filteredNeeds = useMemo(() => NEED_OPTIONS.filter(i => i.toLowerCase().includes(needSearch.toLowerCase())), [needSearch]);
+
+  const toggleInterest = (interest) => {
+    const newInterests = new Set(form.interests);
+    if (newInterests.has(interest)) {
+      newInterests.delete(interest);
+    } else {
+      newInterests.add(interest);
+    }
+    setField("interests", newInterests);
+  };
+
+  const toggleNeed = (need) => {
+    const newNeeds = new Set(form.needs);
+    if (newNeeds.has(need)) {
+      newNeeds.delete(need);
+    } else {
+      newNeeds.add(need);
+    }
+    setField("needs", newNeeds);
+  };
+
+  const renderChip = (label, selected, onPress, type = 'interest') => (
+    <TouchableOpacity key={label} onPress={onPress} style={[styles.chip, selected && styles.chipSelected]}>
+      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+      {selected && <Ionicons name="checkmark" size={14} color="#7C2B86" />}
+    </TouchableOpacity>
+  );
 
   const filteredAges = useMemo(() => AGE_OPTIONS.filter((a) => a.includes(ageQuery.trim())), [ageQuery]);
   const filteredGenders = useMemo(() => GENDER_OPTIONS.filter((g) => g.toLowerCase().includes(genderQuery.toLowerCase())), [genderQuery]);
@@ -178,8 +223,8 @@ export default function EditProfileScreen() {
 
       const ageNum = Number(form.age);
       if (!Number.isNaN(ageNum) && ageNum > 0) payload.age = ageNum;
-      if (form.interests.trim()) payload.interests = parseList(form.interests);
-      if (form.needs.trim()) payload.needs = parseList(form.needs);
+      if (form.interests.size > 0) payload.interests = Array.from(form.interests);
+      if (form.needs.size > 0) payload.needs = Array.from(form.needs);
 
       console.log('💾 Saving profile with payload:', {
         ...payload,
@@ -336,23 +381,41 @@ export default function EditProfileScreen() {
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.label}>Interests</Text>
-                <TextInput
-                  value={form.interests}
-                  onChangeText={v => setField("interests", v)}
-                  placeholder="art, coffee, running"
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={styles.input}
-                />
+                <View style={styles.searchWrapper}>
+                  <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
+                  <TextInput
+                    value={interestSearch}
+                    onChangeText={setInterestSearch}
+                    placeholder="Search interests..."
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    style={styles.searchInput}
+                  />
+                </View>
+                <View style={styles.chipWrap}>
+                  {filteredInterests.map((interest) => 
+                    renderChip(interest, form.interests.has(interest), () => toggleInterest(interest), 'interest')
+                  )}
+                </View>
+                <Text style={styles.selectionCount}>{form.interests.size} selected</Text>
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.label}>Needs</Text>
-                <TextInput
-                  value={form.needs}
-                  onChangeText={v => setField("needs", v)}
-                  placeholder="communication, adventure"
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={styles.input}
-                />
+                <View style={styles.searchWrapper}>
+                  <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
+                  <TextInput
+                    value={needSearch}
+                    onChangeText={setNeedSearch}
+                    placeholder="Search needs..."
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    style={styles.searchInput}
+                  />
+                </View>
+                <View style={styles.chipWrap}>
+                  {filteredNeeds.map((need) => 
+                    renderChip(need, form.needs.has(need), () => toggleNeed(need), 'need')
+                  )}
+                </View>
+                <Text style={styles.selectionCount}>{form.needs.size} selected</Text>
               </View>
             </View>
 
@@ -737,5 +800,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1F1147",
     fontWeight: "500",
+  },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 14,
+    height: 44,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  chipSelected: {
+    backgroundColor: "rgba(255, 214, 242, 0.2)",
+    borderColor: "rgba(255, 214, 242, 0.6)",
+    shadowColor: "#FFD6F2",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  chipText: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  chipTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  selectionCount: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontStyle: "italic",
+    marginTop: 4,
   },
 });

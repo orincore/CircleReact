@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -7,26 +8,21 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 export default function TermsAndConditions() {
   const router = useRouter();
 
-  if (Platform.OS !== 'web') {
-    return null; // Only show on web
-  }
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#7C2B86', '#B24592']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
+    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Terms and Conditions</Text>
+          <Text style={styles.headerTitle}>Terms of Service</Text>
+          <View style={styles.placeholder} />
         </View>
-      </LinearGradient>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.content}>
           <Text style={styles.lastUpdated}>Last Updated: October 5, 2025</Text>
           
           <Text style={styles.intro}>
@@ -166,105 +162,109 @@ export default function TermsAndConditions() {
             <Text style={styles.paragraph}>
               For questions about these Terms, please contact us at:
             </Text>
-            <Text style={styles.contactInfo}>Email: legal@orincore.com</Text>
-            <Text style={styles.contactInfo}>Address: ORINCORE Technologies</Text>
+            <Text style={styles.contactInfo}>Email: legal@circle.orincore.com</Text>
+            <Text style={styles.contactInfo}>Address: Orincore Technologies, India</Text>
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>An App by ORINCORE Technologies</Text>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                By using Circle, you agree to these Terms of Service and our Privacy Policy.
+              </Text>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: 1200,
-    marginHorizontal: 'auto',
-    width: '100%',
-  },
-  backButton: {
-    marginRight: 16,
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  content: {
+  safeArea: {
     flex: 1,
   },
-  section: {
-    maxWidth: 800,
-    marginHorizontal: 'auto',
-    width: '100%',
-    padding: 40,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  placeholder: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
   },
   lastUpdated: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
+    color: '#E0E0E0',
+    textAlign: 'center',
+    marginBottom: 24,
     fontStyle: 'italic',
   },
   intro: {
     fontSize: 16,
+    color: '#E0E0E0',
     lineHeight: 24,
-    color: '#333',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   policySection: {
-    marginBottom: 30,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#7C2B86',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 12,
   },
   paragraph: {
     fontSize: 16,
+    color: '#E0E0E0',
     lineHeight: 24,
-    color: '#333',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   bulletPoint: {
     fontSize: 16,
+    color: '#E0E0E0',
     lineHeight: 24,
-    color: '#333',
-    marginLeft: 20,
-    marginBottom: 8,
+    marginLeft: 16,
+    marginBottom: 4,
   },
   contactInfo: {
     fontSize: 16,
-    lineHeight: 24,
     color: '#7C2B86',
     fontWeight: '600',
-    marginLeft: 20,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   footer: {
-    marginTop: 40,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 24,
   },
   footerText: {
     fontSize: 14,
-    color: '#999',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });
