@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useSegments } from "expo-router";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter, useSegments } from "expo-router";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
@@ -8,12 +8,21 @@ import LocationTrackingService from "@/services/LocationTrackingService";
 
 const AuthContext = createContext(undefined);
 
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [isRestoring, setIsRestoring] = useState(true);
   const segments = useSegments();
+  const router = useRouter();
   const AUTH_STORAGE_KEY = "@circle:isAuthenticated";
   const TOKEN_KEY = "@circle:access_token";
   const USER_KEY = "@circle:user";
@@ -60,8 +69,43 @@ export function AuthProvider({ children }) {
 
   const logIn = useCallback(async (identifier, password) => {
     const resp = await authApi.login({ identifier, password });
+    
+    console.log('🔍 [Frontend] Login response:', JSON.stringify(resp, null, 2));
+    console.log('🔍 [Frontend] User emailVerified:', resp.user.emailVerified);
+    
+    // Check if email is verified
+    if (!resp.user.emailVerified) {
+      console.log('❌ [Frontend] Email not verified, redirecting to OTP page');
+      
+      // Store token and user data but don't set as authenticated
+      setToken(resp.access_token);
+      setUser(resp.user);
+      // Don't set isAuthenticated to true for unverified users
+      
+      // Store auth data for later use
+      try {
+        await Promise.all([
+          AsyncStorage.setItem(TOKEN_KEY, resp.access_token),
+          AsyncStorage.setItem(USER_KEY, JSON.stringify(resp.user)),
+        ]);
+      } catch (error) {
+        console.warn("Failed to persist auth state", error);
+      }
+      
+      // Redirect to email verification
+      router.replace({
+        pathname: '/auth/verify-email-post-signup',
+        params: {
+          email: resp.user.email,
+          name: resp.user.firstName,
+        }
+      });
+      return;
+    }
+    
+    console.log('✅ [Frontend] Email verified, proceeding to main app');
     await applyAuth(resp, { navigate: true });
-  }, [applyAuth]);
+  }, [applyAuth, router]);
 
   const signUp = useCallback(
     async (payload) => {
@@ -73,15 +117,66 @@ export function AuthProvider({ children }) {
         age: Number(payload.age),
         gender: payload.gender,
         email: payload.email.toLowerCase(),
+        username: payload.username, // Added missing username field
         password: payload.password,
         phoneNumber: payload.phoneNumber || undefined,
         interests: Array.isArray(payload.interests) ? payload.interests : (payload.interests ? payload.interests : []),
         needs: Array.isArray(payload.needs) ? payload.needs : (payload.needs ? payload.needs : []),
+        about: payload.about || undefined,
+        instagramUsername: payload.instagramUsername || undefined,
       });
-      await applyAuth(resp, { navigate: false });
+      
+      // For new signups, store token and user but don't set as authenticated
+      // They need to verify email first
+      setToken(resp.access_token);
+      setUser(resp.user);
+      // Don't set isAuthenticated to true for new signups
+      
+      // Store auth data for later use
+      try {
+        await Promise.all([
+          AsyncStorage.setItem(TOKEN_KEY, resp.access_token),
+          AsyncStorage.setItem(USER_KEY, JSON.stringify(resp.user)),
+        ]);
+      } catch (error) {
+        console.warn("Failed to persist auth state", error);
+      }
       },
-    [applyAuth]
+    [router]
   );
+  const completeEmailVerification = useCallback(async () => {
+    // This function is called after successful email verification
+    // It completes the authentication process
+    if (token && user) {
+      console.log('✅ [Frontend] Email verified, completing authentication');
+      setIsAuthenticated(true);
+      
+      // Initialize socket service for background messaging
+      socketService.initialize(token);
+      
+      // Initialize location tracking if it was previously enabled
+      try {
+        const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
+        if (trackingEnabled) {
+          console.log('🔄 Resuming location tracking after email verification');
+          await LocationTrackingService.startTracking(token);
+        }
+      } catch (error) {
+        console.error('Failed to resume location tracking:', error);
+      }
+      
+      // Update storage to mark as authenticated
+      try {
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, "true");
+      } catch (error) {
+        console.warn("Failed to persist auth state", error);
+      }
+      
+      // Navigate to main app
+      router.replace("/secure/(tabs)/match");
+    }
+  }, [token, user, router]);
+
   const logOut = useCallback(async () => {
     setIsAuthenticated(false);
     setUser(null);
@@ -149,13 +244,14 @@ export function AuthProvider({ children }) {
     const firstSegment = segments[0];
     const isSecureRoute = firstSegment === "secure";
     const isSignupFlow = firstSegment === "signup"; // allow viewing summary even when authed
+    const isAuthFlow = firstSegment === "auth"; // allow email verification even when authed
 
     if (!isAuthenticated && isSecureRoute) {
       router.replace("/");
       return;
     }
 
-    if (isAuthenticated && !isSecureRoute && !isSignupFlow) {
+    if (isAuthenticated && !isSecureRoute && !isSignupFlow && !isAuthFlow) {
       router.replace("/secure/match");
     }
   }, [isAuthenticated, isRestoring, router, segments]);
@@ -192,19 +288,12 @@ export function AuthProvider({ children }) {
     logOut,
     updateProfile,
     refreshUser,
-  }), [isAuthenticated, token, user, logIn, signUp, logOut, updateProfile, refreshUser]);
+    completeEmailVerification,
+  }), [isAuthenticated, token, user, logIn, signUp, logOut, updateProfile, refreshUser, completeEmailVerification]);
 
   if (isRestoring) {
     return null;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 }

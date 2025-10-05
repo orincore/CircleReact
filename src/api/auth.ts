@@ -33,12 +33,14 @@ export interface SignupBody {
   phoneNumber?: string;
   interests?: string[];
   needs?: string[];
-  username: string; // 3-30, alnum._-
+  username: string; // Required: 3-30, alnum._-
   password: string; // min 6
+  about?: string;
+  instagramUsername?: string;
 }
 
 export const authApi = {
-  login: (body: LoginBody) => http.post<AuthResponse, LoginBody>("/auth/login", body),
-  signup: (body: SignupBody) => http.post<AuthResponse, SignupBody>("/auth/signup", body),
-  usernameAvailable: (username: string) => http.get<{ available: boolean }>(`/auth/username-available?username=${encodeURIComponent(username)}`),
+  login: (body: LoginBody) => http.post<AuthResponse, LoginBody>("/api/auth/login", body),
+  signup: (body: SignupBody) => http.post<AuthResponse, SignupBody>("/api/auth/signup", body),
+  usernameAvailable: (username: string) => http.get<{ available: boolean }>(`/api/auth/username-available?username=${encodeURIComponent(username)}`),
 };

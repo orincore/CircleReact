@@ -1,11 +1,12 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert, Image, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert, Image, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
+import { authApi } from "@/src/api/auth";
 import { socialAccountsApi } from "@/src/api/social-accounts";
 import { ProfilePictureService } from "@/src/services/profilePictureService";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
@@ -15,6 +16,7 @@ export default function SignupSummary() {
   const { data } = useContext(SignupWizardContext);
   const { updateProfile, token, user, refreshUser } = useAuth();
   const formatTitleCase = useMemo(() => (s) => (s ? s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1)).join(' ') : s), []);
+  
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateCompleted, setUpdateCompleted] = useState(false);
@@ -148,247 +150,403 @@ export default function SignupSummary() {
   }, [confettiAnim, confetti]);
 
   return (
-    <AnimatedBackground>
+    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          {/* Decorative sparkles (animated) */}
-          <Animated.View style={[styles.sparkle, styles.sparkleTL, { transform: [{ translateY: sparkleTranslate }], opacity: sparkleOpacity }]}>
-            <Ionicons name="sparkles" size={28} color="#FFE8FF" />
-          </Animated.View>
-          <Animated.View style={[styles.sparkle, styles.sparkleTR, { transform: [{ translateY: Animated.multiply(sparkleTranslate, -1) }], opacity: sparkleOpacity }]}>
-            <Ionicons name="sparkles" size={20} color="#FFD6F2" />
-          </Animated.View>
-          <Animated.View style={[styles.sparkle, styles.sparkleBL, { transform: [{ translateY: sparkleTranslate }], opacity: sparkleOpacity }]}>
-            <Ionicons name="sparkles" size={24} color="#E9E6FF" />
-          </Animated.View>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Account Summary</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-          {/* Confetti particles */}
-          {confetti.map((c, idx) => {
-            const t = confettiAnim[idx];
-            const translateY = t.interpolate({ inputRange: [0,1], outputRange: [-30, 200] });
-            const rotate = t.interpolate({ inputRange: [0,1], outputRange: ['0deg', `${Math.random()*360}deg`] });
-            const opacity = t.interpolate({ inputRange: [0,0.2,1], outputRange: [0, 1, 0] });
-            return (
-              <Animated.View key={c.key} style={[styles.confetti, { left: c.left, width: c.size, height: c.size, backgroundColor: c.color, transform: [{ translateY }, { rotate }] , opacity }]} />
-            );
-          })}
-
-          <View style={styles.glassCard}>
-            <View style={styles.celebrateRow}>
-              <Ionicons name="sparkles" size={18} color="#7C2B86" />
-              <Text style={styles.celebrateText}>Welcome to Circle</Text>
-              <Ionicons name="sparkles" size={18} color="#7C2B86" />
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.content}>
+            {/* Success Card */}
+            <View style={styles.successCard}>
+              <View style={styles.successIcon}>
+                <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
+              </View>
+              <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
+              <Text style={styles.successSubtitle}>
+                Your Circle account has been created. Please verify your email to start connecting with people.
+              </Text>
             </View>
 
-            <View style={styles.checkWrap}>
-              <LinearGradient colors={["#FFD6F2", "#E9E6FF"]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.checkCircleOuter}>
-                <View style={styles.checkCircleInner}>
-                  {/* Shimmer overlay */}
-                  <Animated.View pointerEvents="none" style={[styles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}>
-                    <LinearGradient colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.7)", "rgba(255,255,255,0)"]} start={{x:0,y:0}} end={{x:1,y:0}} style={{ flex: 1, borderRadius: 16 }} />
-                  </Animated.View>
-                </View>
-              </LinearGradient>
-            </View>
+            {/* Profile Summary Card */}
+            <View style={styles.profileCard}>
 
-            <Text style={styles.title}>🎉 Hurray! Your Circle account is created</Text>
-            <Text style={styles.subtitle}>
-              {isUpdating ? 'Setting up your profile...' : 'Here\'s what we\'ve got for you:'}
-            </Text>
-
-            {/* Profile Picture Section */}
-            {(data.profileImage || uploadedPhotoUrl) && (
-              <View style={styles.profilePhotoSection}>
-                <View style={styles.profilePhotoContainer}>
-                  {uploadingPhoto ? (
-                    <View style={styles.profilePhotoPlaceholder}>
-                      <ActivityIndicator size="large" color="#7C2B86" />
-                      <Text style={styles.uploadingText}>Uploading to cloud...</Text>
+              {/* Profile Picture */}
+              {data.profileImage && (
+                <View style={styles.profileImageSection}>
+                  <View style={styles.profileImageContainer}>
+                    <Image source={{ uri: data.profileImage }} style={styles.profileImage} />
+                    <View style={styles.profileImageOverlay}>
+                      <Ionicons name="camera" size={20} color="#FFFFFF" />
                     </View>
-                  ) : uploadedPhotoUrl ? (
-                    <>
-                      <Image source={{ uri: uploadedPhotoUrl }} style={styles.profilePhoto} />
-                      <View style={styles.uploadSuccessBadge}>
-                        <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-                      </View>
-                    </>
-                  ) : (
-                    <Image source={{ uri: data.profileImage }} style={styles.profilePhoto} />
-                  )}
+                  </View>
                 </View>
-                {uploadedPhotoUrl && (
-                  <Text style={styles.profilePhotoLabel}>
-                    <Ionicons name="cloud-done" size={14} color="#4CAF50" /> Profile photo uploaded
-                  </Text>
+              )}
+
+              {/* Basic Info */}
+              <View style={styles.infoSection}>
+                <Text style={styles.sectionTitle}>Personal Information</Text>
+                
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="person" size={20} color="#7C2B86" />
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>Full Name</Text>
+                      <Text style={styles.infoValue}>{displayData.firstName} {displayData.lastName}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="mail" size={20} color="#7C2B86" />
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>Email</Text>
+                      <Text style={styles.infoValue}>{displayData.email}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="at" size={20} color="#7C2B86" />
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>Username</Text>
+                      <Text style={styles.infoValue}>@{displayData.username}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.infoRowDouble}>
+                  <View style={styles.infoItemHalf}>
+                    <Ionicons name="calendar" size={20} color="#7C2B86" />
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>Age</Text>
+                      <Text style={styles.infoValue}>{displayData.age}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.infoItemHalf}>
+                    <Ionicons name="transgender" size={20} color="#7C2B86" />
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>Gender</Text>
+                      <Text style={styles.infoValue}>{formatTitleCase(displayData.gender)}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {displayData.phoneNumber && (
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoItem}>
+                      <Ionicons name="call" size={20} color="#7C2B86" />
+                      <View style={styles.infoText}>
+                        <Text style={styles.infoLabel}>Phone</Text>
+                        <Text style={styles.infoValue}>{displayData.countryCode} {displayData.phoneNumber}</Text>
+                      </View>
+                    </View>
+                  </View>
                 )}
               </View>
-            )}
 
-            <View style={styles.summaryRow}><Text style={styles.label}>Name</Text><Text style={styles.value}>{displayData.firstName} {displayData.lastName}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Gender</Text><Text style={styles.value}>{formatTitleCase(displayData.gender)}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Age</Text><Text style={styles.value}>{displayData.age}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Username</Text><Text style={styles.value}>{displayData.username}</Text></View>
-            <View style={styles.summaryRow}><Text style={styles.label}>Email</Text><Text style={styles.value}>{displayData.email}</Text></View>
-            {displayData.phoneNumber ? (
-              <View style={styles.summaryRow}><Text style={styles.label}>Phone</Text><Text style={styles.value}>{displayData.countryCode} {displayData.phoneNumber}</Text></View>
-            ) : null}
-            
-            {/* About section with loading state */}
-            {displayData.about ? (
-              <View style={styles.summaryBlock}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>About</Text>
-                  {isUpdating && <Ionicons name="sync" size={12} color="#7C2B86" />}
+              {/* About Section */}
+              {displayData.about && (
+                <View style={styles.infoSection}>
+                  <Text style={styles.sectionTitle}>About Me</Text>
+                  <View style={styles.aboutCard}>
+                    <Text style={styles.aboutText}>{displayData.about}</Text>
+                  </View>
                 </View>
-                <Text style={styles.value}>{displayData.about}</Text>
-              </View>
-            ) : null}
-            
-            {/* Instagram section with status */}
-            {displayData.instagramUsername ? (
-              <View style={styles.summaryBlock}>
-                <View style={styles.labelRow}>
-                  <Ionicons name="logo-instagram" size={14} color="#E4405F" />
-                  <Text style={styles.label}>Instagram</Text>
-                  {isUpdating ? (
-                    <Ionicons name="sync" size={12} color="#7C2B86" />
-                  ) : updateCompleted ? (
-                    <Ionicons name="checkmark-circle" size={12} color="#4CAF50" />
-                  ) : null}
-                </View>
-                <Text style={styles.value}>@{displayData.instagramUsername}</Text>
-              </View>
-            ) : null}
-            {Array.isArray(displayData.interests) && displayData.interests.length > 0 ? (
-              <View style={styles.summaryBlock}><Text style={styles.label}>Interests</Text><Text style={styles.value}>{displayData.interests.join(', ')}</Text></View>
-            ) : null}
-            {Array.isArray(displayData.needs) && displayData.needs.length > 0 ? (
-              <View style={styles.summaryBlock}><Text style={styles.label}>Needs</Text><Text style={styles.value}>{displayData.needs.join(', ')}</Text></View>
-            ) : null}
+              )}
 
-            <TouchableOpacity style={styles.cta} onPress={() => router.replace("/secure/match") }>
-              <Text style={styles.ctaText}>Let's Go! ✨</Text>
+              {/* Social Media */}
+              {displayData.instagramUsername && (
+                <View style={styles.infoSection}>
+                  <Text style={styles.sectionTitle}>Social Media</Text>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoItem}>
+                      <Ionicons name="logo-instagram" size={20} color="#E4405F" />
+                      <View style={styles.infoText}>
+                        <Text style={styles.infoLabel}>Instagram</Text>
+                        <Text style={styles.infoValue}>@{displayData.instagramUsername}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Interests & Needs */}
+              {(Array.isArray(displayData.interests) && displayData.interests.length > 0) || (Array.isArray(displayData.needs) && displayData.needs.length > 0) ? (
+                <View style={styles.infoSection}>
+                  <Text style={styles.sectionTitle}>Preferences</Text>
+                  
+                  {Array.isArray(displayData.interests) && displayData.interests.length > 0 && (
+                    <View style={styles.tagsContainer}>
+                      <Text style={styles.tagsLabel}>Interests</Text>
+                      <View style={styles.tagsWrapper}>
+                        {displayData.interests.map((interest, index) => (
+                          <View key={index} style={styles.tag}>
+                            <Text style={styles.tagText}>{interest}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {Array.isArray(displayData.needs) && displayData.needs.length > 0 && (
+                    <View style={styles.tagsContainer}>
+                      <Text style={styles.tagsLabel}>Looking For</Text>
+                      <View style={styles.tagsWrapper}>
+                        {displayData.needs.map((need, index) => (
+                          <View key={index} style={[styles.tag, styles.needTag]}>
+                            <Text style={[styles.tagText, styles.needTagText]}>{need}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              ) : null}
+            </View>
+
+            <TouchableOpacity 
+              style={styles.cta} 
+              onPress={() => {
+                // Navigate directly to email verification
+                console.log('📧 Redirecting to email verification...');
+                router.replace({
+                  pathname: '/auth/verify-email-post-signup',
+                  params: {
+                    email: data.email,
+                    name: data.firstName,
+                  }
+                });
+              }}
+            >
+              <Text style={styles.ctaText}>Verify Email Address 📧</Text>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
-    </AnimatedBackground>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  glassCard: { 
-    backgroundColor: 'rgba(255,255,255,0.96)', 
-    borderRadius: 32, 
-    padding: 28, 
-    width: '100%', 
-    maxWidth: 480,
-    gap: 14, 
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 15 },
-    elevation: 20,
-    borderWidth: 1.5, 
-    borderColor: 'rgba(255,214,242,0.4)' 
+  container: {
+    flex: 1,
   },
-  celebrateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 4 },
-  celebrateText: { fontSize: 12, fontWeight: '800', color: '#7C2B86', textTransform: 'uppercase', letterSpacing: 1.2 },
-  checkWrap: { alignItems: 'center', marginBottom: 6 },
-  checkCircleOuter: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
-  checkCircleInner: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF6FB', alignItems: 'center', justifyContent: 'center', shadowColor: '#7C2B86', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-  title: { fontSize: 24, fontWeight: '800', color: '#1F1147', textAlign: 'center', lineHeight: 32 },
-  subtitle: { fontSize: 15, color: 'rgba(31,17,71,0.65)', textAlign: 'center', marginBottom: 8, lineHeight: 22 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(93, 95, 239, 0.08)' },
-  summaryBlock: { gap: 8, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(93, 95, 239, 0.08)' },
-  label: { fontSize: 13, color: '#58468B', fontWeight: '600', letterSpacing: 0.3 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  value: { fontSize: 15, color: '#1F1147', fontWeight: '600', maxWidth: '60%', textAlign: 'right', lineHeight: 20 },
+  safeArea: { 
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  placeholder: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  successCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  successIcon: {
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F1147',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  profileImageSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  profileImageContainer: {
+    position: 'relative',
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  profileImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  infoSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 16,
+  },
+  infoRow: {
+    marginBottom: 16,
+  },
+  infoRowDouble: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+  },
+  infoItemHalf: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    flex: 0.48,
+  },
+  infoText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  aboutCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+  },
+  aboutText: {
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 24,
+  },
+  tagsContainer: {
+    marginBottom: 16,
+  },
+  tagsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  tagsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1976D2',
+  },
+  needTag: {
+    backgroundColor: '#FCE4EC',
+  },
+  needTagText: {
+    color: '#C2185B',
+  },
   cta: { 
-    marginTop: 16, 
-    backgroundColor: '#A16AE8',
-    borderRadius: 999, 
+    backgroundColor: '#7C2B86',
+    borderRadius: 16, 
     paddingVertical: 18, 
     alignItems: 'center', 
     flexDirection: 'row', 
     justifyContent: 'center', 
     gap: 10,
-    shadowColor: '#A16AE8',
-    shadowOpacity: 0.4,
+    marginTop: 8,
+    shadowColor: '#7C2B86',
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  ctaText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
-  sparkle: { position: 'absolute', opacity: 0.6 },
-  sparkleTL: { top: 60, left: 32 },
-  sparkleTR: { top: 110, right: 36 },
-  sparkleBL: { bottom: 90, left: 44 },
-  confetti: { position: 'absolute', top: 100, borderRadius: 2 },
-  shimmer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 40, overflow: 'hidden' },
-  
-  // Profile Photo Styles
-  profilePhotoSection: {
-    alignItems: 'center',
-    marginVertical: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(93, 95, 239, 0.08)',
-  },
-  profilePhotoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: '#7C2B86',
-    backgroundColor: '#F5F5F5',
-    position: 'relative',
-    shadowColor: '#7C2B86',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  profilePhoto: {
-    width: '100%',
-    height: '100%',
-  },
-  profilePhotoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFD6F2',
-    gap: 8,
-  },
-  uploadingText: {
-    fontSize: 12,
-    color: '#7C2B86',
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  uploadSuccessBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  profilePhotoLabel: {
-    fontSize: 13,
-    color: '#4CAF50',
-    fontWeight: '600',
-    marginTop: 8,
-    textAlign: 'center',
+  ctaText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#FFFFFF', 
+    letterSpacing: 0.5 
   },
 });
