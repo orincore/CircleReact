@@ -45,7 +45,17 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
   const data = isJson ? await res.json() : await res.text();
 
   if (!res.ok) {
-    const err: ApiError = new Error((isJson && (data as any)?.error) || `HTTP ${res.status} on ${method} ${url}`);
+    const errorMessage = (isJson && (data as any)?.error) || `HTTP ${res.status} on ${method} ${url}`;
+    console.error(`🚨 API Error [${res.status}]:`, {
+      url,
+      method,
+      status: res.status,
+      statusText: res.statusText,
+      error: errorMessage,
+      details: isJson ? data : null,
+    });
+    
+    const err: ApiError = new Error(errorMessage);
     err.status = res.status;
     if (isJson) err.details = data;
     throw err;

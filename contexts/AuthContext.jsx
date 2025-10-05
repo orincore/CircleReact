@@ -209,6 +209,13 @@ export function AuthProvider({ children }) {
   const completeEmailVerification = useCallback(async () => {
     // This function is called after successful email verification
     // It completes the authentication process
+    console.log('🔍 [Frontend] completeEmailVerification called', { 
+      hasToken: !!token, 
+      hasUser: !!user,
+      tokenLength: token?.length || 0,
+      userEmail: user?.email || 'none'
+    });
+    
     if (token && user) {
       console.log('✅ [Frontend] Email verified, completing authentication');
       setIsAuthenticated(true);

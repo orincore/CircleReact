@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.orincore.com';
+import { http } from '@/src/api/http';
 
 export default function VerifyEmailPostSignup() {
   const router = useRouter();
@@ -22,6 +21,44 @@ export default function VerifyEmailPostSignup() {
   
   const inputRefs = useRef([]);
 
+  // Helper function to complete email verification (web-compatible)
+  const handleEmailVerificationSuccess = async (message = 'Your email has been successfully verified. Welcome to Circle!') => {
+    console.log('🔄 Starting email verification completion...');
+    
+    if (Platform.OS === 'web') {
+      // On web, redirect immediately without Alert
+      console.log('🌐 Web platform detected, redirecting directly');
+      try {
+        await completeEmailVerification();
+        console.log('✅ Email verification completion successful');
+      } catch (error) {
+        console.error('❌ Email verification completion failed:', error);
+        // Fallback: direct navigation
+        router.replace('/secure/(tabs)/match');
+      }
+    } else {
+      // On mobile, show Alert as usual
+      Alert.alert(
+        'Email Verified! 🎉',
+        message,
+        [
+          {
+            text: 'Continue to App',
+            onPress: async () => {
+              try {
+                await completeEmailVerification();
+                console.log('✅ Email verification completion successful');
+              } catch (error) {
+                console.error('❌ Email verification completion failed:', error);
+                router.replace('/secure/(tabs)/match');
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
   // Countdown timer for resend
   useEffect(() => {
     if (countdown > 0) {
@@ -32,11 +69,30 @@ export default function VerifyEmailPostSignup() {
     }
   }, [countdown]);
 
-  // Auto-send OTP when component mounts
+  // Check if email is already verified, if not send OTP
   useEffect(() => {
-    if (email || user?.email) {
-      sendOTP();
-    }
+    const checkEmailStatus = async () => {
+      if (email || user?.email) {
+        try {
+          // Check if email is already verified
+          const targetEmail = email || user?.email;
+          const statusResponse = await http.get(`/api/auth/otp-status/${encodeURIComponent(targetEmail)}`);
+          
+          if (statusResponse.isVerified) {
+            console.log('✅ Email already verified, redirecting to app');
+            await handleEmailVerificationSuccess('Your email has already been verified. Welcome to Circle!');
+            return;
+          }
+        } catch (error) {
+          console.log('Could not check email status, proceeding with OTP send');
+        }
+        
+        // If not verified, send OTP
+        sendOTP();
+      }
+    };
+    
+    checkEmailStatus();
   }, []);
 
   const sendOTP = async () => {
@@ -45,30 +101,19 @@ export default function VerifyEmailPostSignup() {
       const targetEmail = email || user?.email;
       const targetName = name || user?.firstName || 'User';
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: targetEmail,
-          name: targetName,
-        }),
+      const data = await http.post('/api/auth/send-otp', {
+        email: targetEmail,
+        name: targetName,
       });
-
-      const data = await response.json();
       
-      if (response.ok) {
-        Alert.alert(
-          'OTP Sent! 📧',
-          `We've sent a 6-digit verification code to ${targetEmail}`,
-          [{ text: 'OK' }]
-        );
-        setCountdown(60);
-        setCanResend(false);
-      } else {
-        Alert.alert('Error', data.error || 'Failed to send OTP');
-      }
+      // If we reach here, the request was successful
+      Alert.alert(
+        'OTP Sent! 📧',
+        `We've sent a 6-digit verification code to ${targetEmail}`,
+        [{ text: 'OK' }]
+      );
+      setCountdown(60);
+      setCanResend(false);
     } catch (error) {
       console.error('Send OTP error:', error);
       Alert.alert('Error', 'Failed to send OTP. Please check your connection.');
@@ -111,41 +156,24 @@ export default function VerifyEmailPostSignup() {
     try {
       const targetEmail = email || user?.email;
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: targetEmail,
-          otp: otpCode,
-        }),
+      const data = await http.post('/api/auth/verify-otp', {
+        email: targetEmail,
+        otp: otpCode,
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert(
-          'Email Verified! 🎉',
-          'Your email has been successfully verified. Welcome to Circle!',
-          [
-            {
-              text: 'Continue to App',
-              onPress: async () => {
-                // Complete the authentication process
-                await completeEmailVerification();
-              },
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Verification Failed', data.error || 'Invalid OTP. Please try again.');
-        // Clear OTP on error
-        setOtp(['', '', '', '', '', '']);
-        inputRefs.current[0]?.focus();
-      }
+      
+      // If we reach here, the request was successful (http utility throws on error)
+      await handleEmailVerificationSuccess();
     } catch (error) {
       console.error('Verify OTP error:', error);
+      
+      // Handle case where email is already verified
+      if (error.message && error.message.toLowerCase().includes('already verified')) {
+        console.log('✅ Email already verified, completing authentication');
+        await handleEmailVerificationSuccess('Your email has already been verified. Welcome to Circle!');
+        return;
+      }
+      
+      // Handle other errors
       Alert.alert('Error', 'Failed to verify OTP. Please check your connection and try again.');
     } finally {
       setLoading(false);
