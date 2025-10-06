@@ -42,7 +42,7 @@ export default function AdminDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;

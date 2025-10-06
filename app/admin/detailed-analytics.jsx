@@ -44,7 +44,7 @@ export default function DetailedAnalytics() {
 
   const loadDetailedAnalytics = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;

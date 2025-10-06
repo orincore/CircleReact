@@ -604,16 +604,17 @@ export default function ProfileScreen() {
                   <Text style={styles.desktopEditButtonText}>Edit Profile</Text>
                 </LinearGradient>
               </TouchableOpacity>
+              
+              {/* Subscription Banner - Desktop */}
+              <SubscriptionBanner
+                isPremium={isPremium}
+                plan={plan}
+                onUpgradePress={() => setShowSubscriptionModal(true)}
+                style={styles.desktopBanner}
+                compact={true}
+              />
             </View>
           </Animated.View>
-
-          {/* Subscription Banner - Desktop */}
-          <SubscriptionBanner
-            isPremium={isPremium}
-            plan={plan}
-            onUpgradePress={() => setShowSubscriptionModal(true)}
-            style={styles.desktopBanner}
-          />
 
           {/* Right Main Content */}
           <Animated.View 
@@ -1693,8 +1694,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   desktopBanner: {
-    marginHorizontal: 24,
+    marginHorizontal: 0,
     marginVertical: 16,
+    marginTop: 20,
   },
   desktopDetails: {
     fontSize: 14,

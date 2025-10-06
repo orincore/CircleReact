@@ -14,15 +14,19 @@ export default function UserDetailScreen() {
   const [user, setUser] = useState(null);
   const [activity, setActivity] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
+  const [userRefunds, setUserRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
   // Modal states
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [suspendDuration, setSuspendDuration] = useState('');
   const [deleteReason, setDeleteReason] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
   const [suspensionEndDate, setSuspensionEndDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default 7 days from now
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isPermanentSuspension, setIsPermanentSuspension] = useState(false);
@@ -35,7 +39,7 @@ export default function UserDetailScreen() {
     try {
       setLoading(true);
       
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;
@@ -82,11 +86,34 @@ export default function UserDetailScreen() {
         setSubscriptions(subscriptionData.subscriptions || []);
       }
 
+      // Load user refunds to check existing refunds
+      await loadUserRefunds(token);
+
     } catch (error) {
       console.error('Error loading user details:', error);
       Alert.alert('Error', 'Failed to load user details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUserRefunds = async (token) => {
+    try {
+      const apiUrl = 'https://api.circle.orincore.com'
+      const refundsResponse = await fetch(`${apiUrl}/api/refunds/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (refundsResponse.ok) {
+        const refundsData = await refundsResponse.json();
+        setUserRefunds(refundsData.refunds || []);
+      }
+    } catch (error) {
+      console.error('Error loading user refunds:', error);
+      // Don't show alert for refunds loading failure
     }
   };
 
@@ -129,7 +156,7 @@ export default function UserDetailScreen() {
     try {
       setActionLoading(true);
       
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
         method: 'POST',
         headers: {
@@ -166,7 +193,7 @@ export default function UserDetailScreen() {
             try {
               setActionLoading(true);
               
-              const token = await AsyncStorage.getItem('token');
+              const token = await AsyncStorage.getItem('authToken');
               const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unsuspend`, {
                 method: 'POST',
                 headers: {
@@ -209,7 +236,7 @@ export default function UserDetailScreen() {
     try {
       setActionLoading(true);
       
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
@@ -258,7 +285,7 @@ export default function UserDetailScreen() {
     try {
       setActionLoading(true);
       
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         const errorMsg = 'Authentication token not found';
         console.error('❌', errorMsg);
@@ -305,6 +332,99 @@ export default function UserDetailScreen() {
     } finally {
       setActionLoading(false);
     }  };
+
+  const handleIssueRefund = () => {
+    // Find active premium subscriptions
+    const activeSubscriptions = subscriptions.filter(sub => 
+      sub.status === 'active' && sub.plan_type !== 'free'
+    );
+    
+    if (activeSubscriptions.length === 0) {
+      Alert.alert('No Active Subscriptions', 'This user has no active premium subscriptions to refund.');
+      return;
+    }
+    
+    if (activeSubscriptions.length === 1) {
+      // If only one subscription, select it automatically
+      setSelectedSubscription(activeSubscriptions[0]);
+    } else {
+      // If multiple subscriptions, let admin choose (for now, select the first one)
+      setSelectedSubscription(activeSubscriptions[0]);
+    }
+    
+    setRefundReason('');
+    setShowRefundModal(true);
+  };
+
+  const processRefund = async () => {
+    if (!selectedSubscription) {
+      Alert.alert('Error', 'No subscription selected');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+
+      // First create a refund request
+      // Temporary hardcoded URL to bypass undefined API_BASE_URL issue
+      const apiUrl = 'https://api.circle.orincore.com'
+      console.log('🔍 API URL Debug:', {
+        EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+        API_BASE_URL: API_BASE_URL,
+        finalApiUrl: apiUrl
+      });
+      console.log('🔍 Creating refund request:', {
+        subscription_id: selectedSubscription.id,
+        reason: refundReason || 'Admin-initiated refund',
+        url: `${apiUrl}/api/refunds/request`
+      });
+
+      const refundResponse = await fetch(`${apiUrl}/api/refunds/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subscription_id: selectedSubscription.id,
+          reason: refundReason || 'Admin-initiated refund',
+          user_id: userId  // Add user_id for admin-initiated refunds
+        })
+      });
+
+      console.log('🔍 Refund response status:', refundResponse.status);
+      
+      if (!refundResponse.ok) {
+        const errorData = await refundResponse.json();
+        console.log('❌ Refund request failed:', errorData);
+        throw new Error(errorData.error || 'Failed to create refund request');
+      }
+
+      const refundData = await refundResponse.json();
+      console.log('✅ Refund request created:', refundData);
+      
+      Alert.alert('Success', 'Refund has been processed successfully. The user will receive an email confirmation.');
+      setShowRefundModal(false);
+      loadUserDetails(); // Reload to update subscription status
+      // Also reload user refunds to update button state
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (authToken) {
+        await loadUserRefunds(authToken);
+      }
+      
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      Alert.alert('Error', error.message || 'Failed to process refund');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Helper functions for subscription styling
   const getStatusColor = (status) => {
@@ -610,6 +730,41 @@ export default function UserDetailScreen() {
             </TouchableOpacity>
           )}
           
+          {/* Refund Button - Show if user has active premium subscriptions */}
+          {subscriptions.some(sub => sub.status === 'active' && sub.plan_type !== 'free') && (
+            (() => {
+              const activeSubscriptions = subscriptions.filter(sub => 
+                sub.status === 'active' && sub.plan_type !== 'free'
+              );
+              const hasExistingRefund = activeSubscriptions.some(sub => 
+                userRefunds.some(refund => 
+                  refund.subscription_id === sub.id && 
+                  ['pending', 'approved', 'processed'].includes(refund.status)
+                )
+              );
+              
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton, 
+                    hasExistingRefund ? styles.disabledButton : styles.refundButton
+                  ]}
+                  onPress={hasExistingRefund ? null : handleIssueRefund}
+                  disabled={actionLoading || hasExistingRefund}
+                >
+                  <Ionicons 
+                    name={hasExistingRefund ? "checkmark-circle" : "card"} 
+                    size={20} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.actionButtonText}>
+                    {hasExistingRefund ? 'Refund Issued' : 'Issue Refund'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()
+          )}
+
           {!user.deleted_at ? (
             <TouchableOpacity
               style={[styles.actionButton, styles.deleteButton]}
@@ -818,6 +973,63 @@ export default function UserDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Refund Modal */}
+      <Modal
+        visible={showRefundModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowRefundModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Issue Refund</Text>
+            
+            {selectedSubscription && (
+              <View style={styles.subscriptionInfo}>
+                <Text style={styles.subscriptionInfoTitle}>Subscription Details:</Text>
+                <Text style={styles.subscriptionInfoText}>Plan: {selectedSubscription.plan_type}</Text>
+                <Text style={styles.subscriptionInfoText}>
+                  Amount: ${selectedSubscription.price_paid || '9.99'} {selectedSubscription.currency || 'USD'}
+                </Text>
+                <Text style={styles.subscriptionInfoText}>
+                  Started: {new Date(selectedSubscription.started_at).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Reason for refund (optional)"
+              value={refundReason}
+              onChangeText={setRefundReason}
+              multiline
+              numberOfLines={3}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowRefundModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton, styles.refundConfirmButton]}
+                onPress={processRefund}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Process Refund</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -969,11 +1181,17 @@ const styles = StyleSheet.create({
   unsuspendButton: {
     backgroundColor: '#22C55E',
   },
+  refundButton: {
+    backgroundColor: '#F59E0B',
+  },
+  disabledButton: {
+    backgroundColor: '#9CA3AF',
+  },
   deleteButton: {
     backgroundColor: '#FF6B6B',
   },
   restoreButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#10B981',
   },
   actionButtonText: {
     color: '#FFFFFF',
@@ -1066,6 +1284,26 @@ const styles = StyleSheet.create({
   },
   deleteConfirmButton: {
     backgroundColor: '#FF6B6B',
+  },
+  refundConfirmButton: {
+    backgroundColor: '#F59E0B',
+  },
+  subscriptionInfo: {
+    backgroundColor: '#F8F9FA',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  subscriptionInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1147',
+    marginBottom: 8,
+  },
+  subscriptionInfoText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   confirmButtonText: {
     color: '#FFFFFF',

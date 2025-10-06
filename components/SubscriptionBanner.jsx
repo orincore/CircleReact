@@ -7,12 +7,13 @@ export const SubscriptionBanner = ({
   isPremium = false, 
   plan = 'free', 
   onUpgradePress,
-  style = {} 
+  style = {},
+  compact = false 
 }) => {
   if (isPremium && plan !== 'free') {
     // Premium Banner
     return (
-      <View style={[styles.bannerContainer, style]}>
+      <View style={[styles.bannerContainer, compact && styles.compactBannerContainer, style]}>
         <LinearGradient
           colors={plan === 'premium_plus' ? ['#FFD700', '#FFA500', '#FF8C00'] : ['#7C2B86', '#A16AE8', '#C084FC']}
           style={styles.premiumBanner}
@@ -25,30 +26,32 @@ export const SubscriptionBanner = ({
           }]} />
           
           {/* Content */}
-          <View style={styles.bannerContent}>
+          <View style={[styles.bannerContent, compact && styles.compactContent]}>
             <View style={styles.leftContent}>
-              <View style={styles.iconContainer}>
+              <View style={[styles.iconContainer, compact && styles.compactIconContainer]}>
                 <Ionicons 
                   name="diamond" 
-                  size={24} 
+                  size={compact ? 20 : 24} 
                   color="#FFFFFF" 
                   style={styles.icon}
                 />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.premiumTitle}>
+                <Text style={[styles.premiumTitle, compact && styles.compactTitle]}>
                   {plan === 'premium_plus' ? 'PREMIUM+' : 'PREMIUM'} MEMBER
                 </Text>
-                <Text style={styles.premiumSubtitle}>
-                  Enjoy unlimited features & priority support
-                </Text>
+                {!compact && (
+                  <Text style={styles.premiumSubtitle}>
+                    Enjoy unlimited features & priority support
+                  </Text>
+                )}
               </View>
             </View>
             
             <View style={styles.rightContent}>
-              <View style={styles.statusBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                <Text style={styles.statusText}>Active</Text>
+              <View style={[styles.statusBadge, compact && styles.compactStatusBadge]}>
+                <Ionicons name="checkmark-circle" size={compact ? 14 : 16} color="#10B981" />
+                <Text style={[styles.statusText, compact && styles.compactStatusText]}>Active</Text>
               </View>
             </View>
           </View>
@@ -67,7 +70,7 @@ export const SubscriptionBanner = ({
     // Free Banner
     return (
       <TouchableOpacity 
-        style={[styles.bannerContainer, style]} 
+        style={[styles.bannerContainer, compact && styles.compactBannerContainer, style]} 
         onPress={onUpgradePress}
         activeOpacity={0.8}
       >
@@ -78,28 +81,30 @@ export const SubscriptionBanner = ({
           end={{ x: 1, y: 1 }}
         >
           {/* Content */}
-          <View style={styles.bannerContent}>
+          <View style={[styles.bannerContent, compact && styles.compactContent]}>
             <View style={styles.leftContent}>
-              <View style={[styles.iconContainer, styles.freeIconContainer]}>
+              <View style={[styles.iconContainer, styles.freeIconContainer, compact && styles.compactIconContainer]}>
                 <Ionicons 
                   name="person-outline" 
-                  size={24} 
+                  size={compact ? 20 : 24} 
                   color="#64748B" 
                   style={styles.icon}
                 />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.freeTitle}>FREE MEMBER</Text>
-                <Text style={styles.freeSubtitle}>
-                  Limited features • 3 matches per day
-                </Text>
+                <Text style={[styles.freeTitle, compact && styles.compactFreeTitle]}>FREE MEMBER</Text>
+                {!compact && (
+                  <Text style={styles.freeSubtitle}>
+                    Limited features • 3 matches per day
+                  </Text>
+                )}
               </View>
             </View>
             
             <View style={styles.rightContent}>
-              <View style={styles.upgradeButton}>
-                <Ionicons name="arrow-up-circle" size={16} color="#7C2B86" />
-                <Text style={styles.upgradeText}>Upgrade</Text>
+              <View style={[styles.upgradeButton, compact && styles.compactUpgradeButton]}>
+                <Ionicons name="arrow-up-circle" size={compact ? 14 : 16} color="#7C2B86" />
+                <Text style={[styles.upgradeText, compact && styles.compactUpgradeText]}>Upgrade</Text>
               </View>
             </View>
           </View>
@@ -271,6 +276,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#7C2B86',
+  },
+  
+  // Compact Mode Styles for Desktop Sidebar
+  compactBannerContainer: {
+    marginHorizontal: 0,
+    marginVertical: 8,
+    borderRadius: 12,
+  },
+  compactContent: {
+    paddingVertical: 4,
+  },
+  compactIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  compactTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  compactFreeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  compactStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  compactStatusText: {
+    fontSize: 10,
+  },
+  compactUpgradeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  compactUpgradeText: {
+    fontSize: 10,
   },
 });
 

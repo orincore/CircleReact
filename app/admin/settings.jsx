@@ -48,7 +48,7 @@ export default function AdminSettings() {
 
   const loadSettings = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;
@@ -92,7 +92,7 @@ export default function AdminSettings() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const settings = {
         maintenanceMode,
         registrationEnabled,
@@ -147,7 +147,7 @@ export default function AdminSettings() {
           style: 'destructive', 
           onPress: async () => {
             try {
-              const token = await AsyncStorage.getItem('token');
+              const token = await AsyncStorage.getItem('authToken');
               const response = await fetch(`${API_BASE_URL}/api/admin/settings/clear-cache`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
@@ -190,7 +190,7 @@ export default function AdminSettings() {
                   style: 'destructive',
                   onPress: async () => {
                     try {
-                      const token = await AsyncStorage.getItem('token');
+                      const token = await AsyncStorage.getItem('authToken');
                       const response = await fetch(`${API_BASE_URL}/api/admin/settings/reset-statistics`, {
                         method: 'POST',
                         headers: {

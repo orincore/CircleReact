@@ -48,7 +48,7 @@ export default function AdminCampaigns() {
 
   const loadCampaigns = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;
@@ -116,7 +116,7 @@ export default function AdminCampaigns() {
         return;
       }
 
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       
       // Prepare campaign data
       const campaignData = {
@@ -168,7 +168,7 @@ export default function AdminCampaigns() {
     }
 
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       console.log('🚀 Sending campaign:', campaignId);
       console.log('📍 API URL:', `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`);
       
@@ -221,7 +221,7 @@ export default function AdminCampaigns() {
     }
 
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       console.log('🗑️ Deleting campaign:', campaignId);
       
       const response = await fetch(

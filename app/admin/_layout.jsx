@@ -22,6 +22,8 @@ export default function AdminLayout() {
     { name: 'Dashboard', icon: 'grid', path: '/admin/dashboard' },
     { name: 'Users', icon: 'people', path: '/admin/users' },
     { name: 'Subscriptions', icon: 'diamond', path: '/admin/subscriptions' },
+    { name: 'Revenue', icon: 'trending-up', path: '/admin/revenue' },
+    { name: 'Refunds', icon: 'card', path: '/admin/refunds' },
     { name: 'Reports', icon: 'flag', path: '/admin/reports' },
     { name: 'Campaigns', icon: 'megaphone', path: '/admin/campaigns' },
     { name: 'Analytics', icon: 'stats-chart', path: '/admin/analytics' },

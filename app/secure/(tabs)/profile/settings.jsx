@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
 import CustomDropdown from "@/components/CustomDropdown";
+import CustomerSupportScreen from "../../../settings/customer-support";
 
 const LOCATION_OPTIONS = [
   { id: 'local', label: 'Local Only', description: 'Within 10km of your location' },
@@ -69,6 +70,9 @@ export default function SettingsScreen() {
   
   // Invisible mode
   const [invisibleMode, setInvisibleMode] = useState(false);
+  
+  // Customer support modal
+  const [showCustomerSupport, setShowCustomerSupport] = useState(false);
   
   // Removed social accounts modal state - moved to edit profile
   
@@ -407,6 +411,10 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleCustomerSupport = () => {
+    setShowCustomerSupport(true);
+  };
+
   return (
     <LinearGradient
       colors={["#1F1147", "#2D1B69", "#1F1147"]}
@@ -631,15 +639,53 @@ export default function SettingsScreen() {
           {/* Advanced Settings */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="settings" size={20} color="#FFD6F2" />
+              <Ionicons name="settings-outline" size={20} color="#FFD6F2" />
               <Text style={styles.sectionTitle}>Advanced Settings</Text>
+            </View>
+            
+            <TouchableOpacity style={styles.advancedSettingItem} onPress={() => router.push('/secure/profile/privacy')}>
+              <View style={styles.settingItemContent}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}>
+                    <Ionicons name="shield-outline" size={20} color="#FFD6F2" />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Privacy Settings</Text>
+                    <Text style={styles.settingItemDescription}>Manage your privacy and visibility</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.advancedSettingItem} onPress={handleCustomerSupport}>
+              <View style={styles.settingItemContent}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}>
+                    <Ionicons name="headset-outline" size={20} color="#FFD6F2" />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Customer Support</Text>
+                    <Text style={styles.settingItemDescription}>Get help from our support team</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Location Preferences */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="location" size={20} color="#FFD6F2" />
+              <Text style={styles.sectionTitle}>Location Preferences</Text>
             </View>
             
             <View style={styles.switchOption}>
               <View style={styles.switchContent}>
                 <Text style={styles.switchLabel}>Prioritize Location for Friendship</Text>
                 <Text style={styles.switchDescription}>
-                  When looking for friends, prioritize users who are very close to you
+                  Focus on finding friends nearby rather than far away
                 </Text>
               </View>
               <Switch
@@ -872,6 +918,11 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <CustomerSupportScreen
+        visible={showCustomerSupport}
+        onClose={() => setShowCustomerSupport(false)}
+      />
     </LinearGradient>
   );
 }
@@ -1261,5 +1312,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // Advanced Settings Styles
+  advancedSettingItem: {
+    backgroundColor: 'rgba(255, 214, 242, 0.08)',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.15)',
+  },
+  settingItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  settingItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 214, 242, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFE8FF',
+    marginBottom: 2,
+  },
+  settingItemDescription: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 18,
   },
 });

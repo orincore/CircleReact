@@ -39,7 +39,7 @@ export default function AdminReports() {
 
   const loadReports = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;
@@ -70,7 +70,7 @@ export default function AdminReports() {
 
   const loadReportDetails = async (reportId) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -90,7 +90,7 @@ export default function AdminReports() {
     }
 
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/reports/${selectedReport.report.id}/resolve`, {
         method: 'POST',
         headers: {
@@ -124,7 +124,7 @@ export default function AdminReports() {
     }
 
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/reports/${selectedReport.report.id}/dismiss`, {
         method: 'POST',
         headers: {

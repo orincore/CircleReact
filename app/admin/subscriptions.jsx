@@ -36,7 +36,7 @@ export default function AdminSubscriptions() {
 
   const loadSubscriptions = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('Error', 'Admin authentication required');
         return;
@@ -90,7 +90,7 @@ export default function AdminSubscriptions() {
   const performCancellation = async (subscriptionId) => {
     console.log('🔍 User confirmed cancellation');
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
       console.log('🔍 Cancelling subscription:', subscriptionId);
@@ -165,7 +165,7 @@ export default function AdminSubscriptions() {
 
   const handleSaveSubscription = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
       console.log('🔍 Updating subscription:', selectedSubscription.id);
@@ -208,7 +208,7 @@ export default function AdminSubscriptions() {
 
   const testAdminAuth = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
       console.log('🔍 Testing admin auth with token:', token ? 'Present' : 'Missing');

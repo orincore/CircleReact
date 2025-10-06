@@ -33,7 +33,7 @@ export default function AdminUsers() {
 
   const loadUsers = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         router.replace('/admin/login');
         return;
@@ -78,7 +78,7 @@ export default function AdminUsers() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const token = await AsyncStorage.getItem('token');
+              const token = await AsyncStorage.getItem('authToken');
               const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
                 method: 'POST',
                 headers: {
@@ -105,7 +105,7 @@ export default function AdminUsers() {
 
   const handleUnsuspendUser = async (userId, userName) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('authToken');
       const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unsuspend`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },

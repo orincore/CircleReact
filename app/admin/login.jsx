@@ -33,7 +33,7 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       // First, authenticate the user
-      const authResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+      const authResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ export default function AdminLogin() {
 
       // Store the token (backend returns 'access_token')
       const token = authData.access_token || authData.token;
-      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('authToken', token);
 
       // Check if user is an admin
       const adminCheckResponse = await fetch(`${API_BASE_URL}/api/admin/check`, {
@@ -62,7 +62,7 @@ export default function AdminLogin() {
 
       if (!adminData.isAdmin) {
         // Not an admin, clear token and show error
-        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('authToken');
         Alert.alert(
           'Access Denied',
           'You do not have admin privileges. Please contact a system administrator.'
