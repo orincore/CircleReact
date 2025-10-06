@@ -18,6 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { friendsApi } from '@/src/api/friends';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
 import { getSocket } from '@/src/api/socket';
@@ -49,6 +50,22 @@ export default function UserProfileModal({
   const [spotifyExpanded, setSpotifyExpanded] = useState(false);
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
+  const subscriptionData = useSubscription();
+  const { features = {} } = subscriptionData || {};
+  
+
+  // Function to mask Instagram username for other users
+  const getMaskedInstagram = (username) => {
+    if (!username) return null;
+    if (userId === user?.id) {
+      // Show full username for own profile
+      return username;
+    }
+    // Mask the username for other users: @ig_orincore -> ig**********
+    const prefix = username.substring(0, 2);
+    const suffix = '*'.repeat(Math.max(1, username.length - 2));
+    return prefix + suffix;
+  };
 
   useEffect(() => {
     if (visible && userId) {
@@ -886,22 +903,43 @@ export default function UserProfileModal({
                   />
                 )}
 
-                {/* Instagram Card - Prominent Display */}
+                {/* Instagram Card - Show masked for other users */}
                 {profileData.instagramUsername && (
                   <View style={styles.section}>
                     <TouchableOpacity 
                       style={styles.instagramCard}
                       activeOpacity={0.7}
                       onPress={() => {
-                        const instagramUrl = `https://instagram.com/${profileData.instagramUsername}`;
-                        if (Platform.OS === 'web') {
-                          window.open(instagramUrl, '_blank');
+                        if (userId === user?.id) {
+                          // Own profile - open Instagram normally
+                          const instagramUrl = `https://instagram.com/${profileData.instagramUsername}`;
+                          if (Platform.OS === 'web') {
+                            window.open(instagramUrl, '_blank');
+                          } else {
+                            const { Linking } = require('react-native');
+                            Linking.openURL(instagramUrl).catch(err => {
+                              console.error('Failed to open Instagram:', err);
+                              Alert.alert('Error', 'Could not open Instagram profile');
+                            });
+                          }
                         } else {
-                          const { Linking } = require('react-native');
-                          Linking.openURL(instagramUrl).catch(err => {
-                            console.error('Failed to open Instagram:', err);
-                            Alert.alert('Error', 'Could not open Instagram profile');
-                          });
+                          // Other user's profile - check premium subscription
+                          if (features.instagramUsernames) {
+                            // Premium user - open Instagram
+                            const instagramUrl = `https://instagram.com/${profileData.instagramUsername}`;
+                            if (Platform.OS === 'web') {
+                              window.open(instagramUrl, '_blank');
+                            } else {
+                              const { Linking } = require('react-native');
+                              Linking.openURL(instagramUrl).catch(err => {
+                                console.error('Failed to open Instagram:', err);
+                                Alert.alert('Error', 'Could not open Instagram profile');
+                              });
+                            }
+                          } else {
+                            // Free user - redirect to subscription page
+                            router.push('/secure/profile/subscription');
+                          }
                         }
                       }}
                     >
@@ -917,11 +955,24 @@ export default function UserProfileModal({
                           </View>
                           <View style={styles.instagramTextContainer}>
                             <Text style={styles.instagramLabel}>Follow on Instagram</Text>
-                            <Text style={styles.instagramUsername}>@{profileData.instagramUsername}</Text>
-                            <Text style={styles.instagramSubtext}>Tap to view profile</Text>
+                            <Text style={styles.instagramUsername}>
+                              @{userId === user?.id || features.instagramUsernames ? profileData.instagramUsername : getMaskedInstagram(profileData.instagramUsername)}
+                            </Text>
+                            <Text style={styles.instagramSubtext}>
+                              {userId === user?.id 
+                                ? 'Tap to view profile' 
+                                : features.instagramUsernames 
+                                  ? 'Tap to view profile'
+                                  : 'Tap to upgrade and see username'
+                              }
+                            </Text>
                           </View>
                           <View style={styles.instagramArrowContainer}>
-                            <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
+                            {userId === user?.id || features.instagramUsernames ? (
+                              <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
+                            ) : (
+                              <Ionicons name="diamond" size={24} color="#FFD700" />
+                            )}
                           </View>
                         </View>
                       </LinearGradient>
@@ -933,9 +984,33 @@ export default function UserProfileModal({
                 <View style={styles.section}>
                   <LinkedSocialAccounts 
                     userId={userId} 
-                    isOwnProfile={userId === user?.id} 
+                    isOwnProfile={userId === user?.id}
+                    onUpgradeRequest={() => {
+                      router.push('/secure/profile/subscription');
+                    }}
                   />
                 </View>
+
+                {/* Debug: Test Subscription Modal Button */}
+                {userId !== user?.id && !features.instagramUsernames && (
+                  <View style={styles.section}>
+                    <TouchableOpacity 
+                      style={{
+                        backgroundColor: '#7C2B86',
+                        padding: 12,
+                        borderRadius: 8,
+                        alignItems: 'center'
+                      }}
+                      onPress={() => {
+                        router.push('/secure/profile/subscription');
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '600' }}>
+                        Test Upgrade Page (Debug)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Additional Info */}
                 <View style={styles.section}>
@@ -1217,6 +1292,7 @@ export default function UserProfileModal({
         </View>
       </View>
     </Modal>
+
   </>
   );
 }

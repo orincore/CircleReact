@@ -10,12 +10,25 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
 
-const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
+const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }) => {
   const { token } = useAuth();
+  const { features = {} } = useSubscription() || {};
   const [linkedAccounts, setLinkedAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Function to mask Instagram username for other users
+  const getMaskedUsername = (username, platform) => {
+    if (!username || isOwnProfile || platform !== 'instagram') {
+      return username;
+    }
+    // Mask Instagram username: ig_orincore -> ig**********
+    const prefix = username.substring(0, 2);
+    const suffix = '*'.repeat(Math.max(1, username.length - 2));
+    return prefix + suffix;
+  };
 
   useEffect(() => {
     loadLinkedAccounts();
@@ -130,8 +143,24 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
           <TouchableOpacity
             key={account.id || `account-${index}-${account.platform}`}
             style={styles.accountCard}
-            onPress={() => handleAccountPress(account)}
-            activeOpacity={0.7}
+            onPress={() => {
+              if (account.platform === 'instagram' && !isOwnProfile) {
+                // Check if user has premium subscription
+                if (features.instagramUsernames) {
+                  // Premium user - allow access
+                  handleAccountPress(account);
+                } else {
+                  // Free user - trigger upgrade request
+                  if (onUpgradeRequest) {
+                    onUpgradeRequest();
+                  }
+                }
+              } else {
+                // Own profile or other platforms - normal behavior
+                handleAccountPress(account);
+              }
+            }}
+            activeOpacity={account.platform === 'instagram' && !isOwnProfile ? 1 : 0.7}
           >
             <View style={styles.accountHeader}>
               <View style={styles.accountInfo}>
@@ -161,7 +190,9 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
                   </View>
                   
                   <Text style={styles.accountUsername}>
-                    @{account.platform_username}
+                    @{isOwnProfile || features.instagramUsernames || account.platform !== 'instagram' 
+                      ? account.platform_username 
+                      : getMaskedUsername(account.platform_username, account.platform)}
                   </Text>
                   
                   {account.platform_display_name !== account.platform_username && (
@@ -179,7 +210,11 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false }) => {
               </View>
               
               <View style={styles.accountActions}>
-                <Ionicons name="open-outline" size={16} color="#7C2B86" />
+                {account.platform === 'instagram' && !isOwnProfile && !features.instagramUsernames ? (
+                  <Ionicons name="diamond" size={16} color="#FFD700" />
+                ) : (
+                  <Ionicons name="open-outline" size={16} color="#7C2B86" />
+                )}
               </View>
             </View>
 

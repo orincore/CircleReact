@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { getUserPreferences, saveUserPreferences, syncPreferencesWithBackend, loadPreferencesFromUser, LOCATION_PREFERENCES, AGE_PREFERENCES } from "@/utils/preferences";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
 import CustomDropdown from "@/components/CustomDropdown";
 
@@ -43,6 +44,12 @@ const NEED_OPTIONS = [
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, updateProfile, token } = useAuth();
+  const subscriptionContext = useSubscription();
+  
+  // Safely extract subscription values
+  const isPremium = subscriptionContext?.isPremium || false;
+  const plan = subscriptionContext?.plan || 'free';
+  const subscription = subscriptionContext?.subscription;
   
   // Matching preferences
   const [locationPreference, setLocationPreference] = useState('nearby');
@@ -330,23 +337,72 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleCancelSubscription = () => {
     Alert.alert(
-      'Delete Account',
-      'This will open a web page where you can permanently delete your account. Are you sure you want to continue?',
+      "Cancel Subscription",
+      `Are you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => {
-            const deleteUrl = `https://circle.orincore.com/delete-account.html?email=${encodeURIComponent(user?.email || '')}`;
-            Linking.openURL(deleteUrl).catch(err => {
-              console.error('Failed to open URL:', err);
-              Alert.alert('Error', 'Failed to open deletion page');
-            });
+        { text: "Keep Subscription", style: "cancel" },
+        { 
+          text: "Cancel Subscription", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+              
+              if (!token) {
+                Alert.alert("Authentication Error", "No authentication token found. Please log in again.");
+                return;
+              }
+
+              const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (response.ok) {
+                Alert.alert(
+                  "Subscription Cancelled",
+                  "Your subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period.",
+                  [{ text: "OK", onPress: () => {
+                    // Refresh subscription data
+                    subscriptionContext?.fetchSubscription?.();
+                  }}]
+                );
+              } else {
+                const errorText = await response.text();
+                let errorMessage = "Failed to cancel subscription";
+                try {
+                  const errorJson = JSON.parse(errorText);
+                  errorMessage = errorJson.error || errorJson.message || errorMessage;
+                } catch (e) {
+                  errorMessage = errorText || errorMessage;
+                }
+                Alert.alert("Error", errorMessage);
+              }
+            } catch (error) {
+              console.error('Cancel subscription error:', error);
+              Alert.alert("Network Error", "Failed to cancel subscription. Please check your internet connection and try again.");
+            }
           }
         }
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => {
+          // TODO: Implement account deletion
+          Alert.alert("Account Deletion", "Account deletion is not yet implemented.");
+        }}
       ]
     );
   };
@@ -734,9 +790,68 @@ export default function SettingsScreen() {
 
           {/* Save Button */}
           <TouchableOpacity style={styles.saveButton} onPress={savePreferences}>
-            <Text style={styles.saveButtonText}>Save Preferences</Text>
-            <Ionicons name="checkmark" size={20} color="#7C2B86" />
+            <LinearGradient
+              colors={["#7C2B86", "#9333EA"]}
+              style={styles.saveButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.saveButtonText}>Save Preferences</Text>
+            </LinearGradient>
           </TouchableOpacity>
+
+          {/* Subscription Management */}
+          {isPremium && plan !== 'free' && (
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="diamond" size={20} color="#FFD6F2" />
+                <Text style={styles.sectionTitle}>Subscription Management</Text>
+              </View>
+              
+              <View style={styles.subscriptionInfo}>
+                <View style={styles.subscriptionRow}>
+                  <Text style={styles.subscriptionLabel}>Current Plan:</Text>
+                  <Text style={styles.subscriptionValue}>
+                    {plan === 'premium_plus' ? 'Premium+' : 'Premium'}
+                  </Text>
+                </View>
+                
+                {subscription?.subscription?.expires_at && (
+                  <View style={styles.subscriptionRow}>
+                    <Text style={styles.subscriptionLabel}>Expires:</Text>
+                    <Text style={styles.subscriptionValue}>
+                      {new Date(subscription.subscription.expires_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+                
+                <View style={styles.subscriptionRow}>
+                  <Text style={styles.subscriptionLabel}>Status:</Text>
+                  <Text style={[styles.subscriptionValue, { color: '#10B981' }]}>
+                    {subscription?.subscription?.status === 'active' ? 'Active' : subscription?.subscription?.status || 'Active'}
+                  </Text>
+                </View>
+                
+                {subscription?.subscription?.auto_renew && (
+                  <View style={styles.subscriptionRow}>
+                    <Text style={styles.subscriptionLabel}>Auto-Renew:</Text>
+                    <Text style={styles.subscriptionValue}>
+                      {subscription.subscription.auto_renew ? 'Enabled' : 'Disabled'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity 
+                style={styles.cancelSubscriptionButton} 
+                onPress={handleCancelSubscription}
+              >
+                <Ionicons name="close-circle" size={20} color="#FF4D67" />
+                <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Delete Account Section */}
           <View style={styles.dangerZone}>
@@ -934,27 +1049,75 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   summaryValue: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFE8FF',
+    color: '#FFD6F2',
+    fontWeight: '500',
   },
-  saveButton: {
+  
+  // Subscription Management Styles
+  subscriptionInfo: {
+    marginBottom: 16,
+  },
+  subscriptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  subscriptionLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  subscriptionValue: {
+    fontSize: 14,
+    color: '#FFD6F2',
+    fontWeight: '600',
+  },
+  cancelSubscriptionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    backgroundColor: 'rgba(255, 77, 103, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 77, 103, 0.3)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  cancelSubscriptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF4D67',
+  },
+  saveButton: {
+    marginHorizontal: 16,
+    marginVertical: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#7C2B86',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  saveButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 999,
-    backgroundColor: '#FFD6F2',
-    marginTop: 10,
+    paddingHorizontal: 24,
+    gap: 8,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7C2B86',
+    color: '#FFFFFF',
   },
   blurCircleLarge: {
     position: "absolute",

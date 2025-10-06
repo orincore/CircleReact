@@ -13,6 +13,7 @@ export default function UserDetailScreen() {
   
   const [user, setUser] = useState(null);
   const [activity, setActivity] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
@@ -66,6 +67,19 @@ export default function UserDetailScreen() {
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
         setActivity(activityData.activity || []);
+      }
+
+      // Fetch user subscription history
+      const subscriptionResponse = await fetch(`${API_BASE_URL}/api/admin/subscriptions/user/${userId}/history`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (subscriptionResponse.ok) {
+        const subscriptionData = await subscriptionResponse.json();
+        setSubscriptions(subscriptionData.subscriptions || []);
       }
 
     } catch (error) {
@@ -292,6 +306,26 @@ export default function UserDetailScreen() {
       setActionLoading(false);
     }  };
 
+  // Helper functions for subscription styling
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active': return '#10B981';
+      case 'cancelled': return '#F59E0B';
+      case 'expired': return '#EF4444';
+      case 'pending': return '#6B7280';
+      default: return '#6B7280';
+    }
+  };
+
+  const getPlanColor = (plan) => {
+    switch (plan) {
+      case 'premium_plus': return '#FFD700';
+      case 'premium': return '#7C2B86';
+      case 'free': return '#6B7280';
+      default: return '#6B7280';
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -386,6 +420,109 @@ export default function UserDetailScreen() {
               {user.last_seen ? new Date(user.last_seen).toLocaleString() : 'Never'}
             </Text>
           </View>
+        </View>
+
+        {/* Subscription Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription Details</Text>
+          
+          {subscriptions.length > 0 ? (
+            subscriptions.map((subscription, index) => (
+              <View key={subscription.id} style={styles.subscriptionCard}>
+                <View style={styles.subscriptionHeader}>
+                  <View style={styles.subscriptionBadges}>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(subscription.status) + '20' }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(subscription.status) }]}>
+                        {subscription.status.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={[styles.planBadge, { backgroundColor: getPlanColor(subscription.plan_type) + '20' }]}>
+                      <Text style={[styles.planText, { color: getPlanColor(subscription.plan_type) }]}>
+                        {subscription.plan_type === 'premium_plus' ? 'PREMIUM+' : subscription.plan_type.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  {index === 0 && subscription.status === 'active' && (
+                    <Text style={styles.currentLabel}>CURRENT</Text>
+                  )}
+                </View>
+
+                <View style={styles.subscriptionDetails}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Plan:</Text>
+                    <Text style={styles.infoValue}>
+                      {subscription.plan_type === 'premium_plus' ? 'Premium+' : 
+                       subscription.plan_type.charAt(0).toUpperCase() + subscription.plan_type.slice(1)}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Status:</Text>
+                    <Text style={[styles.infoValue, { color: getStatusColor(subscription.status) }]}>
+                      {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Started:</Text>
+                    <Text style={styles.infoValue}>
+                      {new Date(subscription.started_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  
+                  {subscription.expires_at && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Expires:</Text>
+                      <Text style={styles.infoValue}>
+                        {new Date(subscription.expires_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {subscription.price_paid && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Price Paid:</Text>
+                      <Text style={styles.infoValue}>
+                        ${subscription.price_paid.toFixed(2)} {subscription.currency || 'USD'}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {subscription.payment_provider && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Provider:</Text>
+                      <Text style={styles.infoValue}>{subscription.payment_provider}</Text>
+                    </View>
+                  )}
+                  
+                  {subscription.cancelled_at && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Cancelled:</Text>
+                      <Text style={styles.infoValue}>
+                        {new Date(subscription.cancelled_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {subscription.status === 'active' && (
+                  <TouchableOpacity 
+                    style={styles.manageSubscriptionButton}
+                    onPress={() => router.push(`/admin/subscriptions?userId=${userId}`)}
+                  >
+                    <Ionicons name="settings" size={16} color="#7C2B86" />
+                    <Text style={styles.manageSubscriptionText}>Manage Subscription</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          ) : (
+            <View style={styles.noSubscriptionCard}>
+              <Ionicons name="diamond-outline" size={32} color="#6B7280" />
+              <Text style={styles.noSubscriptionText}>No subscription history found</Text>
+              <Text style={styles.noSubscriptionSubtext}>This user has never had a subscription</Text>
+            </View>
+          )}
         </View>
 
         {/* Suspension Info */}
@@ -997,6 +1134,94 @@ const styles = StyleSheet.create({
     color: '#7C2B86',
     fontWeight: '600',
     marginBottom: 16,
+    textAlign: 'center',
+  },
+  
+  // Subscription styles
+  subscriptionCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  subscriptionBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  planBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  planText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  currentLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  subscriptionDetails: {
+    gap: 8,
+  },
+  manageSubscriptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  manageSubscriptionText: {
+    color: '#7C2B86',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  noSubscriptionCard: {
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  noSubscriptionText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  noSubscriptionSubtext: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    marginTop: 4,
     textAlign: 'center',
   },
 });

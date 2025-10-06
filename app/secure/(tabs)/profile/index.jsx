@@ -16,15 +16,68 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { circleStatsApi } from "@/src/api/circle-stats";
+import { ProfilePremiumBadge } from "@/components/PremiumBadge";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
+import SubscriptionModal from "@/components/SubscriptionModal";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, refreshUser, logOut, token } = useAuth();
+  
+  // Safe subscription context access with try-catch
+  let subscriptionContext;
+  try {
+    subscriptionContext = useSubscription();
+  } catch (error) {
+    console.warn('Subscription context error:', error);
+    subscriptionContext = null;
+  }
+  
+  // Safely extract values with defaults
+  const isPremium = subscriptionContext?.isPremium || false;
+  const plan = subscriptionContext?.plan || 'free';
+  
+  const features = subscriptionContext?.features || {
+    unlimitedMatches: false,
+    instagramUsernames: false,
+    adFree: false,
+    premiumBadge: false,
+    prioritySupport: false,
+    advancedFilters: false,
+    seeWhoLiked: false,
+    profileBoost: false,
+    superLikes: false,
+    readReceipts: false,
+    incognitoMode: false
+  };
+
+  // Comprehensive refresh function
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Refresh all data in parallel
+      await Promise.all([
+        refreshUser(),
+        subscriptionContext?.fetchSubscription?.(),
+        loadStats()
+      ]);
+      
+      // Small delay to allow context updates to propagate
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Failed to refresh profile data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('about');
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -37,6 +90,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadStats();
   }, [token]);
+
+  // Refresh all data when component mounts or user/token changes
+  useEffect(() => {
+    if (user && token) {
+      handleRefresh();
+    }
+  }, [user?.id, token]); // Only trigger when user ID or token actually changes
 
   const loadStats = async () => {
     if (!token) return;
@@ -55,6 +115,18 @@ export default function ProfileScreen() {
   const displayAge = user?.age ? `${user.age}` : "";
   const displayGender = user?.gender || "";
   
+  // Function to mask Instagram username for free users
+  const getMaskedInstagram = (username) => {
+    if (!username) return null;
+    if (features.instagramUsernames) {
+      return username;
+    }
+    // Mask the username: @ig_orincore -> ig*********
+    const prefix = username.substring(0, 2);
+    const suffix = '*'.repeat(Math.max(1, username.length - 2));
+    return prefix + suffix;
+  };
+  
   useEffect(() => {
     // Entrance animations
     Animated.parallel([
@@ -71,6 +143,298 @@ export default function ProfileScreen() {
       })
     ]).start();
   }, []);
+  
+  // Tab Render Functions
+  const renderAboutTab = (user) => {
+    const isDesktop = Dimensions.get('window').width >= 768 && Platform.OS === 'web';
+    
+    if (isDesktop) {
+      // Desktop Layout - moved from external function
+      return (
+        <View style={styles.desktopAboutContent}>
+          {/* Contact Info Card */}
+          <View style={styles.desktopCard}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardHeaderLeft}>
+                <LinearGradient
+                  colors={['#7C2B86', '#9333EA']}
+                  style={styles.cardHeaderIcon}
+                >
+                  <Ionicons name="person-circle" size={20} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.desktopCardTitle}>Contact Information</Text>
+              </View>
+            </View>
+            
+            <View style={styles.infoGrid}>
+              {user?.email && (
+                <View style={styles.infoItem}>
+                  <LinearGradient
+                    colors={['#EC4899', '#F472B6']}
+                    style={styles.infoIconLarge}
+                  >
+                    <Ionicons name="mail" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>{user.email}</Text>
+                </View>
+              )}
+              
+              {user?.username && (
+                <View style={styles.infoItem}>
+                  <LinearGradient
+                    colors={['#7C2B86', '#9333EA']}
+                    style={styles.infoIconLarge}
+                  >
+                    <Ionicons name="at" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.infoLabel}>Username</Text>
+                  <Text style={styles.infoValue}>@{user.username}</Text>
+                </View>
+              )}
+              
+              {user?.phoneNumber && (
+                <View style={styles.infoItem}>
+                  <LinearGradient
+                    colors={['#5D5FEF', '#818CF8']}
+                    style={styles.infoIconLarge}
+                  >
+                    <Ionicons name="call" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.infoLabel}>Phone</Text>
+                  <Text style={styles.infoValue}>{user.phoneNumber}</Text>
+                </View>
+              )}
+              
+              {user?.instagramUsername && (
+                <TouchableOpacity 
+                  style={[styles.infoItem, !features.instagramUsernames && styles.lockedInfoItem]}
+                  onPress={() => !features.instagramUsernames && setShowSubscriptionModal(true)}
+                  disabled={features.instagramUsernames}
+                >
+                  <LinearGradient
+                    colors={['#E4405F', '#F77737']}
+                    style={styles.infoIconLarge}
+                  >
+                    <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.infoLabel}>Instagram</Text>
+                  <View style={styles.instagramValueContainer}>
+                    <Text style={[styles.infoValue, !features.instagramUsernames && styles.maskedValue]}>@{getMaskedInstagram(user.instagramUsername)}</Text>
+                    {!features.instagramUsernames && (
+                      <View style={styles.premiumLock}>
+                        <Ionicons name="diamond" size={12} color="#FFD700" />
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+          
+          {/* Interests Card */}
+          {user?.interests?.length > 0 && (
+            <View style={styles.desktopCard}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardHeaderLeft}>
+                  <LinearGradient
+                    colors={['#EC4899', '#F472B6']}
+                    style={styles.cardHeaderIcon}
+                  >
+                    <Ionicons name="heart" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.desktopCardTitle}>Interests & Hobbies</Text>
+                </View>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{user.interests.length}</Text>
+                </View>
+              </View>
+              <View style={styles.desktopTagsContainer}>
+                {user.interests.map((interest, idx) => (
+                  <View
+                    key={idx}
+                    style={styles.desktopTagGradient}
+                  >
+                    <Ionicons name="heart" size={14} color="#FF6FB5" />
+                    <Text style={styles.desktopTagText}>{interest}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+          
+          {/* Looking For Card */}
+          {user?.needs?.length > 0 && (
+            <View style={styles.desktopCard}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardHeaderLeft}>
+                  <LinearGradient
+                    colors={['#5D5FEF', '#818CF8']}
+                    style={styles.cardHeaderIcon}
+                  >
+                    <Ionicons name="star" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.desktopCardTitle}>Looking For</Text>
+                </View>
+                <View style={[styles.countBadge, { backgroundColor: 'rgba(93, 95, 239, 0.2)' }]}>
+                  <Text style={[styles.countBadgeText, { color: '#818CF8' }]}>{user.needs.length}</Text>
+                </View>
+              </View>
+              <View style={styles.desktopTagsContainer}>
+                {user.needs.map((need, idx) => (
+                  <View
+                    key={idx}
+                    style={[styles.desktopTagGradient, { backgroundColor: 'rgba(93, 95, 239, 0.2)', borderColor: 'rgba(93, 95, 239, 0.3)' }]}
+                  >
+                    <Ionicons name="star" size={14} color="#818CF8" />
+                    <Text style={[styles.desktopTagText, { color: '#C7D2FE' }]}>{need}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      );
+    }
+    
+    // Mobile Layout - moved from external function
+    return (
+      <View style={styles.mobileAboutContent}>
+        {/* Contact Cards */}
+        {user?.email && (
+          <View style={styles.mobileInfoCard}>
+            <LinearGradient
+              colors={['#EC4899', '#F472B6']}
+              style={styles.mobileInfoGradient}
+            >
+              <View style={styles.mobileInfoIcon}>
+                <Ionicons name="mail" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.mobileInfoText}>
+                <Text style={styles.mobileInfoLabel}>Email Address</Text>
+                <Text style={styles.mobileInfoValue}>{user.email}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+        
+        {user?.username && (
+          <View style={styles.mobileInfoCard}>
+            <LinearGradient
+              colors={['#7C2B86', '#9333EA']}
+              style={styles.mobileInfoGradient}
+            >
+              <View style={styles.mobileInfoIcon}>
+                <Ionicons name="at" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.mobileInfoText}>
+                <Text style={styles.mobileInfoLabel}>Username</Text>
+                <Text style={styles.mobileInfoValue}>@{user.username}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+        
+        {user?.phoneNumber && (
+          <View style={styles.mobileInfoCard}>
+            <LinearGradient
+              colors={['#5D5FEF', '#818CF8']}
+              style={styles.mobileInfoGradient}
+            >
+              <View style={styles.mobileInfoIcon}>
+                <Ionicons name="call" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.mobileInfoText}>
+                <Text style={styles.mobileInfoLabel}>Phone Number</Text>
+                <Text style={styles.mobileInfoValue}>{user.phoneNumber}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+        
+        {user?.instagramUsername && (
+          <TouchableOpacity 
+            style={[styles.mobileInfoCard, !features.instagramUsernames && styles.lockedMobileCard]}
+            onPress={() => !features.instagramUsernames && setShowSubscriptionModal(true)}
+            disabled={features.instagramUsernames}
+          >
+            <LinearGradient
+              colors={['#E4405F', '#F77737']}
+              style={styles.mobileInfoGradient}
+            >
+              <View style={styles.mobileInfoIcon}>
+                <Ionicons name="logo-instagram" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.mobileInfoText}>
+                <Text style={styles.mobileInfoLabel}>Instagram</Text>
+                <View style={styles.mobileInstagramContainer}>
+                  <Text style={[styles.mobileInfoValue, !features.instagramUsernames && styles.maskedValue]}>@{getMaskedInstagram(user.instagramUsername)}</Text>
+                  {!features.instagramUsernames && (
+                    <View style={styles.mobilePremiumLock}>
+                      <Ionicons name="diamond" size={14} color="#FFD700" />
+                      <Text style={styles.lockText}>Premium</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        
+        {/* Interests Section */}
+        {user?.interests?.length > 0 && (
+          <View style={styles.mobileSectionCard}>
+            <View style={styles.mobileSectionHeader}>
+              <LinearGradient
+                colors={['#EC4899', '#F472B6']}
+                style={styles.mobileSectionIcon}
+              >
+                <Ionicons name="heart" size={20} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.mobileSectionTitle}>Interests & Hobbies</Text>
+              <View style={styles.mobileCountBadge}>
+                <Text style={styles.mobileCountText}>{user.interests.length}</Text>
+              </View>
+            </View>
+            <View style={styles.mobileTagsContainer}>
+              {user.interests.map((interest, idx) => (
+                <View key={idx} style={styles.mobileTag}>
+                  <Ionicons name="heart" size={12} color="#EC4899" />
+                  <Text style={styles.mobileTagText}>{interest}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+        
+        {/* Looking For Section */}
+        {user?.needs?.length > 0 && (
+          <View style={styles.mobileSectionCard}>
+            <View style={styles.mobileSectionHeader}>
+              <LinearGradient
+                colors={['#5D5FEF', '#818CF8']}
+                style={styles.mobileSectionIcon}
+              >
+                <Ionicons name="star" size={20} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.mobileSectionTitle}>Looking For</Text>
+              <View style={[styles.mobileCountBadge, { backgroundColor: '#5D5FEF' }]}>
+                <Text style={styles.mobileCountText}>{user.needs.length}</Text>
+              </View>
+            </View>
+            <View style={styles.mobileTagsContainer}>
+              {user.needs.map((need, idx) => (
+                <View key={idx} style={[styles.mobileTag, styles.mobileTagBlue]}>
+                  <Ionicons name="star" size={12} color="#5D5FEF" />
+                  <Text style={styles.mobileTagText}>{need}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
   
   // Desktop View - Keep existing desktop code
   if (isDesktop && Platform.OS === 'web') {
@@ -124,11 +488,7 @@ export default function ProfileScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                await refreshUser();
-                setRefreshing(false);
-              }}
+              onRefresh={handleRefresh}
               tintColor="#7C2B86"
               colors={["#7C2B86"]}
             />
@@ -179,6 +539,13 @@ export default function ProfileScreen() {
               <View style={styles.sidebarInfo}>
                 <View style={styles.desktopNameRow}>
                   <Text style={styles.desktopName}>{displayName}</Text>
+                  {isPremium && plan !== 'free' && (
+                    <ProfilePremiumBadge 
+                      plan={plan} 
+                      size="small"
+                      style={styles.desktopBadgeStyle}
+                    />
+                  )}
                   {user?.gender && (
                     <Ionicons
                       name={user.gender?.toLowerCase() === "female" ? "female" : user.gender?.toLowerCase() === "male" ? "male" : "male-female"}
@@ -187,6 +554,8 @@ export default function ProfileScreen() {
                     />
                   )}
                 </View>
+                
+                
                 <Text style={styles.desktopDetails}>{displayAge} {displayAge && displayGender && '•'} {displayGender}</Text>
                 {user?.about && (
                   <Text style={styles.desktopBio} numberOfLines={3}>{user.about}</Text>
@@ -237,6 +606,14 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </Animated.View>
+
+          {/* Subscription Banner - Desktop */}
+          <SubscriptionBanner
+            isPremium={isPremium}
+            plan={plan}
+            onUpgradePress={() => setShowSubscriptionModal(true)}
+            style={styles.desktopBanner}
+          />
 
           {/* Right Main Content */}
           <Animated.View 
@@ -297,6 +674,13 @@ export default function ProfileScreen() {
             </View>
           </Animated.View>
         </ScrollView>
+        
+        {/* Subscription Modal */}
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          initialPlan="premium"
+        />
       </View>
     );
   }
@@ -323,11 +707,7 @@ export default function ProfileScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                await refreshUser();
-                setRefreshing(false);
-              }}
+              onRefresh={handleRefresh}
               tintColor="#FFFFFF"
             />
           }
@@ -384,10 +764,20 @@ export default function ProfileScreen() {
                 <Ionicons name="checkmark-circle" size={28} color="#10B981" />
               </View>
             </TouchableOpacity>
-            
             {/* Name & Info */}
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{displayName}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.profileName}>{displayName}</Text>
+                {isPremium && plan !== 'free' && (
+                  <ProfilePremiumBadge 
+                    plan={plan} 
+                    size="medium"
+                    style={styles.profileBadgeStyle}
+                  />
+                )}
+              </View>
+              
+              
               {(displayAge || displayGender) && (
                 <View style={styles.profileMeta}>
                   {displayAge && <Text style={styles.metaText}>{displayAge}</Text>}
@@ -416,6 +806,13 @@ export default function ProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+          
+          {/* Subscription Banner */}
+          <SubscriptionBanner
+            isPremium={isPremium}
+            plan={plan}
+            onUpgradePress={() => setShowSubscriptionModal(true)}
+          />
           
           {/* Stats Cards */}
           <Animated.View 
@@ -535,275 +932,13 @@ export default function ProfileScreen() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
-    </View>
-  );
-}
-
-// Tab Render Functions
-function renderAboutTab(user) {
-  const isDesktop = Dimensions.get('window').width >= 768 && Platform.OS === 'web';
-  
-  if (isDesktop) {
-    // Desktop Layout
-    return (
-      <View style={styles.desktopAboutContent}>
-        {/* Contact Info Card */}
-        <View style={styles.desktopCard}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.cardHeaderLeft}>
-              <LinearGradient
-                colors={['#7C2B86', '#9333EA']}
-                style={styles.cardHeaderIcon}
-              >
-                <Ionicons name="person-circle" size={20} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={styles.desktopCardTitle}>Contact Information</Text>
-            </View>
-          </View>
-          
-          <View style={styles.infoGrid}>
-            {user?.email && (
-              <View style={styles.infoItem}>
-                <LinearGradient
-                  colors={['#EC4899', '#F472B6']}
-                  style={styles.infoIconLarge}
-                >
-                  <Ionicons name="mail" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{user.email}</Text>
-              </View>
-            )}
-            
-            {user?.username && (
-              <View style={styles.infoItem}>
-                <LinearGradient
-                  colors={['#7C2B86', '#9333EA']}
-                  style={styles.infoIconLarge}
-                >
-                  <Ionicons name="at" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.infoLabel}>Username</Text>
-                <Text style={styles.infoValue}>@{user.username}</Text>
-              </View>
-            )}
-            
-            {user?.phoneNumber && (
-              <View style={styles.infoItem}>
-                <LinearGradient
-                  colors={['#5D5FEF', '#818CF8']}
-                  style={styles.infoIconLarge}
-                >
-                  <Ionicons name="call" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.infoLabel}>Phone</Text>
-                <Text style={styles.infoValue}>{user.phoneNumber}</Text>
-              </View>
-            )}
-            
-            {user?.instagramUsername && (
-              <View style={styles.infoItem}>
-                <LinearGradient
-                  colors={['#E4405F', '#F77737']}
-                  style={styles.infoIconLarge}
-                >
-                  <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.infoLabel}>Instagram</Text>
-                <Text style={styles.infoValue}>@{user.instagramUsername}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        
-        {/* Interests Card */}
-        {user?.interests?.length > 0 && (
-          <View style={styles.desktopCard}>
-            <View style={styles.cardHeaderRow}>
-              <View style={styles.cardHeaderLeft}>
-                <LinearGradient
-                  colors={['#EC4899', '#F472B6']}
-                  style={styles.cardHeaderIcon}
-                >
-                  <Ionicons name="heart" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.desktopCardTitle}>Interests & Hobbies</Text>
-              </View>
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>{user.interests.length}</Text>
-              </View>
-            </View>
-            <View style={styles.desktopTagsContainer}>
-              {user.interests.map((interest, idx) => (
-                <View
-                  key={idx}
-                  style={styles.desktopTagGradient}
-                >
-                  <Ionicons name="heart" size={14} color="#FF6FB5" />
-                  <Text style={styles.desktopTagText}>{interest}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-        
-        {/* Looking For Card */}
-        {user?.needs?.length > 0 && (
-          <View style={styles.desktopCard}>
-            <View style={styles.cardHeaderRow}>
-              <View style={styles.cardHeaderLeft}>
-                <LinearGradient
-                  colors={['#5D5FEF', '#818CF8']}
-                  style={styles.cardHeaderIcon}
-                >
-                  <Ionicons name="star" size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.desktopCardTitle}>Looking For</Text>
-              </View>
-              <View style={[styles.countBadge, { backgroundColor: 'rgba(93, 95, 239, 0.2)' }]}>
-                <Text style={[styles.countBadgeText, { color: '#818CF8' }]}>{user.needs.length}</Text>
-              </View>
-            </View>
-            <View style={styles.desktopTagsContainer}>
-              {user.needs.map((need, idx) => (
-                <View
-                  key={idx}
-                  style={[styles.desktopTagGradient, { backgroundColor: 'rgba(93, 95, 239, 0.2)', borderColor: 'rgba(93, 95, 239, 0.3)' }]}
-                >
-                  <Ionicons name="star" size={14} color="#818CF8" />
-                  <Text style={[styles.desktopTagText, { color: '#C7D2FE' }]}>{need}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  }
-  
-  // Mobile Layout
-  return (
-    <View style={styles.mobileAboutContent}>
-      {/* Contact Cards */}
-      {user?.email && (
-        <View style={styles.mobileInfoCard}>
-          <LinearGradient
-            colors={['#EC4899', '#F472B6']}
-            style={styles.mobileInfoGradient}
-          >
-            <View style={styles.mobileInfoIcon}>
-              <Ionicons name="mail" size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.mobileInfoText}>
-              <Text style={styles.mobileInfoLabel}>Email Address</Text>
-              <Text style={styles.mobileInfoValue}>{user.email}</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
       
-      {user?.username && (
-        <View style={styles.mobileInfoCard}>
-          <LinearGradient
-            colors={['#7C2B86', '#9333EA']}
-            style={styles.mobileInfoGradient}
-          >
-            <View style={styles.mobileInfoIcon}>
-              <Ionicons name="at" size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.mobileInfoText}>
-              <Text style={styles.mobileInfoLabel}>Username</Text>
-              <Text style={styles.mobileInfoValue}>@{user.username}</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
-      
-      {user?.phoneNumber && (
-        <View style={styles.mobileInfoCard}>
-          <LinearGradient
-            colors={['#5D5FEF', '#818CF8']}
-            style={styles.mobileInfoGradient}
-          >
-            <View style={styles.mobileInfoIcon}>
-              <Ionicons name="call" size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.mobileInfoText}>
-              <Text style={styles.mobileInfoLabel}>Phone Number</Text>
-              <Text style={styles.mobileInfoValue}>{user.phoneNumber}</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
-      
-      {user?.instagramUsername && (
-        <View style={styles.mobileInfoCard}>
-          <LinearGradient
-            colors={['#E4405F', '#F77737']}
-            style={styles.mobileInfoGradient}
-          >
-            <View style={styles.mobileInfoIcon}>
-              <Ionicons name="logo-instagram" size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.mobileInfoText}>
-              <Text style={styles.mobileInfoLabel}>Instagram</Text>
-              <Text style={styles.mobileInfoValue}>@{user.instagramUsername}</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
-      
-      {/* Interests Section */}
-      {user?.interests?.length > 0 && (
-        <View style={styles.mobileSectionCard}>
-          <View style={styles.mobileSectionHeader}>
-            <LinearGradient
-              colors={['#EC4899', '#F472B6']}
-              style={styles.mobileSectionIcon}
-            >
-              <Ionicons name="heart" size={20} color="#FFFFFF" />
-            </LinearGradient>
-            <Text style={styles.mobileSectionTitle}>Interests & Hobbies</Text>
-            <View style={styles.mobileCountBadge}>
-              <Text style={styles.mobileCountText}>{user.interests.length}</Text>
-            </View>
-          </View>
-          <View style={styles.mobileTagsContainer}>
-            {user.interests.map((interest, idx) => (
-              <View key={idx} style={styles.mobileTag}>
-                <Ionicons name="heart" size={12} color="#EC4899" />
-                <Text style={styles.mobileTagText}>{interest}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-      
-      {/* Looking For Section */}
-      {user?.needs?.length > 0 && (
-        <View style={styles.mobileSectionCard}>
-          <View style={styles.mobileSectionHeader}>
-            <LinearGradient
-              colors={['#5D5FEF', '#818CF8']}
-              style={styles.mobileSectionIcon}
-            >
-              <Ionicons name="star" size={20} color="#FFFFFF" />
-            </LinearGradient>
-            <Text style={styles.mobileSectionTitle}>Looking For</Text>
-            <View style={[styles.mobileCountBadge, { backgroundColor: '#5D5FEF' }]}>
-              <Text style={styles.mobileCountText}>{user.needs.length}</Text>
-            </View>
-          </View>
-          <View style={styles.mobileTagsContainer}>
-            {user.needs.map((need, idx) => (
-              <View key={idx} style={[styles.mobileTag, styles.mobileTagBlue]}>
-                <Ionicons name="star" size={12} color="#5D5FEF" />
-                <Text style={styles.mobileTagText}>{need}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        initialPlan="premium"
+      />
     </View>
   );
 }
@@ -1240,6 +1375,129 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   
+  // Subscription Status Styles
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  subscriptionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  premiumStatus: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  freeStatus: {
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+  },
+  subscriptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  premiumText: {
+    color: '#FFD700',
+  },
+  freeText: {
+    color: '#7C2B86',
+  },
+  upgradeText: {
+    fontSize: 10,
+    color: 'rgba(124, 43, 134, 0.8)',
+    fontStyle: 'italic',
+  },
+  
+  // Instagram Masking Styles
+  lockedInfoItem: {
+    opacity: 0.8,
+  },
+  lockedMobileCard: {
+    opacity: 0.9,
+  },
+  instagramValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mobileInstagramContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  maskedValue: {
+    fontFamily: 'monospace',
+    letterSpacing: 1,
+  },
+  premiumLock: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderRadius: 8,
+    padding: 2,
+  },
+  mobilePremiumLock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  lockText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFD700',
+  },
+  
+  // Desktop Subscription Status Styles
+  desktopSubscriptionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  desktopPremiumStatus: {
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  desktopFreeStatus: {
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+  },
+  desktopSubscriptionText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  desktopPremiumText: {
+    color: '#FFD700',
+  },
+  desktopFreeText: {
+    color: '#7C2B86',
+  },
+  desktopUpgradeText: {
+    fontSize: 9,
+    color: 'rgba(124, 43, 134, 0.8)',
+    fontStyle: 'italic',
+  },
+  
   // Desktop Styles
   desktopContainer: {
     flex: 1,
@@ -1417,12 +1675,26 @@ const styles = StyleSheet.create({
   desktopNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  profileBadgeStyle: {
+    marginTop: -2,
+    alignSelf: 'flex-start',
   },
   desktopName: {
     fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  desktopBadgeStyle: {
+    marginTop: -2,
+    alignSelf: 'flex-start',
+  },
+  desktopBanner: {
+    marginHorizontal: 24,
+    marginVertical: 16,
   },
   desktopDetails: {
     fontSize: 14,

@@ -21,6 +21,7 @@ export default function AdminLayout() {
   const menuItems = [
     { name: 'Dashboard', icon: 'grid', path: '/admin/dashboard' },
     { name: 'Users', icon: 'people', path: '/admin/users' },
+    { name: 'Subscriptions', icon: 'diamond', path: '/admin/subscriptions' },
     { name: 'Reports', icon: 'flag', path: '/admin/reports' },
     { name: 'Campaigns', icon: 'megaphone', path: '/admin/campaigns' },
     { name: 'Analytics', icon: 'stats-chart', path: '/admin/analytics' },
