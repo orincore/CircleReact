@@ -303,6 +303,14 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
   }
 
   const handleRefundRequest = async () => {
+    // Add user message showing they clicked the button
+    const userMessage = {
+      role: 'user',
+      content: 'I want to request a refund',
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, userMessage])
+
     if (!userId || !token) {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -351,6 +359,14 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
   }
 
   const handleCancellationRequest = async () => {
+    // Add user message showing they clicked the button
+    const userMessage = {
+      role: 'user',
+      content: 'I want to cancel my subscription',
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, userMessage])
+
     if (!userId || !token) {
       setMessages(prev => [...prev, {
         role: 'assistant',
