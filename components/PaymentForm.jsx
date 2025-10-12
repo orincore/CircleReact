@@ -7,7 +7,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -33,12 +34,14 @@ export const PaymentForm = ({
   const planDetails = {
     premium: {
       name: 'Premium',
-      price: '$9.99',
+      originalPrice: '$9.99',
+      price: '$0',
       features: ['Unlimited matches', 'See Instagram usernames', 'Ad-free experience']
     },
     premium_plus: {
       name: 'Premium Plus',
-      price: '$19.99',
+      originalPrice: '$19.99',
+      price: '$0',
       features: ['Everything in Premium', 'See who liked you', 'Profile boost']
     }
   };
@@ -60,18 +63,27 @@ export const PaymentForm = ({
         // Simulate network delay
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        Alert.alert(
-          'Demo Payment Successful!',
-          `Welcome to ${currentPlan.name}! This is a demo - no actual payment was processed.`,
-          [{ 
-            text: 'OK', 
-            onPress: () => onSuccess?.({ 
-              success: true, 
-              plan: planType,
-              demo: true 
-            }) 
-          }]
-        );
+        if (Platform.OS === 'web') {
+          window.alert(`Demo Payment Successful!\n\nWelcome to ${currentPlan.name}! This is a demo - no actual payment was processed.`);
+          onSuccess?.({ 
+            success: true, 
+            plan: planType,
+            demo: true 
+          });
+        } else {
+          Alert.alert(
+            'Demo Payment Successful!',
+            `Welcome to ${currentPlan.name}! This is a demo - no actual payment was processed.`,
+            [{ 
+              text: 'OK', 
+              onPress: () => onSuccess?.({ 
+                success: true, 
+                plan: planType,
+                demo: true 
+              }) 
+            }]
+          );
+        }
         return;
       }
 
@@ -163,11 +175,16 @@ export const PaymentForm = ({
       }
 
       if (response.ok && data.success) {
-        Alert.alert(
-          'Payment Successful!',
-          `Welcome to ${currentPlan.name}! Your subscription is now active.`,
-          [{ text: 'OK', onPress: () => onSuccess?.(data) }]
-        );
+        if (Platform.OS === 'web') {
+          window.alert(`Payment Successful!\n\nWelcome to ${currentPlan.name}! Your subscription is now active.`);
+          onSuccess?.(data);
+        } else {
+          Alert.alert(
+            'Payment Successful!',
+            `Welcome to ${currentPlan.name}! Your subscription is now active.`,
+            [{ text: 'OK', onPress: () => onSuccess?.(data) }]
+          );
+        }
       } else {
         // Handle specific error cases
         if (response.status === 409 && data?.code === 'DUPLICATE_SUBSCRIPTION') {
@@ -194,11 +211,16 @@ export const PaymentForm = ({
         errorMessage = 'Network connection failed. Please check your internet connection and try again.';
       }
       
-      Alert.alert(
-        'Payment Failed',
-        errorMessage,
-        [{ text: 'OK', onPress: () => onError?.(error) }]
-      );
+      if (Platform.OS === 'web') {
+        window.alert(`Payment Failed\n\n${errorMessage}`);
+        onError?.(error);
+      } else {
+        Alert.alert(
+          'Payment Failed',
+          errorMessage,
+          [{ text: 'OK', onPress: () => onError?.(error) }]
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -224,16 +246,24 @@ export const PaymentForm = ({
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert(
-          'Test Payment',
-          `Scenario: ${scenario}\nStatus: ${data.payment_intent.status}`,
-          [{ text: 'OK' }]
-        );
+        if (Platform.OS === 'web') {
+          window.alert(`Test Payment\n\nScenario: ${scenario}\nStatus: ${data.payment_intent.status}`);
+        } else {
+          Alert.alert(
+            'Test Payment',
+            `Scenario: ${scenario}\nStatus: ${data.payment_intent.status}`,
+            [{ text: 'OK' }]
+          );
+        }
       } else {
         throw new Error(data.error || 'Test failed');
       }
     } catch (error) {
-      Alert.alert('Test Error', error.message);
+      if (Platform.OS === 'web') {
+        window.alert(`Test Error\n\n${error.message}`);
+      } else {
+        Alert.alert('Test Error', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -253,6 +283,15 @@ export const PaymentForm = ({
         </View>
       )}
 
+      {/* Limited Offer Banner */}
+      <View style={styles.offerBanner}>
+        <Ionicons name="gift" size={24} color="#FFD700" />
+        <View style={styles.offerBannerContent}>
+          <Text style={styles.offerBannerTitle}>🎉 LIMITED TIME OFFER</Text>
+          <Text style={styles.offerBannerText}>Get premium for FREE - No payment required!</Text>
+        </View>
+      </View>
+
       {/* Plan Summary */}
       <View style={styles.planSummary}>
         <LinearGradient
@@ -260,7 +299,13 @@ export const PaymentForm = ({
           style={styles.planGradient}
         >
           <Text style={styles.planName}>{currentPlan.name}</Text>
-          <Text style={styles.planPrice}>{currentPlan.price}/month</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.originalPriceText}>{currentPlan.originalPrice}</Text>
+            <Text style={styles.planPrice}>{currentPlan.price}</Text>
+            <View style={styles.freeBadge}>
+              <Text style={styles.freeBadgeText}>FREE</Text>
+            </View>
+          </View>
           <View style={styles.planFeatures}>
             {currentPlan.features.map((feature, index) => (
               <View key={index} style={styles.featureRow}>
@@ -430,8 +475,9 @@ export const PaymentForm = ({
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
+                <Ionicons name="gift" size={20} color="#FFD700" />
                 <Text style={styles.payButtonText}>
-                  Pay {currentPlan.price}
+                  Claim FREE Premium
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
               </>
@@ -456,8 +502,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  offerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    margin: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    gap: 12,
+  },
+  offerBannerContent: {
+    flex: 1,
+  },
+  offerBannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFD700',
+    marginBottom: 4,
+  },
+  offerBannerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
   planSummary: {
     margin: 16,
+    marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
   },
@@ -469,13 +542,36 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  originalPriceText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textDecorationLine: 'line-through',
   },
   planPrice: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 16,
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#00FF94',
+  },
+  freeBadge: {
+    backgroundColor: '#00FF94',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  freeBadgeText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1a0b2e',
+    letterSpacing: 1,
   },
   planFeatures: {
     gap: 8,

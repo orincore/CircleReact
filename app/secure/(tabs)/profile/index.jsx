@@ -609,7 +609,7 @@ export default function ProfileScreen() {
               <SubscriptionBanner
                 isPremium={isPremium}
                 plan={plan}
-                onUpgradePress={() => setShowSubscriptionModal(true)}
+                onUpgradePress={() => router.push('/secure/profile/subscription')}
                 style={styles.desktopBanner}
                 compact={true}
               />
@@ -812,7 +812,7 @@ export default function ProfileScreen() {
           <SubscriptionBanner
             isPremium={isPremium}
             plan={plan}
-            onUpgradePress={() => setShowSubscriptionModal(true)}
+            onUpgradePress={() => router.push('/secure/profile/subscription')}
           />
           
           {/* Stats Cards */}

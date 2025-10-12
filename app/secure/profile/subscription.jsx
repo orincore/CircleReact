@@ -7,7 +7,8 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -27,16 +28,21 @@ export default function SubscriptionPage() {
   // Check authentication
   React.useEffect(() => {
     if (!token || !user) {
-      Alert.alert(
-        'Authentication Required',
-        'Please log in to access subscription features.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
+      if (Platform.OS === 'web') {
+        window.alert('Authentication Required\n\nPlease log in to access subscription features.');
+        router.back();
+      } else {
+        Alert.alert(
+          'Authentication Required',
+          'Please log in to access subscription features.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back()
+            }
+          ]
+        );
+      }
     }
   }, [token, user, router]);
 
@@ -44,7 +50,8 @@ export default function SubscriptionPage() {
     {
       id: 'premium',
       name: 'Premium',
-      price: '$9.99',
+      originalPrice: '$9.99',
+      price: '$0',
       period: '/month',
       popular: true,
       features: [
@@ -60,7 +67,8 @@ export default function SubscriptionPage() {
     {
       id: 'premium_plus',
       name: 'Premium Plus',
-      price: '$19.99',
+      originalPrice: '$19.99',
+      price: '$0',
       period: '/month',
       features: [
         'Everything in Premium',
@@ -76,7 +84,11 @@ export default function SubscriptionPage() {
 
   const handleSubscribe = async () => {
     if (!token || !user) {
-      Alert.alert('Error', 'Please log in to subscribe.');
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nPlease log in to subscribe.');
+      } else {
+        Alert.alert('Error', 'Please log in to subscribe.');
+      }
       return;
     }
 
@@ -94,19 +106,25 @@ export default function SubscriptionPage() {
       console.log('Subscription result:', result);
       
       if (result && result.success) {
-        Alert.alert(
-          'Success!',
-          'Your subscription has been activated. You now have access to premium features!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                fetchSubscription();
-                router.back();
+        if (Platform.OS === 'web') {
+          window.alert('Success!\n\nYour subscription has been activated. You now have access to premium features!');
+          fetchSubscription();
+          router.back();
+        } else {
+          Alert.alert(
+            'Success!',
+            'Your subscription has been activated. You now have access to premium features!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  fetchSubscription();
+                  router.back();
+                }
               }
-            }
-          ]
-        );
+            ]
+          );
+        }
       } else {
         console.log('Subscription not successful, showing payment form');
         setShowPaymentForm(true);
@@ -116,18 +134,27 @@ export default function SubscriptionPage() {
       
       // Handle specific authentication errors
       if (error.message && error.message.includes('Not authenticated')) {
-        Alert.alert(
-          'Authentication Error', 
-          'Please log out and log back in, then try again.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.back()
-            }
-          ]
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Authentication Error\n\nPlease log out and log back in, then try again.');
+          router.back();
+        } else {
+          Alert.alert(
+            'Authentication Error', 
+            'Please log out and log back in, then try again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.back()
+              }
+            ]
+          );
+        }
       } else {
-        Alert.alert('Error', error.message || 'Failed to process subscription. Please try again.');
+        if (Platform.OS === 'web') {
+          window.alert('Error\n\n' + (error.message || 'Failed to process subscription. Please try again.'));
+        } else {
+          Alert.alert('Error', error.message || 'Failed to process subscription. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -201,20 +228,29 @@ export default function SubscriptionPage() {
                 }
               }
               
-              Alert.alert(
-                isDemo ? 'Demo Success!' : 'Success!',
-                isDemo 
-                  ? 'Demo subscription activated! In a real app, you would now have premium features.'
-                  : 'Your subscription has been activated! You now have access to premium features.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      router.back();
+              if (Platform.OS === 'web') {
+                window.alert(
+                  isDemo 
+                    ? 'Demo Success!\n\nDemo subscription activated! In a real app, you would now have premium features.'
+                    : 'Success!\n\nYour subscription has been activated! You now have access to premium features.'
+                );
+                router.back();
+              } else {
+                Alert.alert(
+                  isDemo ? 'Demo Success!' : 'Success!',
+                  isDemo 
+                    ? 'Demo subscription activated! In a real app, you would now have premium features.'
+                    : 'Your subscription has been activated! You now have access to premium features.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        router.back();
+                      }
                     }
-                  }
-                ]
-              );
+                  ]
+                );
+              }
             }}
             onCancel={() => setShowPaymentForm(false)}
           />
@@ -243,13 +279,26 @@ export default function SubscriptionPage() {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
+            <View style={styles.limitedOfferBadge}>
+              <Ionicons name="flash" size={20} color="#FFD700" />
+              <Text style={styles.limitedOfferText}>LIMITED TIME OFFER</Text>
+              <Ionicons name="flash" size={20} color="#FFD700" />
+            </View>
             <View style={styles.heroIcon}>
               <Ionicons name="diamond" size={48} color="#FFD700" />
             </View>
-            <Text style={styles.heroTitle}>Unlock Premium Features</Text>
-            <Text style={styles.heroSubtitle}>
-              Get access to Instagram usernames, unlimited matches, and more!
+            <Text style={styles.heroTitle}>Get Premium for FREE!</Text>
+            <Text style={styles.offerPrice}>
+              <Text style={styles.originalPrice}>$9.99</Text>
+              <Text style={styles.freePrice}> $0</Text>
             </Text>
+            <Text style={styles.heroSubtitle}>
+              🎉 Special launch offer - Get full premium access at no cost!
+            </Text>
+            <View style={styles.offerTimer}>
+              <Ionicons name="time-outline" size={16} color="#FF6FB5" />
+              <Text style={styles.offerTimerText}>Offer ends soon - Claim now!</Text>
+            </View>
           </View>
 
           {/* Plans */}
@@ -276,6 +325,7 @@ export default function SubscriptionPage() {
                   <View style={styles.planHeader}>
                     <Text style={styles.planName}>{plan.name}</Text>
                     <View style={styles.priceContainer}>
+                      <Text style={styles.planOriginalPrice}>{plan.originalPrice}</Text>
                       <Text style={styles.planPrice}>{plan.price}</Text>
                       <Text style={styles.planPeriod}>{plan.period}</Text>
                     </View>
@@ -314,10 +364,13 @@ export default function SubscriptionPage() {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="diamond" size={20} color="#FFD700" />
+                  <Ionicons name="gift" size={24} color="#FFD700" />
                   <Text style={styles.subscribeText}>
-                    Subscribe to {plans.find(p => p.id === selectedPlan)?.name}
+                    Claim FREE {plans.find(p => p.id === selectedPlan)?.name}
                   </Text>
+                  <View style={styles.freeBadge}>
+                    <Text style={styles.freeBadgeText}>FREE</Text>
+                  </View>
                 </>
               )}
             </LinearGradient>
@@ -386,6 +439,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
   },
+  limitedOfferBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 20,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  limitedOfferText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFD700',
+    letterSpacing: 1,
+  },
   heroIcon: {
     width: 80,
     height: 80,
@@ -396,17 +467,46 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
   },
+  offerPrice: {
+    marginBottom: 16,
+  },
+  originalPrice: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textDecorationLine: 'line-through',
+  },
+  freePrice: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#00FF94',
+  },
   heroSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     lineHeight: 24,
+    marginBottom: 16,
+  },
+  offerTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 8,
+  },
+  offerTimerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
   },
   plansContainer: {
     marginBottom: 30,
@@ -451,10 +551,17 @@ const styles = StyleSheet.create({
   priceContainer: {
     alignItems: 'flex-end',
   },
+  planOriginalPrice: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textDecorationLine: 'line-through',
+    marginBottom: 4,
+  },
   planPrice: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#00FF94',
   },
   planPeriod: {
     fontSize: 14,
@@ -494,6 +601,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  freeBadge: {
+    backgroundColor: '#00FF94',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  freeBadgeText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#1a0b2e',
+    letterSpacing: 1,
   },
   highlightSection: {
     marginBottom: 40,
