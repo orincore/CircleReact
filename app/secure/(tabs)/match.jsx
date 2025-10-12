@@ -16,6 +16,8 @@ import {
   AppState,
   Platform,
   Alert,
+  Share,
+  Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState, useCallback } from "react";
@@ -345,6 +347,9 @@ export default function MatchScreen() {
   const acceptedNotifiedRef = useRef(false);
   const livePulse = useRef(new Animated.Value(0)).current;
   const [passedMatchIds, setPassedMatchIds] = useState(new Set());
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
+  const [loadingPublicStats, setLoadingPublicStats] = useState(false);
   
   
   const showToast = (text, type = "info") => {
@@ -1069,7 +1074,75 @@ export default function MatchScreen() {
     }
   }, [token, loadCircleStats, loadFriendRequests]);
 
+  // Load public stats
+  const loadPublicStats = async () => {
+    try {
+      setLoadingPublicStats(true);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiUrl}/api/public/stats`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPublicStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Error loading public stats:', error);
+    } finally {
+      setLoadingPublicStats(false);
+    }
+  };
+
+  // Load public stats on mount
+  useEffect(() => {
+    loadPublicStats();
+  }, []);
+
+  // Handle share app
+  const handleShareApp = async () => {
+    const shareUrl = 'https://circle.orincore.com';
+    const shareMessage = `Join me on Circle! 🎉 Let's connect and meet amazing people together. ${shareUrl}`;
+    
+    try {
+      if (Platform.OS === 'web') {
+        // For web, use Web Share API if available, otherwise copy to clipboard
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Join Circle',
+            text: shareMessage,
+            url: shareUrl,
+          });
+          showToast('Shared successfully!', 'success');
+        } else {
+          // Fallback: copy to clipboard
+          await navigator.clipboard.writeText(shareMessage);
+          showToast('Link copied to clipboard!', 'success');
+        }
+      } else {
+        // For mobile, use React Native Share
+        const result = await Share.share({
+          message: shareMessage,
+          url: shareUrl,
+          title: 'Join Circle',
+        });
+        
+        if (result.action === Share.sharedAction) {
+          showToast('Shared successfully!', 'success');
+        }
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      showToast('Failed to share', 'error');
+    }
+  };
+
   const handleStartMatch = async () => {
+    // Show coming soon modal instead of starting match
+    await loadPublicStats(); // Refresh stats
+    setShowComingSoonModal(true);
+    return;
+    
+    // Original code (commented out for now)
+    /*
     try {
       setMatchedUser(null);
       setIsSearching(true);
@@ -1126,6 +1199,7 @@ export default function MatchScreen() {
       setHasActiveSession(false);
       showToast(e?.message || "Failed to start matchmaking", "error");
     }
+    */
   };
 
   const handlePass = async () => {
@@ -1867,6 +1941,118 @@ export default function MatchScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Coming Soon Modal */}
+      <Modal animationType="slide" transparent visible={showComingSoonModal}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.comingSoonModal}>
+            <TouchableOpacity 
+              style={styles.comingSoonCloseButton}
+              onPress={() => setShowComingSoonModal(false)}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.comingSoonContent}>
+              <View style={styles.comingSoonIcon}>
+                <Ionicons name="rocket" size={60} color="#FF6FB5" />
+              </View>
+              
+              <Text style={styles.comingSoonTitle}>Live Match Coming Soon!</Text>
+              <Text style={styles.comingSoonSubtitle}>
+                This feature will go live once we reach 10,000 users
+              </Text>
+
+              {/* Progress Bar */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>Current Users</Text>
+                  <Text style={styles.progressGoal}>Goal: {publicStats.goal.toLocaleString()}</Text>
+                </View>
+                
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { width: `${Math.min((publicStats.totalUsers / publicStats.goal) * 100, 100)}%` }
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#7C2B86', '#FF6FB5']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.progressGradient}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.progressStats}>
+                  <View style={styles.progressStatItem}>
+                    <Text style={styles.progressStatNumber}>
+                      {loadingPublicStats ? '...' : publicStats.totalUsers.toLocaleString()}
+                    </Text>
+                    <Text style={styles.progressStatLabel}>Users</Text>
+                  </View>
+                  <View style={styles.progressStatDivider} />
+                  <View style={styles.progressStatItem}>
+                    <Text style={styles.progressStatNumber}>
+                      {loadingPublicStats ? '...' : (publicStats.goal - publicStats.totalUsers).toLocaleString()}
+                    </Text>
+                    <Text style={styles.progressStatLabel}>Remaining</Text>
+                  </View>
+                  <View style={styles.progressStatDivider} />
+                  <View style={styles.progressStatItem}>
+                    <Text style={styles.progressStatNumber}>
+                      {loadingPublicStats ? '...' : `${Math.round((publicStats.totalUsers / publicStats.goal) * 100)}%`}
+                    </Text>
+                    <Text style={styles.progressStatLabel}>Complete</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Call to Action */}
+              <View style={styles.comingSoonCTA}>
+                <Text style={styles.comingSoonCTATitle}>Help us reach our goal!</Text>
+                <Text style={styles.comingSoonCTAText}>
+                  Share Circle with your friends and be part of something amazing
+                </Text>
+              </View>
+
+              {/* Share Button */}
+              <TouchableOpacity 
+                style={styles.shareButton}
+                onPress={handleShareApp}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={['#7C2B86', '#5D5FEF', '#FF6FB5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.shareButtonGradient}
+                >
+                  <Ionicons name="share-social" size={24} color="#FFFFFF" />
+                  <Text style={styles.shareButtonText}>Share Circle</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Link */}
+              <TouchableOpacity 
+                style={styles.linkButton}
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    window.open('https://circle.orincore.com', '_blank');
+                  } else {
+                    Linking.openURL('https://circle.orincore.com');
+                  }
+                }}
+              >
+                <Text style={styles.linkButtonText}>circle.orincore.com</Text>
+                <Ionicons name="open-outline" size={16} color="#FF6FB5" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -4662,5 +4848,159 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '900',
     letterSpacing: 2,
+  },
+  // Coming Soon Modal Styles
+  comingSoonModal: {
+    backgroundColor: 'rgba(31, 17, 71, 0.98)',
+    borderRadius: 24,
+    padding: 32,
+    maxWidth: 500,
+    width: '90%',
+    maxHeight: '90%',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 111, 181, 0.3)',
+  },
+  comingSoonCloseButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  comingSoonContent: {
+    alignItems: 'center',
+  },
+  comingSoonIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  comingSoonTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  comingSoonSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  progressContainer: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  progressLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  progressGoal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
+  },
+  progressBarContainer: {
+    height: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 6,
+  },
+  progressGradient: {
+    flex: 1,
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  progressStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressStatNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  progressStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'uppercase',
+  },
+  progressStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  comingSoonCTA: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  comingSoonCTATitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFD6F2',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  comingSoonCTAText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  shareButton: {
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  shareButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 12,
+  },
+  shareButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  linkButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
   },
 });

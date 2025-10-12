@@ -12,6 +12,7 @@ import { Slot, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AdminAuthGuard from '@/components/admin/AdminAuthGuard';
 
 export default function AdminLayout() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function AdminLayout() {
 
   const menuItems = [
     { name: 'Dashboard', icon: 'grid', path: '/admin/dashboard' },
+    { name: 'AI Dashboard', icon: 'sparkles', path: '/admin/ai-dashboard' },
     { name: 'Users', icon: 'people', path: '/admin/users' },
     { name: 'Subscriptions', icon: 'diamond', path: '/admin/subscriptions' },
     { name: 'Revenue', icon: 'trending-up', path: '/admin/revenue' },
@@ -38,7 +40,8 @@ export default function AdminLayout() {
   }
 
   return (
-    <View style={styles.container}>
+    <AdminAuthGuard>
+      <View style={styles.container}>
       {/* Sidebar */}
       <View style={[styles.sidebar, sidebarCollapsed && styles.sidebarCollapsed]}>
         <LinearGradient
@@ -106,7 +109,9 @@ export default function AdminLayout() {
                     text: 'Logout',
                     style: 'destructive',
                     onPress: async () => {
-                      await AsyncStorage.removeItem('token');
+                      await AsyncStorage.removeItem('authToken');
+                      await AsyncStorage.removeItem('isAdmin');
+                      await AsyncStorage.removeItem('adminRole');
                       router.replace('/admin/login');
                     },
                   },
@@ -127,6 +132,7 @@ export default function AdminLayout() {
         <Slot />
       </View>
     </View>
+    </AdminAuthGuard>
   );
 }
 

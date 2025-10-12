@@ -2,9 +2,11 @@ import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import { useAuth } from '@/contexts/AuthContext'
 import HumanSupportChat from '../../components/support/HumanSupportChat'
 
 const CustomerSupportScreen = ({ visible = true, onClose = () => {} }) => {
+  const { user } = useAuth()
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showChat, setShowChat] = useState(false)
 
@@ -205,6 +207,7 @@ const CustomerSupportScreen = ({ visible = true, onClose = () => {} }) => {
           visible={showChat}
           onClose={() => setShowChat(false)}
           category={selectedCategory}
+          userId={user?.id}
         />
       </View>
     </Modal>

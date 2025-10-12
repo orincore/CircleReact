@@ -144,27 +144,43 @@ export default function SettingsScreen() {
       });
       
       if (syncResult.success) {
-        Alert.alert(
-          'Settings Saved', 
-          'Your matching preferences and profile have been updated successfully in the database.'
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Settings Saved\n\nYour matching preferences and profile have been updated successfully in the database.');
+        } else {
+          Alert.alert(
+            'Settings Saved', 
+            'Your matching preferences and profile have been updated successfully in the database.'
+          );
+        }
         console.log('✅ All preferences saved successfully');
       } else if (syncResult.localSaved) {
-        Alert.alert(
-          'Partial Success', 
-          'Profile updated and preferences saved locally, but failed to sync with server. Your preferences will sync when connection is restored.'
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Partial Success\n\nProfile updated and preferences saved locally, but failed to sync with server. Your preferences will sync when connection is restored.');
+        } else {
+          Alert.alert(
+            'Partial Success', 
+            'Profile updated and preferences saved locally, but failed to sync with server. Your preferences will sync when connection is restored.'
+          );
+        }
         console.log('⚠️ Preferences saved locally but backend sync failed:', syncResult.error);
       } else {
-        Alert.alert(
-          'Error', 
-          'Failed to save some preferences. Please check your connection and try again.'
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Error\n\nFailed to save some preferences. Please check your connection and try again.');
+        } else {
+          Alert.alert(
+            'Error', 
+            'Failed to save some preferences. Please check your connection and try again.'
+          );
+        }
         console.log('❌ Failed to save preferences:', syncResult.error);
       }
     } catch (error) {
       console.error('Error saving preferences:', error);
-      Alert.alert('Error', 'Failed to save preferences. Please try again.');
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nFailed to save preferences. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to save preferences. Please try again.');
+      }
     }
   };
 
@@ -304,26 +320,38 @@ export default function SettingsScreen() {
         const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
         setLastLocationUpdate(lastUpdate);
         
-        Alert.alert(
-          'Location Tracking Enabled',
-          'Circle will now update your location every 5 minutes for better matches, even when the app is closed.'
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Location Tracking Enabled\n\nCircle will now update your location every 5 minutes for better matches, even when the app is closed.');
+        } else {
+          Alert.alert(
+            'Location Tracking Enabled',
+            'Circle will now update your location every 5 minutes for better matches, even when the app is closed.'
+          );
+        }
       } else {
         // Stop location tracking
         await LocationTrackingService.stopTracking();
         setLocationTrackingEnabled(false);
         
-        Alert.alert(
-          'Location Tracking Disabled',
-          'Circle will no longer track your location in the background.'
-        );
+        if (Platform.OS === 'web') {
+          window.alert('Location Tracking Disabled\n\nCircle will no longer track your location in the background.');
+        } else {
+          Alert.alert(
+            'Location Tracking Disabled',
+            'Circle will no longer track your location in the background.'
+          );
+        }
       }
     } catch (error) {
       console.error('Error toggling location tracking:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to change location tracking settings. Please check your location permissions.'
-      );
+      if (Platform.OS === 'web') {
+        window.alert(`Error\n\n${error.message || 'Failed to change location tracking settings. Please check your location permissions.'}`);
+      } else {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to change location tracking settings. Please check your location permissions.'
+        );
+      }
       // Revert the toggle if it failed
       setLocationTrackingEnabled(!enabled);
     }
@@ -334,81 +362,166 @@ export default function SettingsScreen() {
       await LocationTrackingService.updateLocationNow();
       const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
       setLastLocationUpdate(lastUpdate);
-      Alert.alert('Success', 'Location updated successfully');
+      if (Platform.OS === 'web') {
+        window.alert('Success\n\nLocation updated successfully');
+      } else {
+        Alert.alert('Success', 'Location updated successfully');
+      }
     } catch (error) {
       console.error('Error updating location:', error);
-      Alert.alert('Error', 'Failed to update location. Please check your location permissions.');
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nFailed to update location. Please check your location permissions.');
+      } else {
+        Alert.alert('Error', 'Failed to update location. Please check your location permissions.');
+      }
     }
   };
 
-  const handleCancelSubscription = () => {
-    Alert.alert(
-      "Cancel Subscription",
-      `Are you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`,
-      [
-        { text: "Keep Subscription", style: "cancel" },
-        { 
-          text: "Cancel Subscription", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
-              
-              if (!token) {
-                Alert.alert("Authentication Error", "No authentication token found. Please log in again.");
-                return;
-              }
+  const handleCancelSubscription = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Cancel Subscription\n\nAre you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+      
+      try {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+        
+        if (!token) {
+          window.alert("Authentication Error\n\nNo authentication token found. Please log in again.");
+          return;
+        }
 
-              const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              });
+        const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-              if (response.ok) {
-                Alert.alert(
-                  "Subscription Cancelled",
-                  "Your subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period.",
-                  [{ text: "OK", onPress: () => {
-                    // Refresh subscription data
-                    subscriptionContext?.fetchSubscription?.();
-                  }}]
-                );
-              } else {
-                const errorText = await response.text();
-                let errorMessage = "Failed to cancel subscription";
-                try {
-                  const errorJson = JSON.parse(errorText);
-                  errorMessage = errorJson.error || errorJson.message || errorMessage;
-                } catch (e) {
-                  errorMessage = errorText || errorMessage;
+        if (response.ok) {
+          window.alert(
+            "Subscription Cancelled\n\nYour subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period."
+          );
+          // Refresh subscription data
+          subscriptionContext?.fetchSubscription?.();
+        } else {
+          const errorText = await response.text();
+          let errorMessage = "Failed to cancel subscription";
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorJson.message || errorMessage;
+          } catch (e) {
+            errorMessage = errorText || errorMessage;
+          }
+          window.alert(`Error\n\n${errorMessage}`);
+        }
+      } catch (error) {
+        console.error('Cancel subscription error:', error);
+        window.alert("Network Error\n\nFailed to cancel subscription. Please check your internet connection and try again.");
+      }
+    } else {
+      Alert.alert(
+        "Cancel Subscription",
+        `Are you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`,
+        [
+          { text: "Keep Subscription", style: "cancel" },
+          { 
+            text: "Cancel Subscription", 
+            style: "destructive", 
+            onPress: async () => {
+              try {
+                const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+                
+                if (!token) {
+                  Alert.alert("Authentication Error", "No authentication token found. Please log in again.");
+                  return;
                 }
-                Alert.alert("Error", errorMessage);
+
+                const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                });
+
+                if (response.ok) {
+                  Alert.alert(
+                    "Subscription Cancelled",
+                    "Your subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period.",
+                    [{ text: "OK", onPress: () => {
+                      // Refresh subscription data
+                      subscriptionContext?.fetchSubscription?.();
+                    }}]
+                  );
+                } else {
+                  const errorText = await response.text();
+                  let errorMessage = "Failed to cancel subscription";
+                  try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = errorJson.error || errorJson.message || errorMessage;
+                  } catch (e) {
+                    errorMessage = errorText || errorMessage;
+                  }
+                  Alert.alert("Error", errorMessage);
+                }
+              } catch (error) {
+                console.error('Cancel subscription error:', error);
+                Alert.alert("Network Error", "Failed to cancel subscription. Please check your internet connection and try again.");
               }
-            } catch (error) {
-              console.error('Cancel subscription error:', error);
-              Alert.alert("Network Error", "Failed to cancel subscription. Please check your internet connection and try again.");
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => {
-          // TODO: Implement account deletion
-          Alert.alert("Account Deletion", "Account deletion is not yet implemented.");
-        }}
-      ]
-    );
+  const handleDeleteAccount = async () => {
+    const userEmail = user?.email || '';
+    const encodedEmail = encodeURIComponent(userEmail);
+    const deleteAccountUrl = `https://circle.orincore.com/delete-account.html?email=${encodedEmail}`;
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        "Delete Account\n\nAre you sure you want to delete your account? This action cannot be undone."
+      );
+      
+      if (confirmed) {
+        // Open delete account page in new tab
+        window.open(deleteAccountUrl, '_blank');
+      }
+    } else {
+      Alert.alert(
+        "Delete Account",
+        "Are you sure you want to delete your account? This action cannot be undone.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Delete", 
+            style: "destructive", 
+            onPress: async () => {
+              try {
+                // Open delete account page in external browser
+                const supported = await Linking.canOpenURL(deleteAccountUrl);
+                if (supported) {
+                  await Linking.openURL(deleteAccountUrl);
+                } else {
+                  Alert.alert("Error", "Unable to open the delete account page.");
+                }
+              } catch (error) {
+                console.error('Error opening delete account URL:', error);
+                Alert.alert("Error", "Failed to open the delete account page.");
+              }
+            }
+          }
+        ]
+      );
+    }
   };
 
   const handleCustomerSupport = () => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,74 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check if user is already authenticated on component mount
+  useEffect(() => {
+    let fallbackTimeout;
+    
+    const runAuthCheck = async () => {
+      // Fallback timeout to prevent infinite loading
+      fallbackTimeout = setTimeout(() => {
+        console.log('⚠️ AdminLogin - Fallback timeout reached, showing login form');
+        setCheckingAuth(false);
+      }, 3000); // 3 second fallback
+      
+      await checkExistingAuth();
+      
+      // Clear the fallback timeout if auth check completes
+      if (fallbackTimeout) {
+        clearTimeout(fallbackTimeout);
+      }
+    };
+    
+    runAuthCheck();
+    
+    return () => {
+      if (fallbackTimeout) {
+        clearTimeout(fallbackTimeout);
+      }
+    };
+  }, []);
+
+  const checkExistingAuth = async () => {
+    try {
+      console.log('🔍 AdminLogin - Checking existing authentication...');
+      
+      // Check if we're already on dashboard to prevent redirect loop
+      if (Platform.OS === 'web' && window.location.pathname.includes('/admin/dashboard')) {
+        console.log('🔍 AdminLogin - Already on dashboard, skipping auth check');
+        setCheckingAuth(false);
+        return;
+      }
+      
+      const storedToken = await AsyncStorage.getItem('authToken');
+      const isAdmin = await AsyncStorage.getItem('isAdmin');
+      
+      console.log('🔍 AdminLogin - Stored token:', storedToken ? 'Present' : 'Missing');
+      console.log('🔍 AdminLogin - Stored isAdmin:', isAdmin);
+      
+      if (storedToken && isAdmin === 'true') {
+        console.log('✅ AdminLogin - User already authenticated, redirecting to dashboard');
+        
+        // Force redirect using both router and window.location for web
+        if (Platform.OS === 'web') {
+          window.location.href = '/admin/dashboard';
+        } else {
+          router.replace('/admin/dashboard');
+        }
+        return;
+      }
+      
+      console.log('❌ AdminLogin - No valid authentication found, showing login form');
+    } catch (error) {
+      console.error('Error checking existing auth:', error);
+    }
+    
+    // Always set checkingAuth to false, regardless of redirect
+    console.log('🔄 AdminLogin - Setting checkingAuth to false');
+    setCheckingAuth(false);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -52,20 +120,37 @@ export default function AdminLogin() {
       await AsyncStorage.setItem('authToken', token);
 
       // Check if user is an admin
+      console.log('🔍 Checking admin status for:', email);
+      console.log('🔍 Using API URL:', `${API_BASE_URL}/api/admin/check`);
+      console.log('🔍 Using token:', token ? 'Token present' : 'No token');
+      
       const adminCheckResponse = await fetch(`${API_BASE_URL}/api/admin/check`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log('🔍 Admin check status:', adminCheckResponse.status);
       const adminData = await adminCheckResponse.json();
+      console.log('🔍 Admin check response:', adminData);
+
+      if (!adminCheckResponse.ok) {
+        // API error, show specific error message
+        await AsyncStorage.removeItem('authToken');
+        Alert.alert(
+          'Authentication Error',
+          adminData.error || 'Failed to verify admin status. Please try again.'
+        );
+        setLoading(false);
+        return;
+      }
 
       if (!adminData.isAdmin) {
         // Not an admin, clear token and show error
         await AsyncStorage.removeItem('authToken');
         Alert.alert(
           'Access Denied',
-          'You do not have admin privileges. Please contact a system administrator.'
+          `You do not have admin privileges. Your email (${email}) is not in the admin list. Please contact a system administrator.`
         );
         setLoading(false);
         return;
@@ -79,11 +164,38 @@ export default function AdminLogin() {
       router.replace('/admin/dashboard');
     } catch (error) {
       console.error('Admin login error:', error);
-      Alert.alert('Login Failed', error.message || 'An error occurred during login');
+      
+      // More detailed error handling
+      let errorMessage = 'An error occurred during login';
+      
+      if (error.message.includes('Invalid credentials')) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (error.message.includes('Network')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading screen while checking existing authentication
+  if (checkingAuth) {
+    return (
+      <LinearGradient
+        colors={['#1F1147', '#7C2B86', '#E94B8B']}
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFD6F2" />
+          <Text style={styles.loadingText}>Checking authentication...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -195,6 +307,17 @@ export default function AdminLogin() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    color: '#FFD6F2',
+    fontSize: 16,
+    fontWeight: '500',
   },
   keyboardView: {
     flex: 1,

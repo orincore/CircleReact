@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator, KeyboardAvoidingView, Platform, Animated } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useAuth } from '@/contexts/AuthContext'
 
 const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
+  const { token } = useAuth()
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -105,6 +107,8 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
       setLoading(true)
       const apiUrl = 'https://api.circle.orincore.com'
       
+      console.log('🔄 Starting conversation with:', { sessionId, userId, category: category?.title })
+      
       const response = await fetch(`${apiUrl}/api/ai-support/conversation/start`, {
         method: 'POST',
         headers: {
@@ -168,6 +172,8 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
       try {
         if (conversationId) {
           const apiUrl = 'https://api.circle.orincore.com'
+          console.log('🔄 Sending message:', { conversationId, message: userMessage.content, userId })
+          
           const response = await fetch(`${apiUrl}/api/ai-support/conversation/${conversationId}/message`, {
             method: 'POST',
             headers: {
@@ -294,6 +300,102 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
     }
     
     return `Thank you for reaching out. I want to make sure I understand your concern correctly so I can provide the best help possible. Could you please provide a bit more detail about the issue you're experiencing?`
+  }
+
+  const handleRefundRequest = async () => {
+    if (!userId || !token) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `I'd be happy to help you with a refund request. However, I need you to be logged in to process this. Please log in to your account and then I can check your refund eligibility and process it for you.`,
+        timestamp: new Date()
+      }])
+      return
+    }
+
+    setIsTyping(true)
+    try {
+      const apiUrl = 'https://api.circle.orincore.com'
+      
+      console.log('🔄 Processing refund request with token:', token ? 'Token present' : 'No token')
+      
+      const response = await fetch(`${apiUrl}/api/ai-support/refund/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          reason: 'User requested refund via customer service chat'
+        })
+      })
+
+      const data = await response.json()
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.success ? 
+          `Great news! ${data.message}` : 
+          `I understand you'd like a refund. ${data.message} Let me help you understand your options and see what we can do for you.`,
+        timestamp: new Date()
+      }])
+    } catch (error) {
+      console.error('Error processing refund:', error)
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `I'm having some technical difficulties processing your refund request right now. Let me connect you with our billing specialist who can help you directly. Please hold on while I escalate this to our billing team.`,
+        timestamp: new Date()
+      }])
+    } finally {
+      setIsTyping(false)
+    }
+  }
+
+  const handleCancellationRequest = async () => {
+    if (!userId || !token) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `I'd be happy to help you cancel your subscription. However, I need you to be logged in to process this. Please log in to your account and then I can help you with the cancellation.`,
+        timestamp: new Date()
+      }])
+      return
+    }
+
+    setIsTyping(true)
+    try {
+      const apiUrl = 'https://api.circle.orincore.com'
+      
+      console.log('🔄 Processing cancellation request with token:', token ? 'Token present' : 'No token')
+      
+      const response = await fetch(`${apiUrl}/api/ai-support/subscription/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          reason: 'User requested cancellation via customer service chat'
+        })
+      })
+
+      const data = await response.json()
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.success ? 
+          `I've processed your cancellation request. ${data.message}` : 
+          `I understand you'd like to cancel your subscription. ${data.message} Let me help you with this process.`,
+        timestamp: new Date()
+      }])
+    } catch (error) {
+      console.error('Error processing cancellation:', error)
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `I'm having some technical difficulties processing your cancellation request right now. Let me connect you with our billing specialist who can help you directly. Please hold on while I escalate this to our billing team.`,
+        timestamp: new Date()
+      }])
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   const formatTime = (timestamp) => {
@@ -428,6 +530,31 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
                   </View>
                 )}
               </ScrollView>
+
+              {/* Quick Actions for Billing Category */}
+              {category?.id === 'billing' && (
+                <View style={styles.quickActionsContainer}>
+                  <Text style={styles.quickActionsTitle}>Quick Actions:</Text>
+                  <View style={styles.quickActionsRow}>
+                    <TouchableOpacity 
+                      style={styles.quickActionButton}
+                      onPress={handleRefundRequest}
+                      disabled={isTyping}
+                    >
+                      <Ionicons name="card-outline" size={16} color="#7C2B86" />
+                      <Text style={styles.quickActionText}>Request Refund</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.quickActionButton}
+                      onPress={handleCancellationRequest}
+                      disabled={isTyping}
+                    >
+                      <Ionicons name="close-circle-outline" size={16} color="#7C2B86" />
+                      <Text style={styles.quickActionText}>Cancel Subscription</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
               {/* Input */}
               <View style={styles.inputContainer}>
@@ -703,6 +830,39 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
+  },
+  quickActionsContainer: {
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  quickActionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#7C2B86',
+    gap: 6,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: '#7C2B86',
+    fontWeight: '500',
   },
 })
 
