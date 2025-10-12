@@ -126,25 +126,52 @@ export default function EditProfileScreen() {
 
   const pickImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant photo library permissions.');
-        return;
-      }
+      if (Platform.OS === 'web') {
+        // For web, use HTML file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            // Create a blob URL for preview
+            const blobUrl = URL.createObjectURL(file);
+            setLocalPhotoUri(blobUrl);
+          }
+        };
+        
+        input.click();
+      } else {
+        // For mobile, use ImagePicker
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          if (Platform.OS === 'web') {
+            window.alert('Permission Required\n\nPlease grant photo library permissions.');
+          } else {
+            Alert.alert('Permission Required', 'Please grant photo library permissions.');
+          }
+          return;
+        }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
 
-      if (!result.canceled && result.assets[0]) {
-        setLocalPhotoUri(result.assets[0].uri);
+        if (!result.canceled && result.assets[0]) {
+          setLocalPhotoUri(result.assets[0].uri);
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image.');
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nFailed to pick image.');
+      } else {
+        Alert.alert('Error', 'Failed to pick image.');
+      }
     }
   };
 
@@ -157,7 +184,11 @@ export default function EditProfileScreen() {
       return photoUrl;
     } catch (error) {
       console.error('Error uploading photo:', error);
-      Alert.alert('Upload Failed', 'Failed to upload profile picture.');
+      if (Platform.OS === 'web') {
+        window.alert('Upload Failed\n\nFailed to upload profile picture.');
+      } else {
+        Alert.alert('Upload Failed', 'Failed to upload profile picture.');
+      }
       return null;
     } finally {
       setUploadingPhoto(false);
@@ -191,7 +222,11 @@ export default function EditProfileScreen() {
       
       // Validate Instagram username
       if (form.instagram && !validateInstagramUsername(form.instagram)) {
-        Alert.alert("Invalid Username", "Please enter a valid Instagram username (letters, numbers, dots, underscores only)");
+        if (Platform.OS === 'web') {
+          window.alert("Invalid Username\n\nPlease enter a valid Instagram username (letters, numbers, dots, underscores only)");
+        } else {
+          Alert.alert("Invalid Username", "Please enter a valid Instagram username (letters, numbers, dots, underscores only)");
+        }
         setSaving(false);
         return;
       }
@@ -217,7 +252,11 @@ export default function EditProfileScreen() {
 
       // Validate about field length
       if (payload.about && payload.about.length > 500) {
-        Alert.alert("Validation Error", "About section must be less than 500 characters");
+        if (Platform.OS === 'web') {
+          window.alert("Validation Error\n\nAbout section must be less than 500 characters");
+        } else {
+          Alert.alert("Validation Error", "About section must be less than 500 characters");
+        }
         return;
       }
 
@@ -232,10 +271,18 @@ export default function EditProfileScreen() {
       });
 
       await updateProfile(payload);
-      Alert.alert("Profile", "Profile updated successfully");
+      if (Platform.OS === 'web') {
+        window.alert("Profile\n\nProfile updated successfully");
+      } else {
+        Alert.alert("Profile", "Profile updated successfully");
+      }
       router.back();
     } catch (e) {
-      Alert.alert("Update failed", e?.message || "Please try again.");
+      if (Platform.OS === 'web') {
+        window.alert("Update failed\n\n" + (e?.message || "Please try again."));
+      } else {
+        Alert.alert("Update failed", e?.message || "Please try again.");
+      }
     } finally {
       setSaving(false);
     }

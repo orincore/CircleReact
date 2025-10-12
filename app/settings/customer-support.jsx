@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '@/contexts/AuthContext'
@@ -133,10 +133,11 @@ const CustomerSupportScreen = ({ visible = true, onClose = () => {} }) => {
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle={Platform.OS === 'web' ? 'overFullScreen' : 'pageSheet'}
+      transparent={Platform.OS === 'web'}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, Platform.OS === 'web' && styles.webContainer]}>
         <LinearGradient
           colors={['#7C2B86', '#A16AE8']}
           style={styles.header}
@@ -218,6 +219,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  webContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     padding: 24,
