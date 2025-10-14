@@ -7,40 +7,32 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/contexts/AuthContext";
 import * as ImagePicker from 'expo-image-picker';
 import { ProfilePictureService } from '@/src/services/profilePictureService';
+import { COUNTRIES, DEFAULT_COUNTRY, parsePhoneNumber, combinePhoneNumber } from '@/constants/countries';
+import { INTEREST_CATEGORIES, NEED_OPTIONS, POPULAR_INTERESTS, searchInterests } from "@/constants/interests";
 
 const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
-
-const INTEREST_OPTIONS = [
-  "art", "music", "coding", "coffee", "running", "yoga", "travel", "books", "movies", "gaming",
-  "fitness", "food", "photography", "fashion", "tech", "design", "writing", "finance", "crypto", "ai",
-];
-const NEED_OPTIONS = [
-  "Friendship",
-  "Boyfriend",
-  "Girlfriend",
-  "Dating",
-  "Relationship",
-  "Casual"
-];
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { user, updateProfile, token } = useAuth();
 
-  const initial = useMemo(() => ({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    age: typeof user?.age === "number" ? String(user.age) : "",
-    gender: user?.gender || "",
-    phoneNumber: user?.phoneNumber || "",
-    about: user?.about || "",
-    interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
-    needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
-    profilePhotoUrl: user?.profilePhotoUrl || "",
-    instagram: user?.instagramUsername || "",
-  }), [user]);
+  const initial = useMemo(() => {
+    const parsed = parsePhoneNumber(user?.phoneNumber);
+    return {
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+      age: typeof user?.age === "number" ? String(user.age) : "",
+      gender: user?.gender || "",
+      phoneNumber: user?.phoneNumber || "",
+      about: user?.about || "",
+      interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
+      needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
+      profilePhotoUrl: user?.profilePhotoUrl || "",
+      instagram: user?.instagramUsername || "",
+    };
+  }, [user]);
 
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -48,10 +40,15 @@ export default function EditProfileScreen() {
   const [localPhotoUri, setLocalPhotoUri] = useState(null);
   const [showAgePicker, setShowAgePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [ageQuery, setAgeQuery] = useState("");
   const [genderQuery, setGenderQuery] = useState("");
+  const [countryQuery, setCountryQuery] = useState("");
   const [interestSearch, setInterestSearch] = useState("");
   const [needSearch, setNeedSearch] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
+  const [phoneNumberInput, setPhoneNumberInput] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['creative', 'tech', 'fitness']));
 
   const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -61,7 +58,13 @@ export default function EditProfileScreen() {
       console.log('👤 User data loaded:', {
         instagramUsername: user?.instagramUsername,
         firstName: user?.firstName,
+        phoneNumber: user?.phoneNumber,
       });
+      
+      const parsed = parsePhoneNumber(user?.phoneNumber);
+      setSelectedCountry(parsed.country);
+      setPhoneNumberInput(parsed.number);
+      
       setForm({
         firstName: user?.firstName || "",
         lastName: user?.lastName || "",
@@ -79,8 +82,39 @@ export default function EditProfileScreen() {
 
   const parseList = (text) => text.split(",").map(s => s.trim()).filter(Boolean);
 
-  const filteredInterests = useMemo(() => INTEREST_OPTIONS.filter(i => i.toLowerCase().includes(interestSearch.toLowerCase())), [interestSearch]);
-  const filteredNeeds = useMemo(() => NEED_OPTIONS.filter(i => i.toLowerCase().includes(needSearch.toLowerCase())), [needSearch]);
+  const filteredCategories = useMemo(() => {
+    if (interestSearch) {
+      // When searching, group results by category
+      const results = searchInterests(interestSearch);
+      const grouped = {};
+      results.forEach(item => {
+        if (!grouped[item.categoryId]) {
+          const cat = INTEREST_CATEGORIES.find(c => c.id === item.categoryId);
+          grouped[item.categoryId] = {
+            ...cat,
+            interests: []
+          };
+        }
+        grouped[item.categoryId].interests.push(item.value);
+      });
+      return Object.values(grouped);
+    }
+    // Show all categories
+    return INTEREST_CATEGORIES;
+  }, [interestSearch]);
+
+  const filteredNeeds = useMemo(() => {
+    if (!needSearch) return NEED_OPTIONS;
+    return NEED_OPTIONS.filter(need => 
+      need.label.toLowerCase().includes(needSearch.toLowerCase()) ||
+      need.description.toLowerCase().includes(needSearch.toLowerCase())
+    );
+  }, [needSearch]);
+  const filteredCountries = useMemo(() => COUNTRIES.filter(c => 
+    c.name.toLowerCase().includes(countryQuery.toLowerCase()) || 
+    c.dialCode.includes(countryQuery) ||
+    c.code.toLowerCase().includes(countryQuery.toLowerCase())
+  ), [countryQuery]);
 
   const toggleInterest = (interest) => {
     const newInterests = new Set(form.interests);
@@ -100,6 +134,16 @@ export default function EditProfileScreen() {
       newNeeds.add(need);
     }
     setField("needs", newNeeds);
+  };
+
+  const toggleCategory = (categoryId) => {
+    const next = new Set(expandedCategories);
+    if (next.has(categoryId)) {
+      next.delete(categoryId);
+    } else {
+      next.add(categoryId);
+    }
+    setExpandedCategories(next);
   };
 
   const renderChip = (label, selected, onPress, type = 'interest') => (
@@ -231,6 +275,20 @@ export default function EditProfileScreen() {
         return;
       }
       
+      // Validate phone number (must be exactly 10 digits)
+      if (phoneNumberInput) {
+        const cleanedNumber = phoneNumberInput.replace(/\D/g, ''); // Remove non-digits
+        if (cleanedNumber.length !== 10) {
+          if (Platform.OS === 'web') {
+            window.alert("Invalid Phone Number\n\nPhone number must be exactly 10 digits");
+          } else {
+            Alert.alert("Invalid Phone Number", "Phone number must be exactly 10 digits");
+          }
+          setSaving(false);
+          return;
+        }
+      }
+      
       // Upload profile picture if changed
       let photoUrl = form.profilePhotoUrl;
       if (localPhotoUri) {
@@ -240,11 +298,14 @@ export default function EditProfileScreen() {
         }
       }
       
+      // Combine country code and phone number
+      const fullPhoneNumber = phoneNumberInput ? combinePhoneNumber(selectedCountry.dialCode, phoneNumberInput.replace(/\D/g, '')) : undefined;
+      
       const payload = {
         firstName: form.firstName.trim() || undefined,
         lastName: form.lastName.trim() || undefined,
         gender: form.gender.trim() || undefined,
-        phoneNumber: form.phoneNumber.trim() || undefined,
+        phoneNumber: fullPhoneNumber,
         about: form.about.trim() || null,
         profilePhotoUrl: photoUrl || undefined,
         instagramUsername: form.instagram.trim() || null,
@@ -398,14 +459,50 @@ export default function EditProfileScreen() {
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Contact</Text>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Phone</Text>
-                <TextInput
-                  value={form.phoneNumber}
-                  onChangeText={v => setField("phoneNumber", v)}
-                  placeholder="+1-555-0100"
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={styles.input}
-                />
+                <Text style={styles.label}>Phone Number</Text>
+                <View style={styles.phoneInputContainer}>
+                  <TouchableOpacity
+                    style={styles.countrySelector}
+                    onPress={() => setShowCountryPicker(true)}
+                  >
+                    <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
+                    <Text style={styles.countryCode}>{selectedCountry.dialCode}</Text>
+                    <Ionicons name="chevron-down" size={16} color="rgba(255, 255, 255, 0.6)" />
+                  </TouchableOpacity>
+                  <TextInput
+                    value={phoneNumberInput}
+                    onChangeText={(text) => {
+                      // Only allow digits and limit to 10 characters
+                      const cleaned = text.replace(/\D/g, '');
+                      if (cleaned.length <= 10) {
+                        setPhoneNumberInput(cleaned);
+                      }
+                    }}
+                    placeholder="9876543210"
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    style={styles.phoneInput}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+                {phoneNumberInput && (
+                  <View style={styles.phonePreview}>
+                    <Ionicons 
+                      name={phoneNumberInput.length === 10 ? "checkmark-circle" : "call"} 
+                      size={14} 
+                      color={phoneNumberInput.length === 10 ? "#10B981" : "#F59E0B"} 
+                    />
+                    <Text style={styles.phonePreviewText}>
+                      {selectedCountry.dialCode} {phoneNumberInput}
+                    </Text>
+                    <Text style={[
+                      styles.phoneCharCount, 
+                      phoneNumberInput.length === 10 && styles.phoneCharCountValid
+                    ]}>
+                      {phoneNumberInput.length}/10
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -427,7 +524,7 @@ export default function EditProfileScreen() {
                 <Text style={styles.characterCount}>{form.about.length}/500</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Interests</Text>
+                <Text style={styles.label}>Interests ({form.interests.size} selected)</Text>
                 <View style={styles.searchWrapper}>
                   <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
                   <TextInput
@@ -438,15 +535,46 @@ export default function EditProfileScreen() {
                     style={styles.searchInput}
                   />
                 </View>
-                <View style={styles.chipWrap}>
-                  {filteredInterests.map((interest) => 
-                    renderChip(interest, form.interests.has(interest), () => toggleInterest(interest), 'interest')
-                  )}
-                </View>
-                <Text style={styles.selectionCount}>{form.interests.size} selected</Text>
+                
+                {/* Show all categories vertically - collapsible */}
+                {filteredCategories.map((category) => {
+                  const isExpanded = expandedCategories.has(category.id);
+                  const selectedCount = category.interests.filter(i => form.interests.has(i)).length;
+                  
+                  return (
+                    <View key={category.id} style={styles.categorySection}>
+                      <TouchableOpacity 
+                        style={styles.categoryHeader}
+                        onPress={() => toggleCategory(category.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={category.icon} size={16} color="#7C2B86" />
+                        <Text style={styles.categoryTitle}>{category.name}</Text>
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryBadgeText}>
+                            {selectedCount}/{category.interests.length}
+                          </Text>
+                        </View>
+                        <Ionicons 
+                          name={isExpanded ? "chevron-up" : "chevron-down"} 
+                          size={18} 
+                          color="rgba(255, 255, 255, 0.6)" 
+                        />
+                      </TouchableOpacity>
+                      
+                      {isExpanded && (
+                        <View style={styles.chipWrap}>
+                          {category.interests.map((interest) => 
+                            renderChip(interest, form.interests.has(interest), () => toggleInterest(interest), 'interest')
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Needs</Text>
+                <Text style={styles.label}>What are you looking for? ({form.needs.size} selected)</Text>
                 <View style={styles.searchWrapper}>
                   <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
                   <TextInput
@@ -457,12 +585,22 @@ export default function EditProfileScreen() {
                     style={styles.searchInput}
                   />
                 </View>
-                <View style={styles.chipWrap}>
-                  {filteredNeeds.map((need) => 
-                    renderChip(need, form.needs.has(need), () => toggleNeed(need), 'need')
-                  )}
+                <View style={styles.needsWrap}>
+                  {filteredNeeds.map((need) => (
+                    <TouchableOpacity 
+                      key={need.id} 
+                      onPress={() => toggleNeed(need.label)} 
+                      style={[styles.needCard, form.needs.has(need.label) && styles.needCardSelected]}
+                    >
+                      <Ionicons name={need.icon} size={18} color={form.needs.has(need.label) ? "#7C2B86" : "rgba(255, 255, 255, 0.6)"} />
+                      <View style={styles.needCardContent}>
+                        <Text style={[styles.needCardLabel, form.needs.has(need.label) && styles.needCardLabelSelected]}>{need.label}</Text>
+                        <Text style={styles.needCardDescription}>{need.description}</Text>
+                      </View>
+                      {form.needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color="#7C2B86" />}
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <Text style={styles.selectionCount}>{form.needs.size} selected</Text>
               </View>
             </View>
 
@@ -586,6 +724,54 @@ export default function EditProfileScreen() {
                 >
                   <Text style={styles.optionText}>{formatTitleCase(item)}</Text>
                   {form.gender === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Country Picker Modal */}
+      <Modal transparent visible={showCountryPicker} animationType="slide" onRequestClose={() => setShowCountryPicker(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowCountryPicker(false)}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Country 🌍</Text>
+              <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                <Ionicons name="close" size={24} color="#1F1147" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.searchWrap}>
+              <Ionicons name="search" size={16} color="#8880B6" />
+              <TextInput
+                value={countryQuery}
+                onChangeText={setCountryQuery}
+                placeholder="Search country or code"
+                style={styles.searchInput}
+                placeholderTextColor="#8880B6"
+              />
+            </View>
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={(item) => item.code}
+              style={{ maxHeight: 400 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.optionRow}
+                  onPress={() => {
+                    setSelectedCountry(item);
+                    setShowCountryPicker(false);
+                    setCountryQuery("");
+                  }}
+                >
+                  <View style={styles.countryOption}>
+                    <Text style={styles.countryFlagLarge}>{item.flag}</Text>
+                    <View style={styles.countryInfo}>
+                      <Text style={styles.countryName}>{item.name}</Text>
+                      <Text style={styles.countryDialCode}>{item.dialCode}</Text>
+                    </View>
+                  </View>
+                  {selectedCountry.code === item.code && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
                 </TouchableOpacity>
               )}
             />
@@ -905,5 +1091,151 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.6)",
     fontStyle: "italic",
     marginTop: 4,
+  },
+  phoneInputContainer: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  countrySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  countryFlag: {
+    fontSize: 20,
+  },
+  countryCode: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  phoneInput: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 14,
+    color: "#FFFFFF",
+    fontSize: 15,
+  },
+  phonePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  phonePreviewText: {
+    flex: 1,
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
+  },
+  phoneCharCount: {
+    fontSize: 12,
+    color: "#F59E0B",
+    fontWeight: "600",
+    marginLeft: "auto",
+  },
+  phoneCharCountValid: {
+    color: "#10B981",
+  },
+  countryOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  countryFlagLarge: {
+    fontSize: 28,
+  },
+  countryInfo: {
+    flex: 1,
+  },
+  countryName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F1147",
+    marginBottom: 2,
+  },
+  countryDialCode: {
+    fontSize: 14,
+    color: "#8880B6",
+    fontWeight: "500",
+  },
+  categorySection: {
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.15)",
+  },
+  categoryTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+  categoryBadge: {
+    backgroundColor: "rgba(124, 43, 134, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#7C2B86",
+  },
+  needsWrap: {
+    gap: 10,
+  },
+  needCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  needCardSelected: {
+    borderColor: "#7C2B86",
+    backgroundColor: "rgba(124, 43, 134, 0.2)",
+  },
+  needCardContent: {
+    flex: 1,
+  },
+  needCardLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  needCardLabelSelected: {
+    color: "#7C2B86",
+  },
+  needCardDescription: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.6)",
   },
 });

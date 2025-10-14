@@ -9,11 +9,16 @@ import { getSocket } from "@/src/api/socket";
 import socketService from "@/src/services/socketService";
 import FriendsListModal from "@/components/FriendsListModal";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { getAdComponents } from "@/components/ads/AdWrapper";
+
+const { BannerAd } = getAdComponents();
 
 export default function ChatListScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
   const responsive = useResponsiveDimensions();
+  const { shouldShowAds } = useSubscription();
   
   // Get time-based greeting
   const getGreeting = () => {
@@ -453,6 +458,11 @@ export default function ChatListScreen() {
         onClose={() => setShowFriendsModal(false)}
         onChatCreated={handleChatCreated}
       />
+
+      {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
+      {BannerAd && shouldShowAds() && (
+        <BannerAd placement="chat_list_bottom" />
+      )}
     </View>
   );
 }

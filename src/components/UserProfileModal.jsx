@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  TextInput
+  TextInput,
+  Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,6 +27,7 @@ import { router } from 'expo-router';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
 import Avatar from '../../components/Avatar';
+import PhotoGalleryService from '@/src/services/photoGalleryService';
 
 export default function UserProfileModal({ 
   visible, 
@@ -48,6 +50,11 @@ export default function UserProfileModal({
   const [reportReason, setReportReason] = useState('');
   const [spotifyData, setSpotifyData] = useState(null);
   const [spotifyExpanded, setSpotifyExpanded] = useState(false);
+  const [userPhotos, setUserPhotos] = useState([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const photoScrollViewRef = useRef(null);
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
   const subscriptionData = useSubscription();
@@ -66,6 +73,20 @@ export default function UserProfileModal({
     const suffix = '*'.repeat(Math.max(1, username.length - 2));
     return prefix + suffix;
   };
+
+  // Scroll to selected photo when viewer opens or index changes
+  useEffect(() => {
+    if (showPhotoViewer && photoScrollViewRef.current) {
+      const width = Platform.OS === 'web' ? 400 : Dimensions.get('window').width;
+      setTimeout(() => {
+        photoScrollViewRef.current?.scrollTo({
+          x: selectedPhotoIndex * width,
+          y: 0,
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [showPhotoViewer, selectedPhotoIndex]);
 
   useEffect(() => {
     if (visible && userId) {
@@ -285,6 +306,9 @@ export default function UserProfileModal({
       // Load Spotify data
       await loadSpotifyData();
       
+      // Load user photos
+      await loadUserPhotos();
+      
       // Load friend status and message permissions
       await loadFriendStatus();
       await loadBlockStatus();
@@ -399,6 +423,38 @@ export default function UserProfileModal({
     } catch (error) {
       console.error('Failed to load Spotify data:', error);
       setSpotifyData(null);
+    }
+  };
+
+  const loadUserPhotos = async () => {
+    if (!token || !userId) return;
+    
+    try {
+      setLoadingPhotos(true);
+      console.log('📸 Loading photos for user:', userId);
+      
+      // Fetch photos from API
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com'}/api/users/${userId}/photos`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserPhotos(data.photos || []);
+        console.log('✅ Loaded', data.photos?.length || 0, 'photos for user');
+      } else {
+        console.log('⚠️ Failed to load photos:', response.status);
+        setUserPhotos([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading user photos:', error);
+      setUserPhotos([]);
+    } finally {
+      setLoadingPhotos(false);
     }
   };
 
@@ -861,6 +917,71 @@ export default function UserProfileModal({
                   </View>
                 )}
 
+                {/* Photo Gallery */}
+                {userPhotos.length > 0 && (
+                  <View style={styles.section}>
+                    <View style={styles.photoGalleryHeader}>
+                      <Ionicons name="images" size={20} color="#7C2B86" />
+                      <Text style={styles.sectionTitle}>Photos</Text>
+                      <View style={styles.photoCountBadge}>
+                        <Text style={styles.photoCountText}>{userPhotos.length}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.photoGalleryGrid}>
+                      {userPhotos.slice(0, 6).map((photo, index) => (
+                        <TouchableOpacity
+                          key={photo.id || index}
+                          style={styles.photoGalleryItem}
+                          onPress={() => {
+                            setSelectedPhotoIndex(index);
+                            setShowPhotoViewer(true);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: photo.url }}
+                            style={styles.photoGalleryImage}
+                            resizeMode="cover"
+                          />
+                          <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.6)']}
+                            style={styles.photoGalleryOverlay}
+                          >
+                            <Ionicons name="expand" size={18} color="#FFFFFF" />
+                          </LinearGradient>
+                          {/* Photo number badge */}
+                          <View style={styles.photoNumberBadge}>
+                            <Text style={styles.photoNumberText}>{index + 1}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                      
+                      {/* Show more indicator if more than 6 photos */}
+                      {userPhotos.length > 6 && (
+                        <TouchableOpacity
+                          style={[styles.photoGalleryItem, styles.photoGalleryMore]}
+                          onPress={() => {
+                            setSelectedPhotoIndex(6);
+                            setShowPhotoViewer(true);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: userPhotos[6].url }}
+                            style={styles.photoGalleryImage}
+                            resizeMode="cover"
+                          />
+                          <View style={styles.photoGalleryMoreOverlay}>
+                            <Text style={styles.photoGalleryMoreText}>+{userPhotos.length - 6}</Text>
+                            <Text style={styles.photoGalleryMoreSubtext}>more</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                )}
+
                 {/* Stats */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Stats</Text>
@@ -990,27 +1111,6 @@ export default function UserProfileModal({
                     }}
                   />
                 </View>
-
-                {/* Debug: Test Subscription Modal Button */}
-                {userId !== user?.id && !features.instagramUsernames && (
-                  <View style={styles.section}>
-                    <TouchableOpacity 
-                      style={{
-                        backgroundColor: '#7C2B86',
-                        padding: 12,
-                        borderRadius: 8,
-                        alignItems: 'center'
-                      }}
-                      onPress={() => {
-                        router.push('/secure/profile/subscription');
-                      }}
-                    >
-                      <Text style={{ color: 'white', fontWeight: '600' }}>
-                        Test Upgrade Page (Debug)
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
 
                 {/* Additional Info */}
                 <View style={styles.section}>
@@ -1291,6 +1391,87 @@ export default function UserProfileModal({
           </View>
         </View>
       </View>
+    </Modal>
+
+    {/* Photo Viewer Modal */}
+    <Modal
+      visible={showPhotoViewer}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowPhotoViewer(false)}
+    >
+      <Pressable 
+        style={styles.photoViewerContainer}
+        onPress={() => setShowPhotoViewer(false)}
+      >
+        <Pressable 
+          style={styles.photoViewerContent}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Close button */}
+          <TouchableOpacity 
+            style={styles.photoViewerCloseButton}
+            onPress={() => setShowPhotoViewer(false)}
+          >
+            <View style={styles.photoViewerCloseIcon}>
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Photo counter */}
+          <View style={styles.photoViewerCounter}>
+            <Text style={styles.photoViewerCounterText}>
+              {selectedPhotoIndex + 1} / {userPhotos.length}
+            </Text>
+          </View>
+
+          {/* Photo Display */}
+          <View style={styles.photoViewerImageContainer}>
+            <ScrollView
+              ref={photoScrollViewRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const newIndex = Math.round(event.nativeEvent.contentOffset.x / event.nativeEvent.layoutMeasurement.width);
+                setSelectedPhotoIndex(newIndex);
+              }}
+              style={styles.photoViewerScrollView}
+            >
+              {userPhotos.map((photo, index) => (
+                <View 
+                  key={photo.id || index} 
+                  style={[
+                    styles.photoViewerSlide,
+                    { width: Platform.OS === 'web' ? 400 : Dimensions.get('window').width }
+                  ]}
+                >
+                  <Image
+                    source={{ uri: photo.url }}
+                    style={styles.photoViewerImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Navigation dots */}
+          {userPhotos.length > 1 && (
+            <View style={styles.photoViewerDots}>
+              {userPhotos.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.photoViewerDot,
+                    index === selectedPhotoIndex && styles.photoViewerDotActive
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+        </Pressable>
+      </Pressable>
     </Modal>
 
   </>
@@ -1971,5 +2152,170 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
+  },
+  
+  // Photo Gallery Styles
+  photoGalleryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoCountBadge: {
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 4,
+  },
+  photoCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C2B86',
+  },
+  photoGalleryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  photoGalleryItem: {
+    width: '31.5%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F5F5F5',
+    position: 'relative',
+  },
+  photoGalleryImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoGalleryOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 6,
+  },
+  photoNumberBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124, 43, 134, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoNumberText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  photoGalleryMore: {
+    position: 'relative',
+  },
+  photoGalleryMoreOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoGalleryMoreText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  photoGalleryMoreSubtext: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
+  },
+  
+  // Photo Viewer Styles
+  photoViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerContent: {
+    width: Platform.OS === 'web' ? 500 : '100%',
+    height: Platform.OS === 'web' ? 600 : '100%',
+    position: 'relative',
+  },
+  photoViewerCloseButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+  },
+  photoViewerCloseIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoViewerCounter: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  photoViewerCounterText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  photoViewerImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerScrollView: {
+    flex: 1,
+  },
+  photoViewerSlide: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
+  },
+  photoViewerImage: {
+    width: '90%',
+    height: '90%',
+  },
+  photoViewerDots: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  photoViewerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  photoViewerDotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 24,
   },
 });

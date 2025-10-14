@@ -8,19 +8,7 @@ import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
-
-const INTEREST_OPTIONS = [
-  "art", "music", "coding", "coffee", "running", "yoga", "travel", "books", "movies", "gaming",
-  "fitness", "food", "photography", "fashion", "tech", "design", "writing", "finance", "crypto", "ai",
-];
-const NEED_OPTIONS = [
-  "Friendship",
-  "Boyfriend",
-  "Girlfriend",
-  "Dating",
-  "Relationship",
-  "Casual"
-];
+import { INTEREST_CATEGORIES, NEED_OPTIONS, POPULAR_INTERESTS, searchInterests } from "@/constants/interests";
 
 export default function SignupInterests() {
   const router = useRouter();
@@ -30,6 +18,7 @@ export default function SignupInterests() {
   const [query, setQuery] = useState("");
   const [interests, setInterests] = useState(new Set(data.interests || []));
   const [needs, setNeeds] = useState(new Set(data.needs || []));
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['creative', 'tech', 'fitness'])); // Start with first 3 expanded
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -53,13 +42,49 @@ export default function SignupInterests() {
     ]).start();
   }, []);
 
-  const filteredInterests = useMemo(() => INTEREST_OPTIONS.filter(i => i.includes(query.toLowerCase())), [query]);
-  const filteredNeeds = useMemo(() => NEED_OPTIONS.filter(i => i.includes(query.toLowerCase())), [query]);
+  const filteredCategories = useMemo(() => {
+    if (query) {
+      // When searching, group results by category
+      const results = searchInterests(query);
+      const grouped = {};
+      results.forEach(item => {
+        if (!grouped[item.categoryId]) {
+          const cat = INTEREST_CATEGORIES.find(c => c.id === item.categoryId);
+          grouped[item.categoryId] = {
+            ...cat,
+            interests: []
+          };
+        }
+        grouped[item.categoryId].interests.push(item.value);
+      });
+      return Object.values(grouped);
+    }
+    // Show all categories
+    return INTEREST_CATEGORIES;
+  }, [query]);
+
+  const filteredNeeds = useMemo(() => {
+    if (!query) return NEED_OPTIONS;
+    return NEED_OPTIONS.filter(need => 
+      need.label.toLowerCase().includes(query.toLowerCase()) ||
+      need.description.toLowerCase().includes(query.toLowerCase())
+    );
+  }, [query]);
 
   const toggle = (setFn, set, item) => {
     const next = new Set(set);
     if (next.has(item)) next.delete(item); else next.add(item);
     setFn(next);
+  };
+
+  const toggleCategory = (categoryId) => {
+    const next = new Set(expandedCategories);
+    if (next.has(categoryId)) {
+      next.delete(categoryId);
+    } else {
+      next.add(categoryId);
+    }
+    setExpandedCategories(next);
   };
 
   const onSubmit = async () => {
@@ -230,14 +255,61 @@ export default function SignupInterests() {
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Interests</Text>
-              <View style={styles.chipWrap}>
-                {filteredInterests.map((i) => renderChip(i, interests.has(i), () => toggle(setInterests, interests, i)))}
-              </View>
+              <Text style={styles.sectionTitle}>Interests ({interests.size} selected)</Text>
+              
+              {/* Show all categories vertically - collapsible */}
+              {filteredCategories.map((category) => {
+                const isExpanded = expandedCategories.has(category.id);
+                const selectedCount = category.interests.filter(i => interests.has(i)).length;
+                
+                return (
+                  <View key={category.id} style={styles.categorySection}>
+                    <TouchableOpacity 
+                      style={styles.categoryHeader}
+                      onPress={() => toggleCategory(category.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name={category.icon} size={18} color="#7C2B86" />
+                      <Text style={styles.categoryTitle}>{category.name}</Text>
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryBadgeText}>
+                          {selectedCount}/{category.interests.length}
+                        </Text>
+                      </View>
+                      <Ionicons 
+                        name={isExpanded ? "chevron-up" : "chevron-down"} 
+                        size={20} 
+                        color={Platform.OS === 'web' ? "rgba(255, 255, 255, 0.6)" : "#8880B6"} 
+                      />
+                    </TouchableOpacity>
+                    
+                    {isExpanded && (
+                      <View style={styles.chipWrap}>
+                        {category.interests.map((interest) => 
+                          renderChip(interest, interests.has(interest), () => toggle(setInterests, interests, interest))
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
 
-              <Text style={styles.sectionTitle}>Needs</Text>
+              <Text style={styles.sectionTitle}>What are you looking for? ({needs.size} selected)</Text>
               <View style={styles.chipWrap}>
-                {filteredNeeds.map((i) => renderChip(i, needs.has(i), () => toggle(setNeeds, needs, i)))}
+                {filteredNeeds.map((need) => (
+                  <TouchableOpacity 
+                    key={need.id} 
+                    onPress={() => toggle(setNeeds, needs, need.label)} 
+                    style={[styles.needChip, needs.has(need.label) && styles.needChipSelected]}
+                  >
+                    <Ionicons name={need.icon} size={18} color={needs.has(need.label) ? "#7C2B86" : "#8880B6"} />
+                    <View style={styles.needChipContent}>
+                      <Text style={[styles.needChipLabel, needs.has(need.label) && styles.needChipLabelSelected]}>{need.label}</Text>
+                      <Text style={styles.needChipDescription}>{need.description}</Text>
+                    </View>
+                    {needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color="#7C2B86" />}
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
@@ -281,14 +353,79 @@ const styles = StyleSheet.create({
     width: 48, 
     height: 48,
   },
-  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
+  primaryButtonText: { fontSize: 17, fontWeight: "700", color: "#FFFFFF", letterSpacing: 0.3 },
   
+  // Category Sections
+  categorySection: {
+    marginBottom: 20,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(124, 43, 134, 0.2)",
+  },
+  categoryTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+    letterSpacing: 0.3,
+  },
+  categoryBadge: {
+    backgroundColor: Platform.OS === 'web' ? "rgba(124, 43, 134, 0.2)" : "rgba(124, 43, 134, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#7C2B86",
+  },
+  
+  // Need Chips (Card Style)
+  needChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.3)" : "rgba(93, 95, 239, 0.25)",
+    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)",
+    marginBottom: 10,
+    width: '100%',
+  },
+  needChipSelected: {
+    borderColor: "#7C2B86",
+    backgroundColor: Platform.OS === 'web' ? "rgba(124, 43, 134, 0.2)" : "rgba(124, 43, 134, 0.15)",
+  },
+  needChipContent: {
+    flex: 1,
+  },
+  needChipLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+    marginBottom: 2,
+  },
+  needChipLabelSelected: {
+    color: "#7C2B86",
+  },
+  needChipDescription: {
+    fontSize: 12,
+    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "#8880B6",
+  },
   welcomeBlock: { marginBottom: 20, gap: 8 },
   title: { 
     fontSize: 32, 
     fontWeight: "800", 
     color: "#FFFFFF",
-    lineHeight: 38,
+  // ... (rest of the styles remain the same)
   },
   subtitle: { 
     fontSize: 16, 

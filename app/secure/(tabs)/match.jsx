@@ -30,6 +30,10 @@ import { updateLocationGql, nearbyUsersGql } from "@/src/api/graphql";
 import { getSocket, closeSocket } from "@/src/api/socket";
 import FriendRequestsSection from "@/src/components/FriendRequestsSection";
 import FriendRequestMatchCard from "@/src/components/FriendRequestMatchCard";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { getAdComponents } from "@/components/ads/AdWrapper";
+
+const { useInterstitialAd, AdMobService } = getAdComponents();
 
 // Searching Animation Component
 const SearchingAnimation = ({ onClose }) => {
@@ -303,6 +307,8 @@ export default function MatchScreen() {
   // Initialize browser notifications
   const { setCurrentChatId } = useBrowserNotifications();
   const { token, user } = useAuth();
+  const { shouldShowAds } = useSubscription();
+  const { showInterstitial } = useInterstitialAd('after_match'); // Auto-disabled in Expo Go
   
   // Initialize browser notification testing (development only)
   useEffect(() => {
@@ -1021,6 +1027,15 @@ export default function MatchScreen() {
       
       // Show confirmation toast
       showToast(`${userName || 'User'} won't appear for 15 days`, 'info');
+
+      // Increment match count and show interstitial ad if conditions met
+      // Auto-disabled in Expo Go, works in development/production builds
+      AdMobService.incrementMatchCount();
+      if (shouldShowAds() && AdMobService.shouldShowAfterMatch()) {
+        showInterstitial(() => {
+          console.log('✅ Interstitial ad completed after pass');
+        });
+      }
     } catch (error) {
       console.error('Error passing match:', error);
       showToast('Failed to pass user', 'error');

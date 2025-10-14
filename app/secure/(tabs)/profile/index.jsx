@@ -10,7 +10,10 @@ import {
   RefreshControl, 
   Animated, 
   Dimensions, 
-  Platform 
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Modal 
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -21,6 +24,14 @@ import { circleStatsApi } from "@/src/api/circle-stats";
 import { ProfilePremiumBadge } from "@/components/PremiumBadge";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import SubscriptionModal from "@/components/SubscriptionModal";
+import { getAdComponents } from "@/components/ads/AdWrapper";
+import { formatPhoneNumber } from "@/constants/countries";
+import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
+import { friendsApi } from "@/src/api/friends";
+import Avatar from "@/components/Avatar";
+import UserProfileModal from "@/src/components/UserProfileModal";
+
+const { BannerAd } = getAdComponents();
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -38,6 +49,7 @@ export default function ProfileScreen() {
   // Safely extract values with defaults
   const isPremium = subscriptionContext?.isPremium || false;
   const plan = subscriptionContext?.plan || 'free';
+  const shouldShowAds = subscriptionContext?.shouldShowAds || (() => !isPremium);
   
   const features = subscriptionContext?.features || {
     unlimitedMatches: false,
@@ -79,6 +91,16 @@ export default function ProfileScreen() {
   const [loadingStats, setLoadingStats] = useState(true);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
+  // Photo gallery state
+  const [photos, setPhotos] = useState([]);
+  const [userPhotos, setUserPhotos] = useState([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -89,7 +111,422 @@ export default function ProfileScreen() {
   // Load stats from API
   useEffect(() => {
     loadStats();
+    loadPhotos();
+    loadFriends();
   }, [token]);
+  
+  // Load user photos
+  const loadPhotos = async () => {
+    if (!token) return;
+    
+    try {
+      setLoadingPhotos(true);
+      const userPhotos = await PhotoGalleryService.getPhotos(token);
+      setPhotos(userPhotos || []);
+      console.log('📸 Loaded photos:', userPhotos?.length || 0);
+    } catch (error) {
+      console.error('❌ Failed to load photos:', error);
+      // Set empty array on error to prevent crashes
+      setPhotos([]);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
+  // Load friends list
+  const loadFriends = async () => {
+    if (!token) return;
+    
+    try {
+      setLoadingFriends(true);
+      console.log('👥 Loading friends list...');
+      const response = await friendsApi.getFriendsList(token);
+      setFriends(response.friends || []);
+      console.log('✅ Loaded friends:', response.friends?.length || 0);
+      
+      // Update stats with actual friends count
+      setStats(prev => ({
+        ...prev,
+        total_friends: response.friends?.length || 0
+      }));
+    } catch (error) {
+      console.error('❌ Failed to load friends:', error);
+      setFriends([]);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+  
+  // Handle photo upload
+  const handleUploadPhoto = async () => {
+    if (!PhotoGalleryService.canUploadMore(photos.length)) {
+      const alertMsg = `You can only upload up to ${MAX_PHOTOS} photos`;
+      if (Platform.OS === 'web') {
+        window.alert(alertMsg);
+      } else {
+        Alert.alert('Photo Limit Reached', alertMsg);
+      }
+      return;
+    }
+    
+    try {
+      setUploadingPhoto(true);
+      
+      // Pick image
+      const result = await PhotoGalleryService.pickImage();
+      if (result.cancelled) {
+        setUploadingPhoto(false);
+        return;
+      }
+      
+      // Upload image
+      const photoUrl = await PhotoGalleryService.uploadPhoto(result.uri, token);
+      
+      // Refresh photos
+      await loadPhotos();
+      
+      const successMsg = 'Photo uploaded successfully!';
+      if (Platform.OS === 'web') {
+        window.alert(successMsg);
+      } else {
+        Alert.alert('Success', successMsg);
+      }
+    } catch (error) {
+      console.error('Failed to upload photo:', error);
+      let errorMsg = error.message || 'Failed to upload photo';
+      
+      // Add helpful context for common errors
+      if (errorMsg.includes('endpoint not found') || errorMsg.includes('404')) {
+        errorMsg = 'Photo upload is not set up yet.\n\nPlease run the backend migration:\nBackend/migrations/create_user_photos_table.sql';
+      } else if (errorMsg.includes('500') || errorMsg.includes('Server error')) {
+        errorMsg = 'Server error. The database table may not exist.\n\nPlease run the SQL migration.';
+      }
+      
+      if (Platform.OS === 'web') {
+        window.alert('Upload Failed\n\n' + errorMsg);
+      } else {
+        Alert.alert('Upload Failed', errorMsg, [
+          { text: 'OK', style: 'default' }
+        ]);
+      }
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+  
+  // Handle photo delete
+  const handleDeletePhoto = async (photoUrl) => {
+    const confirmDelete = () => {
+      return new Promise((resolve) => {
+        if (Platform.OS === 'web') {
+          resolve(window.confirm('Are you sure you want to delete this photo?'));
+        } else {
+          Alert.alert(
+            'Delete Photo',
+            'Are you sure you want to delete this photo?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        }
+      });
+    };
+    
+    const confirmed = await confirmDelete();
+    if (!confirmed) return;
+    
+    try {
+      await PhotoGalleryService.deletePhoto(photoUrl, token);
+      await loadPhotos();
+      setShowPhotoModal(false);
+      
+      const successMsg = 'Photo deleted successfully';
+      if (Platform.OS === 'web') {
+        window.alert(successMsg);
+      } else {
+        Alert.alert('Success', successMsg);
+      }
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+      const errorMsg = error.message || 'Failed to delete photo';
+      if (Platform.OS === 'web') {
+        window.alert('Delete Failed\\n\\n' + errorMsg);
+      } else {
+        Alert.alert('Delete Failed', errorMsg);
+      }
+    }
+  };
+
+  // State for profile modal
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [showFriendProfile, setShowFriendProfile] = useState(false);
+
+  // Render Friends Tab
+  const renderFriendsTab = () => {
+    if (loadingFriends) {
+      return (
+        <View style={styles.contentCard}>
+          <Text style={styles.contentTitle}>Friends</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#7C2B86" />
+            <Text style={styles.loadingText}>Loading friends...</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (friends.length === 0) {
+      return (
+        <View style={styles.contentCard}>
+          <Text style={styles.contentTitle}>Friends</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
+            <Text style={styles.emptyStateText}>No friends yet</Text>
+            <Text style={styles.emptyStateSubtext}>Start connecting with people!</Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.contentCard}>
+        <View style={styles.friendsHeader}>
+          <Text style={styles.contentTitle}>Friends</Text>
+          <View style={styles.friendsCountBadge}>
+            <Text style={styles.friendsCountText}>{friends.length}</Text>
+          </View>
+        </View>
+
+        <View style={styles.friendsList}>
+          {friends.map((friend) => {
+            return (
+              <TouchableOpacity
+                key={friend.id}
+                style={styles.friendItem}
+                onPress={() => {
+                  console.log('👤 Opening profile for:', friend.name);
+                  setSelectedFriend(friend);
+                  setShowFriendProfile(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Avatar
+                  user={{
+                    id: friend.id,
+                    first_name: friend.name?.split(' ')[0] || friend.name,
+                    last_name: friend.name?.split(' ')[1] || '',
+                    profile_photo_url: friend.profile_photo_url,
+                    name: friend.name
+                  }}
+                  size={50}
+                />
+                
+                <View style={styles.friendInfo}>
+                  <Text style={styles.friendName}>{friend.name}</Text>
+                  {friend.username && (
+                    <Text style={styles.friendUsername}>@{friend.username}</Text>
+                  )}
+                  {friend.created_at && (
+                    <Text style={styles.friendSince}>
+                      Friends since {new Date(friend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  // Render Photos Tab
+  const renderPhotosTab = () => {
+    const remainingSlots = PhotoGalleryService.getRemainingSlots(photos.length);
+    const emptySlots = Array(remainingSlots).fill(null);
+    
+    return (
+      <View style={styles.photoGalleryContainer}>
+        {/* Header with gradient */}
+        <LinearGradient
+          colors={['rgba(124, 43, 134, 0.15)', 'transparent']}
+          style={styles.photoHeaderGradient}
+        >
+          <View style={styles.photoHeader}>
+            <View style={styles.photoHeaderLeft}>
+              <Ionicons name="images" size={24} color="#FFD6F2" />
+              <Text style={styles.photoHeaderTitle}>Photo Gallery</Text>
+            </View>
+            <View style={styles.photoCountBadge}>
+              <Text style={styles.photoCountText}>{photos.length}</Text>
+              <Text style={styles.photoCountSeparator}>/</Text>
+              <Text style={styles.photoCountTotal}>{MAX_PHOTOS}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+        
+        {loadingPhotos ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#7C2B86" />
+            <Text style={styles.loadingText}>Loading your gallery...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Photo Grid */}
+            <View style={styles.photoGridContainer}>
+              <View style={styles.photoGrid}>
+                {/* Existing Photos */}
+                {photos.map((photo, index) => (
+                  <TouchableOpacity 
+                    key={photo.url || index} 
+                    style={styles.photoItemWrapper}
+                    onPress={() => {
+                      setSelectedPhoto(photo.url);
+                      setShowPhotoModal(true);
+                    }}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.photoItem}>
+                      <Image 
+                        source={{ uri: photo.url }} 
+                        style={styles.photoImage}
+                        resizeMode="cover"
+                      />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.7)']}
+                        style={styles.photoOverlay}
+                      >
+                        <View style={styles.photoActions}>
+                          <View style={styles.photoActionButton}>
+                            <Ionicons name="expand" size={18} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      </LinearGradient>
+                      {/* Photo number badge */}
+                      <View style={styles.photoNumberBadge}>
+                        <Text style={styles.photoNumberText}>{index + 1}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                
+                {/* Empty Slots */}
+                {emptySlots.map((_, index) => (
+                  <TouchableOpacity 
+                    key={`empty-${index}`} 
+                    style={styles.photoItemWrapper}
+                    onPress={handleUploadPhoto}
+                    disabled={uploadingPhoto}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.photoPlaceholder, uploadingPhoto && index === 0 && styles.photoPlaceholderUploading]}>
+                      {uploadingPhoto && index === 0 ? (
+                        <>
+                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Text style={styles.uploadingText}>Uploading...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <View style={styles.placeholderIconContainer}>
+                            <Ionicons name="add-circle" size={36} color="rgba(255, 214, 242, 0.6)" />
+                          </View>
+                          <Text style={styles.placeholderText}>Add Photo</Text>
+                        </>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            
+            {/* Upload Button */}
+            {remainingSlots > 0 && (
+              <View style={styles.uploadButtonContainer}>
+                <TouchableOpacity 
+                  style={[styles.uploadButton, uploadingPhoto && styles.uploadButtonDisabled]}
+                  onPress={handleUploadPhoto}
+                  disabled={uploadingPhoto}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={uploadingPhoto ? ['#E0E0E0', '#BDBDBD'] : ['#FFD6F2', '#FFC1E8']}
+                    style={styles.uploadButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <ActivityIndicator size="small" color="#7C2B86" />
+                        <Text style={styles.uploadButtonText}>Uploading Photo...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="cloud-upload" size={22} color="#7C2B86" />
+                        <Text style={styles.uploadButtonText}>
+                          Upload New Photo
+                        </Text>
+                        <View style={styles.uploadBadge}>
+                          <Text style={styles.uploadBadgeText}>{remainingSlots} left</Text>
+                        </View>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+                
+                {/* Info text */}
+                <Text style={styles.uploadInfoText}>
+                  <Ionicons name="information-circle" size={14} color="rgba(255, 255, 255, 0.6)" />
+                  {' '}Photos are compressed automatically for faster loading
+                </Text>
+              </View>
+            )}
+            
+            {/* Empty State */}
+            {photos.length === 0 && !uploadingPhoto && (
+              <View style={styles.emptyPhotosState}>
+                <LinearGradient
+                  colors={['rgba(124, 43, 134, 0.1)', 'rgba(93, 95, 239, 0.1)']}
+                  style={styles.emptyStateGradient}
+                >
+                  <View style={styles.emptyStateIconContainer}>
+                    <Ionicons name="images-outline" size={72} color="rgba(255, 214, 242, 0.4)" />
+                  </View>
+                  <Text style={styles.emptyStateTitle}>Your Gallery is Empty</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Share your moments! Add up to {MAX_PHOTOS} photos to showcase your personality
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.emptyStateButton}
+                    onPress={handleUploadPhoto}
+                    disabled={uploadingPhoto}
+                  >
+                    <LinearGradient
+                      colors={['#7C2B86', '#5D5FEF']}
+                      style={styles.emptyStateButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Ionicons name="camera" size={20} color="#FFFFFF" />
+                      <Text style={styles.emptyStateButtonText}>Add Your First Photo</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            )}
+            
+            {/* Photos filled state */}
+            {photos.length === MAX_PHOTOS && (
+              <View style={styles.galleryFullBanner}>
+                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <Text style={styles.galleryFullText}>Gallery Complete! All {MAX_PHOTOS} slots filled</Text>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+    );
+  };
 
   // Refresh all data when component mounts or user/token changes
   useEffect(() => {
@@ -103,9 +540,24 @@ export default function ProfileScreen() {
     try {
       setLoadingStats(true);
       const response = await circleStatsApi.getStats(token);
-      setStats(response.stats);
+      // Calculate total messages from sent + received
+      const statsWithTotal = {
+        ...response.stats,
+        total_messages: (response.stats.messages_sent || 0) + (response.stats.messages_received || 0),
+        total_friends: response.stats.total_friends || 0
+      };
+      setStats(statsWithTotal);
+      console.log('📊 Loaded stats:', statsWithTotal);
     } catch (error) {
       console.error('Failed to load stats:', error);
+      // Set default stats on error
+      setStats({
+        total_friends: 0,
+        total_matches: 0,
+        total_messages: 0,
+        messages_sent: 0,
+        messages_received: 0
+      });
     } finally {
       setLoadingStats(false);
     }
@@ -116,12 +568,17 @@ export default function ProfileScreen() {
   const displayGender = user?.gender || "";
   
   // Function to mask Instagram username for free users
-  const getMaskedInstagram = (username) => {
+  const getMaskedInstagram = (username, isOwnProfile = true) => {
     if (!username) return null;
+    // Always show full username for own profile
+    if (isOwnProfile) {
+      return username;
+    }
+    // Show full username if user has premium
     if (features.instagramUsernames) {
       return username;
     }
-    // Mask the username: @ig_orincore -> ig*********
+    // Mask the username for free users viewing others: @ig_orincore -> ig*********
     const prefix = username.substring(0, 2);
     const suffix = '*'.repeat(Math.max(1, username.length - 2));
     return prefix + suffix;
@@ -202,7 +659,7 @@ export default function ProfileScreen() {
                     <Ionicons name="call" size={20} color="#FFFFFF" />
                   </LinearGradient>
                   <Text style={styles.infoLabel}>Phone</Text>
-                  <Text style={styles.infoValue}>{user.phoneNumber}</Text>
+                  <Text style={styles.infoValue}>{formatPhoneNumber(user.phoneNumber)}</Text>
                 </View>
               )}
               
@@ -346,7 +803,7 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.mobileInfoText}>
                 <Text style={styles.mobileInfoLabel}>Phone Number</Text>
-                <Text style={styles.mobileInfoValue}>{user.phoneNumber}</Text>
+                <Text style={styles.mobileInfoValue}>{formatPhoneNumber(user.phoneNumber)}</Text>
               </View>
             </LinearGradient>
           </View>
@@ -940,42 +1397,82 @@ export default function ProfileScreen() {
         onClose={() => setShowSubscriptionModal(false)}
         initialPlan="premium"
       />
-    </View>
-  );
-}
 
-function renderPhotosTab() {
-  return (
-    <View style={styles.contentCard}>
-      <Text style={styles.contentTitle}>Photo Gallery</Text>
-      <View style={styles.photoGrid}>
-        {[1, 2, 3, 4, 5, 6].map((item) => (
-          <TouchableOpacity key={item} style={styles.photoPlaceholder}>
-            <Ionicons name="camera" size={32} color="rgba(255, 255, 255, 0.4)" />
+      {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
+      {BannerAd && shouldShowAds() && (
+        <BannerAd placement="profile_bottom" />
+      )}
+      
+      {/* Photo Modal */}
+      <Modal
+        visible={showPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <View style={styles.photoModalContainer}>
+          {/* Close button at top */}
+          <TouchableOpacity 
+            style={styles.photoModalCloseButton}
+            onPress={() => setShowPhotoModal(false)}
+          >
+            <View style={styles.photoModalCloseIcon}>
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </View>
           </TouchableOpacity>
-        ))}
-      </View>
-      <TouchableOpacity style={styles.uploadButton}>
-        <Ionicons name="add-circle" size={20} color="#7C2B86" />
-        <Text style={styles.uploadButtonText}>Upload Photos</Text>
-      </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.photoModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowPhotoModal(false)}
+          >
+            <View style={styles.photoModalContent}>
+              {/* Photo with border */}
+              <View style={styles.photoModalImageContainer}>
+                <Image 
+                  source={{ uri: selectedPhoto }} 
+                  style={styles.photoModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+              
+              {/* Action buttons */}
+              <View style={styles.photoModalActions}>
+                <TouchableOpacity 
+                  style={styles.photoModalDeleteButton}
+                  onPress={() => handleDeletePhoto(selectedPhoto)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#EF4444', '#DC2626']}
+                    style={styles.photoModalDeleteGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
+                    <Text style={styles.photoModalDeleteText}>Delete Photo</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Friend Profile Modal */}
+      <UserProfileModal
+        visible={showFriendProfile}
+        onClose={() => {
+          setShowFriendProfile(false);
+          setSelectedFriend(null);
+        }}
+        userId={selectedFriend?.id}
+        userName={selectedFriend?.name}
+        userAvatar={selectedFriend?.profile_photo_url}
+      />
     </View>
   );
 }
-
-function renderFriendsTab() {
-  return (
-    <View style={styles.contentCard}>
-      <Text style={styles.contentTitle}>Friends</Text>
-      <View style={styles.emptyState}>
-        <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
-        <Text style={styles.emptyStateText}>No friends yet</Text>
-        <Text style={styles.emptyStateSubtext}>Start connecting with people!</Text>
-      </View>
-    </View>
-  );
-}
-
 
 const styles = StyleSheet.create({
   container: {
@@ -2028,5 +2525,421 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#EF4444',
+  },
+  
+  // Photo Gallery Styles
+  photoGalleryContainer: {
+    flex: 1,
+  },
+  photoHeaderGradient: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  photoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  photoHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  photoHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  photoCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 214, 242, 0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.3)',
+  },
+  photoCountText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFD6F2',
+  },
+  photoCountSeparator: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 214, 242, 0.5)',
+    marginHorizontal: 4,
+  },
+  photoCountTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  photoGridContainer: {
+    paddingHorizontal: 16,
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  photoItemWrapper: {
+    width: '31%',
+  },
+  photoItem: {
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    justifyContent: 'flex-end',
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+  },
+  photoActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  photoActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backdropFilter: 'blur(10px)',
+  },
+  photoNumberBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(124, 43, 134, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  photoNumberText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  photoPlaceholder: {
+    aspectRatio: 1,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 214, 242, 0.2)',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  photoPlaceholderUploading: {
+    backgroundColor: 'rgba(124, 43, 134, 0.1)',
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+    borderStyle: 'solid',
+  },
+  placeholderIconContainer: {
+    marginBottom: 4,
+  },
+  placeholderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 214, 242, 0.7)',
+    textAlign: 'center',
+  },
+  uploadingText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7C2B86',
+    marginTop: 8,
+  },
+  uploadButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 12,
+  },
+  uploadButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  uploadButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  uploadButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0.1,
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#7C2B86',
+  },
+  uploadBadge: {
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  uploadBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C2B86',
+  },
+  uploadInfoText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  emptyPhotosState: {
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  emptyStateGradient: {
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.2)',
+  },
+  emptyStateIconContainer: {
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  emptyStateButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyStateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+  },
+  emptyStateButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  galleryFullBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  galleryFullText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
+    flex: 1,
+  },
+  
+  // Photo Modal Styles
+  photoModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.96)',
+  },
+  photoModalCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  photoModalCloseIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  photoModalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  photoModalContent: {
+    width: '100%',
+    maxWidth: 600,
+    alignItems: 'center',
+    gap: 24,
+  },
+  photoModalImageContainer: {
+    width: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  photoModalImage: {
+    width: '100%',
+    height: 450,
+  },
+  photoModalActions: {
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  photoModalDeleteButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  photoModalDeleteGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+  },
+  photoModalDeleteText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Friends List Styles
+  friendsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  friendsCountBadge: {
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+  },
+  friendsCountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#7C2B86',
+  },
+  friendsList: {
+    gap: 12,
+  },
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  friendInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  friendName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  friendUsername: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 2,
+  },
+  friendSince: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+  },
+  friendMessageButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
   },
 });
