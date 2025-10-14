@@ -26,6 +26,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from "react-native";
@@ -73,8 +74,12 @@ export default function ProfileScreen() {
       await Promise.all([
         refreshUser(),
         subscriptionContext?.fetchSubscription?.(),
-        loadStats()
+        loadStats(),
+        loadPhotos()
       ]);
+      
+      // Load friends last to ensure correct count
+      await loadFriends();
       
       // Small delay to allow context updates to propagate
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -101,6 +106,11 @@ export default function ProfileScreen() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
+  // Friends pagination and search state
+  const [friendsSearchQuery, setFriendsSearchQuery] = useState('');
+  const [friendsCurrentPage, setFriendsCurrentPage] = useState(1);
+  const FRIENDS_PER_PAGE = 10;
+  
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -110,9 +120,18 @@ export default function ProfileScreen() {
   
   // Load stats from API
   useEffect(() => {
-    loadStats();
-    loadPhotos();
-    loadFriends();
+    const loadAllData = async () => {
+      await Promise.all([
+        loadStats(),
+        loadPhotos()
+      ]);
+      // Load friends last to ensure it updates stats correctly
+      await loadFriends();
+    };
+    
+    if (token) {
+      loadAllData();
+    }
   }, [token]);
   
   // Load user photos
@@ -262,6 +281,37 @@ export default function ProfileScreen() {
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [showFriendProfile, setShowFriendProfile] = useState(false);
 
+  // Filter and paginate friends
+  const getFilteredAndPaginatedFriends = () => {
+    // Filter friends based on search query
+    const filteredFriends = friends.filter(friend => {
+      if (!friendsSearchQuery) return true;
+      const query = friendsSearchQuery.toLowerCase();
+      return (
+        friend.name?.toLowerCase().includes(query) ||
+        friend.username?.toLowerCase().includes(query)
+      );
+    });
+
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredFriends.length / FRIENDS_PER_PAGE);
+    const startIndex = (friendsCurrentPage - 1) * FRIENDS_PER_PAGE;
+    const endIndex = startIndex + FRIENDS_PER_PAGE;
+    const paginatedFriends = filteredFriends.slice(startIndex, endIndex);
+
+    return {
+      friends: paginatedFriends,
+      totalFriends: filteredFriends.length,
+      totalPages,
+      hasMore: friendsCurrentPage < totalPages
+    };
+  };
+
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setFriendsCurrentPage(1);
+  }, [friendsSearchQuery]);
+
   // Render Friends Tab
   const renderFriendsTab = () => {
     if (loadingFriends) {
@@ -289,6 +339,8 @@ export default function ProfileScreen() {
       );
     }
 
+    const { friends: displayedFriends, totalFriends, totalPages, hasMore } = getFilteredAndPaginatedFriends();
+
     return (
       <View style={styles.contentCard}>
         <View style={styles.friendsHeader}>
@@ -298,45 +350,135 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.friendsList}>
-          {friends.map((friend) => {
-            return (
-              <TouchableOpacity
-                key={friend.id}
-                style={styles.friendItem}
-                onPress={() => {
-                  //console.log('👤 Opening profile for:', friend.name);
-                  setSelectedFriend(friend);
-                  setShowFriendProfile(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Avatar
-                  user={{
-                    id: friend.id,
-                    first_name: friend.name?.split(' ')[0] || friend.name,
-                    last_name: friend.name?.split(' ')[1] || '',
-                    profile_photo_url: friend.profile_photo_url,
-                    name: friend.name
-                  }}
-                  size={50}
-                />
-                
-                <View style={styles.friendInfo}>
-                  <Text style={styles.friendName}>{friend.name}</Text>
-                  {friend.username && (
-                    <Text style={styles.friendUsername}>@{friend.username}</Text>
-                  )}
-                  {friend.created_at && (
-                    <Text style={styles.friendSince}>
-                      Friends since {new Date(friend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search friends..."
+            placeholderTextColor="rgba(255, 255, 255, 0.4)"
+            value={friendsSearchQuery}
+            onChangeText={setFriendsSearchQuery}
+          />
+          {friendsSearchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setFriendsSearchQuery('')}
+              style={styles.clearSearchButton}
+            >
+              <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.5)" />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Results info */}
+        {friendsSearchQuery && (
+          <Text style={styles.searchResultsText}>
+            {totalFriends} {totalFriends === 1 ? 'friend' : 'friends'} found
+          </Text>
+        )}
+
+        {/* Friends List */}
+        {displayedFriends.length === 0 ? (
+          <View style={styles.emptySearchState}>
+            <Ionicons name="search-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
+            <Text style={styles.emptySearchText}>No friends found</Text>
+            <Text style={styles.emptySearchSubtext}>Try a different search term</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.friendsList}>
+              {displayedFriends.map((friend) => {
+                return (
+                  <TouchableOpacity
+                    key={friend.id}
+                    style={styles.friendItem}
+                    onPress={() => {
+                      //console.log('👤 Opening profile for:', friend.name);
+                      setSelectedFriend(friend);
+                      setShowFriendProfile(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar
+                      user={{
+                        id: friend.id,
+                        first_name: friend.name?.split(' ')[0] || friend.name,
+                        last_name: friend.name?.split(' ')[1] || '',
+                        profile_photo_url: friend.profile_photo_url,
+                        name: friend.name
+                      }}
+                      size={50}
+                    />
+                    
+                    <View style={styles.friendInfo}>
+                      <Text style={styles.friendName}>{friend.name}</Text>
+                      {friend.username && (
+                        <Text style={styles.friendUsername}>@{friend.username}</Text>
+                      )}
+                      {friend.created_at && (
+                        <Text style={styles.friendSince}>
+                          Friends since {new Date(friend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.paginationButton,
+                    friendsCurrentPage === 1 && styles.paginationButtonDisabled
+                  ]}
+                  onPress={() => setFriendsCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={friendsCurrentPage === 1}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={20}
+                    color={friendsCurrentPage === 1 ? 'rgba(255, 255, 255, 0.3)' : '#FFD6F2'}
+                  />
+                  <Text style={[
+                    styles.paginationButtonText,
+                    friendsCurrentPage === 1 && styles.paginationButtonTextDisabled
+                  ]}>Previous</Text>
+                </TouchableOpacity>
+
+                <View style={styles.paginationInfo}>
+                  <Text style={styles.paginationText}>
+                    Page {friendsCurrentPage} of {totalPages}
+                  </Text>
+                  <Text style={styles.paginationSubtext}>
+                    Showing {displayedFriends.length} of {totalFriends}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paginationButton,
+                    !hasMore && styles.paginationButtonDisabled
+                  ]}
+                  onPress={() => setFriendsCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={!hasMore}
+                >
+                  <Text style={[
+                    styles.paginationButtonText,
+                    !hasMore && styles.paginationButtonTextDisabled
+                  ]}>Next</Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={!hasMore ? 'rgba(255, 255, 255, 0.3)' : '#FFD6F2'}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
       </View>
     );
   };
@@ -544,7 +686,8 @@ export default function ProfileScreen() {
       const statsWithTotal = {
         ...response.stats,
         total_messages: (response.stats.messages_sent || 0) + (response.stats.messages_received || 0),
-        total_friends: response.stats.total_friends || 0
+        // Don't set total_friends here - let loadFriends() handle it
+        // total_friends will be updated by loadFriends() with the actual count
       };
       setStats(statsWithTotal);
       //console.log('📊 Loaded stats:', statsWithTotal);
@@ -2941,5 +3084,98 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(124, 43, 134, 0.3)',
+  },
+  // Search styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    paddingVertical: 0,
+  },
+  clearSearchButton: {
+    padding: 4,
+  },
+  searchResultsText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  emptySearchState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptySearchText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 12,
+  },
+  emptySearchSubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.4)',
+    marginTop: 4,
+  },
+  // Pagination styles
+  paginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  paginationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+    gap: 6,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    opacity: 0.5,
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  paginationButtonTextDisabled: {
+    color: 'rgba(255, 255, 255, 0.3)',
+  },
+  paginationInfo: {
+    alignItems: 'center',
+  },
+  paginationText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  paginationSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
   },
 });

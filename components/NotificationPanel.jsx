@@ -34,6 +34,7 @@ export default function NotificationPanel({ visible, onClose }) {
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedTab, setSelectedTab] = useState('All');
+  const flatListRef = useRef(null);
 
   // Filter notifications based on selected tab
   const getFilteredNotifications = () => {
@@ -255,10 +256,13 @@ export default function NotificationPanel({ visible, onClose }) {
     );
 
     const handleGestureStateChange = (event) => {
-      const { translationX, state } = event.nativeEvent;
+      const { translationX, translationY, state } = event.nativeEvent;
       
       if (state === State.END) {
-        if (translationX < -80) {
+        // Only trigger swipe if horizontal movement is greater than vertical
+        const isHorizontalSwipe = Math.abs(translationX) > Math.abs(translationY);
+        
+        if (isHorizontalSwipe && translationX < -80) {
           // Show delete button
           setShowDeleteButton(true);
           Animated.spring(translateX, {
@@ -304,6 +308,9 @@ export default function NotificationPanel({ visible, onClose }) {
         <PanGestureHandler 
           onGestureEvent={handleGestureEvent}
           onHandlerStateChange={handleGestureStateChange}
+          activeOffsetX={[-15, 15]}
+          failOffsetY={[-10, 10]}
+          shouldCancelWhenOutside={false}
         >
           <Animated.View 
             style={[
@@ -684,11 +691,17 @@ export default function NotificationPanel({ visible, onClose }) {
             </View>
           ) : (
             <FlatList
+              ref={flatListRef}
               data={getFilteredNotifications()}
               keyExtractor={(item) => item.id}
               renderItem={renderNotification}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
               contentContainerStyle={styles.listContainer}
+              style={styles.flatListStyle}
+              nestedScrollEnabled={true}
+              removeClippedSubviews={false}
+              scrollEnabled={true}
+              bounces={true}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -732,6 +745,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 24,
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -835,6 +850,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    overflow: 'hidden',
   },
   loadingContainer: {
     flex: 1,
@@ -867,8 +883,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  flatListStyle: {
+    flex: 1,
+  },
   listContainer: {
     paddingVertical: 8,
+    flexGrow: 1,
   },
   swipeableWrapper: {
     position: 'relative',
