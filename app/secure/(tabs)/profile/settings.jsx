@@ -1,13 +1,15 @@
 import CustomDropdown from "@/components/CustomDropdown";
+import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
 import { loadPreferencesFromUser, syncPreferencesWithBackend } from "@/utils/preferences";
+import { accountDeletionApi } from "@/src/api/account-deletion";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerSupportScreen from "../../../settings/customer-support";
 
@@ -28,19 +30,7 @@ const AGE_OPTIONS = [
   { id: 'any', label: 'Any Age' },
 ];
 
-const INTEREST_OPTIONS = [
-  "art", "music", "coding", "coffee", "running", "yoga", "travel", "books", "movies", "gaming",
-  "fitness", "food", "photography", "fashion", "tech", "design", "writing", "finance", "crypto", "ai",
-];
-
-const NEED_OPTIONS = [
-  "Friendship",
-  "Boyfriend", 
-  "Girlfriend",
-  "Dating",
-  "Relationship",
-  "Casual"
-];
+// Removed local INTEREST_OPTIONS and NEED_OPTIONS - now imported from constants
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -63,6 +53,7 @@ export default function SettingsScreen() {
   const [needs, setNeeds] = useState(new Set());
   const [interestSearch, setInterestSearch] = useState('');
   const [needSearch, setNeedSearch] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['creative', 'tech', 'fitness']));
   
   // Location tracking
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
@@ -213,12 +204,50 @@ export default function SettingsScreen() {
     setNeeds(newNeeds);
   };
 
-  const filteredInterests = INTEREST_OPTIONS.filter(interest => 
-    interest.toLowerCase().includes(interestSearch.toLowerCase())
-  );
+  const filteredCategories = useMemo(() => {
+    if (interestSearch) {
+      // When searching, group results by category
+      const results = searchInterests(interestSearch);
+      const grouped = {};
+      results.forEach(item => {
+        if (!grouped[item.categoryId]) {
+          const cat = INTEREST_CATEGORIES.find(c => c.id === item.categoryId);
+          grouped[item.categoryId] = {
+            ...cat,
+            interests: []
+          };
+        }
+        grouped[item.categoryId].interests.push(item.value);
+      });
+      return Object.values(grouped);
+    }
+    // Show all categories
+    return INTEREST_CATEGORIES;
+  }, [interestSearch]);
 
-  const filteredNeeds = NEED_OPTIONS.filter(need => 
-    need.toLowerCase().includes(needSearch.toLowerCase())
+  const filteredNeeds = useMemo(() => {
+    if (!needSearch) return NEED_OPTIONS;
+    return NEED_OPTIONS.filter(need => 
+      need.label.toLowerCase().includes(needSearch.toLowerCase()) ||
+      need.description.toLowerCase().includes(needSearch.toLowerCase())
+    );
+  }, [needSearch]);
+
+  const toggleCategory = (categoryId) => {
+    const next = new Set(expandedCategories);
+    if (next.has(categoryId)) {
+      next.delete(categoryId);
+    } else {
+      next.add(categoryId);
+    }
+    setExpandedCategories(next);
+  };
+
+  const renderChip = (label, selected, onPress) => (
+    <TouchableOpacity key={label} onPress={onPress} style={[styles.chip, selected && styles.chipSelected]}>
+      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+      {selected && <Ionicons name="checkmark" size={14} color="#7C2B86" />}
+    </TouchableOpacity>
   );
 
   // Location tracking functions
@@ -481,42 +510,110 @@ export default function SettingsScreen() {
     }
   };
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   const handleDeleteAccount = async () => {
-    const userEmail = user?.email || '';
-    const encodedEmail = encodeURIComponent(userEmail);
-    const deleteAccountUrl = `https://circle.orincore.com/delete-account.html?email=${encodedEmail}`;
+    const confirmMessage = `⚠️ DELETE ACCOUNT - FINAL WARNING ⚠️\n\nThis will PERMANENTLY delete:\n\n• All your messages and chats\n• All friendships and friend requests\n• All notifications and activities\n• All photos and profile visits\n• All matchmaking data\n• All subscription information\n\nYour profile will be anonymized and marked as deleted.\n\n⛔ THIS CANNOT BE UNDONE ⛔\n\nType "DELETE" to confirm you understand this is permanent.`;
     
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(
-        "Delete Account\n\nAre you sure you want to delete your account? This action cannot be undone."
+      const userInput = window.prompt(confirmMessage);
+      
+      if (userInput !== 'DELETE') {
+        if (userInput !== null) {
+          window.alert('Account deletion cancelled. You must type "DELETE" exactly to confirm.');
+        }
+        return;
+      }
+      
+      // Second confirmation
+      const finalConfirm = window.confirm(
+        'FINAL CONFIRMATION\n\nAre you absolutely sure you want to delete your account?\n\nThis is your last chance to cancel.'
       );
       
-      if (confirmed) {
-        // Open delete account page in new tab
-        window.open(deleteAccountUrl, '_blank');
+      if (!finalConfirm) {
+        window.alert('Account deletion cancelled.');
+        return;
+      }
+      
+      // Proceed with deletion
+      setDeletingAccount(true);
+      try {
+        const result = await accountDeletionApi.deleteAccount(token);
+        
+        window.alert(
+          `Account Deleted Successfully\n\n${result.message}\n\nDeleted:\n` +
+          `• ${result.deletionSummary.messages} messages\n` +
+          `• ${result.deletionSummary.chats} chats\n` +
+          `• ${result.deletionSummary.friendships} friendships\n` +
+          `• ${result.deletionSummary.notifications} notifications\n` +
+          `• ${result.deletionSummary.photos} photos\n\n` +
+          `You will now be logged out.`
+        );
+        
+        // Log out the user
+        await logOut();
+        router.replace('/login');
+      } catch (error) {
+        console.error('Error deleting account:', error);
+        window.alert(`Error\n\nFailed to delete account: ${error.message || 'Unknown error'}\n\nPlease try again or contact support.`);
+      } finally {
+        setDeletingAccount(false);
       }
     } else {
+      // Mobile flow
       Alert.alert(
-        "Delete Account",
-        "Are you sure you want to delete your account? This action cannot be undone.",
+        "⚠️ DELETE ACCOUNT",
+        "This will PERMANENTLY delete all your data:\n\n• Messages & chats\n• Friendships\n• Photos\n• All activity\n\n⛔ THIS CANNOT BE UNDONE ⛔",
         [
           { text: "Cancel", style: "cancel" },
           { 
-            text: "Delete", 
+            text: "Continue", 
             style: "destructive", 
-            onPress: async () => {
-              try {
-                // Open delete account page in external browser
-                const supported = await Linking.canOpenURL(deleteAccountUrl);
-                if (supported) {
-                  await Linking.openURL(deleteAccountUrl);
-                } else {
-                  Alert.alert("Error", "Unable to open the delete account page.");
-                }
-              } catch (error) {
-                console.error('Error opening delete account URL:', error);
-                Alert.alert("Error", "Failed to open the delete account page.");
-              }
+            onPress: () => {
+              // Second confirmation
+              Alert.alert(
+                "FINAL CONFIRMATION",
+                "Are you absolutely sure?\n\nThis is your last chance to cancel.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete Forever",
+                    style: "destructive",
+                    onPress: async () => {
+                      setDeletingAccount(true);
+                      try {
+                        const result = await accountDeletionApi.deleteAccount(token);
+                        
+                        Alert.alert(
+                          "Account Deleted",
+                          `${result.message}\n\nDeleted:\n` +
+                          `• ${result.deletionSummary.messages} messages\n` +
+                          `• ${result.deletionSummary.friendships} friendships\n` +
+                          `• ${result.deletionSummary.photos} photos\n\n` +
+                          `You will now be logged out.`,
+                          [
+                            {
+                              text: "OK",
+                              onPress: async () => {
+                                await logOut();
+                                router.replace('/login');
+                              }
+                            }
+                          ]
+                        );
+                      } catch (error) {
+                        console.error('Error deleting account:', error);
+                        Alert.alert(
+                          "Error",
+                          `Failed to delete account: ${error.message || 'Unknown error'}\n\nPlease try again or contact support.`
+                        );
+                      } finally {
+                        setDeletingAccount(false);
+                      }
+                    }
+                  }
+                ]
+              );
             }
           }
         ]
@@ -662,88 +759,95 @@ export default function SettingsScreen() {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="heart" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Interests</Text>
+              <Text style={styles.sectionTitle}>Interests ({interests.size} selected)</Text>
             </View>
             <Text style={styles.sectionDescription}>
               Select your interests to find better matches
             </Text>
             
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color="#8880B6" />
+              <Ionicons name="search" size={18} color="rgba(255, 255, 255, 0.6)" />
               <TextInput
                 value={interestSearch}
                 onChangeText={setInterestSearch}
                 placeholder="Search interests..."
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
                 style={styles.searchInput}
               />
             </View>
             
-            <View style={styles.chipContainer}>
-              {filteredInterests.map((interest) => (
-                <TouchableOpacity
-                  key={interest}
-                  style={[
-                    styles.chip,
-                    interests.has(interest) && styles.chipSelected
-                  ]}
-                  onPress={() => toggleInterest(interest)}
-                >
-                  <Text style={[
-                    styles.chipText,
-                    interests.has(interest) && styles.chipTextSelected
-                  ]}>
-                    {interest}
-                  </Text>
-                  {interests.has(interest) && (
-                    <Ionicons name="checkmark" size={14} color="#7C2B86" />
+            {/* Show all categories vertically - collapsible */}
+            {filteredCategories.map((category) => {
+              const isExpanded = expandedCategories.has(category.id);
+              const selectedCount = category.interests.filter(i => interests.has(i)).length;
+              
+              return (
+                <View key={category.id} style={styles.categorySection}>
+                  <TouchableOpacity 
+                    style={styles.categoryHeader}
+                    onPress={() => toggleCategory(category.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={category.icon} size={16} color="#FFD6F2" />
+                    <Text style={styles.categoryTitle}>{category.name}</Text>
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>
+                        {selectedCount}/{category.interests.length}
+                      </Text>
+                    </View>
+                    <Ionicons 
+                      name={isExpanded ? "chevron-up" : "chevron-down"} 
+                      size={18} 
+                      color="rgba(255, 255, 255, 0.6)" 
+                    />
+                  </TouchableOpacity>
+                  
+                  {isExpanded && (
+                    <View style={styles.chipContainer}>
+                      {category.interests.map((interest) => 
+                        renderChip(interest, interests.has(interest), () => toggleInterest(interest))
+                      )}
+                    </View>
                   )}
-                </TouchableOpacity>
-              ))}
-            </View>
+                </View>
+              );
+            })}
           </View>
 
           {/* Needs Section */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="people" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>What You're Looking For</Text>
+              <Text style={styles.sectionTitle}>What are you looking for? ({needs.size} selected)</Text>
             </View>
             <Text style={styles.sectionDescription}>
               Select what type of connections you're seeking
             </Text>
             
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color="#8880B6" />
+              <Ionicons name="search" size={18} color="rgba(255, 255, 255, 0.6)" />
               <TextInput
                 value={needSearch}
                 onChangeText={setNeedSearch}
-                placeholder="Search connection types..."
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                placeholder="Search needs..."
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
                 style={styles.searchInput}
               />
             </View>
             
-            <View style={styles.chipContainer}>
+            <View style={styles.needsWrap}>
               {filteredNeeds.map((need) => (
-                <TouchableOpacity
-                  key={need}
-                  style={[
-                    styles.chip,
-                    styles.needChip,
-                    needs.has(need) && styles.needChipSelected
-                  ]}
-                  onPress={() => toggleNeed(need)}
+                <TouchableOpacity 
+                  key={need.id} 
+                  onPress={() => toggleNeed(need.label)} 
+                  style={[styles.needCard, needs.has(need.label) && styles.needCardSelected]}
                 >
-                  <Text style={[
-                    styles.chipText,
-                    needs.has(need) && styles.chipTextSelected
-                  ]}>
-                    {need}
-                  </Text>
-                  {needs.has(need) && (
-                    <Ionicons name="checkmark" size={14} color="#7C2B86" />
-                  )}
+                  <Ionicons name={need.icon} size={18} color={needs.has(need.label) ? "#FFD6F2" : "rgba(255, 255, 255, 0.6)"} />
+                  <View style={styles.needCardContent}>
+                    <Text style={[styles.needCardLabel, needs.has(need.label) && styles.needCardLabelSelected]}>{need.label}</Text>
+                    <Text style={styles.needCardDescription}>{need.description}</Text>
+                  </View>
+                  {needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color="#FFD6F2" />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1019,14 +1123,27 @@ export default function SettingsScreen() {
               <Text style={styles.dangerTitle}>Danger Zone</Text>
             </View>
             <Text style={styles.dangerDescription}>
-              Once you delete your account, there is no going back. Please be certain.
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </Text>
+            <Text style={styles.dangerWarning}>
+              ⚠️ This will delete all your messages, chats, friendships, photos, and activity permanently.
             </Text>
             <TouchableOpacity 
-              style={styles.deleteButton} 
+              style={[styles.deleteButton, deletingAccount && styles.deleteButtonDisabled]} 
               onPress={handleDeleteAccount}
+              disabled={deletingAccount}
             >
-              <Ionicons name="trash" size={20} color="#FFFFFF" />
-              <Text style={styles.deleteButtonText}>Delete My Account</Text>
+              {deletingAccount ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.deleteButtonText}>Deleting Account...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="trash" size={20} color="#FFFFFF" />
+                  <Text style={styles.deleteButtonText}>Delete My Account Forever</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -1410,7 +1527,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  dangerWarning: {
+    fontSize: 13,
+    color: '#FFB84D',
+    lineHeight: 18,
     marginBottom: 20,
+    fontWeight: '600',
   },
   deleteButton: {
     flexDirection: 'row',
@@ -1420,6 +1544,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF4D67',
     paddingVertical: 16,
     borderRadius: 12,
+  },
+  deleteButtonDisabled: {
+    backgroundColor: '#CC3D52',
+    opacity: 0.7,
   },
   deleteButtonText: {
     fontSize: 16,
@@ -1464,6 +1592,77 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   settingItemDescription: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 18,
+  },
+  // Category styles
+  categorySection: {
+    marginTop: 12,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255, 214, 242, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.2)',
+  },
+  categoryTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFE8FF',
+  },
+  categoryBadge: {
+    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  // Need card styles
+  needsWrap: {
+    gap: 12,
+  },
+  needCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  needCardSelected: {
+    backgroundColor: 'rgba(255, 214, 242, 0.15)',
+    borderColor: 'rgba(255, 214, 242, 0.4)',
+    shadowColor: '#FFD6F2',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  needCardContent: {
+    flex: 1,
+  },
+  needCardLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 2,
+  },
+  needCardLabelSelected: {
+    color: '#FFE8FF',
+  },
+  needCardDescription: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 18,
