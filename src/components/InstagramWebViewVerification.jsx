@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  SafeAreaView,
-  Linking,
-  Platform
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { socialAccountsApi } from '../api/social-accounts';
 
 // Try to import WebBrowser from Expo
@@ -19,7 +19,7 @@ let WebBrowser;
 try {
   WebBrowser = require('expo-web-browser');
 } catch (error) {
-  console.log('WebBrowser not available');
+  //console.log('WebBrowser not available');
 }
 
 const InstagramWebViewVerification = ({ 
@@ -37,12 +37,12 @@ const InstagramWebViewVerification = ({
     setStartingOAuth(true);
     
     try {
-      console.log('🔐 Starting Instagram OAuth flow...');
+      //console.log('🔐 Starting Instagram OAuth flow...');
       
       const result = await socialAccountsApi.linkInstagram(token);
       
       if (result.authUrl) {
-        console.log('✅ Got Instagram OAuth URL:', result.authUrl);
+        //console.log('✅ Got Instagram OAuth URL:', result.authUrl);
         
         if (Platform.OS === 'web') {
           // For web, open in same window
@@ -60,7 +60,7 @@ const InstagramWebViewVerification = ({
               dismissButtonStyle: Platform.OS === 'ios' ? 'close' : 'cancel',
             });
             
-            console.log('WebBrowser result:', browserResult);
+            //console.log('WebBrowser result:', browserResult);
             
             // Note: The actual OAuth callback will be handled by the backend
             // and the user will need to return to the app manually

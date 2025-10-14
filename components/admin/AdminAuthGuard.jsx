@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-  Alert
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 
 const AdminAuthGuard = ({ children }) => {
   const { user, token, logout } = useAuth();
@@ -29,36 +29,36 @@ const AdminAuthGuard = ({ children }) => {
 
   useEffect(() => {
     if (!authState.hasChecked) {
-      console.log('🔄 AdminAuthGuard - useEffect triggered');
+      //console.log('🔄 AdminAuthGuard - useEffect triggered');
       checkAdminStatus();
     }
   }, [authState.hasChecked]);
 
   const checkAdminStatus = useCallback(async () => {
     try {
-      console.log('🔍 AdminAuthGuard - Checking admin status...');
+      //console.log('🔍 AdminAuthGuard - Checking admin status...');
       
       // Check AsyncStorage for admin credentials
       const storedToken = await AsyncStorage.getItem('authToken');
       const isAdmin = await AsyncStorage.getItem('isAdmin');
       
-      console.log('🔍 AdminAuthGuard - Stored token:', storedToken ? 'Present' : 'Missing');
-      console.log('🔍 AdminAuthGuard - Stored isAdmin:', isAdmin);
+      //console.log('🔍 AdminAuthGuard - Stored token:', storedToken ? 'Present' : 'Missing');
+      //console.log('🔍 AdminAuthGuard - Stored isAdmin:', isAdmin);
       
       if (storedToken && isAdmin === 'true') {
-        console.log('✅ AdminAuthGuard - Admin credentials found, allowing access');
-        console.log('🔄 AdminAuthGuard - Setting authorized state...');
+        //console.log('✅ AdminAuthGuard - Admin credentials found, allowing access');
+        //console.log('🔄 AdminAuthGuard - Setting authorized state...');
         
         setAuthState({
           isVerifying: false,
           isAuthorized: true,
           hasChecked: true
         });
-        console.log('✅ AdminAuthGuard - State updated: authorized=true, verifying=false');
+        //console.log('✅ AdminAuthGuard - State updated: authorized=true, verifying=false');
         return;
       }
       
-      console.log('❌ AdminAuthGuard - No admin credentials found, redirecting to login');
+      //console.log('❌ AdminAuthGuard - No admin credentials found, redirecting to login');
       setAuthState({
         isVerifying: false,
         isAuthorized: false,
@@ -79,12 +79,12 @@ const AdminAuthGuard = ({ children }) => {
   const redirectToLogin = () => {
     // Don't redirect if already on login page
     if (Platform.OS === 'web' && window.location.pathname === '/admin/login') {
-      console.log('🔍 AdminAuthGuard - Already on login page, skipping redirect');
+      //console.log('🔍 AdminAuthGuard - Already on login page, skipping redirect');
       return;
     }
     
     setTimeout(() => {
-      console.log('🔄 AdminAuthGuard - Redirecting to admin login');
+      //console.log('🔄 AdminAuthGuard - Redirecting to admin login');
       if (Platform.OS === 'web') {
         window.location.href = '/admin/login';
       } else {
@@ -113,11 +113,11 @@ const AdminAuthGuard = ({ children }) => {
     }, 1000);
   };
 
-  console.log('🔍 AdminAuthGuard - Render state:', authState);
+  //console.log('🔍 AdminAuthGuard - Render state:', authState);
 
   // Loading state
   if (authState.isVerifying) {
-    console.log('🔄 AdminAuthGuard - Rendering loading state');
+    //console.log('🔄 AdminAuthGuard - Rendering loading state');
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#7C2B86', '#5D5FEF']} style={styles.loadingContainer}>
@@ -130,7 +130,7 @@ const AdminAuthGuard = ({ children }) => {
 
   // Unauthorized state
   if (!authState.isAuthorized) {
-    console.log('❌ AdminAuthGuard - Rendering unauthorized state');
+    //console.log('❌ AdminAuthGuard - Rendering unauthorized state');
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#FF5722', '#F44336']} style={styles.unauthorizedContainer}>
@@ -146,9 +146,9 @@ const AdminAuthGuard = ({ children }) => {
   }
 
   // Authorized - render admin content
-  console.log('✅ AdminAuthGuard - Rendering authorized admin content');
-  console.log('✅ AdminAuthGuard - Children type:', typeof children);
-  console.log('✅ AdminAuthGuard - Children:', children);
+  //console.log('✅ AdminAuthGuard - Rendering authorized admin content');
+  //console.log('✅ AdminAuthGuard - Children type:', typeof children);
+  //console.log('✅ AdminAuthGuard - Children:', children);
   return (
     <View style={{ flex: 1 }}>
       {children}

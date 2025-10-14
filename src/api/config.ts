@@ -3,7 +3,7 @@
 // - Keep SSL disabled (HTTP) for testing in development.
 // - Allow overriding via EXPO_PUBLIC_API_BASE_URL.
 
-import { Platform, NativeModules } from "react-native";
+import { NativeModules, Platform } from "react-native";
 
 // Prefer React Native's __DEV__ when available
 // Fallback to NODE_ENV when __DEV__ is undefined (e.g., SSR or tooling)
@@ -38,11 +38,11 @@ export const API_BASE_URL: string = (() => {
   // ALWAYS prioritize explicit override via env (even in DEV mode)
   const override = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (override && override.trim()) {
-    console.log('🌐 API Configuration: {');
-    console.log('  baseUrl:', override.trim());
-    console.log('  environment:', DEV ? 'development' : 'production');
-    console.log('  platform:', Platform.OS);
-    console.log('}');
+    //console.log('🌐 API Configuration: {');
+    //console.log('  baseUrl:', override.trim());
+    //console.log('  environment:', DEV ? 'development' : 'production');
+    //console.log('  platform:', Platform.OS);
+    //console.log('}');
     return override.trim();
   }
 
@@ -52,11 +52,11 @@ export const API_BASE_URL: string = (() => {
     const inferred = inferDevHost();
     const host = inferred || DEFAULT_DEV_HOST;
     const devUrl = `http://${host}:${DEV_PORT}`;
-    console.log('🌐 API Configuration: {');
-    console.log('  baseUrl:', devUrl);
-    console.log('  environment: development (auto-detected)');
-    console.log('  platform:', Platform.OS);
-    console.log('}');
+    //console.log('🌐 API Configuration: {');
+    //console.log('  baseUrl:', devUrl);
+    //console.log('  environment: development (auto-detected)');
+    //console.log('  platform:', Platform.OS);
+    //console.log('}');
     return devUrl;
   }
 
@@ -65,7 +65,7 @@ export const API_BASE_URL: string = (() => {
 })();
 
 // Helpful at runtime to confirm which base URL the app is using
-// console.log("API_BASE_URL", API_BASE_URL);
+// //console.log("API_BASE_URL", API_BASE_URL);
 
 export const withBase = (path: string) => {
   const p = path.startsWith("/") ? path : `/${path}`;

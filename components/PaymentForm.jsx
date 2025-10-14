@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Platform
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { API_BASE_URL } from '@/src/api/config';
 
 export const PaymentForm = ({ 
   planType = 'premium', 
@@ -135,12 +135,7 @@ export const PaymentForm = ({
 
       // Process subscription payment
       const endpoint = `${API_BASE_URL}/api/payment/subscribe`;
-      console.log('Attempting payment with:', {
-        planType,
-        paymentMethodData,
-        endpoint,
-        apiBaseUrl: API_BASE_URL
-      });
+      ;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -154,17 +149,17 @@ export const PaymentForm = ({
         })
       });
 
-      console.log('Payment response status:', response.status);
-      console.log('Payment response headers:', response.headers);
+      //console.log('Payment response status:', response.status);
+      //console.log('Payment response headers:', response.headers);
       
       let data;
       try {
         const responseText = await response.text();
-        console.log('Raw response text:', responseText);
+        //console.log('Raw response text:', responseText);
         
         if (responseText) {
           data = JSON.parse(responseText);
-          console.log('Payment response data:', data);
+          //console.log('Payment response data:', data);
         } else {
           throw new Error('Empty response from server');
         }

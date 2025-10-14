@@ -1,16 +1,16 @@
+import { getAdComponents } from "@/components/ads/AdWrapper";
+import FriendsListModal from "@/components/FriendsListModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { chatApi } from "@/src/api/chat";
+import { getSocket } from "@/src/api/socket";
+import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
+import socketService from "@/src/services/socketService";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, RefreshControl, Image, Platform } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { chatApi } from "@/src/api/chat";
-import { useAuth } from "@/contexts/AuthContext";
-import { getSocket } from "@/src/api/socket";
-import socketService from "@/src/services/socketService";
-import FriendsListModal from "@/components/FriendsListModal";
-import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
-import { useSubscription } from "@/contexts/SubscriptionContext";
-import { getAdComponents } from "@/components/ads/AdWrapper";
+import { ActivityIndicator, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 const { BannerAd } = getAdComponents();
 
@@ -75,7 +75,7 @@ export default function ChatListScreen() {
         }
       });
       setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
-      console.log('📊 Initialized unread counts:', initialUnreadCounts);
+      //console.log('📊 Initialized unread counts:', initialUnreadCounts);
     } catch (error) {
       console.error('Failed to load inbox:', error);
       // Set empty conversations on error to stop loading state
@@ -98,7 +98,7 @@ export default function ChatListScreen() {
 
     // Handle new messages in chat list
     const handleNewMessage = ({ message }) => {
-      console.log('📨 New message received in chat list:', message);
+      //console.log('📨 New message received in chat list:', message);
       
       setConversations(prev => {
         const updatedConversations = prev.map(conv => {
@@ -133,7 +133,7 @@ export default function ChatListScreen() {
       if (message.senderId !== user.id) {
         setUnreadCounts(prev => {
           const newCount = (prev[message.chatId] || 0) + 1;
-          console.log(`📊 Updated unread count for chat ${message.chatId}: ${newCount}`);
+          //console.log(`📊 Updated unread count for chat ${message.chatId}: ${newCount}`);
           return {
             ...prev,
             [message.chatId]: newCount
@@ -157,9 +157,9 @@ export default function ChatListScreen() {
 
     // Handle read receipts to clear unread counts
     const handleRead = ({ chatId, messageId, by }) => {
-      console.log('👁️ Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
+      //console.log('👁️ Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
       if (by === user.id) {
-        console.log(`📊 Clearing unread count for chat ${chatId}`);
+        //console.log(`📊 Clearing unread count for chat ${chatId}`);
         setUnreadCounts(prev => ({
           ...prev,
           [chatId]: 0
@@ -169,7 +169,7 @@ export default function ChatListScreen() {
     
     // Handle unread count updates from server
     const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
-      console.log(`📊 Unread count update from server for chat ${chatId}: ${unreadCount}`);
+      //console.log(`📊 Unread count update from server for chat ${chatId}: ${unreadCount}`);
       setUnreadCounts(prev => ({
         ...prev,
         [chatId]: unreadCount
@@ -213,10 +213,10 @@ export default function ChatListScreen() {
     socket.on('chat:message:read_receipt', handleReadReceipt);
     socket.on('chat:unread_count', handleUnreadCountUpdate);
     
-    console.log('🔌 Socket listeners registered for chat list');
+    //console.log('🔌 Socket listeners registered for chat list');
 
     return () => {
-      console.log('🔌 Cleaning up socket listeners for chat list');
+      //console.log('🔌 Cleaning up socket listeners for chat list');
       socketService.removeMessageHandler('chat-list');
       socket.off('chat:message', handleNewMessage);
       socket.off('chat:typing', handleTyping);
@@ -252,7 +252,7 @@ export default function ChatListScreen() {
 
   const handleChatPress = (chatId, name, profilePhoto) => {
     // Clear unread count when entering chat
-    console.log(`📱 Opening chat ${chatId}, clearing unread count`);
+    //console.log(`📱 Opening chat ${chatId}, clearing unread count`);
     setUnreadCounts(prev => ({
       ...prev,
       [chatId]: 0
@@ -269,7 +269,7 @@ export default function ChatListScreen() {
   };
 
   const handleChatCreated = (chatId, name, profilePhoto) => {
-    console.log('Chat created, navigating to:', { chatId, name, profilePhoto });
+    //console.log('Chat created, navigating to:', { chatId, name, profilePhoto });
     
     // Refresh inbox to show the new chat
     loadInbox(true);

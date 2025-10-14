@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updatePreferencesGql } from '@/src/api/graphql';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const LOCATION_PREFERENCES = {
   local: { maxDistance: 10, label: 'Local Only' },
@@ -54,13 +54,13 @@ export async function saveUserPreferences(preferences) {
 
 export async function syncPreferencesWithBackend(preferences, token) {
   try {
-    console.log('🔄 Syncing preferences with backend:', preferences);
+    //console.log('🔄 Syncing preferences with backend:', preferences);
     
     // Update preferences in the backend database
     const result = await updatePreferencesGql(preferences, token);
     
     if (result) {
-      console.log('✅ Preferences synced successfully with backend');
+      //console.log('✅ Preferences synced successfully with backend');
       
       // Also save locally for offline access
       await saveUserPreferences(preferences);
@@ -98,7 +98,7 @@ export async function loadPreferencesFromUser(user) {
       // Also save to local storage for offline access
       await saveUserPreferences(backendPrefs);
       
-      console.log('📥 Loaded preferences from backend:', backendPrefs);
+      //console.log('📥 Loaded preferences from backend:', backendPrefs);
       return backendPrefs;
     }
     

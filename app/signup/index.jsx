@@ -1,30 +1,28 @@
-import React, { useContext, useMemo, useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
-import { 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  View, 
-  Modal, 
-  FlatList, 
-  Animated, 
-  Image,
-  Alert,
-  useWindowDimensions,
-  Linking
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { SignupWizardContext } from "./_layout";
-import { authApi } from "@/src/api/auth";
+import ProfilePictureUpload from "@/components/ProfilePictureUpload";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
-import ProfilePictureUpload from "@/components/ProfilePictureUpload";
+import { authApi } from "@/src/api/auth";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { SignupWizardContext } from "./_layout";
 
 const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
@@ -126,7 +124,7 @@ export default function SignupStepOne() {
 
   const handleImageSelected = (uri) => {
     setProfileImage(uri);
-    console.log('📸 Profile image selected:', uri);
+    //console.log('📸 Profile image selected:', uri);
   };
 
   const generateUsernameSuggestions = (base) => {

@@ -1,9 +1,9 @@
-import React, { useRef, useEffect } from "react";
-import { StyleSheet, View, Text, Image, TouchableOpacity, Alert } from "react-native";
-import MapView, { Marker, Callout } from "react-native-maps";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect, useRef } from "react";
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import MapView, { Callout, Marker } from "react-native-maps";
 
 export default function LocationMap({ region, nearby, style, onUserPress, highlightedUserId, onRegionChange }) {
   const router = useRouter();
@@ -24,13 +24,13 @@ export default function LocationMap({ region, nearby, style, onUserPress, highli
   }, [region]);
   
   const handleUserPress = (user) => {
-    console.log('LocationMap handleUserPress called for user:', user.id, user.name);
+    //console.log('LocationMap handleUserPress called for user:', user.id, user.name);
     if (onUserPress) {
       // Use callback if provided (for showing user profile modal)
-      console.log('Calling onUserPress callback');
+      //console.log('Calling onUserPress callback');
       onUserPress(user);
     } else {
-      console.log('No onUserPress callback, showing alert');
+      //console.log('No onUserPress callback, showing alert');
       // Fallback to showing user info
       Alert.alert(
         user.name,
@@ -45,7 +45,7 @@ export default function LocationMap({ region, nearby, style, onUserPress, highli
   
   const showUserProfile = (user) => {
     // Navigate to user profile or show modal
-    console.log('Show profile for user:', user.id);
+    //console.log('Show profile for user:', user.id);
   };
 
   const renderCallout = (m) => {
@@ -91,7 +91,7 @@ export default function LocationMap({ region, nearby, style, onUserPress, highli
             <TouchableOpacity 
               onPress={(e) => {
                 e.stopPropagation();
-                console.log('TouchableOpacity pressed for user:', m.id);
+                //console.log('TouchableOpacity pressed for user:', m.id);
                 handleUserPress(m);
               }} 
               activeOpacity={0.7} 

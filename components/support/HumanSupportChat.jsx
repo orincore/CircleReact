@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator, KeyboardAvoidingView, Platform, Animated } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuth } from '@/contexts/AuthContext'
+import { Ionicons } from '@expo/vector-icons'
+import { useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
   const { token } = useAuth()
@@ -107,7 +106,7 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
       setLoading(true)
       const apiUrl = 'https://api.circle.orincore.com'
       
-      console.log('🔄 Starting conversation with:', { sessionId, userId, category: category?.title })
+      //console.log('🔄 Starting conversation with:', { sessionId, userId, category: category?.title })
       
       const response = await fetch(`${apiUrl}/api/ai-support/conversation/start`, {
         method: 'POST',
@@ -172,7 +171,7 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
       try {
         if (conversationId) {
           const apiUrl = 'https://api.circle.orincore.com'
-          console.log('🔄 Sending message:', { conversationId, message: userMessage.content, userId })
+          //console.log('🔄 Sending message:', { conversationId, message: userMessage.content, userId })
           
           const response = await fetch(`${apiUrl}/api/ai-support/conversation/${conversationId}/message`, {
             method: 'POST',
@@ -324,7 +323,7 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
     try {
       const apiUrl = 'https://api.circle.orincore.com'
       
-      console.log('🔄 Processing refund request with token:', token ? 'Token present' : 'No token')
+      //console.log('🔄 Processing refund request with token:', token ? 'Token present' : 'No token')
       
       const response = await fetch(`${apiUrl}/api/ai-support/refund/process`, {
         method: 'POST',
@@ -380,7 +379,7 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
     try {
       const apiUrl = 'https://api.circle.orincore.com'
       
-      console.log('🔄 Processing cancellation request with token:', token ? 'Token present' : 'No token')
+      //console.log('🔄 Processing cancellation request with token:', token ? 'Token present' : 'No token')
       
       const response = await fetch(`${apiUrl}/api/ai-support/subscription/cancel`, {
         method: 'POST',

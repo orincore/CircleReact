@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Platform, Alert } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function Contact() {
   const router = useRouter();
@@ -40,13 +40,7 @@ export default function Contact() {
       // Get API base URL - use production API
       const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
       
-      console.log('📧 Submitting contact form to:', API_BASE_URL);
-      console.log('📧 Form data:', {
-        name: formData.name,
-        email: formData.email,
-        subject: formData.subject,
-        messageLength: formData.message.length
-      });
+    
 
       const response = await fetch(`${API_BASE_URL}/api/contact`, {
         method: 'POST',
@@ -59,7 +53,6 @@ export default function Contact() {
       const result = await response.json();
 
       if (response.ok) {
-        console.log('✅ Contact form submitted successfully:', result);
         setIsSubmitted(true);
         setSuccessMessage(result);
         setFormData({ name: '', email: '', subject: '', message: '' });

@@ -89,19 +89,19 @@ class AdMobService {
     
     // Check cooldown
     if (timeSinceLastAd < AD_LIMITS.MIN_TIME_BETWEEN_INTERSTITIALS) {
-      console.log('⏳ Interstitial ad on cooldown');
+      //console.log('⏳ Interstitial ad on cooldown');
       return false;
     }
     
     // Check hourly limit
     if (this.state.interstitialCount.hourly >= AD_LIMITS.MAX_INTERSTITIALS_PER_HOUR) {
-      console.log('⚠️ Hourly interstitial limit reached');
+      //console.log('⚠️ Hourly interstitial limit reached');
       return false;
     }
     
     // Check daily limit
     if (this.state.interstitialCount.daily >= AD_LIMITS.MAX_INTERSTITIALS_PER_DAY) {
-      console.log('⚠️ Daily interstitial limit reached');
+      //console.log('⚠️ Daily interstitial limit reached');
       return false;
     }
     
@@ -117,10 +117,7 @@ class AdMobService {
     this.state.interstitialCount.hourly++;
     this.state.interstitialCount.daily++;
     this.saveState();
-    console.log('📊 Interstitial shown:', {
-      hourly: this.state.interstitialCount.hourly,
-      daily: this.state.interstitialCount.daily,
-    });
+   
   }
 
   /**
@@ -131,7 +128,7 @@ class AdMobService {
     this.resetCountersIfNeeded();
     
     if (this.state.rewardedCount.daily >= AD_LIMITS.MAX_REWARDED_PER_DAY) {
-      console.log('⚠️ Daily rewarded ad limit reached');
+      //console.log('⚠️ Daily rewarded ad limit reached');
       return false;
     }
     
@@ -145,9 +142,7 @@ class AdMobService {
     this.resetCountersIfNeeded();
     this.state.rewardedCount.daily++;
     this.saveState();
-    console.log('📊 Rewarded ad shown:', {
-      daily: this.state.rewardedCount.daily,
-    });
+   
   }
 
   /**
@@ -162,7 +157,7 @@ class AdMobService {
       this.state.rewards[rewardType] = true;
     }
     this.saveState();
-    console.log('🎁 Reward granted:', rewardType);
+    //console.log('🎁 Reward granted:', rewardType);
   }
 
   /**

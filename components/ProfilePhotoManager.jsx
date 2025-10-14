@@ -1,19 +1,19 @@
-import React, { useState } from 'react'
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Platform,
-} from 'react-native'
+import { useAuth } from '@/contexts/AuthContext'
+import { ProfilePictureService } from '@/src/services/profilePictureService'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useAuth } from '@/contexts/AuthContext'
-import { ProfilePictureService } from '@/src/services/profilePictureService'
+import { useState } from 'react'
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
 
 /**
  * Profile Photo Manager Component
@@ -114,7 +114,7 @@ export default function ProfilePhotoManager({ size = 150 }) {
    */
   const uploadImage = async (imageUri) => {
     try {
-      console.log('📤 Uploading profile photo to S3...')
+      //console.log('📤 Uploading profile photo to S3...')
 
       // Upload to S3
       const newPhotoUrl = await ProfilePictureService.uploadProfilePicture(imageUri, token)

@@ -1,7 +1,7 @@
+import { updateLocationGql } from '@/src/api/graphql';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateLocationGql } from '@/src/api/graphql';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const LOCATION_TRACKING_KEY = 'location_tracking_enabled';
@@ -20,11 +20,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const location = locations[0];
     
     if (location) {
-      console.log('📍 Background location received:', {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        timestamp: new Date(location.timestamp).toISOString()
-      });
+    
       
       await handleLocationUpdate(location.coords);
     }
@@ -39,14 +35,14 @@ async function handleLocationUpdate(coords) {
     const now = Date.now();
     
     if (lastUpdateTime && (now - parseInt(lastUpdateTime)) < MIN_UPDATE_INTERVAL) {
-      console.log('⏰ Skipping location update - too soon since last update');
+      //console.log('⏰ Skipping location update - too soon since last update');
       return;
     }
 
     // Get stored auth token (using the same key as AuthContext)
     const token = await AsyncStorage.getItem('@circle:access_token');
     if (!token) {
-      console.log('❌ No auth token found for location update');
+      //console.log('❌ No auth token found for location update');
       return;
     }
 
@@ -57,18 +53,14 @@ async function handleLocationUpdate(coords) {
       // Note: accuracy and timestamp are not part of LocationInput schema
     };
 
-    console.log('🔄 Updating location in database:', {
-      ...locationData,
-      accuracy: coords.accuracy,
-      timestamp: new Date().toISOString()
-    });
+    
     
     await updateLocationGql(locationData, token);
     
     // Store last update time
     await AsyncStorage.setItem(LAST_LOCATION_UPDATE_KEY, now.toString());
     
-    console.log('✅ Location updated successfully in background');
+    //console.log('✅ Location updated successfully in background');
     
   } catch (error) {
     console.error('❌ Failed to update location in background:', error);
@@ -103,12 +95,12 @@ class LocationTrackingService {
 
   static async startTracking(authToken = null) {
     try {
-      console.log('🚀 Starting location tracking service...');
+      //console.log('🚀 Starting location tracking service...');
       
       // Store auth token if provided (for background access)
       if (authToken) {
         await AsyncStorage.setItem('@circle:access_token', authToken);
-        console.log('✅ Auth token stored for background location updates');
+        //console.log('✅ Auth token stored for background location updates');
       }
       
       // Verify token is available
@@ -120,7 +112,7 @@ class LocationTrackingService {
       // Check if already tracking
       const isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       if (isTracking) {
-        console.log('📍 Location tracking already active');
+        //console.log('📍 Location tracking already active');
         return true;
       }
 
@@ -149,7 +141,7 @@ class LocationTrackingService {
       // Mark tracking as enabled
       await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'true');
       
-      console.log('✅ Location tracking started successfully');
+      //console.log('✅ Location tracking started successfully');
       return true;
       
     } catch (error) {
@@ -160,7 +152,7 @@ class LocationTrackingService {
 
   static async stopTracking() {
     try {
-      console.log('🛑 Stopping location tracking service...');
+      //console.log('🛑 Stopping location tracking service...');
       
       const isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       
@@ -171,7 +163,7 @@ class LocationTrackingService {
       // Mark tracking as disabled
       await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'false');
       
-      console.log('✅ Location tracking stopped successfully');
+      //console.log('✅ Location tracking stopped successfully');
       return true;
       
     } catch (error) {
@@ -219,12 +211,12 @@ class LocationTrackingService {
 
   static async updateLocationNow() {
     try {
-      console.log('🔄 Manual location update requested...');
+      //console.log('🔄 Manual location update requested...');
       
       const location = await this.getCurrentLocation();
       await handleLocationUpdate(location);
       
-      console.log('✅ Manual location update completed');
+      //console.log('✅ Manual location update completed');
       return location;
     } catch (error) {
       console.error('❌ Manual location update failed:', error);

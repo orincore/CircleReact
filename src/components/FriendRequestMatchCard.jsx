@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { friendsApi } from '@/src/api/friends';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useState } from 'react';
 import {
-  View,
+  Alert,
+  Image,
+  Platform,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  Platform,
-  Alert,
-  Image
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { friendsApi } from '@/src/api/friends';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function FriendRequestMatchCard({ 
   request, 
@@ -34,13 +34,7 @@ export default function FriendRequestMatchCard({
 
   const senderName = getSenderName();
   
-  // Debug: Check profile photo URL
-  console.log('🖼️ Profile photo check:', {
-    hasSender: !!request.sender,
-    hasPhotoUrl: !!request.sender?.profile_photo_url,
-    photoUrl: request.sender?.profile_photo_url,
-    fullSender: request.sender
-  });
+
 
   const handleAccept = async () => {
     if (loading) return;

@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
-import { getUserPreferences, saveUserPreferences, syncPreferencesWithBackend, loadPreferencesFromUser, LOCATION_PREFERENCES, AGE_PREFERENCES } from "@/utils/preferences";
+import CustomDropdown from "@/components/CustomDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
-import CustomDropdown from "@/components/CustomDropdown";
+import { loadPreferencesFromUser, syncPreferencesWithBackend } from "@/utils/preferences";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerSupportScreen from "../../../settings/customer-support";
 
 const LOCATION_OPTIONS = [
@@ -128,7 +128,7 @@ export default function SettingsScreen() {
         relationshipDistanceFlexible,
       };
       
-      console.log('💾 Saving preferences:', preferences);
+      //console.log('💾 Saving preferences:', preferences);
       
       // Sync preferences with backend database
       const syncResult = await syncPreferencesWithBackend(preferences, token);
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
             'Your matching preferences and profile have been updated successfully in the database.'
           );
         }
-        console.log('✅ All preferences saved successfully');
+        //console.log('✅ All preferences saved successfully');
       } else if (syncResult.localSaved) {
         if (Platform.OS === 'web') {
           window.alert('Partial Success\n\nProfile updated and preferences saved locally, but failed to sync with server. Your preferences will sync when connection is restored.');
@@ -162,7 +162,7 @@ export default function SettingsScreen() {
             'Profile updated and preferences saved locally, but failed to sync with server. Your preferences will sync when connection is restored.'
           );
         }
-        console.log('⚠️ Preferences saved locally but backend sync failed:', syncResult.error);
+        //console.log('⚠️ Preferences saved locally but backend sync failed:', syncResult.error);
       } else {
         if (Platform.OS === 'web') {
           window.alert('Error\n\nFailed to save some preferences. Please check your connection and try again.');
@@ -172,7 +172,7 @@ export default function SettingsScreen() {
             'Failed to save some preferences. Please check your connection and try again.'
           );
         }
-        console.log('❌ Failed to save preferences:', syncResult.error);
+        //console.log('❌ Failed to save preferences:', syncResult.error);
       }
     } catch (error) {
       console.error('Error saving preferences:', error);
@@ -223,7 +223,7 @@ export default function SettingsScreen() {
 
   // Location tracking functions
   const toggleInvisibleMode = async (enabled) => {
-    console.log('🔄 Toggle invisible mode called, enabled:', enabled);
+    //console.log('🔄 Toggle invisible mode called, enabled:', enabled);
     try {
       if (enabled) {
         // On web, Alert.alert doesn't support callbacks properly, so handle it differently
@@ -232,21 +232,21 @@ export default function SettingsScreen() {
             'Enable Invisible Mode?\n\nYou will be hidden from maps, explore, and suggestions. Most features will be disabled until you turn this off. You can only chat with existing friends.'
           );
           
-          console.log('✅ User confirmed:', confirmed);
+          //console.log('✅ User confirmed:', confirmed);
           
           if (!confirmed) {
             // User cancelled, revert the toggle
-            console.log('❌ User cancelled, reverting toggle');
+            //console.log('❌ User cancelled, reverting toggle');
             setInvisibleMode(false);
             return;
           }
           
           // User confirmed, proceed with enabling
-          console.log('📝 Setting invisible mode to true...');
+          //console.log('📝 Setting invisible mode to true...');
           setInvisibleMode(true);
-          console.log('🔄 Calling updateProfile with invisibleMode: true');
+          //console.log('🔄 Calling updateProfile with invisibleMode: true');
           const result = await updateProfile({ invisibleMode: true });
-          console.log('✅ UpdateProfile result:', result);
+          //console.log('✅ UpdateProfile result:', result);
           window.alert('Invisible Mode Enabled\n\nYou are now hidden from discovery. Most features are disabled. You can turn this off anytime in settings.');
         } else {
           // Native mobile - use Alert.alert with callbacks
@@ -279,11 +279,11 @@ export default function SettingsScreen() {
         }
       } else {
         // Disabling invisible mode
-        console.log('📝 Disabling invisible mode...');
+        //console.log('📝 Disabling invisible mode...');
         setInvisibleMode(false);
-        console.log('🔄 Calling updateProfile with invisibleMode: false');
+        //console.log('🔄 Calling updateProfile with invisibleMode: false');
         const result = await updateProfile({ invisibleMode: false });
-        console.log('✅ UpdateProfile result:', result);
+        //console.log('✅ UpdateProfile result:', result);
         
         if (Platform.OS === 'web') {
           window.alert('Invisible Mode Disabled\n\nYou are now visible again and can use all features.');

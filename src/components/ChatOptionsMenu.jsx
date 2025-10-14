@@ -1,7 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChatOptionsMenu({ 
@@ -25,7 +24,7 @@ export default function ChatOptionsMenu({
       label: 'Clear Chat History',
       icon: 'trash-outline',
       onPress: () => {
-        console.log('Clear chat option pressed');
+        //console.log('Clear chat option pressed');
         if (onClearChat) {
           onClearChat();
         }
@@ -65,7 +64,7 @@ export default function ChatOptionsMenu({
                   pressed && { backgroundColor: 'rgba(124, 43, 134, 0.1)' },
                 ]}
                 onPress={() => {
-                  console.log('Menu option pressed:', option.id);
+                  //console.log('Menu option pressed:', option.id);
                   option.onPress();
                   if (option.id !== 'clear') {
                     onClose();

@@ -462,36 +462,36 @@ export function forceReconnect(token?: string | null) {
 export function diagnoseProductionSocket() {
   const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
   
-  console.log('🔍 SOCKET DIAGNOSTIC REPORT:', {
-    environment: isProduction ? 'PRODUCTION' : 'LOCAL',
-    url: API_BASE_URL,
-    socketExists: !!socket,
-    connected: socket?.connected || false,
-    socketId: socket?.id || 'none',
-    transport: socket?.io?.engine?.transport?.name || 'unknown',
-    readyState: socket?.io?.engine?.readyState || 'unknown',
-    upgraded: socket?.io?.engine?.upgraded || false,
-    reconnectAttempts: reconnectAttempts,
-    connectionState: connectionState,
-    isInitialized: isInitialized,
-    currentToken: !!currentToken,
-    platform: Platform.OS,
-    timestamp: new Date().toISOString()
-  });
+  //console.log('🔍 SOCKET DIAGNOSTIC REPORT:', {
+  //  environment: isProduction ? 'PRODUCTION' : 'LOCAL',
+  //  url: API_BASE_URL,
+  //  socketExists: !!socket,
+  //  connected: socket?.connected || false,
+  //  socketId: socket?.id || 'none',
+  //  transport: socket?.io?.engine?.transport?.name || 'unknown',
+  //  readyState: socket?.io?.engine?.readyState || 'unknown',
+  //  upgraded: socket?.io?.engine?.upgraded || false,
+  //  reconnectAttempts: reconnectAttempts,
+  //  connectionState: connectionState,
+  //  isInitialized: isInitialized,
+  //  currentToken: !!currentToken,
+  //  platform: Platform.OS,
+  //  timestamp: new Date().toISOString()
+  //});
   
   if (isProduction && socket) {
-    console.log('🏭 PRODUCTION-SPECIFIC DIAGNOSTICS:', {
-      engineUpgrade: socket.io?.engine?.upgrade,
-      engineTransports: socket.io?.engine?.transports,
-      engineSocket: !!socket.io?.engine?.socket,
-      engineWriteBuffer: socket.io?.engine?.writeBuffer?.length || 0,
-      engineReadyState: socket.io?.engine?.readyState,
-      enginePingInterval: socket.io?.engine?.pingInterval,
-      enginePingTimeout: socket.io?.engine?.pingTimeout
-    });
+    //console.log('🏭 PRODUCTION-SPECIFIC DIAGNOSTICS:', {
+    //  engineUpgrade: socket.io?.engine?.upgrade,
+    //  engineTransports: socket.io?.engine?.transports,
+    //  engineSocket: !!socket.io?.engine?.socket,
+    //  engineWriteBuffer: socket.io?.engine?.writeBuffer?.length || 0,
+    //  engineReadyState: socket.io?.engine?.readyState,
+    //  enginePingInterval: socket.io?.engine?.pingInterval,
+    //  enginePingTimeout: socket.io?.engine?.pingTimeout
+    //});
     
     // Test connection
-    console.log('🧪 Testing production connection...');
+    //console.log('🧪 Testing production connection...');
     socket.emit('ping', { 
       test: 'diagnostic', 
       timestamp: Date.now(),

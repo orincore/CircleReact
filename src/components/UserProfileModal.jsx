@@ -1,33 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Pressable,
-  Platform,
-  Image,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  TextInput,
-  Dimensions
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { BlurView } from 'expo-blur';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { friendsApi } from '@/src/api/friends';
-import { FriendRequestService } from '@/src/services/FriendRequestService';
 import { getSocket } from '@/src/api/socket';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Avatar from '../../components/Avatar';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
-import Avatar from '../../components/Avatar';
-import PhotoGalleryService from '@/src/services/photoGalleryService';
 
 export default function UserProfileModal({ 
   visible, 
@@ -90,12 +89,12 @@ export default function UserProfileModal({
 
   useEffect(() => {
     if (visible && userId) {
-      console.log('🔍 UserProfileModal opened for user:', userId);
-      console.log('🔍 User name:', userName);
-      console.log('🔍 User avatar:', userAvatar);
-      console.log('🔍 Modal visible:', visible);
-      console.log('🔍 Current logged-in user:', user?.id);
-      console.log('🔍 userId type:', typeof userId, 'value:', userId);
+      //console.log('🔍 UserProfileModal opened for user:', userId);
+      //console.log('🔍 User name:', userName);
+      //console.log('🔍 User avatar:', userAvatar);
+      //console.log('🔍 Modal visible:', visible);
+      //console.log('🔍 Current logged-in user:', user?.id);
+      //console.log('🔍 userId type:', typeof userId, 'value:', userId);
       loadUserProfile();
       
       // Set up socket listeners for cancelled requests
@@ -104,7 +103,7 @@ export default function UserProfileModal({
         
         // Listen for friend request cancellations
         const handleFriendRequestCancelled = (data) => {
-          console.log('Friend request cancelled:', data);
+          //console.log('Friend request cancelled:', data);
           if (data.cancelledBy === userId) {
             // The user we're viewing cancelled their request to us
             setFriendStatus('none');
@@ -114,7 +113,7 @@ export default function UserProfileModal({
         
         // Listen for message request cancellations
         const handleMessageRequestCancelled = (data) => {
-          console.log('Message request cancelled:', data);
+          //console.log('Message request cancelled:', data);
           if (data.cancelledBy === userId) {
             // The user we're viewing cancelled their message request to us
             setCanMessage(false);
@@ -125,7 +124,7 @@ export default function UserProfileModal({
 
         // Listen for friend request acceptance (when the user we're viewing accepts our request)
         const handleFriendRequestAccepted = (data) => {
-          console.log('Friend request accepted (they accepted our request):', data);
+          //console.log('Friend request accepted (they accepted our request):', data);
           if (data.request && data.request.sender_id === user?.id && data.request.receiver_id === userId) {
             // The user we're viewing accepted our request to them
             setCanMessage(true);
@@ -135,7 +134,7 @@ export default function UserProfileModal({
 
         // Listen for friend request accept confirmation (when we accept someone's request)
         const handleFriendRequestAcceptConfirmed = (data) => {
-          console.log('Friend request accept confirmed (we accepted their request):', data);
+          //console.log('Friend request accept confirmed (we accepted their request):', data);
           if (data.request && data.request.sender_id === userId && data.request.receiver_id === user?.id) {
             // We accepted the request from the user we're viewing
             setFriendStatus('friends');
@@ -146,7 +145,7 @@ export default function UserProfileModal({
 
         // Listen for when we get unfriended by someone
         const handleUnfriended = (data) => {
-          console.log('Unfriended by user:', data);
+          //console.log('Unfriended by user:', data);
           if (data.unfriendedBy === userId) {
             // The user we're viewing unfriended us
             setFriendStatus('none');
@@ -184,7 +183,7 @@ export default function UserProfileModal({
         try {
           const { circleStatsApi } = await import('@/src/api/circle-stats');
           await circleStatsApi.recordProfileVisit(userId, token);
-          console.log('✅ Profile visit recorded for user:', userId);
+          //console.log('✅ Profile visit recorded for user:', userId);
           
           // Send profile visit notification to the profile owner
           try {
@@ -194,12 +193,12 @@ export default function UserProfileModal({
               visitorId: user.id,
               visitorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Someone'
             });
-            console.log('✅ Profile visit notification sent');
+            //console.log('✅ Profile visit notification sent');
           } catch (notificationError) {
-            console.log('❌ Failed to send profile visit notification:', notificationError);
+            //console.log('❌ Failed to send profile visit notification:', notificationError);
           }
         } catch (visitError) {
-          console.log('❌ Failed to record profile visit:', visitError);
+          //console.log('❌ Failed to record profile visit:', visitError);
         }
       }
       
@@ -213,10 +212,10 @@ export default function UserProfileModal({
           const result = await exploreApi.getUserProfile(userId, token);
           if (result.user) {
             actualUserData = result.user;
-            console.log('Fetched actual user data via profile endpoint:', actualUserData);
+            //console.log('Fetched actual user data via profile endpoint:', actualUserData);
           }
         } catch (profileError) {
-          console.log('Profile endpoint failed, trying search fallback:', profileError);
+          //console.log('Profile endpoint failed, trying search fallback:', profileError);
           
           // Fallback: try to find user via search by ID
           try {
@@ -225,11 +224,11 @@ export default function UserProfileModal({
               const foundUser = searchResult.users.find(u => u.id === userId);
               if (foundUser) {
                 actualUserData = foundUser;
-                console.log('Fetched actual user data via search fallback:', actualUserData);
+                //console.log('Fetched actual user data via search fallback:', actualUserData);
               }
             }
           } catch (searchError) {
-            console.log('Search fallback also failed:', searchError);
+            //console.log('Search fallback also failed:', searchError);
             
             // Final fallback: try to find user in explore sections
             try {
@@ -242,10 +241,10 @@ export default function UserProfileModal({
               const foundUser = allUsers.find(u => u.id === userId);
               if (foundUser) {
                 actualUserData = foundUser;
-                console.log('Fetched actual user data via sections fallback:', actualUserData);
+                //console.log('Fetched actual user data via sections fallback:', actualUserData);
               }
             } catch (sectionsError) {
-              console.log('Sections fallback also failed:', sectionsError);
+              //console.log('Sections fallback also failed:', sectionsError);
               
               // Last resort: try to get user from friends list
               try {
@@ -266,17 +265,17 @@ export default function UserProfileModal({
                       isOnline: false,
                       joinedDate: foundFriend.created_at
                     };
-                    console.log('Fetched actual user data via friends fallback:', actualUserData);
+                    //console.log('Fetched actual user data via friends fallback:', actualUserData);
                   }
                 }
               } catch (friendsError) {
-                console.log('Friends fallback also failed:', friendsError);
+                //console.log('Friends fallback also failed:', friendsError);
               }
             }
           }
         }
       } catch (error) {
-        console.log('Failed to fetch user profile:', error);
+        //console.log('Failed to fetch user profile:', error);
       }
 
       // Create profile data using actual data if available, otherwise use provided props
@@ -299,8 +298,8 @@ export default function UserProfileModal({
         lastSeen: actualUserData?.isOnline ? 'Active now' : 'Last seen recently'
       };
       
-      console.log('Profile data created:', profileData);
-      console.log('Actual user data from API:', actualUserData);
+      //console.log('Profile data created:', profileData);
+      //console.log('Actual user data from API:', actualUserData);
       setProfileData(profileData);
       
       // Load Spotify data
@@ -343,15 +342,15 @@ export default function UserProfileModal({
     if (!token || !userId || userId === user?.id) return;
     
     try {
-      console.log('Loading friend status for user:', userId);
-      console.log('Current user:', user?.id);
+      //console.log('Loading friend status for user:', userId);
+      //console.log('Current user:', user?.id);
       
       // Use socket-based approach for consistency
       const socket = getSocket(token);
       
       // Set up listeners for friend status response
       const handleStatusResponse = (data) => {
-        console.log('Friend status response:', data);
+        //console.log('Friend status response:', data);
         socket.off('friend:status:response', handleStatusResponse);
         
         if (data.error) {
@@ -360,7 +359,7 @@ export default function UserProfileModal({
           setFriendRequestId(null);
           setCanMessage(false);
         } else {
-          console.log('Setting friendStatus to:', data.status);
+          //console.log('Setting friendStatus to:', data.status);
           setFriendStatus(data.status);
           setFriendRequestId(data.requestId || null); // Store request ID
           
@@ -406,17 +405,17 @@ export default function UserProfileModal({
     if (!token || !userId) return;
     
     try {
-      console.log('Loading Spotify data for user:', userId);
+      //console.log('Loading Spotify data for user:', userId);
       const { socialAccountsApi } = await import('@/src/api/social-accounts');
       const response = await socialAccountsApi.getUserLinkedAccounts(userId, token);
       
       if (response.accounts) {
         const spotifyAccount = response.accounts.find(account => account.platform === 'spotify');
         if (spotifyAccount) {
-          console.log('Found Spotify account:', spotifyAccount);
+          //console.log('Found Spotify account:', spotifyAccount);
           setSpotifyData(spotifyAccount);
         } else {
-          console.log('No Spotify account found for user');
+          //console.log('No Spotify account found for user');
           setSpotifyData(null);
         }
       }
@@ -431,7 +430,7 @@ export default function UserProfileModal({
     
     try {
       setLoadingPhotos(true);
-      console.log('📸 Loading photos for user:', userId);
+      //console.log('📸 Loading photos for user:', userId);
       
       // Fetch photos from API
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com'}/api/users/${userId}/photos`, {
@@ -445,9 +444,9 @@ export default function UserProfileModal({
       if (response.ok) {
         const data = await response.json();
         setUserPhotos(data.photos || []);
-        console.log('✅ Loaded', data.photos?.length || 0, 'photos for user');
+        //console.log('✅ Loaded', data.photos?.length || 0, 'photos for user');
       } else {
-        console.log('⚠️ Failed to load photos:', response.status);
+        //console.log('⚠️ Failed to load photos:', response.status);
         setUserPhotos([]);
       }
     } catch (error) {
@@ -484,8 +483,8 @@ export default function UserProfileModal({
   const handleSendFriendRequest = async () => {
     if (!token || !userId) return;
     
-    console.log('Sending friend request to userId:', userId);
-    console.log('Current user:', user?.id);
+    //console.log('Sending friend request to userId:', userId);
+    //console.log('Current user:', user?.id);
     
     try {
       // Instantly update UI to show "Request Sent"
@@ -500,7 +499,7 @@ export default function UserProfileModal({
         socket.off('friend:request:sent', handleSent);
         socket.off('friend:request:error', handleError);
         if (data.success) {
-          console.log('✅ Friend request sent successfully');
+          //console.log('✅ Friend request sent successfully');
           // Keep the pending_sent status
         }
       };
@@ -529,16 +528,16 @@ export default function UserProfileModal({
       return;
     }
   
-    console.log('Cancelling friend request to userId:', userId);
-    console.log('Token available:', !!token);
-    console.log('Browser environment:', Platform.OS === 'web');
+    //console.log('Cancelling friend request to userId:', userId);
+    //console.log('Token available:', !!token);
+    //console.log('Browser environment:', Platform.OS === 'web');
   
     try {
       // Add loading state
       setFriendStatus('cancelling');
       
       const result = await FriendRequestService.cancelFriendRequest(userId, token);
-      console.log('Cancel friend request result:', result);
+      //console.log('Cancel friend request result:', result);
       
       if (result && result.success) {
         setFriendStatus('none');
@@ -576,7 +575,7 @@ export default function UserProfileModal({
       return;
     }
 
-    console.log('Accepting friend request:', friendRequestId);
+    //console.log('Accepting friend request:', friendRequestId);
 
     try {
       const socket = getSocket(token);
@@ -588,7 +587,7 @@ export default function UserProfileModal({
       const handleAccepted = (data) => {
         socket.off('friend:request:accepted', handleAccepted);
         socket.off('friend:request:error', handleError);
-        console.log('Friend request accepted:', data);
+        //console.log('Friend request accepted:', data);
         setFriendStatus('friends');
         setCanMessage(true);
         setFriendRequestId(null);
@@ -623,7 +622,7 @@ export default function UserProfileModal({
       return;
     }
 
-    console.log('Declining friend request:', friendRequestId);
+    //console.log('Declining friend request:', friendRequestId);
 
     try {
       const socket = getSocket(token);
@@ -635,7 +634,7 @@ export default function UserProfileModal({
       const handleDeclined = (data) => {
         socket.off('friend:request:declined', handleDeclined);
         socket.off('friend:request:error', handleError);
-        console.log('Friend request declined:', data);
+        //console.log('Friend request declined:', data);
         setFriendStatus('none');
         setFriendRequestId(null);
         Alert.alert('Request Declined', `You declined the friend request from ${userName}.`);
@@ -666,7 +665,7 @@ export default function UserProfileModal({
   const handleCancelMessageRequest = async () => {
     if (!token || !userId) return;
     
-    console.log('Cancelling message request to userId:', userId);
+    //console.log('Cancelling message request to userId:', userId);
     
     try {
       const result = await FriendRequestService.cancelMessageRequest(userId, token);

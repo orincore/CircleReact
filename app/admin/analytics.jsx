@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 const { width } = Dimensions.get('window');
 
@@ -46,17 +46,16 @@ export default function AdminAnalytics() {
       };
       const days = daysMap[timeRange] || 30;
 
-      console.log('📊 Loading analytics with timeRange:', timeRange, 'days:', days);
 
       // Load overview stats
       const statsUrl = `${API_BASE_URL}/api/admin/analytics/overview?timeRange=${days}`;
-      console.log('📡 Fetching overview from:', statsUrl);
+      //console.log('📡 Fetching overview from:', statsUrl);
       
       const statsResponse = await fetch(statsUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
-      console.log('📊 Overview response status:', statsResponse.status);
+      //console.log('📊 Overview response status:', statsResponse.status);
       
       if (!statsResponse.ok) {
         const errorText = await statsResponse.text();
@@ -65,7 +64,7 @@ export default function AdminAnalytics() {
       }
       
       const statsData = await statsResponse.json();
-      console.log('✅ Overview data:', statsData);
+      //console.log('✅ Overview data:', statsData);
       
       // Transform data to match frontend expectations
       const transformedStats = {
@@ -87,10 +86,10 @@ export default function AdminAnalytics() {
       };
       
       setStats(transformedStats);
-      console.log('✅ Stats set:', transformedStats);
+      //console.log('✅ Stats set:', transformedStats);
 
       // Load user growth data
-      console.log('📈 Fetching user growth...');
+      //console.log('📈 Fetching user growth...');
       const growthResponse = await fetch(`${API_BASE_URL}/api/admin/analytics/user-growth?days=${days}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -99,12 +98,12 @@ export default function AdminAnalytics() {
         console.error('❌ Growth fetch failed:', growthResponse.status);
       } else {
         const growthData = await growthResponse.json();
-        console.log('✅ Growth data:', growthData);
+        //console.log('✅ Growth data:', growthData);
         setUserGrowth(growthData.data || []);
       }
 
       // Load demographics
-      console.log('👥 Fetching demographics...');
+      //console.log('👥 Fetching demographics...');
       const demoResponse = await fetch(`${API_BASE_URL}/api/admin/analytics/demographics`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -113,7 +112,7 @@ export default function AdminAnalytics() {
         console.error('❌ Demographics fetch failed:', demoResponse.status);
       } else {
         const demoData = await demoResponse.json();
-        console.log('✅ Demographics data:', demoData);
+        //console.log('✅ Demographics data:', demoData);
       
       // Transform demographics data
       const totalGender = Object.values(demoData.gender || {}).reduce((a, b) => a + b, 0) || 1;
@@ -131,7 +130,7 @@ export default function AdminAnalytics() {
       };
       
       setDemographics(transformedDemo);
-      console.log('✅ Demographics set:', transformedDemo);
+      //console.log('✅ Demographics set:', transformedDemo);
       }
 
     } catch (error) {

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, AppState, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from '@/contexts/AuthContext';
-import { getSocket } from '@/src/api/socket';
-import socketService from '@/src/services/socketService';
 import { chatApi } from '@/src/api/chat';
+import { getSocket } from '@/src/api/socket';
 import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
+import socketService from '@/src/services/socketService';
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect, useState } from 'react';
+import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationPanel from './NotificationPanel';
 
 const TAB_COLORS = {
@@ -38,7 +38,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === 'active' && token) {
-        console.log('📱 App became active, refreshing unread count');
+        //console.log('📱 App became active, refreshing unread count');
         loadTotalUnreadMessages();
       }
     };
@@ -62,10 +62,10 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   const loadNotificationCount = async () => {
     try {
-      console.log('🔔 Loading notification count from API...');
+      //console.log('🔔 Loading notification count from API...');
       const response = await notificationApi.getUnreadCount(token);
       if (response.success) {
-        console.log('✅ Notification count loaded:', response.count);
+        //console.log('✅ Notification count loaded:', response.count);
         setNotificationCount(response.count);
       } else {
         console.error('❌ Failed to load notification count:', response.error);
@@ -104,7 +104,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     
     // Listen for new notifications
     socket.on('notification:new', ({ notification }) => {
-      console.log('🔔 New notification received in tab bar:', notification);
+      //console.log('🔔 New notification received in tab bar:', notification);
       incrementCount();
     });
     
@@ -125,7 +125,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     
     // Listen for chat message events to update total unread count
     socket.on('chat:message', ({ message }) => {
-      console.log('📨 New message received in tab bar, updating unread count');
+      //console.log('📨 New message received in tab bar, updating unread count');
       // For new messages, increment the unread count for that chat
       if (message && message.chatId) {
         setChatUnreadCounts(prev => {
@@ -134,7 +134,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
             [message.chatId]: (prev[message.chatId] || 0) + 1
           };
           const newTotal = calculateTotalUnread(newCounts);
-          console.log(`📊 Updated unread counts after new message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
+          //console.log(`📊 Updated unread counts after new message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
           setTotalUnreadMessages(newTotal);
           return newCounts;
         });
@@ -143,7 +143,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     
     // Listen for unread count updates (more reliable than reloading)
     socket.on('chat:unread_count', ({ chatId, unreadCount }) => {
-      console.log(`📊 Unread count update received in tab bar: chat ${chatId}, count ${unreadCount}`);
+      //console.log(`📊 Unread count update received in tab bar: chat ${chatId}, count ${unreadCount}`);
       // Update the specific chat's unread count
       setChatUnreadCounts(prev => {
         const newCounts = {
@@ -155,7 +155,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
           delete newCounts[chatId];
         }
         const newTotal = calculateTotalUnread(newCounts);
-        console.log(`📊 Updated unread counts after count update: chat ${chatId} = ${unreadCount}, total = ${newTotal}`);
+        //console.log(`📊 Updated unread counts after count update: chat ${chatId} = ${unreadCount}, total = ${newTotal}`);
         setTotalUnreadMessages(newTotal);
         return newCounts;
       });
@@ -163,7 +163,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     
     // Also listen for background message events (global handler)
     const handleBackgroundMessage = ({ message }) => {
-      console.log('📨 Background message received in tab bar:', message);
+      //console.log('📨 Background message received in tab bar:', message);
       if (message && message.chatId) {
         setChatUnreadCounts(prev => {
           const newCounts = {
@@ -171,7 +171,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
             [message.chatId]: (prev[message.chatId] || 0) + 1
           };
           const newTotal = calculateTotalUnread(newCounts);
-          console.log(`📊 Updated unread counts after background message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
+          //console.log(`📊 Updated unread counts after background message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
           setTotalUnreadMessages(newTotal);
           return newCounts;
         });

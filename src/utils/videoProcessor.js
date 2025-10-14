@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { Platform, Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 /**
  * Video Processing Utility
@@ -12,24 +12,24 @@ import { Platform, Alert } from 'react-native';
 export const optimizeVideoFile = async (videoUri, targetSizeMB = 25) => {
   try {
     if (Platform.OS === 'web') {
-      console.log('📹 Video optimization not available on web');
+      //console.log('📹 Video optimization not available on web');
       return videoUri;
     }
 
     const originalInfo = await FileSystem.getInfoAsync(videoUri);
     const originalSizeMB = originalInfo.size / (1024 * 1024);
     
-    console.log(`📹 Optimizing video: ${originalSizeMB.toFixed(2)}MB → target: ${targetSizeMB}MB`);
+    //console.log(`📹 Optimizing video: ${originalSizeMB.toFixed(2)}MB → target: ${targetSizeMB}MB`);
     
     if (originalSizeMB <= targetSizeMB) {
-      console.log('📹 Video already within target size');
+      //console.log('📹 Video already within target size');
       return videoUri;
     }
 
     // Copy to cache directory (can remove some metadata)
     const optimizedUri = `${FileSystem.cacheDirectory}optimized_${Date.now()}.mp4`;
     
-    console.log('📹 Copying video to optimize...');
+    //console.log('📹 Copying video to optimize...');
     await FileSystem.copyAsync({
       from: videoUri,
       to: optimizedUri
@@ -38,11 +38,11 @@ export const optimizeVideoFile = async (videoUri, targetSizeMB = 25) => {
     const optimizedInfo = await FileSystem.getInfoAsync(optimizedUri);
     const optimizedSizeMB = optimizedInfo.size / (1024 * 1024);
     
-    console.log(`📹 Video optimized: ${optimizedSizeMB.toFixed(2)}MB`);
+    //console.log(`📹 Video optimized: ${optimizedSizeMB.toFixed(2)}MB`);
     
     // If still too large, warn user
     if (optimizedSizeMB > targetSizeMB) {
-      console.log(`⚠️ Video still large after optimization: ${optimizedSizeMB.toFixed(1)}MB`);
+      //console.log(`⚠️ Video still large after optimization: ${optimizedSizeMB.toFixed(1)}MB`);
     }
     
     return optimizedUri;
@@ -149,7 +149,7 @@ export const getUploadTimeEstimate = (fileSizeMB) => {
  */
 export const processVideoForUpload = async (videoUri) => {
   try {
-    console.log('📹 Processing video for upload...');
+    //console.log('📹 Processing video for upload...');
     
     // Validate video first
     const validation = await validateVideoForUpload(videoUri);
@@ -160,13 +160,13 @@ export const processVideoForUpload = async (videoUri) => {
     
     // Show warnings if any
     if (validation.warnings.length > 0) {
-      console.log('⚠️ Video warnings:', validation.warnings.join(', '));
+      //console.log('⚠️ Video warnings:', validation.warnings.join(', '));
     }
     
     // Optimize if needed
     let processedUri = videoUri;
     if (validation.sizeMB > 25) {
-      console.log('📹 Large video detected, attempting optimization...');
+      //console.log('📹 Large video detected, attempting optimization...');
       processedUri = await optimizeVideoFile(videoUri, 25);
     }
     
@@ -174,7 +174,7 @@ export const processVideoForUpload = async (videoUri) => {
     const finalValidation = await validateVideoForUpload(processedUri);
     const uploadTime = getUploadTimeEstimate(finalValidation.sizeMB);
     
-    console.log(`📹 Video ready for upload: ${finalValidation.sizeMB.toFixed(1)}MB (${uploadTime})`);
+    //console.log(`📹 Video ready for upload: ${finalValidation.sizeMB.toFixed(1)}MB (${uploadTime})`);
     
     return {
       uri: processedUri,

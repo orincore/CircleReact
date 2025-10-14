@@ -1,22 +1,22 @@
 // NEW SIMPLIFIED VOICE CALL SCREEN - BUILT FROM SCRATCH
-import React, { useState, useEffect, useRef } from 'react';
+import Avatar from '@/components/Avatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { voiceCallService } from '@/src/services/VoiceCallService';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
   Animated,
   Dimensions,
+  SafeAreaView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { voiceCallService } from '@/src/services/VoiceCallService';
-import { useAuth } from '@/contexts/AuthContext';
-import Avatar from '@/components/Avatar';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,35 +42,24 @@ export default function VoiceCallScreen() {
   const waveAnim3 = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    console.log('📞 Voice call screen mounted:', {
-      callId,
-      callerId,
-      callerName,
-      callerAvatar,
-      isIncomingCall,
-      initialState: isIncomingCall ? 'incoming' : 'calling',
-      user: user,
-      userAvatar: user?.profile_photo_url,
-      userFirstName: user?.first_name,
-      userLastName: user?.last_name
-    });
+ 
     
     // Socket should already be initialized by useVoiceCall hook
     // Only initialize if not already connected
     if (!voiceCallService.socket || !voiceCallService.socket.connected) {
-      console.log('⚠️ Socket not connected, initializing...');
+      //console.log('⚠️ Socket not connected, initializing...');
       voiceCallService.initializeSocket(token);
     } else {
-      console.log('✅ Socket already connected');
+      //console.log('✅ Socket already connected');
     }
     
     // Setup listeners
     voiceCallService.onCallStateChange = (newState, data) => {
-      console.log('📞 State changed to:', newState, 'from:', callState);
+      //console.log('📞 State changed to:', newState, 'from:', callState);
       
       // Prevent state changes during cleanup
       if (isCleaningUp) {
-        console.log('⚠️ Ignoring state change during cleanup');
+        //console.log('⚠️ Ignoring state change during cleanup');
         return;
       }
       
@@ -89,7 +78,7 @@ export default function VoiceCallScreen() {
     };
     
     voiceCallService.onCallEnded = () => {
-      console.log('📞 Call ended callback');
+      //console.log('📞 Call ended callback');
       if (!isCleaningUp) {
         setIsCleaningUp(true);
         setCallState('ended');
@@ -113,14 +102,14 @@ export default function VoiceCallScreen() {
       voiceCallService.isInitiator = false;
       voiceCallService.setCallState('incoming');
       setCallState('incoming'); // Ensure UI state matches
-      console.log('📞 Set incoming call state');
+      //console.log('📞 Set incoming call state');
     } else if (isIncomingCall) {
       // Just sync UI state with service state, don't trigger state change
       setCallState(voiceCallService.callState);
-      console.log('📞 Synced UI state with service:', voiceCallService.callState);
+      //console.log('📞 Synced UI state with service:', voiceCallService.callState);
     } else if (!isIncomingCall && callId === 'pending') {
       // For outgoing calls with 'pending' callId, wait for service to generate real callId
-      console.log('📞 Outgoing call - waiting for service to generate call ID');
+      //console.log('📞 Outgoing call - waiting for service to generate call ID');
     }
     
     // Fade in animation
@@ -186,18 +175,18 @@ export default function VoiceCallScreen() {
     
     // Cleanup on unmount
     return () => {
-      console.log('📞 Voice call screen unmounting - cleaning up');
-      console.log('📞 Current call state:', callState);
-      console.log('📞 Is cleaning up:', isCleaningUp);
+      //console.log('📞 Voice call screen unmounting - cleaning up');
+      //console.log('📞 Current call state:', callState);
+      //console.log('📞 Is cleaning up:', isCleaningUp);
       
       // Only cleanup if we're actually ending the call
       // Don't cleanup if the screen is just re-rendering
       if (callState === 'ended' || isCleaningUp) {
-        console.log('✅ Cleaning up voice call resources');
+        //console.log('✅ Cleaning up voice call resources');
         setIsCleaningUp(true);
         voiceCallService.cleanup();
       } else {
-        console.log('⚠️ Screen unmounting but call still active - not cleaning up');
+        //console.log('⚠️ Screen unmounting but call still active - not cleaning up');
       }
       
       voiceCallService.onCallStateChange = null;
@@ -208,7 +197,7 @@ export default function VoiceCallScreen() {
   
   // Accept call
   const handleAccept = async () => {
-    console.log('✅ Accepting call');
+    //console.log('✅ Accepting call');
     await voiceCallService.acceptCall();
   };
   
@@ -216,7 +205,7 @@ export default function VoiceCallScreen() {
   const handleDecline = () => {
     if (isCleaningUp) return;
     
-    console.log('❌ Declining call');
+    //console.log('❌ Declining call');
     setIsCleaningUp(true);
     voiceCallService.declineCall();
     
@@ -230,7 +219,7 @@ export default function VoiceCallScreen() {
   const handleEnd = () => {
     if (isCleaningUp) return;
     
-    console.log('📞 Ending call');
+    //console.log('📞 Ending call');
     setIsCleaningUp(true);
     voiceCallService.endCall();
     
@@ -242,7 +231,7 @@ export default function VoiceCallScreen() {
   
   // Toggle mute
   const handleToggleMute = () => {
-    console.log('🔇 Toggle mute clicked, current state:', isMuted);
+    //console.log('🔇 Toggle mute clicked, current state:', isMuted);
     
     if (!voiceCallService.localStream) {
       console.error('❌ No local stream available');
@@ -250,14 +239,14 @@ export default function VoiceCallScreen() {
     }
     
     const audioTracks = voiceCallService.localStream.getAudioTracks();
-    console.log('🎤 Audio tracks:', audioTracks.length);
+    //console.log('🎤 Audio tracks:', audioTracks.length);
     
     if (audioTracks.length > 0) {
       const audioTrack = audioTracks[0];
       const newMutedState = !audioTrack.enabled;
       audioTrack.enabled = !newMutedState;
       setIsMuted(newMutedState);
-      console.log('✅ Mute toggled:', newMutedState ? 'MUTED' : 'UNMUTED');
+      //console.log('✅ Mute toggled:', newMutedState ? 'MUTED' : 'UNMUTED');
     } else {
       console.error('❌ No audio tracks found');
     }

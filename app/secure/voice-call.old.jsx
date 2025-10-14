@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import Avatar from '@/components/Avatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { voiceCallService } from '@/src/services/VoiceCallService';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
   Alert,
   Animated,
   Dimensions,
-  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { voiceCallService } from '@/src/services/VoiceCallService';
-import { useAuth } from '@/contexts/AuthContext';
-import Avatar from '@/components/Avatar';
 
 const { width, height } = Dimensions.get('window');
 

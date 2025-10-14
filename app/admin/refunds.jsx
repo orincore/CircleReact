@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, ActivityIndicator } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 const RefundsScreen = () => {
   const [token, setToken] = useState(null)
@@ -43,13 +43,13 @@ const RefundsScreen = () => {
     
     try {
       setLoading(true)
-      console.log('Loading refunds with token:', token ? 'Token available' : 'No token')
+      //console.log('Loading refunds with token:', token ? 'Token available' : 'No token')
       
       const statusParam = filter === 'all' ? '' : `?status=${filter}`
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com'
       const url = `${apiUrl}/api/refunds/admin/all${statusParam}`
-      console.log('Fetching from URL:', url)
-      console.log('API Base URL:', apiUrl)
+      //console.log('Fetching from URL:', url)
+      //console.log('API Base URL:', apiUrl)
       
       const response = await fetch(url, {
         headers: {
@@ -58,11 +58,11 @@ const RefundsScreen = () => {
         }
       })
 
-      console.log('Response status:', response.status)
+      //console.log('Response status:', response.status)
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Refunds data:', data)
+        //console.log('Refunds data:', data)
         setRefunds(data.refunds || [])
       } else {
         const errorData = await response.text()
@@ -102,10 +102,10 @@ const RefundsScreen = () => {
     if (!token) return
     
     try {
-      console.log('Loading refund stats...')
+      //console.log('Loading refund stats...')
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com'
       const statsUrl = `${apiUrl}/api/refunds/admin/stats`
-      console.log('Stats URL:', statsUrl)
+      //console.log('Stats URL:', statsUrl)
       
       const response = await fetch(statsUrl, {
         headers: {
@@ -114,11 +114,11 @@ const RefundsScreen = () => {
         }
       })
 
-      console.log('Stats response status:', response.status)
+      //console.log('Stats response status:', response.status)
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Stats data:', data)
+        //console.log('Stats data:', data)
         setStats(data)
       } else {
         console.error('Failed to load stats:', response.status)

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
 import { getAdUnitId } from '@/src/config/admob';
 import AdMobService from '@/src/services/AdMobService';
+import { useEffect, useRef, useState } from 'react';
+import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
 
 /**
  * Rewarded Ad Hook
@@ -32,7 +32,7 @@ export const useRewardedAd = (rewardType = 'default') => {
       RewardedAdEventType.LOADED,
       () => {
         setIsLoaded(true);
-        console.log(`✅ Rewarded ad loaded: ${rewardType}`);
+        //console.log(`✅ Rewarded ad loaded: ${rewardType}`);
       }
     );
 
@@ -52,7 +52,7 @@ export const useRewardedAd = (rewardType = 'default') => {
     const unsubscribeEarned = rewarded.addAdEventListener(
       RewardedAdEventType.EARNED_REWARD,
       (reward) => {
-        console.log(`🎁 User earned reward: ${rewardType}`, reward);
+        //console.log(`🎁 User earned reward: ${rewardType}`, reward);
         AdMobService.recordRewardedShown();
         
         // Call callback with true (rewarded)
@@ -66,7 +66,7 @@ export const useRewardedAd = (rewardType = 'default') => {
     const unsubscribeClosed = rewarded.addAdEventListener(
       RewardedAdEventType.CLOSED,
       () => {
-        console.log(`👋 Rewarded ad closed: ${rewardType}`);
+        //console.log(`👋 Rewarded ad closed: ${rewardType}`);
         setIsLoaded(false);
         
         // If callback wasn't called yet, user didn't watch full ad
@@ -83,7 +83,7 @@ export const useRewardedAd = (rewardType = 'default') => {
     const unsubscribeOpened = rewarded.addAdEventListener(
       RewardedAdEventType.OPENED,
       () => {
-        console.log(`👆 Rewarded ad opened: ${rewardType}`);
+        //console.log(`👆 Rewarded ad opened: ${rewardType}`);
       }
     );
 
@@ -110,7 +110,7 @@ export const useRewardedAd = (rewardType = 'default') => {
 
     // Check if ad can be shown
     if (!AdMobService.canShowRewarded()) {
-      console.log('⏭️ Daily rewarded ad limit reached');
+      //console.log('⏭️ Daily rewarded ad limit reached');
       if (callback) callback(false);
       return;
     }
@@ -124,7 +124,7 @@ export const useRewardedAd = (rewardType = 'default') => {
         if (callback) callback(false);
       }
     } else {
-      console.log('⏭️ Rewarded ad not ready');
+      //console.log('⏭️ Rewarded ad not ready');
       if (callback) callback(false);
     }
   };

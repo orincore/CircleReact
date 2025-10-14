@@ -1,30 +1,28 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import LocationMap from '@/components/LocationMap';
+import { useAuth } from '@/contexts/AuthContext';
+import { nearbyUsersGql } from '@/src/api/graphql';
+import UserProfileModal from '@/src/components/UserProfileModal';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Image,
+  ActivityIndicator,
   Animated,
   Dimensions,
-  Platform,
-  ActivityIndicator,
-  SafeAreaView,
-  RefreshControl,
-  Modal,
+  Image,
   PanResponder,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { BlurView } from 'expo-blur';
-import { useRouter, Stack } from 'expo-router';
-import LocationMap from '@/components/LocationMap';
-import UserProfileModal from '@/src/components/UserProfileModal';
-import * as Location from 'expo-location';
-import { nearbyUsersGql } from '@/src/api/graphql';
-import { useAuth } from '@/contexts/AuthContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isLargeScreen = screenWidth >= 768; // Tablet/Desktop breakpoint
@@ -130,7 +128,7 @@ export default function LocationPage() {
   // Redirect if invisible mode is enabled
   useEffect(() => {
     if (user?.invisibleMode) {
-      console.log('🚫 User is in invisible mode, redirecting back...');
+      //console.log('🚫 User is in invisible mode, redirecting back...');
       router.back();
     }
   }, [user?.invisibleMode]);
@@ -159,7 +157,7 @@ export default function LocationPage() {
       
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission denied');
+        //console.log('Location permission denied');
         // Even if permission denied, keep the default region for web
         if (Platform.OS !== 'web') {
           setMapRegion({
@@ -240,7 +238,7 @@ export default function LocationPage() {
               displayName: city && country ? `${city}, ${country}` : city || country || 'Unknown Location'
             };
             
-            console.log('Expo Location structured result:', result);
+            //console.log('Expo Location structured result:', result);
             return result;
           }
         } catch (expoError) {
@@ -255,7 +253,7 @@ export default function LocationPage() {
           
           // Service 1: BigDataCloud (free, no API key required)
           async () => {
-            console.log('Trying BigDataCloud geocoding (Service 1)...');
+            //console.log('Trying BigDataCloud geocoding (Service 1)...');
             try {
               const response = await fetch(
                 `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
@@ -263,7 +261,7 @@ export default function LocationPage() {
               
               if (response.ok) {
                 const data = await response.json();
-                console.log('BigDataCloud response:', data);
+                //console.log('BigDataCloud response:', data);
                 
                 if (data) {
                   const city = data.city || data.locality || data.principalSubdivision;
@@ -283,7 +281,7 @@ export default function LocationPage() {
                     displayName: city && country ? `${city}, ${country}` : city || country || 'Unknown Location'
                   };
                   
-                  console.log('BigDataCloud structured result:', result);
+                  //console.log('BigDataCloud structured result:', result);
                   return result;
                 }
               } else {
@@ -297,7 +295,7 @@ export default function LocationPage() {
           
           // Service 2: OpenCage (backup with demo key - limited requests)
           async () => {
-            console.log('Trying OpenCage geocoding (Service 2)...');
+            //console.log('Trying OpenCage geocoding (Service 2)...');
             const response = await fetch(
               `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=demo&language=en&no_annotations=1&limit=1`
             );
@@ -348,13 +346,13 @@ export default function LocationPage() {
         for (let i = 0; i < geocodingServices.length; i++) {
           const service = geocodingServices[i];
           try {
-            console.log(`Trying geocoding service ${i + 1}/${geocodingServices.length}...`);
+            //console.log(`Trying geocoding service ${i + 1}/${geocodingServices.length}...`);
             const result = await service();
             if (result && result.city && result.country) {
-              console.log(`Successfully got location from service ${i + 1}:`, result);
+              //console.log(`Successfully got location from service ${i + 1}:`, result);
               return result;
             } else {
-              console.log(`Service ${i + 1} returned incomplete data:`, result);
+              //console.log(`Service ${i + 1} returned incomplete data:`, result);
             }
           } catch (error) {
             console.warn(`Geocoding service ${i + 1} failed:`, error);
@@ -362,14 +360,14 @@ export default function LocationPage() {
           }
         }
         
-        console.log('All geocoding services failed, trying simple coordinate parsing...');
+        //console.log('All geocoding services failed, trying simple coordinate parsing...');
         
         // Try a simple coordinate-based service as additional fallback
         try {
           const response = await fetch(`http://ip-api.com/json/?lat=${latitude}&lon=${longitude}`);
           if (response.ok) {
             const data = await response.json();
-            console.log('IP-API coordinate response:', data);
+            //console.log('IP-API coordinate response:', data);
             
             if (data && data.city && data.country) {
               const result = {
@@ -378,7 +376,7 @@ export default function LocationPage() {
                 address: `${data.city}, ${data.regionName || data.region || ''}, ${data.country}`.replace(', ,', ','),
                 displayName: `${data.city}, ${data.country}`
               };
-              console.log('IP-API structured result:', result);
+              //console.log('IP-API structured result:', result);
               return result;
             }
           }
@@ -442,12 +440,12 @@ export default function LocationPage() {
         };
         
         const approximateLocation = getApproximateLocation(latitude, longitude);
-        console.log('Using approximate location fallback:', approximateLocation);
+        //console.log('Using approximate location fallback:', approximateLocation);
         return approximateLocation;
       }
       
       // Final fallback with coordinates
-      console.log('All services failed, using coordinate fallback');
+      //console.log('All services failed, using coordinate fallback');
       return {
         city: 'Unknown City',
         country: 'Unknown Country',
@@ -495,14 +493,7 @@ export default function LocationPage() {
         const rawLocationData = await getLocationData(latitude, longitude);
         const locationData = validateLocationData(rawLocationData);
         setCurrentLocationName(locationData.displayName);
-        
-        // Store structured location data for database usage
-        console.log('Validated location data for database:', {
-          location_city: locationData.city,
-          location_country: locationData.country,
-          location_address: locationData.address
-        });
-        
+                
         // Ensure we have valid data before proceeding
         if (locationData.city === 'Unknown City' && locationData.country === 'Unknown Country') {
           console.warn('Could not resolve location for coordinates:', { latitude, longitude });
@@ -556,14 +547,14 @@ export default function LocationPage() {
 
     // Set new timeout to load users after user stops moving the map
     loadingTimeoutRef.current = setTimeout(async () => {
-      console.log('Map region changed by user, loading users for:', region);
+      //console.log('Map region changed by user, loading users for:', region);
       
       // Always update location data first, even if no users are found
       try {
         const rawLocationData = await getLocationData(region.latitude, region.longitude);
         const locationData = validateLocationData(rawLocationData);
         setCurrentLocationName(locationData.displayName);
-        console.log('Updated location name to:', locationData.displayName);
+        //console.log('Updated location name to:', locationData.displayName);
         
         // Store structured location data for database usage
         console.log('Validated location data for database:', {
@@ -696,8 +687,8 @@ export default function LocationPage() {
   const totalFilteredUsers = getTotalFilteredCount(filteredCategories);
 
   const handleUserSelect = (user) => {
-    console.log('LocationPage handleUserSelect called for user:', user.id, user.name);
-    console.log('Complete user object:', JSON.stringify(user, null, 2));
+    //console.log('LocationPage handleUserSelect called for user:', user.id, user.name);
+    //console.log('Complete user object:', JSON.stringify(user, null, 2));
     setSelectedUserId(user.id);
     setHighlightedPin(user.id);
     setSelectedUser(user);

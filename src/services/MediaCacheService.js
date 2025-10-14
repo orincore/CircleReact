@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 /**
  * Media Cache Service
@@ -31,7 +30,7 @@ class MediaCacheService {
       if (this.memoryCache.has(cacheKey)) {
         const cached = this.memoryCache.get(cacheKey);
         if (this.isValidCache(cached)) {
-          console.log('📱 Media cache HIT (memory):', messageId);
+          //console.log('📱 Media cache HIT (memory):', messageId);
           return cached.data;
         } else {
           // Remove expired item from memory
@@ -44,7 +43,7 @@ class MediaCacheService {
       if (cachedString) {
         const cached = JSON.parse(cachedString);
         if (this.isValidCache(cached)) {
-          console.log('💾 Media cache HIT (storage):', messageId);
+          //console.log('💾 Media cache HIT (storage):', messageId);
           // Add back to memory cache for faster access
           this.addToMemoryCache(cacheKey, cached);
           return cached.data;
@@ -54,7 +53,7 @@ class MediaCacheService {
         }
       }
 
-      console.log('❌ Media cache MISS:', messageId);
+      //console.log('❌ Media cache MISS:', messageId);
       return null;
     } catch (error) {
       console.error('Error getting cached media:', error);
@@ -88,7 +87,7 @@ class MediaCacheService {
       // Store in persistent storage
       await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheItem));
       
-      console.log('✅ Media cached successfully:', messageId);
+      //console.log('✅ Media cached successfully:', messageId);
     } catch (error) {
       console.error('Error caching media:', error);
     }
@@ -110,7 +109,7 @@ class MediaCacheService {
       this.addToMemoryCache(cacheKey, cacheItem);
       await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheItem));
       
-      console.log('🖼️ Thumbnail cached successfully:', messageId);
+      //console.log('🖼️ Thumbnail cached successfully:', messageId);
     } catch (error) {
       console.error('Error caching thumbnail:', error);
     }
@@ -168,7 +167,7 @@ class MediaCacheService {
       }
     }
     
-    console.log(`📦 Preloaded ${mediaMessages.length} media items for chat`);
+    //console.log(`📦 Preloaded ${mediaMessages.length} media items for chat`);
   }
 
   /**
@@ -192,7 +191,7 @@ class MediaCacheService {
         }
       }
       
-      console.log(`🧹 Cleared ${clearedCount} expired media cache items`);
+      //console.log(`🧹 Cleared ${clearedCount} expired media cache items`);
     } catch (error) {
       console.error('Error clearing expired cache:', error);
     }
@@ -209,7 +208,7 @@ class MediaCacheService {
       await AsyncStorage.multiRemove(mediaCacheKeys);
       this.memoryCache.clear();
       
-      console.log(`🗑️ Cleared all media cache (${mediaCacheKeys.length} items)`);
+      //console.log(`🗑️ Cleared all media cache (${mediaCacheKeys.length} items)`);
     } catch (error) {
       console.error('Error clearing all cache:', error);
     }
@@ -262,7 +261,7 @@ class MediaCacheService {
       await this.clearExpiredCache();
       
       const stats = await this.getCacheStats();
-      console.log('📊 Media cache initialized:', stats);
+      //console.log('📊 Media cache initialized:', stats);
     } catch (error) {
       console.error('Error initializing media cache:', error);
     }

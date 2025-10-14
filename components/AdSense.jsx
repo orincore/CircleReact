@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 // Google AdSense component for web browsers
 export const AdSense = ({ 
@@ -132,7 +132,7 @@ export const AdMobInterstitial = () => {
   }
 
   // In production, this would trigger an interstitial ad
-  console.log('AdMob Interstitial would show here');
+  //console.log('AdMob Interstitial would show here');
   return null;
 };
 
@@ -144,7 +144,7 @@ export const AdMobRewarded = ({ onReward }) => {
 
   // In production, this would show a rewarded video ad
   const showRewardedAd = () => {
-    console.log('AdMob Rewarded Ad would show here');
+    //console.log('AdMob Rewarded Ad would show here');
     // Simulate reward after watching ad
     setTimeout(() => {
       if (onReward) {

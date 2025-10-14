@@ -1,22 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Image,
-  Switch,
-  Linking,
-  ScrollView,
-  Platform,
-  Modal,
-  TextInput
-} from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 const SocialAccountsManager = ({ onClose }) => {
   const { token } = useAuth();
@@ -84,7 +83,7 @@ const SocialAccountsManager = ({ onClose }) => {
   };
 
   const handleInstagramVerificationSuccess = (account) => {
-    console.log('Instagram account verified:', account);
+    //console.log('Instagram account verified:', account);
     
     // Show appropriate success message
     if (account.is_reactivation) {

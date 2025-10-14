@@ -1,14 +1,14 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter, useNavigation } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, Image, ActivityIndicator, Modal, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { combinePhoneNumber, COUNTRIES, DEFAULT_COUNTRY, parsePhoneNumber } from '@/constants/countries';
+import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
 import { useAuth } from "@/contexts/AuthContext";
-import * as ImagePicker from 'expo-image-picker';
 import { ProfilePictureService } from '@/src/services/profilePictureService';
-import { COUNTRIES, DEFAULT_COUNTRY, parsePhoneNumber, combinePhoneNumber } from '@/constants/countries';
-import { INTEREST_CATEGORIES, NEED_OPTIONS, POPULAR_INTERESTS, searchInterests } from "@/constants/interests";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
@@ -55,11 +55,6 @@ export default function EditProfileScreen() {
   // Update form when user data changes
   useEffect(() => {
     if (user) {
-      console.log('👤 User data loaded:', {
-        instagramUsername: user?.instagramUsername,
-        firstName: user?.firstName,
-        phoneNumber: user?.phoneNumber,
-      });
       
       const parsed = parsePhoneNumber(user?.phoneNumber);
       setSelectedCountry(parsed.country);
@@ -326,10 +321,6 @@ export default function EditProfileScreen() {
       if (form.interests.size > 0) payload.interests = Array.from(form.interests);
       if (form.needs.size > 0) payload.needs = Array.from(form.needs);
 
-      console.log('💾 Saving profile with payload:', {
-        ...payload,
-        instagramUsername: payload.instagramUsername,
-      });
 
       await updateProfile(payload);
       if (Platform.OS === 'web') {

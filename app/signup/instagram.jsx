@@ -1,23 +1,23 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
-import { 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  View,
-  Animated,
-  useWindowDimensions,
-  Image,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { SignupWizardContext } from "./_layout";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { useContext, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { SignupWizardContext } from "./_layout";
 
 export default function SignupInstagram() {
   const router = useRouter();
@@ -67,10 +67,10 @@ export default function SignupInstagram() {
     ]).start();
 
     const trimmedUsername = instagramUsername.trim();
-    console.log('📸 Saving Instagram username to context:', trimmedUsername);
+    //console.log('📸 Saving Instagram username to context:', trimmedUsername);
     setData((prev) => {
       const newData = { ...prev, instagramUsername: trimmedUsername };
-      console.log('📸 Updated context data:', newData);
+      //console.log('📸 Updated context data:', newData);
       return newData;
     });
     router.push("/signup/interests");

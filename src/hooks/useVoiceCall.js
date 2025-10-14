@@ -1,10 +1,10 @@
 // NEW SIMPLIFIED VOICE CALL HOOK - BUILT FROM SCRATCH
-import { useEffect } from 'react';
-import { Platform, Alert, AppState } from 'react-native';
-import { useRouter } from 'expo-router';
-import { voiceCallService } from '../services/VoiceCallService';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Alert, AppState, Platform } from 'react-native';
+import { voiceCallService } from '../services/VoiceCallService';
 
 // Configure notification behavior for Android - Full screen for calls
 if (Platform.OS === 'android') {
@@ -60,11 +60,11 @@ export function useVoiceCall() {
       const data = response.notification.request.content.data;
       const actionIdentifier = response.actionIdentifier;
       
-      console.log('📱 Notification response:', actionIdentifier, data);
+      //console.log('📱 Notification response:', actionIdentifier, data);
       
       if (data.type === 'incoming_call') {
         if (actionIdentifier === 'accept') {
-          console.log('✅ User accepted call from notification');
+          //console.log('✅ User accepted call from notification');
           // Navigate to call screen and auto-accept
           router.push({
             pathname: '/secure/voice-call',
@@ -78,13 +78,13 @@ export function useVoiceCall() {
             }
           });
         } else if (actionIdentifier === 'decline') {
-          console.log('❌ User declined call from notification');
+          //console.log('❌ User declined call from notification');
           // Decline the call
           voiceCallService.declineCall();
           // Dismiss notification
           Notifications.dismissNotificationAsync(response.notification.request.identifier);
         } else {
-          console.log('📱 User tapped call notification');
+          //console.log('📱 User tapped call notification');
           // Just open the call screen
           router.push({
             pathname: '/secure/voice-call',
@@ -105,7 +105,7 @@ export function useVoiceCall() {
       if (Platform.OS !== 'android') return;
       
       try {
-        console.log('🔔 Showing notification for:', callData.callerName);
+        //console.log('🔔 Showing notification for:', callData.callerName);
         
         // Dismiss previous notification first
         if (voiceCallService.currentNotificationId) {
@@ -148,7 +148,7 @@ export function useVoiceCall() {
         });
         
         voiceCallService.currentNotificationId = notificationId;
-        console.log('✅ Notification scheduled with ID:', notificationId);
+        //console.log('✅ Notification scheduled with ID:', notificationId);
       } catch (error) {
         console.error('❌ Failed to show notification:', error);
         console.error('Error details:', error);
@@ -160,12 +160,12 @@ export function useVoiceCall() {
     
     // Handle incoming calls - Navigate to full-screen call UI
     voiceCallService.onIncomingCall = async (callData) => {
-      console.log('📞 Incoming call received:', callData);
-      console.log('📱 App state:', AppState.currentState);
+      //console.log('📞 Incoming call received:', callData);
+      //console.log('📱 App state:', AppState.currentState);
       
       // Prevent duplicate navigation for same call
       if (navigatedCallId === callData.callId) {
-        console.log('⚠️ Already navigated for this call, skipping navigation');
+        //console.log('⚠️ Already navigated for this call, skipping navigation');
         return;
       }
       
@@ -175,12 +175,12 @@ export function useVoiceCall() {
       
       // Start notification loop if app is in background
       if (isBackground && Platform.OS === 'android') {
-        console.log('📱 App in background - starting notification loop');
+        //console.log('📱 App in background - starting notification loop');
         voiceCallService.startNotificationLoop(callData);
       }
       
       // Navigate to voice call screen (works when app comes to foreground)
-      console.log('📞 Navigating to call screen');
+      //console.log('📞 Navigating to call screen');
       router.push({
         pathname: '/secure/voice-call',
         params: {
@@ -202,7 +202,7 @@ export function useVoiceCall() {
   // Start a voice call
   const startVoiceCall = async (receiverId, receiverName, receiverAvatar) => {
     try {
-      console.log('📞 Starting voice call to:', receiverId);
+      //console.log('📞 Starting voice call to:', receiverId);
       
       // Start the call first to get the real call ID
       const success = await voiceCallService.startCall(receiverId, token);
@@ -215,7 +215,7 @@ export function useVoiceCall() {
       
       // Now navigate with the actual call ID from the service
       const actualCallId = voiceCallService.currentCallId;
-      console.log('📞 Navigating to call screen with call ID:', actualCallId);
+      //console.log('📞 Navigating to call screen with call ID:', actualCallId);
       
       router.push({
         pathname: '/secure/voice-call',

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { API_BASE_URL } from '../api/config';
 
 const CRASH_REPORTS_KEY = '@circle:crash_reports';
@@ -32,7 +32,7 @@ class CrashReportingService {
       // Send any stored crash reports
       await this.sendStoredCrashReports();
       
-      console.log('💥 Crash reporting initialized');
+      //console.log('💥 Crash reporting initialized');
     } catch (error) {
       console.error('Crash reporting initialization error:', error);
     }
@@ -161,7 +161,7 @@ class CrashReportingService {
       if (response.ok) {
         // Remove from local storage if sent successfully
         await this.removeCrashReport(crashReport.id);
-        console.log('💥 Crash report sent successfully');
+        //console.log('💥 Crash report sent successfully');
       }
     } catch (error) {
       console.error('Error sending crash report:', error);
@@ -288,7 +288,7 @@ class CrashReportingService {
   async clearStoredReports() {
     try {
       await AsyncStorage.removeItem(CRASH_REPORTS_KEY);
-      console.log('💥 Cleared all stored crash reports');
+      //console.log('💥 Cleared all stored crash reports');
     } catch (error) {
       console.error('Error clearing crash reports:', error);
     }

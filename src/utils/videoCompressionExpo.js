@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 /**
  * Video Compression using Expo AV
@@ -19,16 +19,16 @@ try {
 export const compressVideo = async (videoUri, options = {}) => {
   try {
     if (Platform.OS === 'web') {
-      console.log('📹 Video compression not available on web');
+      //console.log('📹 Video compression not available on web');
       return videoUri; // Return original URI on web
     }
 
     if (!Video) {
-      console.log('📹 expo-av not available, skipping compression');
+      //console.log('📹 expo-av not available, skipping compression');
       return videoUri;
     }
 
-    console.log('📹 Starting video compression...');
+    //console.log('📹 Starting video compression...');
     
     const defaultOptions = {
       quality: 'medium', // 'low', 'medium', 'high'
@@ -39,7 +39,7 @@ export const compressVideo = async (videoUri, options = {}) => {
     // Get original file info
     const originalInfo = await FileSystem.getInfoAsync(videoUri);
     const originalSizeMB = (originalInfo.size / (1024 * 1024)).toFixed(2);
-    console.log(`📹 Original video: ${originalSizeMB}MB`);
+    //console.log(`📹 Original video: ${originalSizeMB}MB`);
 
     // For now, we'll use a simple approach with FileSystem operations
     // Real video compression would require native modules or expo-media-library
@@ -49,7 +49,7 @@ export const compressVideo = async (videoUri, options = {}) => {
     try {
       MediaLibrary = require('expo-media-library');
     } catch (error) {
-      console.log('📹 MediaLibrary not available');
+      //console.log('📹 MediaLibrary not available');
     }
 
     if (MediaLibrary && MediaLibrary.createAssetAsync) {
@@ -62,7 +62,7 @@ export const compressVideo = async (videoUri, options = {}) => {
           to: compressedUri
         });
         
-        console.log('📹 Video "compressed" (copied for now)');
+        //console.log('📹 Video "compressed" (copied for now)');
         return compressedUri;
       } catch (error) {
         console.error('📹 Compression failed:', error);
@@ -119,17 +119,17 @@ export const optimizeVideoForUpload = async (videoUri, maxSizeMB = 25) => {
     const fileInfo = await FileSystem.getInfoAsync(videoUri);
     const fileSizeMB = fileInfo.size / (1024 * 1024);
     
-    console.log(`📹 Video optimization: ${fileSizeMB.toFixed(2)}MB (max: ${maxSizeMB}MB)`);
+    //console.log(`📹 Video optimization: ${fileSizeMB.toFixed(2)}MB (max: ${maxSizeMB}MB)`);
     
     if (!shouldCompressVideo(fileSizeMB, maxSizeMB)) {
-      console.log('📹 Video size acceptable, no compression needed');
+      //console.log('📹 Video size acceptable, no compression needed');
       return videoUri;
     }
     
     // For now, return original URI with a warning
     // Real compression would require react-native-video-processing or similar
-    console.log('⚠️ Video compression not fully implemented - returning original');
-    console.log('💡 Consider using a video compression app before uploading');
+    //console.log('⚠️ Video compression not fully implemented - returning original');
+    //console.log('💡 Consider using a video compression app before uploading');
     
     return videoUri;
   } catch (error) {

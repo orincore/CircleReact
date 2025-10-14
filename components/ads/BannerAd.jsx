@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getAdUnitId } from '@/src/config/admob';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 
 /**
  * Banner Ad Component
@@ -26,7 +26,7 @@ const CircleBannerAd = ({ placement = 'default', style }) => {
   const handleAdLoaded = () => {
     setAdLoaded(true);
     setAdError(null);
-    console.log(`✅ Banner ad loaded: ${placement}`);
+    //console.log(`✅ Banner ad loaded: ${placement}`);
   };
 
   const handleAdFailedToLoad = (error) => {
@@ -35,11 +35,11 @@ const CircleBannerAd = ({ placement = 'default', style }) => {
   };
 
   const handleAdOpened = () => {
-    console.log(`👆 Banner ad opened: ${placement}`);
+    //console.log(`👆 Banner ad opened: ${placement}`);
   };
 
   const handleAdClosed = () => {
-    console.log(`👋 Banner ad closed: ${placement}`);
+    //console.log(`👋 Banner ad closed: ${placement}`);
   };
 
   return (

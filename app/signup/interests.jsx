@@ -1,14 +1,13 @@
-import React, { useContext, useMemo, useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
-import { Animated, Image } from "react-native";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { SignupWizardContext } from "./_layout";
-import { useAuth } from "@/contexts/AuthContext";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
-import { INTEREST_CATEGORIES, NEED_OPTIONS, POPULAR_INTERESTS, searchInterests } from "@/constants/interests";
+import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
+import { useAuth } from "@/contexts/AuthContext";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { SignupWizardContext } from "./_layout";
 
 export default function SignupInterests() {
   const router = useRouter();
@@ -131,12 +130,6 @@ export default function SignupInterests() {
       if (norm.phoneOut && norm.phoneOut.replace(/[^0-9]/g, '').length < 5) return alert('Phone should be at least 5 digits');
       if (!data.instagramUsername || data.instagramUsername.trim().length < 1) return alert('Instagram username is required');
 
-      // Debug: Check what we have in context data
-      console.log('🔍 Context data before payload creation:', {
-        instagramUsername: data.instagramUsername,
-        about: data.about,
-        allData: data
-      });
 
       const instagramUsernameValue = (data.instagramUsername || '').trim().replace('@', '');
       
@@ -154,11 +147,7 @@ export default function SignupInterests() {
         instagramUsername: instagramUsernameValue,
         about: (data.about || '').trim(),
       };
-      // Debug: surface outgoing payload
-      console.log('📤 Frontend signup payload:', JSON.stringify(payload, null, 2));
-      console.log('📸 Instagram username in payload:', payload.instagramUsername);
-      console.log('📸 Instagram username length:', payload.instagramUsername?.length);
-      console.log('📝 About in payload:', payload.about);
+      
       await signUp(payload);
       router.replace("/signup/summary");
     } catch (e) {
@@ -353,7 +342,12 @@ const styles = StyleSheet.create({
     width: 48, 
     height: 48,
   },
-  primaryButtonText: { fontSize: 17, fontWeight: "700", color: "#FFFFFF", letterSpacing: 0.3 },
+  appName: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
   
   // Category Sections
   categorySection: {

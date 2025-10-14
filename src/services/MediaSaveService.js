@@ -1,4 +1,4 @@
-import { Platform, Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 // Dynamic imports to handle cases where expo-media-library might not be available
 let MediaLibrary = null;
@@ -35,7 +35,7 @@ class MediaSaveService {
       this.hasPermission = status === 'granted';
       this.permissionChecked = true;
       
-      console.log('📱 Media library permission status:', status);
+      //console.log('📱 Media library permission status:', status);
       return this.hasPermission;
     } catch (error) {
       console.error('Error requesting media library permissions:', error);
@@ -74,13 +74,13 @@ class MediaSaveService {
         throw new Error('FileSystem not available');
       }
       
-      console.log('📥 Downloading file:', url);
+      //console.log('📥 Downloading file:', url);
       
       const fileUri = `${FileSystem.cacheDirectory}${filename}`;
       const downloadResult = await FileSystem.downloadAsync(url, fileUri);
       
       if (downloadResult.status === 200) {
-        console.log('✅ File downloaded successfully:', downloadResult.uri);
+        //console.log('✅ File downloaded successfully:', downloadResult.uri);
         return downloadResult.uri;
       } else {
         throw new Error(`Download failed with status: ${downloadResult.status}`);
@@ -122,13 +122,13 @@ class MediaSaveService {
       const localUri = await this.downloadFile(imageUrl, filename);
       
       // Save to photo library
-      console.log('📸 Attempting to save to gallery:', localUri);
+      //console.log('📸 Attempting to save to gallery:', localUri);
       
       let asset = null;
       
       // Try different API approaches based on expo-media-library version
       try {
-        console.log('📸 Trying createAssetAsync with options');
+        //console.log('📸 Trying createAssetAsync with options');
         // New API requires options parameter
         const options = {};
         if (MediaLibrary.MediaType && MediaLibrary.MediaType.photo) {
@@ -136,14 +136,14 @@ class MediaSaveService {
         }
         asset = await MediaLibrary.createAssetAsync(localUri, options);
       } catch (createError) {
-        console.log('📸 createAssetAsync with options failed:', createError.message);
+        //console.log('📸 createAssetAsync with options failed:', createError.message);
         
         try {
-          console.log('📸 Trying createAssetAsync without options');
+          //console.log('📸 Trying createAssetAsync without options');
           // Try without options (older API)
           asset = await MediaLibrary.createAssetAsync(localUri);
         } catch (createError2) {
-          console.log('📸 createAssetAsync failed, trying saveToLibraryAsync:', createError2.message);
+          //console.log('📸 createAssetAsync failed, trying saveToLibraryAsync:', createError2.message);
           
           // Fallback to saveToLibraryAsync if available
           if (typeof MediaLibrary.saveToLibraryAsync === 'function') {
@@ -154,7 +154,7 @@ class MediaSaveService {
         }
       }
       
-      console.log('📸 Image saved to gallery:', asset ? (asset.id || 'success') : 'success');
+      //console.log('📸 Image saved to gallery:', asset ? (asset.id || 'success') : 'success');
       
       // Clean up cache file
       try {
@@ -201,13 +201,13 @@ class MediaSaveService {
       const localUri = await this.downloadFile(videoUrl, filename);
       
       // Save to photo library
-      console.log('🎥 Attempting to save video to gallery:', localUri);
+      //console.log('🎥 Attempting to save video to gallery:', localUri);
       
       let asset = null;
       
       // Try different API approaches based on expo-media-library version
       try {
-        console.log('🎥 Trying createAssetAsync with options');
+        //console.log('🎥 Trying createAssetAsync with options');
         // New API requires options parameter
         const options = {};
         if (MediaLibrary.MediaType && MediaLibrary.MediaType.video) {
@@ -215,14 +215,14 @@ class MediaSaveService {
         }
         asset = await MediaLibrary.createAssetAsync(localUri, options);
       } catch (createError) {
-        console.log('🎥 createAssetAsync with options failed:', createError.message);
+        //console.log('🎥 createAssetAsync with options failed:', createError.message);
         
         try {
-          console.log('🎥 Trying createAssetAsync without options');
+          //console.log('🎥 Trying createAssetAsync without options');
           // Try without options (older API)
           asset = await MediaLibrary.createAssetAsync(localUri);
         } catch (createError2) {
-          console.log('🎥 createAssetAsync failed, trying saveToLibraryAsync:', createError2.message);
+          //console.log('🎥 createAssetAsync failed, trying saveToLibraryAsync:', createError2.message);
           
           // Fallback to saveToLibraryAsync if available
           if (typeof MediaLibrary.saveToLibraryAsync === 'function') {
@@ -233,7 +233,7 @@ class MediaSaveService {
         }
       }
       
-      console.log('🎥 Video saved to gallery:', asset ? (asset.id || 'success') : 'success');
+      //console.log('🎥 Video saved to gallery:', asset ? (asset.id || 'success') : 'success');
       
       // Clean up cache file
       try {
@@ -269,7 +269,7 @@ class MediaSaveService {
       link.click();
       document.body.removeChild(link);
       
-      console.log('💻 Download triggered for web:', filename);
+      //console.log('💻 Download triggered for web:', filename);
       return true;
     } catch (error) {
       console.error('❌ Web download failed:', error);
@@ -282,7 +282,7 @@ class MediaSaveService {
    */
   async saveMedia(mediaUrl, mediaType, messageId) {
     try {
-      console.log('💾 Saving media:', { mediaUrl, mediaType, messageId });
+      //console.log('💾 Saving media:', { mediaUrl, mediaType, messageId });
       
       if (!mediaUrl) {
         throw new Error('Media URL is required');

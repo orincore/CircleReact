@@ -1,14 +1,14 @@
-import { Stack } from "expo-router";
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import UserConsentModal from "@/components/UserConsentModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
-import NotificationManager from "@/src/components/NotificationManager";
 import BrowserNotificationProvider from "@/src/components/BrowserNotificationProvider";
 import ConnectionStatus from "@/src/components/ConnectionStatus";
-import UserConsentModal from "@/components/UserConsentModal";
-import { Platform } from 'react-native';
+import NotificationManager from "@/src/components/NotificationManager";
+import { Stack } from "expo-router";
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import analyticsService from '@/src/services/analyticsService';
 // import appVersionService from '@/src/services/appVersionService';
 // import crashReportingService from '@/src/services/crashReportingService';
@@ -43,7 +43,6 @@ export default function RootLayout() {
   const initializeAppServices = async (consent) => {
     try {
       // TODO: Initialize services when packages are installed
-      console.log('🚀 App services initialization (placeholder)', { consent });
       
       // // Always initialize crash reporting (essential for app stability)
       // await crashReportingService.initialize();
@@ -68,7 +67,6 @@ export default function RootLayout() {
       //   analyticsService.setEnabled(false);
       // }
 
-      console.log('🚀 All app services initialized');
     } catch (error) {
       console.error('Error initializing app services:', error);
       // await crashReportingService.reportError(error, { context: 'service_initialization' });

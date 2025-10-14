@@ -1,27 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { friendsApi } from '@/src/api/friends';
+import { notificationApi } from '@/src/api/notifications';
+import { getSocket } from '@/src/api/socket';
+import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
   ActivityIndicator,
-  TouchableOpacity,
-  Image,
   Alert,
-  ScrollView,
-  Modal,
-  Dimensions,
   Animated,
+  Dimensions,
+  FlatList,
+  Modal,
+  Platform,
   RefreshControl,
-  Platform
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/contexts/AuthContext';
-import { getSocket } from '@/src/api/socket';
-import { notificationApi } from '@/src/api/notifications';
-import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
-import { friendsApi } from '@/src/api/friends';
 import Avatar from './Avatar';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
@@ -87,11 +86,11 @@ export default function NotificationPanel({ visible, onClose }) {
   const loadNotifications = async () => {
     setLoading(true);
     try {
-      console.log('📱 Loading notifications from API...');
+      //console.log('📱 Loading notifications from API...');
       const response = await notificationApi.getNotifications(token);
       
       if (response.success) {
-        console.log('✅ Loaded notifications:', response.notifications.length);
+        //console.log('✅ Loaded notifications:', response.notifications.length);
         setNotifications(response.notifications);
       } else {
         console.error('❌ Failed to load notifications:', response.error);
@@ -119,7 +118,7 @@ export default function NotificationPanel({ visible, onClose }) {
     
     // Listen for new notifications
     socket.on('notification:new', ({ notification }) => {
-      console.log('🔔 New notification received:', notification);
+      //console.log('🔔 New notification received:', notification);
       if (notification && notification.id) {
         setNotifications(prev => [notification, ...prev]);
         setUnreadCount(prev => prev + 1);
@@ -130,7 +129,7 @@ export default function NotificationPanel({ visible, onClose }) {
     
     // Listen for notification removals (when requests are cancelled)
     socket.on('notification:removed', ({ type, sender_id, requestId }) => {
-      console.log('🗑️ Notification removed:', { type, sender_id, requestId });
+      //console.log('🗑️ Notification removed:', { type, sender_id, requestId });
       setNotifications(prev => prev.filter(notification => {
         // Remove notifications that match the cancelled request
         return !(
@@ -143,7 +142,7 @@ export default function NotificationPanel({ visible, onClose }) {
 
     // Listen for friend request notification removal (accept/decline)
     socket.on('notification:friend_request_removed', ({ otherUserId }) => {
-      console.log('🗑️ Friend request notification removed for user:', otherUserId);
+      //console.log('🗑️ Friend request notification removed for user:', otherUserId);
       setNotifications(prev => prev.filter(notification => {
         // Remove friend request notifications from this user
         return !(
@@ -157,14 +156,14 @@ export default function NotificationPanel({ visible, onClose }) {
 
     // Listen for single notification deletion
     socket.on('notification:deleted', ({ notificationId }) => {
-      console.log('🗑️ Notification deleted:', notificationId);
+      //console.log('🗑️ Notification deleted:', notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       setUnreadCount(prev => Math.max(0, prev - 1));
     });
 
     // Keep existing friend request listeners for compatibility
     socket.on('friend:request:received', ({ request, sender }) => {
-      console.log('🤝 Friend request received:', { request, sender });
+      //console.log('🤝 Friend request received:', { request, sender });
       
       // Extract sender from request object if not provided separately
       const actualSender = sender || request?.sender;
@@ -204,14 +203,14 @@ export default function NotificationPanel({ visible, onClose }) {
     });
 
     socket.on('friend:request:accept:confirmed', ({ request, newFriend }) => {
-      console.log('✅ Friend request accepted confirmed:', { request, newFriend });
+      //console.log('✅ Friend request accepted confirmed:', { request, newFriend });
       if (request?.id) {
         setNotifications(prev => prev.filter(notif => notif.id !== `friend_request_${request.id}`));
       }
     });
 
     socket.on('friend:request:decline:confirmed', ({ request }) => {
-      console.log('❌ Friend request declined confirmed:', { request });
+      //console.log('❌ Friend request declined confirmed:', { request });
       if (request?.id) {
         setNotifications(prev => prev.filter(notif => notif.id !== `friend_request_${request.id}`));
       }
@@ -403,12 +402,12 @@ export default function NotificationPanel({ visible, onClose }) {
 
   const handleNotificationPress = (item) => {
     // Handle notification press logic here
-    console.log('Notification pressed:', item);
+    //console.log('Notification pressed:', item);
   };
 
   const handleAcceptRequest = async (item) => {
     try {
-      console.log('Accepting friend request:', item);
+      //console.log('Accepting friend request:', item);
       
       // Extract request ID from the notification
       const requestId = item.data?.requestId || item.id?.replace('friend_request_', '');
@@ -430,7 +429,7 @@ export default function NotificationPanel({ visible, onClose }) {
         if (item.id && !item.id.startsWith('friend_request_')) {
           try {
             await notificationApi.deleteNotification(item.id, token);
-            console.log('✅ Friend request notification deleted from server');
+            //console.log('✅ Friend request notification deleted from server');
           } catch (deleteError) {
             console.error('❌ Failed to delete notification from server:', deleteError);
             // Don't show error to user, this is not critical
@@ -459,7 +458,7 @@ export default function NotificationPanel({ visible, onClose }) {
           setNotifications(prev => prev.filter(n => n.id !== successNotification.id));
         }, 5000);
         
-        console.log('✅ Friend request accepted successfully');
+        //console.log('✅ Friend request accepted successfully');
       } else {
         console.error('Failed to accept friend request:', response.error);
         Alert.alert('Error', 'Failed to accept friend request');
@@ -472,7 +471,7 @@ export default function NotificationPanel({ visible, onClose }) {
 
   const handleDeclineRequest = async (item) => {
     try {
-      console.log('Declining friend request:', item);
+      //console.log('Declining friend request:', item);
       
       // Extract request ID from the notification
       const requestId = item.data?.requestId || item.id?.replace('friend_request_', '');
@@ -494,14 +493,14 @@ export default function NotificationPanel({ visible, onClose }) {
         if (item.id && !item.id.startsWith('friend_request_')) {
           try {
             await notificationApi.deleteNotification(item.id, token);
-            console.log('✅ Friend request notification deleted from server');
+            //console.log('✅ Friend request notification deleted from server');
           } catch (deleteError) {
             console.error('❌ Failed to delete notification from server:', deleteError);
             // Don't show error to user, this is not critical
           }
         }
         
-        console.log('✅ Friend request declined successfully');
+        //console.log('✅ Friend request declined successfully');
       } else {
         console.error('Failed to decline friend request:', response.error);
         Alert.alert('Error', 'Failed to decline friend request');
@@ -569,7 +568,7 @@ export default function NotificationPanel({ visible, onClose }) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
         resetNotificationCount();
-        console.log('✅ All notifications marked as read');
+        //console.log('✅ All notifications marked as read');
       }
     } catch (error) {
       console.error('❌ Error marking all as read:', error);

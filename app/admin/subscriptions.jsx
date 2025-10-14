@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  TextInput,
-  RefreshControl,
-  Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function AdminSubscriptions() {
   const [subscriptions, setSubscriptions] = useState([]);
@@ -43,8 +43,8 @@ export default function AdminSubscriptions() {
       }
 
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
-      console.log('🔍 Loading subscriptions from:', `${apiUrl}/api/admin/subscriptions`);
-      console.log('🔍 Using token:', token ? 'Present' : 'Missing');
+      //console.log('🔍 Loading subscriptions from:', `${apiUrl}/api/admin/subscriptions`);
+      //console.log('🔍 Using token:', token ? 'Present' : 'Missing');
       
       const response = await fetch(`${apiUrl}/api/admin/subscriptions`, {
         headers: {
@@ -53,12 +53,12 @@ export default function AdminSubscriptions() {
         },
       });
 
-      console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response ok:', response.ok);
+      //console.log('🔍 Response status:', response.status);
+      //console.log('🔍 Response ok:', response.ok);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Subscriptions data:', data);
+        //console.log('🔍 Subscriptions data:', data);
         setSubscriptions(data.subscriptions || []);
       } else {
         const errorText = await response.text();
@@ -88,14 +88,14 @@ export default function AdminSubscriptions() {
   };
 
   const performCancellation = async (subscriptionId) => {
-    console.log('🔍 User confirmed cancellation');
+    //console.log('🔍 User confirmed cancellation');
     try {
       const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
-      console.log('🔍 Cancelling subscription:', subscriptionId);
-      console.log('🔍 Using token:', token ? 'Present' : 'Missing');
-      console.log('🔍 Cancel URL:', `${apiUrl}/api/admin/subscriptions/${subscriptionId}/cancel`);
+      //console.log('🔍 Cancelling subscription:', subscriptionId);
+      //console.log('🔍 Using token:', token ? 'Present' : 'Missing');
+      //console.log('🔍 Cancel URL:', `${apiUrl}/api/admin/subscriptions/${subscriptionId}/cancel`);
       
       const response = await fetch(`${apiUrl}/api/admin/subscriptions/${subscriptionId}/cancel`, {
         method: 'POST',
@@ -105,11 +105,11 @@ export default function AdminSubscriptions() {
         },
       });
 
-      console.log('🔍 Cancel response status:', response.status);
+      //console.log('🔍 Cancel response status:', response.status);
 
       if (response.ok) {
         const result = await response.json();
-        console.log('🔍 Cancel success:', result);
+        //console.log('🔍 Cancel success:', result);
         Alert.alert('Success', 'Subscription cancelled successfully');
         loadSubscriptions();
       } else {
@@ -124,19 +124,19 @@ export default function AdminSubscriptions() {
   };
 
   const handleCancelSubscription = async (subscriptionId, userId) => {
-    console.log('🔍 Cancel button clicked for subscription:', subscriptionId, 'user:', userId);
+    //console.log('🔍 Cancel button clicked for subscription:', subscriptionId, 'user:', userId);
     
     try {
-      console.log('🔍 Attempting to show confirmation dialog...');
+      //console.log('🔍 Attempting to show confirmation dialog...');
       
       // Try using window.confirm as fallback for web
       if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-        console.log('🔍 Using window.confirm for web...');
+        //console.log('🔍 Using window.confirm for web...');
         const confirmed = window.confirm('Are you sure you want to cancel this subscription?');
         if (confirmed) {
           await performCancellation(subscriptionId);
         } else {
-          console.log('🔍 User cancelled the action via window.confirm');
+          //console.log('🔍 User cancelled the action via window.confirm');
         }
         return;
       }
@@ -168,9 +168,9 @@ export default function AdminSubscriptions() {
       const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
-      console.log('🔍 Updating subscription:', selectedSubscription.id);
-      console.log('🔍 Update data:', { plan_type: editPlan, status: editStatus, expires_at: editExpiryDate });
-      console.log('🔍 Using token:', token ? 'Present' : 'Missing');
+      //console.log('🔍 Updating subscription:', selectedSubscription.id);
+      //console.log('🔍 Update data:', { plan_type: editPlan, status: editStatus, expires_at: editExpiryDate });
+      //console.log('🔍 Using token:', token ? 'Present' : 'Missing');
       
       const updateData = {
         plan_type: editPlan,
@@ -187,11 +187,11 @@ export default function AdminSubscriptions() {
         body: JSON.stringify(updateData),
       });
 
-      console.log('🔍 Update response status:', response.status);
+      //console.log('🔍 Update response status:', response.status);
 
       if (response.ok) {
         const result = await response.json();
-        console.log('🔍 Update success:', result);
+        //console.log('🔍 Update success:', result);
         Alert.alert('Success', 'Subscription updated successfully');
         setShowEditModal(false);
         loadSubscriptions();
@@ -211,7 +211,7 @@ export default function AdminSubscriptions() {
       const token = await AsyncStorage.getItem('authToken');
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
       
-      console.log('🔍 Testing admin auth with token:', token ? 'Present' : 'Missing');
+      //console.log('🔍 Testing admin auth with token:', token ? 'Present' : 'Missing');
       
       const response = await fetch(`${apiUrl}/api/admin/subscriptions/stats`, {
         headers: {
@@ -220,11 +220,11 @@ export default function AdminSubscriptions() {
         },
       });
       
-      console.log('🔍 Admin auth test response:', response.status);
+      //console.log('🔍 Admin auth test response:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('🔍 Admin auth test success:', result);
+        //console.log('🔍 Admin auth test success:', result);
         Alert.alert('Admin Auth Test', 'Authentication successful!');
       } else {
         const errorText = await response.text();
@@ -393,7 +393,7 @@ export default function AdminSubscriptions() {
           </View>
 
           {getFilteredSubscriptions().map((subscription) => {
-            console.log('🔍 Rendering subscription:', subscription.id, 'status:', subscription.status, 'user_id:', subscription.user_id);
+            //console.log('🔍 Rendering subscription:', subscription.id, 'status:', subscription.status, 'user_id:', subscription.user_id);
             return (
             <View key={subscription.id} style={styles.subscriptionCard}>
               <View style={styles.subscriptionHeader}>

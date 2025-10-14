@@ -1,7 +1,7 @@
-import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -28,7 +28,7 @@ class AndroidNotificationService {
 
   async initialize() {
     try {
-      console.log('🔔 Initializing Android notification service...');
+      //console.log('🔔 Initializing Android notification service...');
       
       // Register for push notifications
       await this.registerForPushNotificationsAsync();
@@ -50,21 +50,13 @@ class AndroidNotificationService {
       const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
       const authToken = await AsyncStorage.getItem('token');
       
-      console.log('🔍 Checking auth status:', {
-        hasAuthToken: !!authToken,
-        hasExpoPushToken: !!this.expoPushToken,
-        tokenValue: this.expoPushToken
-      });
+      
       
       if (authToken && this.expoPushToken && this.expoPushToken !== 'undefined') {
-        console.log('🔄 User already authenticated, saving push token now');
+        //console.log('🔄 User already authenticated, saving push token now');
         await this.savePushTokenToDatabase(this.expoPushToken);
       } else {
-        console.log('⏳ Conditions not met for token save:', {
-          hasAuthToken: !!authToken,
-          hasExpoPushToken: !!this.expoPushToken,
-          isValidToken: this.expoPushToken !== 'undefined'
-        });
+        
       }
     } catch (error) {
       console.error('❌ Error checking authentication for token save:', error);
@@ -113,11 +105,11 @@ class AndroidNotificationService {
         })).data;
         
         this.expoPushToken = token;
-        console.log('✅ Expo push token obtained:', token);
+        //console.log('✅ Expo push token obtained:', token);
         
         // Try to save token immediately if user is already authenticated
         this.saveTokenIfAuthenticated().catch(err => {
-          console.log('⏳ Will save token after login');
+          //console.log('⏳ Will save token after login');
         });
       } catch (e) {
         console.error('❌ Error getting push token:', e);
@@ -205,7 +197,7 @@ class AndroidNotificationService {
         });
         
         this.notificationChannels.set(channel.id, channel);
-        console.log(`✅ Created notification channel: ${channel.name}`);
+        //console.log(`✅ Created notification channel: ${channel.name}`);
       } catch (error) {
         console.error(`❌ Failed to create channel ${channel.id}:`, error);
       }
@@ -215,20 +207,20 @@ class AndroidNotificationService {
   setupNotificationListeners() {
     // Listener for notifications received while app is foregrounded
     this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('🔔 Notification received in foreground:', notification);
+      //console.log('🔔 Notification received in foreground:', notification);
       this.handleNotificationReceived(notification);
     });
 
     // Listener for when a user taps on or interacts with a notification
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('👆 Notification response received:', response);
+      //console.log('👆 Notification response received:', response);
       this.handleNotificationResponse(response);
     });
   }
 
   handleNotificationReceived(notification) {
     const { title, body, data } = notification.request.content;
-    console.log('📱 Processing notification:', { title, body, data });
+    //console.log('📱 Processing notification:', { title, body, data });
     
     // You can add custom logic here for handling different notification types
     // For example, updating badge counts, playing custom sounds, etc.
@@ -238,44 +230,44 @@ class AndroidNotificationService {
     const { notification } = response;
     const { data } = notification.request.content;
     
-    console.log('🎯 User interacted with notification:', data);
+    //console.log('🎯 User interacted with notification:', data);
     
     // Handle different notification types
     if (data?.type) {
       switch (data.type) {
         case 'friend_request':
           // Navigate to friend requests
-          console.log('📱 Opening friend requests');
+          //console.log('📱 Opening friend requests');
           break;
         case 'message':
           // Navigate to chat
           if (data.chatId) {
-            console.log('📱 Opening chat:', data.chatId);
+            //console.log('📱 Opening chat:', data.chatId);
           }
           break;
         case 'match':
           // Navigate to matches
-          console.log('📱 Opening matches');
+          //console.log('📱 Opening matches');
           break;
         case 'activity':
           // Navigate to activity feed
-          console.log('📱 Opening activity feed');
+          //console.log('📱 Opening activity feed');
           break;
         case 'profile_visit':
           // Navigate to profile or notifications
-          console.log('📱 Opening profile visits');
+          //console.log('📱 Opening profile visits');
           break;
         case 'voice_call':
           // Handle voice call
-          console.log('📱 Handling voice call');
+          //console.log('📱 Handling voice call');
           break;
         case 'marketing_campaign':
           // Handle marketing campaign notification
-          console.log('📱 Marketing campaign notification:', data.campaignId);
+          //console.log('📱 Marketing campaign notification:', data.campaignId);
           // Can navigate to specific campaign landing page if needed
           break;
         default:
-          console.log('📱 Unknown notification type:', data.type);
+          //console.log('📱 Unknown notification type:', data.type);
       }
     }
   }
@@ -283,7 +275,7 @@ class AndroidNotificationService {
   // Show local notification
   async showLocalNotification({ title, body, data = {}, channelId = 'default' }) {
     if (Platform.OS === 'web') {
-      console.log('🌐 Skipping local notification on web platform');
+      //console.log('🌐 Skipping local notification on web platform');
       return;
     }
 
@@ -300,7 +292,7 @@ class AndroidNotificationService {
         trigger: null, // Show immediately
       });
 
-      console.log('✅ Local notification scheduled:', notificationId);
+      //console.log('✅ Local notification scheduled:', notificationId);
       return notificationId;
     } catch (error) {
       console.error('❌ Failed to show local notification:', error);
@@ -461,7 +453,7 @@ class AndroidNotificationService {
   // Clear all notifications
   async clearAllNotifications() {
     await Notifications.dismissAllNotificationsAsync();
-    console.log('🧹 All notifications cleared');
+    //console.log('🧹 All notifications cleared');
   }
 
   // Set badge count
@@ -479,20 +471,14 @@ class AndroidNotificationService {
       
       const authToken = authTokenOverride || await AsyncStorage.getItem('token');
       if (!authToken) {
-        console.log('⚠️ No auth token, skipping push token save');
+        //console.log('⚠️ No auth token, skipping push token save');
         return;
       }
 
       const deviceType = Platform.OS;
       const deviceName = Device.deviceName || `${Platform.OS} Device`;
 
-      console.log('💾 Saving push token to database:', { 
-        token, 
-        deviceType, 
-        deviceName,
-        apiUrl: `${API_BASE_URL}/api/notifications/register-token`
-      });
-
+      
       const response = await fetch(`${API_BASE_URL}/api/notifications/register-token`, {
         method: 'POST',
         headers: {
@@ -506,11 +492,11 @@ class AndroidNotificationService {
         }),
       });
 
-      console.log('📡 Response status:', response.status);
+      //console.log('📡 Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Push token saved to database:', data);
+        //console.log('✅ Push token saved to database:', data);
       } else {
         const error = await response.text();
         console.error('❌ Failed to save push token. Status:', response.status, 'Error:', error);

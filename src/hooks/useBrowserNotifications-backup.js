@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSocket, socketService } from '@/src/api/socket';
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import browserNotificationService from '../services/browserNotificationService';
 
 export default function useBrowserNotifications() {
@@ -17,15 +17,11 @@ export default function useBrowserNotifications() {
   useEffect(() => {
     // Only run on web platform
     if (Platform.OS !== 'web' || !token || !user) {
-      console.log('🔔 Skipping browser notifications:', { 
-        platform: Platform.OS, 
-        hasToken: !!token, 
-        hasUser: !!user 
-      });
+    
       return;
     }
 
-    console.log('🔔 Initializing browser notifications for user:', user.id);
+    //console.log('🔔 Initializing browser notifications for user:', user.id);
 
     // Enhanced socket connection with retry logic
     const initializeSocket = async () => {
@@ -35,7 +31,7 @@ export default function useBrowserNotifications() {
         
         // Ensure socket is connected before setting up listeners
         if (!socket.connected) {
-          console.log('🔄 Waiting for socket connection...');
+          //console.log('🔄 Waiting for socket connection...');
           await new Promise((resolve) => {
             const checkConnection = () => {
               if (socket.connected) {
@@ -48,7 +44,7 @@ export default function useBrowserNotifications() {
           });
         }
         
-        console.log('✅ Socket ready for browser notifications');
+        //console.log('✅ Socket ready for browser notifications');
         setupNotificationListeners(socket);
         
       } catch (error) {
@@ -62,7 +58,7 @@ export default function useBrowserNotifications() {
 
     // Cleanup function
     return () => {
-      console.log('🔔 Cleaning up browser notifications...');
+      //console.log('🔔 Cleaning up browser notifications...');
       if (socketRef.current) {
         cleanupNotificationListeners(socketRef.current);
       }
@@ -71,7 +67,7 @@ export default function useBrowserNotifications() {
 
   // Setup notification listeners
   const setupNotificationListeners = (socket) => {
-    console.log('🔔 Setting up notification listeners...');
+    //console.log('🔔 Setting up notification listeners...');
     
     // Clean up existing listeners first
     cleanupNotificationListeners(socket);
@@ -84,7 +80,7 @@ export default function useBrowserNotifications() {
   const cleanupNotificationListeners = (socket) => {
     if (!socket) return;
     
-    console.log('🧹 Cleaning up notification listeners...');
+    //console.log('🧹 Cleaning up notification listeners...');
     socket.off('notification:new', handleGenericNotification);
     socket.off('friend:request:received', handleFriendRequestReceived);
     socket.off('friend:request:accepted', handleFriendRequestAccepted);
@@ -96,7 +92,7 @@ export default function useBrowserNotifications() {
 
   // Friend request notifications
   const handleFriendRequestReceived = ({ request }) => {
-      console.log('🔔 Friend request received for browser notification:', request);
+      //console.log('🔔 Friend request received for browser notification:', request);
       
       const senderName = request.sender?.first_name 
         ? `${request.sender.first_name} ${request.sender.last_name || ''}`.trim()
@@ -109,21 +105,15 @@ export default function useBrowserNotifications() {
       });
 
       if (!result) {
-        console.log('🔕 Friend request notification was blocked - checking conditions...');
+        //console.log('🔕 Friend request notification was blocked - checking conditions...');
         const status = browserNotificationService.getStatus();
-        console.log('🔍 Notification status:', {
-          supported: status.supported,
-          permission: status.permission,
-          enabled: status.enabled,
-          pageVisible: document.visibilityState === 'visible',
-          canShow: browserNotificationService.canShowNotifications()
-        });
+        
       }
     };
 
     // Friend request accepted notifications
     const handleFriendRequestAccepted = ({ request, acceptedBy }) => {
-      console.log('🔔 Friend request accepted for browser notification:', request);
+      //console.log('🔔 Friend request accepted for browser notification:', request);
       
       const friendName = acceptedBy?.first_name 
         ? `${acceptedBy.first_name} ${acceptedBy.last_name || ''}`.trim()
@@ -137,11 +127,11 @@ export default function useBrowserNotifications() {
 
     // Message notifications
     const handleMessageReceived = ({ message, sender, chatId }) => {
-      console.log('🔔 Message received for browser notification:', { message, sender, chatId });
+      //console.log('🔔 Message received for browser notification:', { message, sender, chatId });
       
       // Don't show notification if user is in the same chat
       if (currentChatIdRef.current === chatId) {
-        console.log('🔕 Skipping message notification - user in active chat');
+        //console.log('🔕 Skipping message notification - user in active chat');
         return;
       }
 
@@ -157,23 +147,15 @@ export default function useBrowserNotifications() {
       });
 
       if (!result) {
-        console.log('🔕 Message notification was blocked - checking conditions...');
+        //console.log('🔕 Message notification was blocked - checking conditions...');
         const status = browserNotificationService.getStatus();
-        console.log('🔍 Notification status:', {
-          supported: status.supported,
-          permission: status.permission,
-          enabled: status.enabled,
-          pageVisible: document.visibilityState === 'visible',
-          canShow: browserNotificationService.canShowNotifications(),
-          currentChatId: currentChatIdRef.current,
-          messageChatId: chatId
-        });
+        
       }
     };
 
     // Message request notifications
     const handleMessageRequestReceived = ({ sender_id, receiver_id, requestId }) => {
-      console.log('🔔 Message request received for browser notification:', { sender_id, requestId });
+      //console.log('🔔 Message request received for browser notification:', { sender_id, requestId });
       
       // We might not have sender details, so we'll use a generic message
       browserNotificationService.showMessageRequestNotification({
@@ -185,7 +167,7 @@ export default function useBrowserNotifications() {
 
     // Match notifications (from matchmaking system)
     const handleMatchFound = ({ other }) => {
-      console.log('🔔 Match found for browser notification:', other);
+      //console.log('🔔 Match found for browser notification:', other);
       
       const matchedUserName = other?.first_name 
         ? `${other.first_name} ${other.last_name || ''}`.trim()
@@ -199,11 +181,11 @@ export default function useBrowserNotifications() {
 
     // Reaction notifications
     const handleReactionReceived = ({ reaction, message, sender, chatId }) => {
-      console.log('🔔 Reaction received for browser notification:', { reaction, message, sender });
+      //console.log('🔔 Reaction received for browser notification:', { reaction, message, sender });
       
       // Don't show notification if user is in the same chat
       if (currentChatIdRef.current === chatId) {
-        console.log('🔕 Skipping reaction notification - user in active chat');
+        //console.log('🔕 Skipping reaction notification - user in active chat');
         return;
       }
 
@@ -222,7 +204,7 @@ export default function useBrowserNotifications() {
 
     // Generic notification handler for all notification types
     const handleGenericNotification = ({ notification }) => {
-      console.log('🔔 Generic notification received for browser:', notification);
+      //console.log('🔔 Generic notification received for browser:', notification);
       
       if (!notification) return;
       
@@ -270,13 +252,13 @@ export default function useBrowserNotifications() {
           break;
           
         default:
-          console.log('🔔 Unknown notification type for browser notification:', notification.type);
+          //console.log('🔔 Unknown notification type for browser notification:', notification.type);
       }
     };
 
     // Register event listeners function
     const registerEventListeners = (socket) => {
-      console.log('🔔 Registering notification event listeners...');
+      //console.log('🔔 Registering notification event listeners...');
       
       // Remove existing listeners to avoid duplicates
       socket.off('notification:new', handleGenericNotification);
@@ -294,17 +276,13 @@ export default function useBrowserNotifications() {
       
       // Generic notification listener (unified system)
       socket.on('notification:new', (data) => {
-        console.log('🔔 RAW notification:new event:', data);
+        //console.log('🔔 RAW notification:new event:', data);
         handleGenericNotification(data);
       });
       
       socket.on('friend:request:received', (data) => {
-        console.log('🔔 RAW friend:request:received event:', data);
-        console.log('🔍 Friend request data structure:', {
-          request: data.request,
-          sender: data.sender,
-          directData: data
-        });
+        //console.log('🔔 RAW friend:request:received event:', data);
+        
         
         // Handle nested data structure like messages
         const friendRequestData = data.request || data;
@@ -322,17 +300,13 @@ export default function useBrowserNotifications() {
           }
         };
         
-        console.log('🔔 Converted friend request data:', convertedData);
+        //console.log('🔔 Converted friend request data:', convertedData);
         handleFriendRequestReceived(convertedData);
       });
       
       socket.on('friend:request:accepted', (data) => {
-        console.log('🔔 RAW friend:request:accepted event:', data);
-        console.log('🔍 Friend accepted data structure:', {
-          request: data.request,
-          acceptedBy: data.acceptedBy,
-          directData: data
-        });
+        //console.log('🔔 RAW friend:request:accepted event:', data);
+        
         
         // Handle nested data structure
         const requestData = data.request || data;
@@ -347,22 +321,18 @@ export default function useBrowserNotifications() {
           acceptedBy: acceptedByData
         };
         
-        console.log('🔔 Converted friend accepted data:', convertedData);
+        //console.log('🔔 Converted friend accepted data:', convertedData);
         handleFriendRequestAccepted(convertedData);
       });
 
       // Listen for potential background friend request events
       socket.on('friend:request:background', (data) => {
-        console.log('🔔 RAW friend:request:background event:', data);
+        //console.log('🔔 RAW friend:request:background event:', data);
         
         // Handle similar to message background events
         const rawFriendRequest = data.request || data;
         
-        console.log('🔍 Background friend request data:', {
-          senderName: rawFriendRequest.senderName,
-          senderId: rawFriendRequest.senderId,
-          requestId: rawFriendRequest.id
-        });
+        
         
         const convertedData = {
           request: {
@@ -375,12 +345,12 @@ export default function useBrowserNotifications() {
           }
         };
         
-        console.log('🔔 Converted background friend request data:', convertedData);
+        //console.log('🔔 Converted background friend request data:', convertedData);
         handleFriendRequestReceived(convertedData);
       });
 
       socket.on('friend:accepted:background', (data) => {
-        console.log('🔔 RAW friend:accepted:background event:', data);
+        //console.log('🔔 RAW friend:accepted:background event:', data);
         
         const rawAccepted = data.request || data;
         
@@ -393,30 +363,23 @@ export default function useBrowserNotifications() {
           }
         };
         
-        console.log('🔔 Converted background friend accepted data:', convertedData);
+        //console.log('🔔 Converted background friend accepted data:', convertedData);
         handleFriendRequestAccepted(convertedData);
       });
       
       // Listen for BOTH message events (the actual event name is chat:message:background)
       socket.on('chat:message:received', (data) => {
-        console.log('🔔 RAW chat:message:received event:', data);
+        //console.log('🔔 RAW chat:message:received event:', data);
         handleMessageReceived(data);
       });
       
       socket.on('chat:message:background', (data) => {
-        console.log('🔔 RAW chat:message:background event:', data);
+        //console.log('🔔 RAW chat:message:background event:', data);
         
         // The actual data is nested under 'message' property
         const rawMessage = data.message || data;
         
-        console.log('🔍 Available sender data:', {
-          senderName: rawMessage.senderName,
-          senderUsername: rawMessage.senderUsername,
-          senderId: rawMessage.senderId,
-          sender: rawMessage.sender,
-          text: rawMessage.text,
-          chatId: rawMessage.chatId
-        });
+        
         
         // Safe date conversion
         let createdAt;
@@ -466,50 +429,50 @@ export default function useBrowserNotifications() {
           chatId: rawMessage.chatId || 'unknown_chat'
         };
         
-        console.log('🔔 Converted message data for notification:', convertedMessageData);
+        //console.log('🔔 Converted message data for notification:', convertedMessageData);
         handleMessageReceived(convertedMessageData);
       });
       
       socket.on('message:request:received', (data) => {
-        console.log('🔔 RAW message:request:received event:', data);
+        //console.log('🔔 RAW message:request:received event:', data);
         handleMessageRequestReceived(data);
       });
       
       socket.on('matchmaking:proposal', (data) => {
-        console.log('🔔 RAW matchmaking:proposal event:', data);
+        //console.log('🔔 RAW matchmaking:proposal event:', data);
         handleMatchFound(data);
       });
       
       socket.on('chat:reaction:received', (data) => {
-        console.log('🔔 RAW chat:reaction:received event:', data);
+        //console.log('🔔 RAW chat:reaction:received event:', data);
         handleReactionReceived(data);
       });
 
       // Listen for ALL socket events to debug
       const originalEmit = socket.emit;
       socket.emit = function(...args) {
-        console.log('📤 Socket EMIT:', args[0], args.slice(1));
+        //console.log('📤 Socket EMIT:', args[0], args.slice(1));
         return originalEmit.apply(this, args);
       };
 
       // Log all incoming events
       socket.onAny((eventName, ...args) => {
-        console.log('📥 Socket RECEIVED:', eventName, args);
+        //console.log('📥 Socket RECEIVED:', eventName, args);
       });
       
-      console.log('✅ Notification event listeners registered with debug logging');
+      //console.log('✅ Notification event listeners registered with debug logging');
     };
 
     // Handle connection state changes
     const handleConnectionChange = (state) => {
-      console.log('🔔 Notification hook - connection state changed:', state);
+      //console.log('🔔 Notification hook - connection state changed:', state);
       
       if (state === 'connected') {
-        console.log('🔔 Socket reconnected - re-registering notification listeners');
+        //console.log('🔔 Socket reconnected - re-registering notification listeners');
         // Re-register all event listeners when reconnected
         registerEventListeners(socket);
       } else if (state === 'disconnected' || state === 'reconnecting') {
-        console.log('🔔 Socket disconnected - notifications may be delayed');
+        //console.log('🔔 Socket disconnected - notifications may be delayed');
       }
     };
 
@@ -536,28 +499,4 @@ export default function useBrowserNotifications() {
       }
     };
 
-  // Clear notifications when app becomes visible
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Clear notifications when user returns to the app
-        setTimeout(() => {
-          browserNotificationService.clearAllNotifications();
-        }, 1000);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  return {
-    setCurrentChatId,
-    notificationService: browserNotificationService
-  };
 }

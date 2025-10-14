@@ -1,7 +1,7 @@
 // NEW SIMPLIFIED VOICE CALL SERVICE - BUILT FROM SCRATCH
-import { getSocket } from '../api/socket';
-import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { getSocket } from '../api/socket';
 
 // Import WebRTC for React Native (development build)
 let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
@@ -15,7 +15,7 @@ if (Platform.OS === 'web' && isBrowser) {
   RTCSessionDescription = window.RTCSessionDescription;
   RTCIceCandidate = window.RTCIceCandidate;
   mediaDevices = navigator.mediaDevices;
-  console.log('✅ Browser WebRTC loaded successfully');
+  //console.log('✅ Browser WebRTC loaded successfully');
 } else if (Platform.OS !== 'web') {
   // React Native WebRTC (development build)
   try {
@@ -24,7 +24,7 @@ if (Platform.OS === 'web' && isBrowser) {
     RTCSessionDescription = webrtc.RTCSessionDescription;
     RTCIceCandidate = webrtc.RTCIceCandidate;
     mediaDevices = webrtc.mediaDevices;
-    console.log('✅ react-native-webrtc loaded successfully');
+    //console.log('✅ react-native-webrtc loaded successfully');
   } catch (error) {
     console.error('❌ Failed to load react-native-webrtc:', error);
     console.error('⚠️ Voice calls will not work without react-native-webrtc in development build');
@@ -67,10 +67,7 @@ class VoiceCallService {
     // Check WebRTC availability
     this.isWebRTCAvailable = !!(RTCPeerConnection && mediaDevices);
     
-    console.log('✅ VoiceCallService initialized:', {
-      platform: Platform.OS,
-      webRTCAvailable: this.isWebRTCAvailable
-    });
+   
   }
 
   // Initialize socket connection
@@ -90,7 +87,7 @@ class VoiceCallService {
           if (finalStatus !== 'granted') {
             console.warn('⚠️ Notification permission not granted');
           } else {
-            console.log('✅ Notification permissions granted');
+            //console.log('✅ Notification permissions granted');
           }
         } catch (error) {
           console.error('❌ Failed to request notification permissions:', error);
@@ -118,25 +115,25 @@ class VoiceCallService {
 
     // Incoming call
     this.socket.on('voice:incoming-call', async (data) => {
-      console.log('📞 Incoming call received:', data);
+      //console.log('📞 Incoming call received:', data);
       
       // Only prevent duplicate if we're already in an active call with the same ID
       // Allow new calls even from the same user after previous call ended
       if (this.currentCallId === data.callId && this.callState !== 'idle' && this.callState !== 'ended') {
-        console.log('⚠️ Duplicate incoming call event for same call ID, ignoring');
+        //console.log('⚠️ Duplicate incoming call event for same call ID, ignoring');
         return;
       }
       
       // If there's an active call with a different ID, ignore new incoming calls
       if (this.currentCallId && this.currentCallId !== data.callId && 
           this.callState !== 'idle' && this.callState !== 'ended') {
-        console.log('⚠️ Already in another call, ignoring new incoming call');
+        //console.log('⚠️ Already in another call, ignoring new incoming call');
         return;
       }
       
       // Clean up any previous call state before accepting new call
       if (this.callState !== 'idle') {
-        console.log('🧹 Cleaning up previous call state before accepting new call');
+        //console.log('🧹 Cleaning up previous call state before accepting new call');
         this.cleanup();
       }
       
@@ -160,12 +157,12 @@ class VoiceCallService {
 
     // Call accepted
     this.socket.on('voice:call-accepted', (data) => {
-      console.log('✅ Call accepted:', data);
+      //console.log('✅ Call accepted:', data);
       
       // Update call ID with the one from backend
       if (data.callId) {
         this.currentCallId = data.callId;
-        console.log('📞 Updated call ID from backend:', this.currentCallId);
+        //console.log('📞 Updated call ID from backend:', this.currentCallId);
       }
       
       this.setCallState('connecting');
@@ -177,32 +174,32 @@ class VoiceCallService {
 
     // Call declined
     this.socket.on('voice:call-declined', () => {
-      console.log('❌ Call declined');
+      //console.log('❌ Call declined');
       this.setCallState('ended');
       this.cleanup();
     });
 
     // WebRTC offer
     this.socket.on('voice:offer', async (data) => {
-      console.log('📨 Received WebRTC offer');
+      //console.log('📨 Received WebRTC offer');
       await this.handleOffer(data.offer);
     });
 
     // WebRTC answer
     this.socket.on('voice:answer', async (data) => {
-      console.log('📨 Received WebRTC answer');
+      //console.log('📨 Received WebRTC answer');
       await this.handleAnswer(data.answer);
     });
 
     // ICE candidate
     this.socket.on('voice:ice-candidate', async (data) => {
-      console.log('🧊 Received ICE candidate');
+      //console.log('🧊 Received ICE candidate');
       await this.handleIceCandidate(data.candidate);
     });
 
     // Call ended
     this.socket.on('voice:call-ended', (data) => {
-      console.log('📞 Call ended by other user');
+      //console.log('📞 Call ended by other user');
       this.setCallState('ended');
       this.cleanup();
       
@@ -215,7 +212,7 @@ class VoiceCallService {
   // Start a new call
   async startCall(receiverId, token) {
     try {
-      console.log('📞 Starting call to:', receiverId);
+      //console.log('📞 Starting call to:', receiverId);
       
       if (!this.isWebRTCAvailable) {
         throw new Error('WebRTC is not available. Voice calls require a development build with react-native-webrtc.');
@@ -240,7 +237,7 @@ class VoiceCallService {
         callType: this.isExpoGo ? 'audio-fallback' : 'webrtc'
       });
       
-      console.log('✅ Call request sent');
+      //console.log('✅ Call request sent');
       return true;
     } catch (error) {
       console.error('❌ Failed to start call:', error);
@@ -252,7 +249,7 @@ class VoiceCallService {
   // Accept incoming call
   async acceptCall() {
     try {
-      console.log('✅ Accepting call:', this.currentCallId);
+      //console.log('✅ Accepting call:', this.currentCallId);
       
       // Stop notification loop and timeout when call is accepted
       this.stopNotificationLoop();
@@ -268,7 +265,7 @@ class VoiceCallService {
 
       // Prevent multiple accept calls
       if (this.callState !== 'incoming') {
-        console.log('⚠️ Call already accepted or in wrong state:', this.callState);
+        //console.log('⚠️ Call already accepted or in wrong state:', this.callState);
         return false;
       }
 
@@ -279,7 +276,7 @@ class VoiceCallService {
       });
       
       // Wait for offer from initiator
-      console.log('⏳ Waiting for WebRTC offer...');
+      //console.log('⏳ Waiting for WebRTC offer...');
       return true;
     } catch (error) {
       console.error('❌ Failed to accept call:', error);
@@ -290,7 +287,7 @@ class VoiceCallService {
 
   // Decline incoming call
   declineCall() {
-    console.log('❌ Declining call');
+    //console.log('❌ Declining call');
     
     // Stop notification loop and timeout when call is declined
     this.stopNotificationLoop();
@@ -308,11 +305,11 @@ class VoiceCallService {
 
   // End active call
   endCall() {
-    console.log('📞 Ending call');
+    //console.log('📞 Ending call');
     
     // Stop all media tracks IMMEDIATELY before anything else
     if (this.localStream) {
-      console.log('🎤 Stopping microphone immediately...');
+      //console.log('🎤 Stopping microphone immediately...');
       this.localStream.getTracks().forEach(track => {
         track.stop();
         track.enabled = false;
@@ -333,18 +330,18 @@ class VoiceCallService {
   async createOffer() {
     // Prevent duplicate offer creation
     if (this.creatingOffer) {
-      console.log('⚠️ Already creating offer, skipping duplicate call');
+      //console.log('⚠️ Already creating offer, skipping duplicate call');
       return;
     }
     
     this.creatingOffer = true;
     
     try {
-      console.log('📤 Creating WebRTC offer...');
+      //console.log('📤 Creating WebRTC offer...');
       
       // Only setup peer connection if it doesn't exist
       if (!this.peerConnection) {
-        console.log('⚠️ Peer connection not ready, setting up...');
+        //console.log('⚠️ Peer connection not ready, setting up...');
         await this.setupPeerConnection();
       }
       
@@ -356,27 +353,27 @@ class VoiceCallService {
       // Check signaling state before creating offer
       if (this.peerConnection.signalingState !== 'stable' && 
           this.peerConnection.signalingState !== 'have-local-offer') {
-        console.log('⚠️ Peer connection not in correct state for offer:', this.peerConnection.signalingState);
+        //console.log('⚠️ Peer connection not in correct state for offer:', this.peerConnection.signalingState);
         return;
       }
       
-      console.log('📝 Creating offer...');
+      //console.log('📝 Creating offer...');
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false
       });
-      console.log('✅ Offer created');
+      //console.log('✅ Offer created');
       
-      console.log('📝 Setting local description (offer)...');
+      //console.log('📝 Setting local description (offer)...');
       await this.peerConnection.setLocalDescription(offer);
-      console.log('✅ Local description set');
+      //console.log('✅ Local description set');
       
       this.socket.emit('voice:offer', {
         callId: this.currentCallId,
         offer: offer
       });
       
-      console.log('✅ Offer sent to receiver');
+      //console.log('✅ Offer sent to receiver');
     } catch (error) {
       console.error('❌ Failed to create offer:', error);
       console.error('Error details:', error.message, error.stack);
@@ -399,17 +396,17 @@ class VoiceCallService {
   // WebRTC: Handle offer
   async handleOffer(offer) {
     try {
-      console.log('📥 Handling WebRTC offer...');
+      //console.log('📥 Handling WebRTC offer...');
       
       // Prevent processing duplicate offers
       if (this.processingOffer) {
-        console.log('⚠️ Already processing an offer, ignoring duplicate');
+        //console.log('⚠️ Already processing an offer, ignoring duplicate');
         return;
       }
       
       // If we already have a stable connection, ignore new offers
       if (this.peerConnection && this.peerConnection.signalingState === 'stable') {
-        console.log('⚠️ Already in stable state, ignoring duplicate offer');
+        //console.log('⚠️ Already in stable state, ignoring duplicate offer');
         return;
       }
       
@@ -420,35 +417,35 @@ class VoiceCallService {
       if (!this.peerConnection) {
         await this.setupPeerConnection();
       } else {
-        console.log('✅ Using existing peer connection');
+        //console.log('✅ Using existing peer connection');
       }
       
-      console.log('📝 Current signaling state before offer:', this.peerConnection.signalingState);
-      console.log('📝 Setting remote description (offer)...');
+      //console.log('📝 Current signaling state before offer:', this.peerConnection.signalingState);
+      //console.log('📝 Setting remote description (offer)...');
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      console.log('✅ Remote description set, new state:', this.peerConnection.signalingState);
+      //console.log('✅ Remote description set, new state:', this.peerConnection.signalingState);
       
       // Check state before creating answer
       if (this.peerConnection.signalingState !== 'have-remote-offer') {
-        console.log('⚠️ Wrong state after setting remote offer:', this.peerConnection.signalingState);
+        //console.log('⚠️ Wrong state after setting remote offer:', this.peerConnection.signalingState);
         return;
       }
       
-      console.log('📝 Creating answer...');
+      //console.log('📝 Creating answer...');
       const answer = await this.peerConnection.createAnswer();
-      console.log('✅ Answer created');
+      //console.log('✅ Answer created');
       
-      console.log('📝 Setting local description (answer)...');
-      console.log('📝 Current state before setLocalDescription:', this.peerConnection.signalingState);
+      //console.log('📝 Setting local description (answer)...');
+      //console.log('📝 Current state before setLocalDescription:', this.peerConnection.signalingState);
       await this.peerConnection.setLocalDescription(answer);
-      console.log('✅ Local description set, new state:', this.peerConnection.signalingState);
+      //console.log('✅ Local description set, new state:', this.peerConnection.signalingState);
       
       this.socket.emit('voice:answer', {
         callId: this.currentCallId,
         answer: answer
       });
       
-      console.log('✅ Answer sent to caller');
+      //console.log('✅ Answer sent to caller');
     } catch (error) {
       console.error('❌ Failed to handle offer:', error);
       console.error('Error details:', error.message, error.stack);
@@ -469,7 +466,7 @@ class VoiceCallService {
   // WebRTC: Handle answer
   async handleAnswer(answer) {
     try {
-      console.log('📥 Handling WebRTC answer...');
+      //console.log('📥 Handling WebRTC answer...');
       
       // Check if peer connection exists
       if (!this.peerConnection) {
@@ -479,28 +476,28 @@ class VoiceCallService {
       
       // Check if we're already processing an answer
       if (this.processingAnswer) {
-        console.log('⚠️ Already processing an answer, ignoring duplicate');
+        //console.log('⚠️ Already processing an answer, ignoring duplicate');
         return;
       }
       
       // Check if we already have a remote description (already in stable state)
       if (this.peerConnection.signalingState === 'stable') {
-        console.log('⚠️ Already in stable state, ignoring duplicate answer');
+        //console.log('⚠️ Already in stable state, ignoring duplicate answer');
         return;
       }
       
       // Check if we're in the correct state to receive an answer
       if (this.peerConnection.signalingState !== 'have-local-offer') {
-        console.log('⚠️ Not in correct state to receive answer:', this.peerConnection.signalingState);
+        //console.log('⚠️ Not in correct state to receive answer:', this.peerConnection.signalingState);
         return;
       }
       
       // Set flag to prevent concurrent processing
       this.processingAnswer = true;
       
-      console.log('📝 Current signaling state:', this.peerConnection.signalingState);
+      //console.log('📝 Current signaling state:', this.peerConnection.signalingState);
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log('✅ Answer processed, new state:', this.peerConnection.signalingState);
+      //console.log('✅ Answer processed, new state:', this.peerConnection.signalingState);
     } catch (error) {
       console.error('❌ Failed to handle answer:', error);
       console.error('Error details:', error.message, error.stack);
@@ -524,7 +521,7 @@ class VoiceCallService {
     try {
       if (this.peerConnection && candidate) {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('✅ ICE candidate added');
+        //console.log('✅ ICE candidate added');
       }
     } catch (error) {
       console.error('❌ Failed to add ICE candidate:', error);
@@ -534,13 +531,13 @@ class VoiceCallService {
   // Setup WebRTC peer connection
   async setupPeerConnection() {
     if (this.peerConnection) {
-      console.log('⚠️ Peer connection already exists, reusing it');
+      //console.log('⚠️ Peer connection already exists, reusing it');
       return;
     }
     
     // If already setting up, wait for it to complete
     if (this.settingUpPeerConnection) {
-      console.log('⚠️ Already setting up peer connection, waiting...');
+      //console.log('⚠️ Already setting up peer connection, waiting...');
       // Wait up to 5 seconds for setup to complete
       let attempts = 0;
       while (this.settingUpPeerConnection && attempts < 50) {
@@ -549,7 +546,7 @@ class VoiceCallService {
       }
       
       if (this.peerConnection) {
-        console.log('✅ Peer connection ready after waiting');
+        //console.log('✅ Peer connection ready after waiting');
         return;
       }
       
@@ -558,7 +555,7 @@ class VoiceCallService {
     }
     
     this.settingUpPeerConnection = true;
-    console.log('🔧 Setting up peer connection...');
+    //console.log('🔧 Setting up peer connection...');
     
     // Get local audio stream first
     try {
@@ -572,7 +569,7 @@ class VoiceCallService {
         video: false
       });
       
-      console.log('🎤 Got local audio stream');
+      //console.log('🎤 Got local audio stream');
     } catch (error) {
       console.error('❌ Failed to get local stream:', error);
       this.settingUpPeerConnection = false;
@@ -594,7 +591,7 @@ class VoiceCallService {
 
     // Handle remote stream
     this.peerConnection.ontrack = (event) => {
-      console.log('🔊 Received remote stream');
+      //console.log('🔊 Received remote stream');
       this.remoteStream = event.streams[0];
       
       // Play remote audio
@@ -607,21 +604,21 @@ class VoiceCallService {
           audioElement.play().catch(err => {
             console.warn('⚠️ Audio autoplay blocked, user interaction may be required:', err);
           });
-          console.log('🔊 Browser audio element created and playing');
+          //console.log('🔊 Browser audio element created and playing');
         } catch (error) {
           console.error('❌ Failed to create audio element:', error);
         }
       } else {
         // React Native: audio plays automatically through device speakers
         // No need to manually play - react-native-webrtc handles this
-        console.log('🔊 Remote audio stream received (will play automatically on native)');
+        //console.log('🔊 Remote audio stream received (will play automatically on native)');
       }
     };
 
     // Handle ICE candidates
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('🧊 Sending ICE candidate');
+        //console.log('🧊 Sending ICE candidate');
         this.socket.emit('voice:ice-candidate', {
           callId: this.currentCallId,
           candidate: event.candidate
@@ -633,20 +630,20 @@ class VoiceCallService {
     this.peerConnection.onconnectionstatechange = () => {
       if (!this.peerConnection) return; // Guard against null after cleanup
       
-      console.log('🔄 Connection state:', this.peerConnection.connectionState);
+      //console.log('🔄 Connection state:', this.peerConnection.connectionState);
       
       if (this.peerConnection.connectionState === 'connected') {
-        console.log('✅ WebRTC connection established!');
+        //console.log('✅ WebRTC connection established!');
         this.setCallState('connected');
         this.startCallTimer();
       } else if (this.peerConnection.connectionState === 'failed') {
         console.error('❌ Connection failed');
         this.endCall();
       } else if (this.peerConnection.connectionState === 'disconnected') {
-        console.log('⚠️ Connection disconnected');
+        //console.log('⚠️ Connection disconnected');
         this.endCall();
       } else if (this.peerConnection.connectionState === 'closed') {
-        console.log('🔒 Connection closed');
+        //console.log('🔒 Connection closed');
         this.cleanup();
       }
     };
@@ -655,18 +652,18 @@ class VoiceCallService {
     this.peerConnection.oniceconnectionstatechange = () => {
       if (!this.peerConnection) return; // Guard against null after cleanup
       
-      console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
+      //console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
       
       if (this.peerConnection.iceConnectionState === 'connected' || 
           this.peerConnection.iceConnectionState === 'completed') {
-        console.log('✅ ICE connection established');
+        //console.log('✅ ICE connection established');
       } else if (this.peerConnection.iceConnectionState === 'failed') {
         console.error('❌ ICE connection failed');
       }
     };
 
     this.settingUpPeerConnection = false;
-    console.log('✅ Peer connection setup complete');
+    //console.log('✅ Peer connection setup complete');
   }
 
   // Start call timer
@@ -693,7 +690,7 @@ class VoiceCallService {
   startNotificationLoop(callData) {
     if (Platform.OS !== 'android') return;
     
-    console.log('🔔 Starting notification loop for 1 minute');
+    //console.log('🔔 Starting notification loop for 1 minute');
     
     // Clear any existing loop
     this.stopNotificationLoop();
@@ -714,11 +711,11 @@ class VoiceCallService {
     // Set up interval to repeat notification every 3 seconds
     this.notificationLoopInterval = setInterval(() => {
       this.notificationCount++;
-      console.log(`🔔 Repeating notification... (${this.notificationCount}/${this.maxNotifications})`);
+      //console.log(`🔔 Repeating notification... (${this.notificationCount}/${this.maxNotifications})`);
       
       // Check if we've reached max notifications or call state changed
       if (this.notificationCount >= this.maxNotifications) {
-        console.log('⏰ Reached maximum notifications (1 minute)');
+        //console.log('⏰ Reached maximum notifications (1 minute)');
         this.stopNotificationLoop();
         return;
       }
@@ -735,7 +732,7 @@ class VoiceCallService {
   // Stop notification loop
   stopNotificationLoop() {
     if (this.notificationLoopInterval) {
-      console.log('🔕 Stopping notification loop');
+      //console.log('🔕 Stopping notification loop');
       clearInterval(this.notificationLoopInterval);
       this.notificationLoopInterval = null;
     }
@@ -759,14 +756,14 @@ class VoiceCallService {
       this.callTimeoutTimer = null;
     }
     
-    console.log('⏰ Starting 1-minute call timeout');
+    //console.log('⏰ Starting 1-minute call timeout');
     
     // Set 1-minute timeout
     this.callTimeoutTimer = setTimeout(() => {
-      console.log('⏰ Call timeout reached (1 minute) - no response');
+      //console.log('⏰ Call timeout reached (1 minute) - no response');
       
       if (this.callState === 'incoming' || this.callState === 'calling') {
-        console.log('📞 Auto-ending call due to timeout');
+        //console.log('📞 Auto-ending call due to timeout');
         
         // Stop notification loop
         this.stopNotificationLoop();
@@ -792,7 +789,7 @@ class VoiceCallService {
   // Stop call timeout
   stopCallTimeout() {
     if (this.callTimeoutTimer) {
-      console.log('⏰ Stopping call timeout');
+      //console.log('⏰ Stopping call timeout');
       clearTimeout(this.callTimeoutTimer);
       this.callTimeoutTimer = null;
     }
@@ -800,7 +797,7 @@ class VoiceCallService {
 
   // Set call state
   setCallState(newState) {
-    console.log('📞 Call state:', this.callState, '->', newState);
+    //console.log('📞 Call state:', this.callState, '->', newState);
     this.callState = newState;
     
     if (this.onCallStateChange) {
@@ -810,12 +807,7 @@ class VoiceCallService {
 
   // Cleanup
   cleanup() {
-    console.log('🧹 Cleaning up call resources...', {
-      currentCallId: this.currentCallId,
-      callState: this.callState,
-      hasLocalStream: !!this.localStream,
-      hasPeerConnection: !!this.peerConnection
-    });
+    
     
     this.stopCallTimer();
     this.stopNotificationLoop();
@@ -823,30 +815,30 @@ class VoiceCallService {
     
     // Stop all media tracks FIRST (critical for microphone release)
     if (this.localStream) {
-      console.log('🎤 Stopping local stream tracks...');
+      //console.log('🎤 Stopping local stream tracks...');
       this.localStream.getTracks().forEach(track => {
-        console.log('🛑 Stopping track:', track.kind, track.label);
+        //console.log('🛑 Stopping track:', track.kind, track.label);
         track.stop();
         track.enabled = false; // Ensure track is disabled
       });
       this.localStream = null;
-      console.log('✅ Local stream stopped and cleared');
+      //console.log('✅ Local stream stopped and cleared');
     }
     
     // Stop remote stream tracks
     if (this.remoteStream) {
-      console.log('🔊 Stopping remote stream tracks...');
+      //console.log('🔊 Stopping remote stream tracks...');
       this.remoteStream.getTracks().forEach(track => {
         track.stop();
         track.enabled = false;
       });
       this.remoteStream = null;
-      console.log('✅ Remote stream stopped and cleared');
+      //console.log('✅ Remote stream stopped and cleared');
     }
     
     // Close peer connection AFTER stopping tracks
     if (this.peerConnection) {
-      console.log('🔌 Closing peer connection...');
+      //console.log('🔌 Closing peer connection...');
       
       // Remove event handlers to prevent errors after cleanup
       this.peerConnection.ontrack = null;
@@ -856,7 +848,7 @@ class VoiceCallService {
       
       this.peerConnection.close();
       this.peerConnection = null;
-      console.log('✅ Peer connection closed');
+      //console.log('✅ Peer connection closed');
     }
     
     // Reset state
@@ -872,11 +864,7 @@ class VoiceCallService {
     
     this.setCallState('idle');
     
-    console.log('✅ Cleanup complete - all resources released', {
-      previousCallId,
-      newCallState: this.callState,
-      currentCallId: this.currentCallId
-    });
+    
   }
 
   // Get current state

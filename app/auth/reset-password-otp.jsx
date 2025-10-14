@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { http } from '@/src/api/http';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordOTP() {
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function ResetPasswordOTP() {
       
       // Show success message based on platform
       if (Platform.OS === 'web') {
-        console.log(`Reset code sent to ${email}`);
+        //console.log(`Reset code sent to ${email}`);
       } else {
         Alert.alert(
           'Code Sent! 📧',

@@ -1,6 +1,6 @@
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../api/config';
 import MediaCacheService from '../services/MediaCacheService';
@@ -16,7 +16,7 @@ const IMAGE_QUALITY = 0.8;
  */
 export const compressImage = async (uri) => {
   try {
-    console.log('🖼️ Compressing image:', uri);
+    //console.log('🖼️ Compressing image:', uri);
     
     // For browser, use canvas compression
     if (Platform.OS === 'web' && uri.startsWith('data:')) {
@@ -46,7 +46,7 @@ export const compressImage = async (uri) => {
           
           // Convert to JPEG with quality
           const compressedUri = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
-          console.log(`✅ Image compressed (browser)`);
+          //console.log(`✅ Image compressed (browser)`);
           resolve(compressedUri);
         };
         img.onerror = reject;
@@ -65,7 +65,7 @@ export const compressImage = async (uri) => {
     const fileInfo = await FileSystem.getInfoAsync(manipResult.uri);
     const fileSizeKB = fileInfo.size / 1024;
     
-    console.log(`✅ Image compressed: ${fileSizeKB.toFixed(2)} KB`);
+    //console.log(`✅ Image compressed: ${fileSizeKB.toFixed(2)} KB`);
     
     return manipResult.uri;
   } catch (error) {
@@ -260,7 +260,7 @@ export const takePhoto = async () => {
  */
 export const uploadMediaToS3 = async (uri, type, token) => {
   try {
-    console.log(`📤 Uploading ${type} to S3...`);
+    //console.log(`📤 Uploading ${type} to S3...`);
     
     // Define file size limits (in bytes)
     const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -272,16 +272,16 @@ export const uploadMediaToS3 = async (uri, type, token) => {
       finalUri = await compressImage(uri);
     } else if (type === 'video') {
       // Process video for upload
-      console.log('📹 Processing video file...');
+      //console.log('📹 Processing video file...');
       
       try {
         const videoResult = await processVideoForUpload(uri);
         finalUri = videoResult.uri;
         
         if (videoResult.wasOptimized) {
-          console.log(`📹 Video optimized: ${videoResult.sizeMB.toFixed(1)}MB (${videoResult.uploadTimeEstimate})`);
+          //console.log(`📹 Video optimized: ${videoResult.sizeMB.toFixed(1)}MB (${videoResult.uploadTimeEstimate})`);
         } else {
-          console.log(`📹 Video ready: ${videoResult.sizeMB.toFixed(1)}MB (${videoResult.uploadTimeEstimate})`);
+          //console.log(`📹 Video ready: ${videoResult.sizeMB.toFixed(1)}MB (${videoResult.uploadTimeEstimate})`);
         }
       } catch (videoError) {
         console.error('📹 Video processing failed:', videoError);
@@ -312,7 +312,7 @@ export const uploadMediaToS3 = async (uri, type, token) => {
     const fileSizeMB = (fileInfo.size / (1024 * 1024)).toFixed(2);
     const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(0);
     
-    console.log(`📊 File size: ${fileSizeMB}MB (max: ${maxSizeMB}MB)`);
+    //console.log(`📊 File size: ${fileSizeMB}MB (max: ${maxSizeMB}MB)`);
     
     if (fileInfo.size > maxSize) {
       const message = type === 'video' 
@@ -399,7 +399,7 @@ export const uploadMediaToS3 = async (uri, type, token) => {
       }
       throw fetchError;
     }
-    console.log('✅ Upload successful:', data.url);
+    //console.log('✅ Upload successful:', data.url);
     
     const uploadResult = {
       url: data.url,

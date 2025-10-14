@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { chatApi } from '@/src/api/chat';
+import { friendsApi } from '@/src/api/friends';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
+  Modal,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { friendsApi } from '@/src/api/friends';
-import { chatApi } from '@/src/api/chat';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function FriendsListModal({ visible, onClose, onChatCreated }) {
   const { token } = useAuth();
@@ -50,10 +50,10 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
     
     try {
       setCreatingChat(friend.id);
-      console.log('Creating chat with friend:', friend);
+      //console.log('Creating chat with friend:', friend);
       
       const response = await chatApi.createChatWithUser(friend.id, token);
-      console.log('Chat created:', response);
+      //console.log('Chat created:', response);
       
       // Close modal and navigate to chat
       onClose();

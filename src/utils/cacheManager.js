@@ -20,17 +20,17 @@ class CacheManager {
 
     this.cleanupInterval = setInterval(async () => {
       try {
-        console.log('🧹 Running automatic cache cleanup...');
+        //console.log('🧹 Running automatic cache cleanup...');
         await MediaCacheService.clearExpiredCache();
         
         const stats = await MediaCacheService.getCacheStats();
-        console.log('📊 Cache stats after cleanup:', stats);
+        //console.log('📊 Cache stats after cleanup:', stats);
       } catch (error) {
         console.error('Error during automatic cache cleanup:', error);
       }
     }, this.cleanupIntervalMs);
 
-    console.log('⏰ Automatic cache cleanup started (every 1 hour)');
+    //console.log('⏰ Automatic cache cleanup started (every 1 hour)');
   }
 
   /**
@@ -40,7 +40,7 @@ class CacheManager {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      console.log('⏹️ Automatic cache cleanup stopped');
+      //console.log('⏹️ Automatic cache cleanup stopped');
     }
   }
 
@@ -49,11 +49,11 @@ class CacheManager {
    */
   async performCleanup() {
     try {
-      console.log('🧹 Performing manual cache cleanup...');
+      //console.log('🧹 Performing manual cache cleanup...');
       await MediaCacheService.clearExpiredCache();
       
       const stats = await MediaCacheService.getCacheStats();
-      console.log('📊 Cache stats after manual cleanup:', stats);
+      //console.log('📊 Cache stats after manual cleanup:', stats);
       
       return stats;
     } catch (error) {
@@ -80,9 +80,9 @@ class CacheManager {
    */
   async clearAllCache() {
     try {
-      console.log('🗑️ Clearing all media cache...');
+      //console.log('🗑️ Clearing all media cache...');
       await MediaCacheService.clearAllCache();
-      console.log('✅ All cache cleared successfully');
+      //console.log('✅ All cache cleared successfully');
     } catch (error) {
       console.error('Error clearing all cache:', error);
       throw error;
@@ -97,14 +97,14 @@ class CacheManager {
       const stats = await MediaCacheService.getCacheStats();
       
       if (stats && stats.totalItems > maxItems) {
-        console.log(`🔧 Optimizing cache: ${stats.totalItems} items, target: ${maxItems}`);
+        //console.log(`🔧 Optimizing cache: ${stats.totalItems} items, target: ${maxItems}`);
         
         // For now, just clear expired items
         // In the future, we could implement LRU eviction
         await MediaCacheService.clearExpiredCache();
         
         const newStats = await MediaCacheService.getCacheStats();
-        console.log('📊 Cache optimized:', newStats);
+        //console.log('📊 Cache optimized:', newStats);
         
         return newStats;
       }
@@ -121,9 +121,9 @@ class CacheManager {
    */
   async preloadMessages(messages) {
     try {
-      console.log(`📦 Preloading media for ${messages.length} messages...`);
+      //console.log(`📦 Preloading media for ${messages.length} messages...`);
       await MediaCacheService.preloadChatMedia(messages);
-      console.log('✅ Media preloading completed');
+      //console.log('✅ Media preloading completed');
     } catch (error) {
       console.error('Error preloading messages:', error);
       throw error;
@@ -135,7 +135,7 @@ class CacheManager {
    */
   async initialize() {
     try {
-      console.log('🚀 Initializing Cache Manager...');
+      //console.log('🚀 Initializing Cache Manager...');
       
       // Initialize media cache service
       await MediaCacheService.initialize();
@@ -145,9 +145,9 @@ class CacheManager {
       
       // Get initial stats
       const stats = await this.getCacheStats();
-      console.log('📊 Initial cache stats:', stats);
+      //console.log('📊 Initial cache stats:', stats);
       
-      console.log('✅ Cache Manager initialized successfully');
+      //console.log('✅ Cache Manager initialized successfully');
     } catch (error) {
       console.error('Error initializing Cache Manager:', error);
       throw error;
@@ -159,7 +159,7 @@ class CacheManager {
    */
   cleanup() {
     this.stopAutomaticCleanup();
-    console.log('🧹 Cache Manager cleanup completed');
+    //console.log('🧹 Cache Manager cleanup completed');
   }
 }
 

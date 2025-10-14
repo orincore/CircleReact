@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-  Image,
-  FlatList,
-  Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { exploreApi } from '@/src/api/explore';
 import UserProfileModal from '@/src/components/UserProfileModal';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const isBrowser = Platform.OS === 'web';
 
@@ -80,11 +80,7 @@ export default function ExploreScreen() {
       setNewUsers(response.newUsers || []);
       setCompatibleUsers(response.compatibleUsers || []);
 
-      console.log('Explore data loaded:', {
-        topUsers: response.topUsers?.length || 0,
-        newUsers: response.newUsers?.length || 0,
-        compatibleUsers: response.compatibleUsers?.length || 0,
-      });
+     
     } catch (error) {
       console.error('Failed to load explore data:', error);
       Alert.alert('Error', 'Failed to load explore data. Please try again.');

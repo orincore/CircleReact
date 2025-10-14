@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { voiceCallService } from '@/src/services/VoiceCallService';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
   Dimensions,
+  Modal,
   Platform,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import Avatar from './Avatar';
-import { voiceCallService } from '@/src/services/VoiceCallService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -52,7 +52,7 @@ const VoiceCallModal = ({
 
     // Call state change listener
     voiceCallService.onCallStateChange = (newState) => {
-      console.log('📞 Call state changed to:', newState);
+      //console.log('📞 Call state changed to:', newState);
       setCallState(newState);
       
       if (newState === 'ended') {
@@ -64,14 +64,14 @@ const VoiceCallModal = ({
 
     // Remote stream listener
     voiceCallService.onRemoteStream = (stream) => {
-      console.log('🎵 Remote stream received');
+      //console.log('🎵 Remote stream received');
       // For voice calls, we don't need to do anything with the stream
       // The audio will play automatically through the device speakers
     };
 
     // Call ended listener
     voiceCallService.onCallEnded = () => {
-      console.log('📞 Call ended');
+      //console.log('📞 Call ended');
       setTimeout(() => {
         onClose();
       }, 1000);
@@ -94,7 +94,7 @@ const VoiceCallModal = ({
 
   // Handle accepting incoming call
   const handleAcceptCall = async () => {
-    console.log('✅ Accepting call');
+    //console.log('✅ Accepting call');
     setError(null);
     const success = await voiceCallService.acceptCall(token);
     if (!success) {
@@ -104,14 +104,14 @@ const VoiceCallModal = ({
 
   // Handle declining call
   const handleDeclineCall = () => {
-    console.log('❌ Declining call');
+    //console.log('❌ Declining call');
     voiceCallService.declineCall();
     onClose();
   };
 
   // Handle ending call
   const handleEndCall = () => {
-    console.log('📞 Ending call');
+    //console.log('📞 Ending call');
     voiceCallService.endCall();
   };
 

@@ -34,13 +34,7 @@ export const uploadApi = {
       const formData = new FormData()
       const uploadUrl = `${API_BASE_URL}/api/upload/profile-photo`
 
-      console.log('📤 Upload configuration:', {
-        url: uploadUrl,
-        fileType: 'uri' in file ? 'React Native' : 'Web',
-        fileName: file.name,
-        hasToken: !!token,
-      })
-
+     
       // Handle both web File and React Native file objects
       if ('uri' in file) {
         // React Native
@@ -63,11 +57,7 @@ export const uploadApi = {
         body: formData,
       })
 
-      console.log('📥 Upload response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-      })
+      
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -81,7 +71,7 @@ export const uploadApi = {
       }
 
       const result = await response.json()
-      console.log('✅ Upload successful:', result)
+      //console.log('✅ Upload successful:', result)
       return result
     } catch (error: any) {
       console.error('❌ Upload error details:', {

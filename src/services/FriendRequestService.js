@@ -118,18 +118,18 @@ export class FriendRequestService {
         return;
       }
       
-      console.log('🔄 FriendRequestService: Cancelling friend request to', receiverId);
+      //console.log('🔄 FriendRequestService: Cancelling friend request to', receiverId);
       
       // Set up listeners for response
       const handleCancelled = (data) => {
-        console.log('✅ FriendRequestService: Cancel confirmed', data);
+        //console.log('✅ FriendRequestService: Cancel confirmed', data);
         socket.off('friend:request:cancel:confirmed', handleCancelled);
         socket.off('friend:request:error', handleError);
         resolve(data);
       };
       
       const handleError = (error) => {
-        console.log('❌ FriendRequestService: Cancel error', error);
+        //console.log('❌ FriendRequestService: Cancel error', error);
         socket.off('friend:request:cancel:confirmed', handleCancelled);
         socket.off('friend:request:error', handleError);
         reject(new Error(error.error || 'Failed to cancel friend request'));
@@ -140,12 +140,12 @@ export class FriendRequestService {
       socket.on('friend:request:error', handleError);
       
       // Send the cancel request
-      console.log('📤 FriendRequestService: Emitting friend:request:cancel');
+      //console.log('📤 FriendRequestService: Emitting friend:request:cancel');
       socket.emit('friend:request:cancel', { receiverId });
       
       // Timeout after 10 seconds
       setTimeout(() => {
-        console.log('⏰ FriendRequestService: Cancel request timeout');
+        //console.log('⏰ FriendRequestService: Cancel request timeout');
         socket.off('friend:request:cancel:confirmed', handleCancelled);
         socket.off('friend:request:error', handleError);
         reject(new Error('Request timeout'));

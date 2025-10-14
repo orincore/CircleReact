@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Image, View, ActivityIndicator, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MediaCacheService from '../services/MediaCacheService';
 import MediaSaveService from '../services/MediaSaveService';
 
@@ -39,7 +39,7 @@ const CachedMediaImage = ({
       if (messageId) {
         const cached = await MediaCacheService.getCachedMedia(messageId);
         if (cached && cached.mediaUrl) {
-          console.log('📱 Using cached media URL for message:', messageId);
+          //console.log('📱 Using cached media URL for message:', messageId);
           setImageSource({ uri: cached.mediaUrl });
           setIsLoading(false);
           return;
@@ -48,7 +48,7 @@ const CachedMediaImage = ({
 
       // Use provided URL if no cache
       if (mediaUrl) {
-        console.log('🌐 Using direct media URL for message:', messageId);
+        //console.log('🌐 Using direct media URL for message:', messageId);
         setImageSource({ uri: mediaUrl });
         
         // Cache the URL for future use
@@ -83,10 +83,10 @@ const CachedMediaImage = ({
                        error?.nativeEvent?.error?.includes('Forbidden');
     
     if (is403Error) {
-      console.log('⏰ S3 URL expired for message:', messageId, '- URL needs refresh');
+      //console.log('⏰ S3 URL expired for message:', messageId, '- URL needs refresh');
       setErrorType('expired');
     } else {
-      console.log('❌ Image load error for message:', messageId);
+      //console.log('❌ Image load error for message:', messageId);
       setErrorType('general');
     }
     
@@ -101,7 +101,7 @@ const CachedMediaImage = ({
     try {
       setIsSaving(true);
       const success = await MediaSaveService.saveMedia(mediaUrl, mediaType, messageId);
-      console.log('💾 Save result:', success);
+      //console.log('💾 Save result:', success);
     } catch (error) {
       console.error('❌ Save failed:', error);
     } finally {

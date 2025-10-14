@@ -5,13 +5,13 @@ const ENABLE_SOCKET = false; // Set to false for Vercel deployment
 
 export const createSocket = (token) => {
   if (!ENABLE_SOCKET) {
-    console.log('🚫 Socket.IO disabled for Vercel deployment');
+    //console.log('🚫 Socket.IO disabled for Vercel deployment');
     return {
       // Mock socket object for compatibility
-      emit: () => console.log('Socket emit disabled'),
-      on: () => console.log('Socket on disabled'),
-      off: () => console.log('Socket off disabled'),
-      disconnect: () => console.log('Socket disconnect disabled'),
+      emit: () => {},
+      on: () => {},
+      off: () => {},
+      disconnect: () => {},
       connected: false,
     };
   }

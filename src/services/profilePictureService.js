@@ -14,16 +14,16 @@ export class ProfilePictureService {
    */
   static async uploadProfilePicture(imageUri, token) {
     try {
-      console.log('📸 Starting profile picture upload...')
-      console.log('Image URI:', imageUri)
+      //console.log('📸 Starting profile picture upload...')
+      //console.log('Image URI:', imageUri)
 
       // 1. Compress and resize image
       const compressedImage = await this.compressImage(imageUri)
-      console.log('✅ Image compressed')
+      //console.log('✅ Image compressed')
 
       // 2. Upload using XMLHttpRequest (works on all platforms)
       const result = await this.uploadWithXHR(compressedImage.uri, token)
-      console.log('✅ Profile picture uploaded to S3:', result.url)
+      //console.log('✅ Profile picture uploaded to S3:', result.url)
 
       return result.url
     } catch (error) {
@@ -43,20 +43,14 @@ export class ProfilePictureService {
       const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.orincore.com'
       const uploadUrl = `${API_BASE_URL}/api/upload/profile-photo`
 
-      console.log('📤 Upload configuration:', {
-        url: uploadUrl,
-        hasToken: !!token,
-        tokenLength: token?.length,
-        platform: Platform.OS,
-        uri,
-      })
+      
 
       // Extract filename and type
       const filename = uri.split('/').pop() || `photo-${Date.now()}.jpg`
       const match = /\.(\w+)$/.exec(filename)
       const type = match ? `image/${match[1]}` : 'image/jpeg'
 
-      console.log('📤 File info:', { uri, type, name: filename })
+      //console.log('📤 File info:', { uri, type, name: filename })
 
       // Create FormData
       const formData = new FormData()
@@ -64,17 +58,14 @@ export class ProfilePictureService {
       // Platform-specific file handling
       if (Platform.OS === 'web') {
         // For web, convert URI to Blob
-        console.log('🌐 Web platform: Converting URI to Blob...')
+        //console.log('🌐 Web platform: Converting URI to Blob...')
         
         try {
           // Fetch the image as blob
           const response = await fetch(uri)
           const blob = await response.blob()
           
-          console.log('✅ Blob created:', {
-            size: blob.size,
-            type: blob.type,
-          })
+          
           
           if (blob.size === 0) {
             throw new Error('No file uploaded')
@@ -84,11 +75,7 @@ export class ProfilePictureService {
           const file = new File([blob], filename, { type: blob.type || type })
           formData.append('photo', file)
           
-          console.log('✅ File appended to FormData:', {
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          })
+          
         } catch (blobError) {
           console.error('❌ Failed to create blob:', blobError)
           throw new Error('Failed to process image file')
@@ -100,10 +87,10 @@ export class ProfilePictureService {
           type,
           name: filename,
         })
-        console.log('📱 Mobile platform: File appended with URI')
+        //console.log('📱 Mobile platform: File appended with URI')
       }
 
-      console.log('📤 Starting fetch upload...')
+      //console.log('📤 Starting fetch upload...')
 
       // Use fetch instead of XMLHttpRequest - more reliable on React Native
       const response = await fetch(uploadUrl, {
@@ -115,14 +102,10 @@ export class ProfilePictureService {
         body: formData,
       })
 
-      console.log('📥 Upload response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-      })
+      
 
       const responseText = await response.text()
-      console.log('📥 Response body:', responseText)
+      //console.log('📥 Response body:', responseText)
 
       if (!response.ok) {
         let errorMessage = `Upload failed with status ${response.status}`
@@ -136,7 +119,7 @@ export class ProfilePictureService {
       }
 
       const result = JSON.parse(responseText)
-      console.log('✅ Upload successful:', result)
+      //console.log('✅ Upload successful:', result)
       return result
 
     } catch (error) {
@@ -176,9 +159,9 @@ export class ProfilePictureService {
    */
   static async updateUserProfile(photoUrl, updateProfile) {
     try {
-      console.log('🔄 Updating user profile with new photo URL...')
+      //console.log('🔄 Updating user profile with new photo URL...')
       await updateProfile({ profilePhotoUrl: photoUrl })
-      console.log('✅ User profile updated')
+      //console.log('✅ User profile updated')
     } catch (error) {
       console.error('❌ Failed to update user profile:', error)
       throw error
@@ -193,7 +176,7 @@ export class ProfilePictureService {
    */
   static async deleteProfilePicture(photoUrl, token) {
     try {
-      console.log('🗑️ Deleting profile picture from S3...')
+      //console.log('🗑️ Deleting profile picture from S3...')
       
       // Extract S3 key from URL
       const key = this.extractS3KeyFromUrl(photoUrl)
@@ -203,7 +186,7 @@ export class ProfilePictureService {
       }
 
       await uploadApi.deleteFile(key, token)
-      console.log('✅ Profile picture deleted from S3')
+      //console.log('✅ Profile picture deleted from S3')
     } catch (error) {
       console.error('❌ Failed to delete profile picture:', error)
       throw error

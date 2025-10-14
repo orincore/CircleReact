@@ -1,41 +1,36 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import { voiceCallService, initializeVoiceCallService } from '@/src/services/VoiceCallService';
 import { useAuth } from '@/contexts/AuthContext';
+import { initializeVoiceCallService, voiceCallService } from '@/src/services/VoiceCallService';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 export function useVoiceCall() {
   const router = useRouter();
   const { token } = useAuth();
 
   useEffect(() => {
-    console.log('🎙️ useVoiceCall hook mounted with token:', !!token);
+    //console.log('🎙️ useVoiceCall hook mounted with token:', !!token);
     
     // Initialize voice call service with socket connection
     if (token) {
-      console.log('🎙️ Initializing voice call service with token...');
+      //console.log('🎙️ Initializing voice call service with token...');
       const initialized = initializeVoiceCallService(token);
     } else {
       console.warn('⚠️ No token available for voice call initialization');
     }
 
     // Set up incoming call handler with duplicate prevention
-    console.log('🎧 Setting up incoming call handler...');
+    //console.log('🎧 Setting up incoming call handler...');
     let lastCallId = null;
     let navigationInProgress = false;
     let activeCallScreen = false;
     
     const incomingCallHandler = (callData) => {
-      console.log('🚨 INCOMING CALL HANDLER TRIGGERED! 🚨');
-      console.log('📞 Handling incoming call:', callData);
+      //console.log('🚨 INCOMING CALL HANDLER TRIGGERED! 🚨');
+      //console.log('📞 Handling incoming call:', callData);
       
       // Prevent duplicate navigation for same call
       if (lastCallId === callData.callId || navigationInProgress || activeCallScreen) {
-        console.log('⚠️ Ignoring duplicate call navigation:', {
-          sameCallId: lastCallId === callData.callId,
-          navigationInProgress,
-          activeCallScreen,
-          callId: callData.callId
-        });
+    
         return;
       }
       
@@ -71,33 +66,33 @@ export function useVoiceCall() {
     
     // Debug handler status
     setTimeout(() => {
-      console.log('🔍 Checking handler status after registration...');
+      //console.log('🔍 Checking handler status after registration...');
       voiceCallService.debugHandlerStatus();
     }, 1000);
     
     // Also set global fallback handler for browser notifications
     if (typeof window !== 'undefined') {
       window.__voiceCallHandler = incomingCallHandler;
-      console.log('🌍 Global voice call handler registered');
+      //console.log('🌍 Global voice call handler registered');
     }
 
     // Cleanup on unmount
     return () => {
-      console.log('🎙️ Cleaning up voice call hook...');
+      //console.log('🎙️ Cleaning up voice call hook...');
       voiceCallService.onIncomingCall = null;
       if (typeof window !== 'undefined') {
         window.__voiceCallHandler = null;
-        console.log('🌍 Global voice call handler unregistered');
+        //console.log('🌍 Global voice call handler unregistered');
       }
     };
   }, [router, token]);
 
   const startVoiceCall = async (receiverId, receiverName, receiverAvatar) => {
     try {
-      console.log('📞 Starting voice call to:', receiverId);
+      //console.log('📞 Starting voice call to:', receiverId);
       
       // Pre-call connection verification
-      console.log('🔍 Verifying connection before call...');
+      //console.log('🔍 Verifying connection before call...');
       const socket = voiceCallService.socket;
       if (!socket || !socket.connected) {
         console.warn('⚠️ Socket not connected, attempting to reconnect...');
@@ -145,7 +140,7 @@ export function useVoiceCall() {
       const success = await voiceCallService.startCall(receiverId, token);
       if (!success) {
         // If call failed, navigate to a safe screen
-        console.log('📞 Call failed, navigating back safely...');
+        //console.log('📞 Call failed, navigating back safely...');
         try {
           if (router.canGoBack()) {
             router.back();

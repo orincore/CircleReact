@@ -1,15 +1,13 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, TouchableOpacity, View, Animated, Easing, Dimensions, Alert, Image, ActivityIndicator, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { SignupWizardContext } from "./_layout";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi } from "@/src/api/auth";
 import { socialAccountsApi } from "@/src/api/social-accounts";
 import { ProfilePictureService } from "@/src/services/profilePictureService";
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { SignupWizardContext } from "./_layout";
 
 export default function SignupSummary() {
   const router = useRouter();
@@ -29,19 +27,19 @@ export default function SignupSummary() {
     if (!token || updateCompleted) return;
     
     setIsUpdating(true);
-    console.log('🔄 Updating profile with complete information...');
+    //console.log('🔄 Updating profile with complete information...');
     
     try {
       // 1. Upload profile picture to S3 (if provided)
       if (data.profileImage) {
         try {
           setUploadingPhoto(true);
-          console.log('📸 Uploading profile picture to S3...');
+          //console.log('📸 Uploading profile picture to S3...');
           const photoUrl = await ProfilePictureService.uploadProfilePicture(
             data.profileImage,
             token
           );
-          console.log('✅ Profile picture uploaded:', photoUrl);
+          //console.log('✅ Profile picture uploaded:', photoUrl);
           
           // Update local state to show uploaded photo
           setUploadedPhotoUrl(photoUrl);
@@ -58,7 +56,7 @@ export default function SignupSummary() {
 
       // 2. Update profile with about information
       if (data.about && data.about.trim()) {
-        console.log('📝 Updating about field:', data.about);
+        //console.log('📝 Updating about field:', data.about);
         await updateProfile({
           about: data.about.trim()
         });
@@ -66,18 +64,18 @@ export default function SignupSummary() {
 
       // 3. Link Instagram account
       if (data.instagramUsername && data.instagramUsername.trim()) {
-        console.log('📸 Linking Instagram account:', data.instagramUsername);
+        //console.log('📸 Linking Instagram account:', data.instagramUsername);
         
         const cleanUsername = data.instagramUsername.trim().replace('@', '');
         await socialAccountsApi.verifyInstagram(cleanUsername, token);
       }
 
       // 4. Refresh user data to get updated information
-      console.log('🔄 Refreshing user data...');
+      //console.log('🔄 Refreshing user data...');
       await refreshUser();
       
       setUpdateCompleted(true);
-      console.log('✅ Profile update completed successfully');
+      //console.log('✅ Profile update completed successfully');
       
     } catch (error) {
       console.error('❌ Failed to update profile:', error);
@@ -317,7 +315,7 @@ export default function SignupSummary() {
               style={styles.cta} 
               onPress={() => {
                 // Navigate directly to email verification
-                console.log('📧 Redirecting to email verification...');
+                //console.log('📧 Redirecting to email verification...');
                 router.replace({
                   pathname: '/auth/verify-email-post-signup',
                   params: {

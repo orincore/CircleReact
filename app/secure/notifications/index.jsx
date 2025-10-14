@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getSocket } from '@/src/api/socket';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
   ActivityIndicator,
-  TouchableOpacity,
+  Alert,
+  FlatList,
   Image,
   SafeAreaView,
   StatusBar,
-  Alert
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/contexts/AuthContext';
-import { getSocket } from '@/src/api/socket';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -107,21 +107,21 @@ export default function NotificationsPage() {
 
     // Listen for cancelled friend requests
     socket.on('friend:request:cancelled', ({ request, cancelledBy }) => {
-      console.log('🚫 Friend request cancelled notification:', request);
+      //console.log('🚫 Friend request cancelled notification:', request);
       // Remove the cancelled request from notifications
       setNotifications(prev => prev.filter(notif => notif.id !== request.id));
     });
 
     // Listen for cancelled message requests
     socket.on('message:request:cancelled', ({ proposal, cancelledBy }) => {
-      console.log('🚫 Message request cancelled notification:', proposal);
+      //console.log('🚫 Message request cancelled notification:', proposal);
       // Remove the cancelled request from notifications
       setNotifications(prev => prev.filter(notif => notif.id !== proposal.id));
     });
 
     // Listen for new notifications (unified system)
     socket.on('notification:new', (notification) => {
-      console.log('📱 New notification received:', notification);
+      //console.log('📱 New notification received:', notification);
       setNotifications(prev => [notification, ...prev]);
     });
 

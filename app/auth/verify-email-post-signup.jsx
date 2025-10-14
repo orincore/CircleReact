@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { http } from '@/src/api/http';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function VerifyEmailPostSignup() {
   const router = useRouter();
@@ -23,14 +23,14 @@ export default function VerifyEmailPostSignup() {
 
   // Helper function to complete email verification (web-compatible)
   const handleEmailVerificationSuccess = async (message = 'Your email has been successfully verified. Welcome to Circle!') => {
-    console.log('🔄 Starting email verification completion...');
+    //console.log('🔄 Starting email verification completion...');
     
     if (Platform.OS === 'web') {
       // On web, redirect immediately without Alert
-      console.log('🌐 Web platform detected, redirecting directly');
+      //console.log('🌐 Web platform detected, redirecting directly');
       try {
         await completeEmailVerification();
-        console.log('✅ Email verification completion successful');
+        //console.log('✅ Email verification completion successful');
       } catch (error) {
         console.error('❌ Email verification completion failed:', error);
         // Fallback: direct navigation
@@ -47,7 +47,7 @@ export default function VerifyEmailPostSignup() {
             onPress: async () => {
               try {
                 await completeEmailVerification();
-                console.log('✅ Email verification completion successful');
+                //console.log('✅ Email verification completion successful');
               } catch (error) {
                 console.error('❌ Email verification completion failed:', error);
                 router.replace('/secure/(tabs)/match');
@@ -79,12 +79,12 @@ export default function VerifyEmailPostSignup() {
           const statusResponse = await http.get(`/api/auth/otp-status/${encodeURIComponent(targetEmail)}`);
           
           if (statusResponse.isVerified) {
-            console.log('✅ Email already verified, redirecting to app');
+            //console.log('✅ Email already verified, redirecting to app');
             await handleEmailVerificationSuccess('Your email has already been verified. Welcome to Circle!');
             return;
           }
         } catch (error) {
-          console.log('Could not check email status, proceeding with OTP send');
+          //console.log('Could not check email status, proceeding with OTP send');
         }
         
         // If not verified, send OTP
@@ -168,7 +168,7 @@ export default function VerifyEmailPostSignup() {
       
       // Handle case where email is already verified
       if (error.message && error.message.toLowerCase().includes('already verified')) {
-        console.log('✅ Email already verified, completing authentication');
+        //console.log('✅ Email already verified, completing authentication');
         await handleEmailVerificationSuccess('Your email has already been verified. Welcome to Circle!');
         return;
       }

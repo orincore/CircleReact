@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
-  TextInput,
   Alert,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 export default function AdminSettings() {
   const router = useRouter();
@@ -54,14 +54,14 @@ export default function AdminSettings() {
         return;
       }
 
-      console.log('📥 Loading admin settings...');
+      //console.log('📥 Loading admin settings...');
       const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Settings loaded:', data);
+        //console.log('✅ Settings loaded:', data);
         
         // Apply loaded settings
         setMaintenanceMode(data.maintenance_mode ?? false);
@@ -109,7 +109,7 @@ export default function AdminSettings() {
         imageModeration,
       };
 
-      console.log('💾 Saving settings:', settings);
+      //console.log('💾 Saving settings:', settings);
       const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
         method: 'PUT',
         headers: {
@@ -121,7 +121,7 @@ export default function AdminSettings() {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Settings saved:', result);
+        //console.log('✅ Settings saved:', result);
         Alert.alert('Success', result.message || 'Settings saved successfully');
       } else {
         const error = await response.json();

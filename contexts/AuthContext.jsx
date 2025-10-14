@@ -1,11 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter, useSegments } from "expo-router";
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AppState } from 'react-native';
+import LocationTrackingService from "@/services/LocationTrackingService";
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
-import LocationTrackingService from "@/services/LocationTrackingService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter, useSegments } from "expo-router";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 const AuthContext = createContext(undefined);
 
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
   const checkAccountStatus = useCallback(async (userData, accessToken) => {
     // Check if account is deleted or suspended
     if (userData.deleted_at) {
-      console.log('❌ Account is deleted');
+      //console.log('❌ Account is deleted');
       router.replace({
         pathname: '/account-blocked',
         params: {
@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
     }
     
     if (userData.is_suspended) {
-      console.log('⚠️ Account is suspended');
+      //console.log('⚠️ Account is suspended');
       router.replace({
         pathname: '/account-blocked',
         params: {
@@ -95,7 +95,7 @@ export function AuthProvider({ children }) {
       const pushToken = notificationService.getPushToken();
       
       if (pushToken && pushToken !== 'undefined') {
-        console.log('💾 Saving push token to database after authentication');
+        //console.log('💾 Saving push token to database after authentication');
         // Pass the auth token directly to avoid AsyncStorage timing issues
         await notificationService.savePushTokenToDatabase(pushToken, resp.access_token);
       }
@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
     try {
       const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
       if (trackingEnabled) {
-        console.log('🔄 Resuming location tracking after authentication');
+        //console.log('🔄 Resuming location tracking after authentication');
         await LocationTrackingService.startTracking(resp.access_token);
       }
     } catch (error) {
@@ -132,12 +132,12 @@ export function AuthProvider({ children }) {
   const logIn = useCallback(async (identifier, password) => {
     const resp = await authApi.login({ identifier, password });
     
-    console.log('🔍 [Frontend] Login response:', JSON.stringify(resp, null, 2));
-    console.log('🔍 [Frontend] User emailVerified:', resp.user.emailVerified);
+    //console.log('🔍 [Frontend] Login response:', JSON.stringify(resp, null, 2));
+    //console.log('🔍 [Frontend] User emailVerified:', resp.user.emailVerified);
     
     // Check if email is verified
     if (!resp.user.emailVerified) {
-      console.log('❌ [Frontend] Email not verified, redirecting to OTP page');
+      //console.log('❌ [Frontend] Email not verified, redirecting to OTP page');
       
       // Store token and user data but don't set as authenticated
       setToken(resp.access_token);
@@ -165,7 +165,7 @@ export function AuthProvider({ children }) {
       return;
     }
     
-    console.log('✅ [Frontend] Email verified, proceeding to main app');
+    //console.log('✅ [Frontend] Email verified, proceeding to main app');
     await applyAuth(resp, { navigate: true });
   }, [applyAuth, router]);
 
@@ -209,15 +209,10 @@ export function AuthProvider({ children }) {
   const completeEmailVerification = useCallback(async () => {
     // This function is called after successful email verification
     // It completes the authentication process
-    console.log('🔍 [Frontend] completeEmailVerification called', { 
-      hasToken: !!token, 
-      hasUser: !!user,
-      tokenLength: token?.length || 0,
-      userEmail: user?.email || 'none'
-    });
+    ;
     
     if (token && user) {
-      console.log('✅ [Frontend] Email verified, completing authentication');
+      //console.log('✅ [Frontend] Email verified, completing authentication');
       setIsAuthenticated(true);
       
       // Initialize socket service for background messaging
@@ -227,7 +222,7 @@ export function AuthProvider({ children }) {
       try {
         const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
         if (trackingEnabled) {
-          console.log('🔄 Resuming location tracking after email verification');
+          //console.log('🔄 Resuming location tracking after email verification');
           await LocationTrackingService.startTracking(token);
         }
       } catch (error) {
@@ -257,7 +252,7 @@ export function AuthProvider({ children }) {
     // Stop location tracking on logout
     try {
       await LocationTrackingService.stopTracking();
-      console.log('🛑 Location tracking stopped on logout');
+      //console.log('🛑 Location tracking stopped on logout');
     } catch (error) {
       console.error('Failed to stop location tracking on logout:', error);
     }
@@ -318,18 +313,14 @@ export function AuthProvider({ children }) {
               const notificationService = AndroidNotificationService.default;
               const pushToken = notificationService.getPushToken();
               
-              console.log('🔍 Checking push token after delay:', {
-                hasPushToken: !!pushToken,
-                tokenValue: pushToken,
-                authToken: savedToken ? 'present' : 'missing'
-              });
+              
               
               if (pushToken && pushToken !== 'undefined') {
-                console.log('💾 Saving push token after auth restoration');
+                //console.log('💾 Saving push token after auth restoration');
                 // Pass the auth token directly to avoid AsyncStorage timing issues
                 await notificationService.savePushTokenToDatabase(pushToken, savedToken);
               } else {
-                console.log('⏳ Push token not ready yet, will save on next login');
+                //console.log('⏳ Push token not ready yet, will save on next login');
               }
             } catch (error) {
               console.error('Failed to save push token after auth restoration:', error);
@@ -399,7 +390,7 @@ export function AuthProvider({ children }) {
         const accountOk = await checkAccountStatus(fullUser, token);
         if (!accountOk) {
           // Account is blocked, force logout
-          console.log('⚠️ Account blocked, forcing logout');
+          //console.log('⚠️ Account blocked, forcing logout');
           await logOut();
         }
       }
@@ -436,7 +427,7 @@ export function AuthProvider({ children }) {
         isAuthenticated &&
         token
       ) {
-        console.log('📱 App came to foreground, checking account status');
+        //console.log('📱 App came to foreground, checking account status');
         checkCurrentAccountStatus();
       }
       appStateRef.current = nextAppState;

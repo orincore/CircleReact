@@ -46,7 +46,7 @@ class NotificationService extends SimpleEventEmitter {
     );
     
     if (isDuplicate) {
-      console.log('Preventing duplicate notification');
+      //console.log('Preventing duplicate notification');
       return null;
     }
 

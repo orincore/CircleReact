@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function AdminLogin() {
     const runAuthCheck = async () => {
       // Fallback timeout to prevent infinite loading
       fallbackTimeout = setTimeout(() => {
-        console.log('⚠️ AdminLogin - Fallback timeout reached, showing login form');
+        //console.log('⚠️ AdminLogin - Fallback timeout reached, showing login form');
         setCheckingAuth(false);
       }, 3000); // 3 second fallback
       
@@ -55,11 +55,11 @@ export default function AdminLogin() {
 
   const checkExistingAuth = async () => {
     try {
-      console.log('🔍 AdminLogin - Checking existing authentication...');
+      //console.log('🔍 AdminLogin - Checking existing authentication...');
       
       // Check if we're already on dashboard to prevent redirect loop
       if (Platform.OS === 'web' && window.location.pathname.includes('/admin/dashboard')) {
-        console.log('🔍 AdminLogin - Already on dashboard, skipping auth check');
+        //console.log('🔍 AdminLogin - Already on dashboard, skipping auth check');
         setCheckingAuth(false);
         return;
       }
@@ -67,11 +67,11 @@ export default function AdminLogin() {
       const storedToken = await AsyncStorage.getItem('authToken');
       const isAdmin = await AsyncStorage.getItem('isAdmin');
       
-      console.log('🔍 AdminLogin - Stored token:', storedToken ? 'Present' : 'Missing');
-      console.log('🔍 AdminLogin - Stored isAdmin:', isAdmin);
+      //console.log('🔍 AdminLogin - Stored token:', storedToken ? 'Present' : 'Missing');
+      //console.log('🔍 AdminLogin - Stored isAdmin:', isAdmin);
       
       if (storedToken && isAdmin === 'true') {
-        console.log('✅ AdminLogin - User already authenticated, redirecting to dashboard');
+        //console.log('✅ AdminLogin - User already authenticated, redirecting to dashboard');
         
         // Force redirect using both router and window.location for web
         if (Platform.OS === 'web') {
@@ -82,13 +82,13 @@ export default function AdminLogin() {
         return;
       }
       
-      console.log('❌ AdminLogin - No valid authentication found, showing login form');
+      //console.log('❌ AdminLogin - No valid authentication found, showing login form');
     } catch (error) {
       console.error('Error checking existing auth:', error);
     }
     
     // Always set checkingAuth to false, regardless of redirect
-    console.log('🔄 AdminLogin - Setting checkingAuth to false');
+    //console.log('🔄 AdminLogin - Setting checkingAuth to false');
     setCheckingAuth(false);
   };
 
@@ -120,9 +120,9 @@ export default function AdminLogin() {
       await AsyncStorage.setItem('authToken', token);
 
       // Check if user is an admin
-      console.log('🔍 Checking admin status for:', email);
-      console.log('🔍 Using API URL:', `${API_BASE_URL}/api/admin/check`);
-      console.log('🔍 Using token:', token ? 'Token present' : 'No token');
+      //console.log('🔍 Checking admin status for:', email);
+      //console.log('🔍 Using API URL:', `${API_BASE_URL}/api/admin/check`);
+      //console.log('🔍 Using token:', token ? 'Token present' : 'No token');
       
       const adminCheckResponse = await fetch(`${API_BASE_URL}/api/admin/check`, {
         headers: {
@@ -130,9 +130,9 @@ export default function AdminLogin() {
         },
       });
 
-      console.log('🔍 Admin check status:', adminCheckResponse.status);
+      //console.log('🔍 Admin check status:', adminCheckResponse.status);
       const adminData = await adminCheckResponse.json();
-      console.log('🔍 Admin check response:', adminData);
+      //console.log('🔍 Admin check response:', adminData);
 
       if (!adminCheckResponse.ok) {
         // API error, show specific error message

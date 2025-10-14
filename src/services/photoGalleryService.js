@@ -1,5 +1,5 @@
-import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
@@ -17,7 +17,7 @@ class PhotoGalleryService {
    */
   async compressImage(uri) {
     try {
-      console.log('🗜️ Compressing image:', uri);
+      //console.log('🗜️ Compressing image:', uri);
       
       // For web, handle differently
       if (Platform.OS === 'web') {
@@ -54,10 +54,7 @@ class PhotoGalleryService {
         }
       );
 
-      console.log('✅ Image compressed:', {
-        original: imageInfo,
-        compressed: compressedImage,
-      });
+      
 
       return compressedImage.uri;
     } catch (error) {
@@ -121,8 +118,8 @@ class PhotoGalleryService {
    */
   async uploadPhoto(uri, token) {
     try {
-      console.log('📤 Uploading photo to gallery...');
-      console.log('📤 Upload URL:', `${API_BASE_URL}/api/users/photos`);
+      //console.log('📤 Uploading photo to gallery...');
+      //console.log('📤 Upload URL:', `${API_BASE_URL}/api/users/photos`);
 
       // Compress image first
       const compressedUri = await this.compressImage(uri);
@@ -147,7 +144,7 @@ class PhotoGalleryService {
         });
       }
 
-      console.log('📤 Sending upload request...');
+      //console.log('📤 Sending upload request...');
       const uploadResponse = await fetch(`${API_BASE_URL}/api/users/photos`, {
         method: 'POST',
         headers: {
@@ -156,12 +153,12 @@ class PhotoGalleryService {
         body: formData,
       });
 
-      console.log('📤 Upload response status:', uploadResponse.status);
+      //console.log('📤 Upload response status:', uploadResponse.status);
 
       if (!uploadResponse.ok) {
         // Try to get error message
         const contentType = uploadResponse.headers.get('content-type');
-        console.log('📤 Response content-type:', contentType);
+        //console.log('📤 Response content-type:', contentType);
         
         let errorMessage = 'Failed to upload photo';
         
@@ -192,7 +189,7 @@ class PhotoGalleryService {
       }
 
       const data = await uploadResponse.json();
-      console.log('✅ Photo uploaded successfully:', data.photoUrl);
+      //console.log('✅ Photo uploaded successfully:', data.photoUrl);
       
       return data.photoUrl;
     } catch (error) {
@@ -206,7 +203,7 @@ class PhotoGalleryService {
    */
   async getPhotos(token) {
     try {
-      console.log('📸 Fetching photos from:', `${API_BASE_URL}/api/users/photos`);
+      //console.log('📸 Fetching photos from:', `${API_BASE_URL}/api/users/photos`);
       
       const response = await fetch(`${API_BASE_URL}/api/users/photos`, {
         method: 'GET',
@@ -216,7 +213,7 @@ class PhotoGalleryService {
         },
       });
 
-      console.log('📸 Photo fetch response status:', response.status);
+      //console.log('📸 Photo fetch response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -242,7 +239,7 @@ class PhotoGalleryService {
       }
 
       const data = await response.json();
-      console.log('✅ Photos fetched:', data.photos?.length || 0);
+      //console.log('✅ Photos fetched:', data.photos?.length || 0);
       return data.photos || [];
     } catch (error) {
       console.error('❌ Error fetching photos:', error);
@@ -256,7 +253,7 @@ class PhotoGalleryService {
    */
   async deletePhoto(photoUrl, token) {
     try {
-      console.log('🗑️ Deleting photo:', photoUrl);
+      //console.log('🗑️ Deleting photo:', photoUrl);
 
       const response = await fetch(`${API_BASE_URL}/api/users/photos`, {
         method: 'DELETE',
@@ -272,7 +269,7 @@ class PhotoGalleryService {
         throw new Error(errorData.message || 'Failed to delete photo');
       }
 
-      console.log('✅ Photo deleted successfully');
+      //console.log('✅ Photo deleted successfully');
       return true;
     } catch (error) {
       console.error('❌ Error deleting photo:', error);

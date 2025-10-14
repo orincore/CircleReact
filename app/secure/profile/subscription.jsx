@@ -1,21 +1,21 @@
+import PaymentForm from '@/components/PaymentForm';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
   ActivityIndicator,
-  Platform
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import { useAuth } from '@/contexts/AuthContext';
-import PaymentForm from '@/components/PaymentForm';
 
 export default function SubscriptionPage() {
   const router = useRouter();
@@ -99,11 +99,11 @@ export default function SubscriptionPage() {
 
     setLoading(true);
     try {
-      console.log('Starting subscription process for plan:', selectedPlan);
-      console.log('User authenticated:', !!token, !!user);
+      //console.log('Starting subscription process for plan:', selectedPlan);
+      //console.log('User authenticated:', !!token, !!user);
       
       const result = await subscribeToPremium(selectedPlan, token);
-      console.log('Subscription result:', result);
+      //console.log('Subscription result:', result);
       
       if (result && result.success) {
         if (Platform.OS === 'web') {
@@ -126,7 +126,7 @@ export default function SubscriptionPage() {
           );
         }
       } else {
-        console.log('Subscription not successful, showing payment form');
+        //console.log('Subscription not successful, showing payment form');
         setShowPaymentForm(true);
       }
     } catch (error) {

@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
-import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
 import { getAdUnitId } from '@/src/config/admob';
 import AdMobService from '@/src/services/AdMobService';
+import { useEffect, useRef } from 'react';
+import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
 
 /**
  * Interstitial Ad Hook
@@ -9,7 +9,7 @@ import AdMobService from '@/src/services/AdMobService';
  * 
  * Usage:
  * const { showInterstitial } = useInterstitialAd('after_match');
- * showInterstitial(() => console.log('Ad completed'));
+ * showInterstitial(() => //console.log('Ad completed'));
  */
 export const useInterstitialAd = (placement = 'default') => {
   const interstitialRef = useRef(null);
@@ -28,7 +28,7 @@ export const useInterstitialAd = (placement = 'default') => {
       AdEventType.LOADED,
       () => {
         loadedRef.current = true;
-        console.log(`✅ Interstitial ad loaded: ${placement}`);
+        //console.log(`✅ Interstitial ad loaded: ${placement}`);
       }
     );
 
@@ -48,7 +48,7 @@ export const useInterstitialAd = (placement = 'default') => {
     const unsubscribeClosed = interstitial.addAdEventListener(
       AdEventType.CLOSED,
       () => {
-        console.log(`👋 Interstitial ad closed: ${placement}`);
+        //console.log(`👋 Interstitial ad closed: ${placement}`);
         loadedRef.current = false;
         
         // Call callback after ad is closed
@@ -65,7 +65,7 @@ export const useInterstitialAd = (placement = 'default') => {
     const unsubscribeOpened = interstitial.addAdEventListener(
       AdEventType.OPENED,
       () => {
-        console.log(`👆 Interstitial ad opened: ${placement}`);
+        //console.log(`👆 Interstitial ad opened: ${placement}`);
         AdMobService.recordInterstitialShown();
       }
     );
@@ -92,7 +92,7 @@ export const useInterstitialAd = (placement = 'default') => {
 
     // Check if ad can be shown
     if (!AdMobService.canShowInterstitial()) {
-      console.log('⏭️ Skipping interstitial ad (frequency limit)');
+      //console.log('⏭️ Skipping interstitial ad (frequency limit)');
       if (callback) callback();
       return;
     }
@@ -106,7 +106,7 @@ export const useInterstitialAd = (placement = 'default') => {
         if (callback) callback();
       }
     } else {
-      console.log('⏭️ Interstitial ad not ready');
+      //console.log('⏭️ Interstitial ad not ready');
       if (callback) callback();
     }
   };

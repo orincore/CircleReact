@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-  RefreshControl,
   Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 export default function AdminCampaigns() {
   const router = useRouter();
@@ -35,8 +35,8 @@ export default function AdminCampaigns() {
   });
 
   useEffect(() => {
-    console.log('🌐 API_BASE_URL:', API_BASE_URL);
-    console.log('📍 Campaigns endpoint:', `${API_BASE_URL}/api/admin/campaigns`);
+    //console.log('🌐 API_BASE_URL:', API_BASE_URL);
+    //console.log('📍 Campaigns endpoint:', `${API_BASE_URL}/api/admin/campaigns`);
     loadCampaigns();
   }, [page, statusFilter, typeFilter]);
 
@@ -55,7 +55,7 @@ export default function AdminCampaigns() {
         type: typeFilter,
       });
 
-      console.log('📡 Fetching campaigns from:', `${API_BASE_URL}/api/admin/campaigns?${params}`);
+      //console.log('📡 Fetching campaigns from:', `${API_BASE_URL}/api/admin/campaigns?${params}`);
       
       const response = await fetch(
         `${API_BASE_URL}/api/admin/campaigns?${params}`,
@@ -66,10 +66,10 @@ export default function AdminCampaigns() {
         }
       );
 
-      console.log('📊 Campaigns response status:', response.status);
+      //console.log('📊 Campaigns response status:', response.status);
 
       if (response.status === 401 || response.status === 403) {
-        console.log('🔒 Auth failed, redirecting to login');
+        //console.log('🔒 Auth failed, redirecting to login');
         router.replace('/admin/login');
         return;
       }
@@ -81,7 +81,7 @@ export default function AdminCampaigns() {
       }
 
       const data = await response.json();
-      console.log('✅ Campaigns loaded:', data);
+      //console.log('✅ Campaigns loaded:', data);
       setCampaigns(data.campaigns || []);
       setPagination(data.pagination);
     } catch (error) {
@@ -137,8 +137,8 @@ export default function AdminCampaigns() {
           onPress: async () => {
             try {
               const token = await AsyncStorage.getItem('token');
-              console.log('🚀 Sending campaign:', campaignId);
-              console.log('📍 API URL:', `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`);
+              //console.log('🚀 Sending campaign:', campaignId);
+              //console.log('📍 API URL:', `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`);
               
               const response = await fetch(
                 `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`,
@@ -151,11 +151,11 @@ export default function AdminCampaigns() {
                 }
               );
 
-              console.log('📡 Response status:', response.status);
+              //console.log('📡 Response status:', response.status);
               
               if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Campaign sent successfully:', data);
+                //console.log('✅ Campaign sent successfully:', data);
                 Alert.alert('Success', data.message || 'Campaign sent successfully');
                 loadCampaigns();
               } else {

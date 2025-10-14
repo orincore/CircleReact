@@ -1,24 +1,23 @@
-import React, { useState } from 'react'
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Platform,
-} from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
-import { useAuth } from '../src/contexts/AuthContext'
+import { useState } from 'react'
 import {
-  uploadApi,
-  validateFileSize,
-  validateFileType,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
+import {
   ALLOWED_IMAGE_TYPES,
   FILE_SIZE_LIMITS,
+  uploadApi,
+  validateFileType
 } from '../src/api/upload'
+import { useAuth } from '../src/contexts/AuthContext'
 
 /**
  * Profile Photo Upload Component
@@ -123,12 +122,12 @@ export default function ProfilePhotoUpload({ currentPhotoUrl, onUploadSuccess })
         return
       }
 
-      console.log('📤 Uploading profile photo...')
+      //console.log('📤 Uploading profile photo...')
 
       // Upload to S3 via backend
       const result = await uploadApi.uploadProfilePhoto(file, token)
 
-      console.log('✅ Profile photo uploaded:', result)
+      //console.log('✅ Profile photo uploaded:', result)
 
       // Update local state
       setPhotoUrl(result.url)

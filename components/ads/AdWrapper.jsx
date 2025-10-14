@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 /**
@@ -19,11 +18,11 @@ export const shouldEnableAds = () => {
   const inExpoGo = isExpoGo();
   
   if (inExpoGo) {
-    console.log('🚫 AdMob disabled - Running in Expo Go (custom native modules not supported)');
+    //console.log('🚫 AdMob disabled - Running in Expo Go (custom native modules not supported)');
     return false;
   }
   
-  console.log('✅ AdMob enabled - Running in development/production build');
+  //console.log('✅ AdMob enabled - Running in development/production build');
   return true;
 };
 

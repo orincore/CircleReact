@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-  Platform,
-  TouchableOpacity,
-  Alert
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/contexts/AuthContext';
+import { friendsApi } from '@/src/api/friends';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 import FriendRequestCard from './FriendRequestCard';
 import UserProfileModal from './UserProfileModal';
-import { friendsApi } from '@/src/api/friends';
-import { useAuth } from '@/contexts/AuthContext';
-import { router } from 'expo-router';
 
 export default function FriendRequestsSection() {
   const [requests, setRequests] = useState([]);
@@ -43,19 +41,19 @@ export default function FriendRequestsSection() {
       // First try the debug endpoint to see what's in the database
       try {
         const debugResponse = await friendsApi.debugRequests(token);
-        console.log('Debug friend requests:', debugResponse);
+        //console.log('Debug friend requests:', debugResponse);
       } catch (debugError) {
-        console.log('Debug endpoint failed:', debugError);
+        //console.log('Debug endpoint failed:', debugError);
       }
 
       const response = await friendsApi.getPendingRequests(token);
-      console.log('Pending requests response:', response);
+      //console.log('Pending requests response:', response);
       setRequests(response.requests || []);
     } catch (error) {
       console.error('Failed to load friend requests:', error);
       // Don't show error for missing tables during development
       if (error.message.includes('relation') || error.message.includes('table')) {
-        console.log('Friend requests table not yet created');
+        //console.log('Friend requests table not yet created');
         setRequests([]);
       }
     } finally {
@@ -70,14 +68,14 @@ export default function FriendRequestsSection() {
     
     // The request is already accepted by the FriendRequestCard component
     // Here we can add additional logic like navigating to chat
-    console.log('Friend request accepted:', request.sender.name);
+    //console.log('Friend request accepted:', request.sender.name);
   };
 
   const handleRejectRequest = async (request) => {
     // Remove from local state immediately for better UX
     setRequests(prev => prev.filter(r => r.id !== request.id));
     
-    console.log('Friend request rejected:', request.sender.name);
+    //console.log('Friend request rejected:', request.sender.name);
   };
 
   const handleViewProfile = (user) => {

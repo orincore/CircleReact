@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import browserNotificationService from '../services/browserNotificationService';
-import { forceReconnect, socketService } from '../api/socket';
 import { useAuth } from '@/contexts/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import { Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { forceReconnect, socketService } from '../api/socket';
+import browserNotificationService from '../services/browserNotificationService';
 
 export default function NotificationDebugPanel() {
   const [isVisible, setIsVisible] = useState(false);
@@ -343,18 +343,18 @@ export default function NotificationDebugPanel() {
         };
 
         // Emit the actual socket event that should trigger notification
-        console.log('🧪 Manually emitting chat:message:received event:', testMessageData);
+        //console.log('🧪 Manually emitting chat:message:received event:', testMessageData);
         
         // Simulate the server sending this event
         socket.emit('chat:message:received', testMessageData);
         
         // Also trigger the event handler directly to test
         setTimeout(() => {
-          console.log('🧪 Triggering event handler directly...');
+          //console.log('🧪 Triggering event handler directly...');
           
           // This simulates what happens when the server sends the event
           const eventHandlers = socket.listeners('chat:message:received');
-          console.log('🔍 Found event handlers:', eventHandlers.length);
+          //console.log('🔍 Found event handlers:', eventHandlers.length);
           
           if (eventHandlers.length > 0) {
             eventHandlers.forEach(handler => {

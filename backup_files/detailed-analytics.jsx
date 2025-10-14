@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 const { width } = Dimensions.get('window');
 
@@ -53,7 +53,7 @@ export default function DetailedAnalytics() {
       const daysMap = { '7d': 7, '30d': 30, '90d': 90, 'all': 365 };
       const days = daysMap[timeRange] || 7;
 
-      console.log('📊 Loading detailed analytics...');
+      //console.log('📊 Loading detailed analytics...');
 
       // Load screen analytics
       const screensResponse = await fetch(`${API_BASE_URL}/api/analytics/screens?days=${days}`, {
@@ -88,7 +88,7 @@ export default function DetailedAnalytics() {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
-      console.log('📈 Loading event-specific data...');
+      //console.log('📈 Loading event-specific data...');
 
       // Load events summary to get counts for all event types
       const summaryResponse = await fetch(`${API_BASE_URL}/api/analytics/events-summary?days=${days}`, {
@@ -97,7 +97,7 @@ export default function DetailedAnalytics() {
 
       if (summaryResponse.ok) {
         const summaryData = await summaryResponse.json();
-        console.log('📊 Events summary:', summaryData);
+        //console.log('📊 Events summary:', summaryData);
 
         // Map event types to state
         summaryData.summary?.forEach(event => {

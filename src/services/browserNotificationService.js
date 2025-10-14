@@ -16,7 +16,7 @@ class BrowserNotificationService {
   }
 
   initialize() {
-    console.log('🔔 Initializing browser notification service...');
+    //console.log('🔔 Initializing browser notification service...');
     
     // Check if browser supports notifications
     this.isSupported = 'Notification' in window;
@@ -25,39 +25,22 @@ class BrowserNotificationService {
       this.permission = Notification.permission;
       this.isEnabled = this.permission === 'granted';
       
-      console.log('🔔 Browser notifications initialized:', {
-        supported: this.isSupported,
-        permission: this.permission,
-        enabled: this.isEnabled,
-        userAgent: navigator.userAgent.substring(0, 50) + '...',
-        protocol: window.location.protocol,
-        host: window.location.host,
-        visibilityState: document.visibilityState,
-        timestamp: new Date().toISOString()
-      });
+
       
       // Add visibility change listener for debugging
       document.addEventListener('visibilitychange', () => {
-        console.log('👁️ Page visibility changed:', {
-          visibilityState: document.visibilityState,
-          hidden: document.hidden,
-          timestamp: new Date().toISOString()
-        });
+      
       });
       
     } else {
       console.warn('⚠️ Browser notifications not supported');
-      console.log('🔍 Debug info:', {
-        hasWindow: typeof window !== 'undefined',
-        hasNotification: 'Notification' in window,
-        userAgent: navigator.userAgent
-      });
+      
     }
   }
 
   // Request notification permission
   async requestPermission() {
-    console.log('🔔 Requesting notification permission...');
+    //console.log('🔔 Requesting notification permission...');
     this.permissionRequested = true;
     
     if (!this.isSupported) {
@@ -66,7 +49,7 @@ class BrowserNotificationService {
     }
 
     if (this.permission === 'granted') {
-      console.log('✅ Permission already granted');
+      //console.log('✅ Permission already granted');
       return true;
     }
 
@@ -75,10 +58,7 @@ class BrowserNotificationService {
       this.permission = permission;
       this.isEnabled = permission === 'granted';
       
-      console.log('🔔 Permission request result:', {
-        permission,
-        enabled: this.isEnabled
-      });
+      
       
       return permission === 'granted';
     } catch (error) {
@@ -92,15 +72,7 @@ class BrowserNotificationService {
     const isPageHidden = document.visibilityState === 'hidden';
     const hasPermission = this.isSupported && this.isEnabled;
     
-    console.log('🔍 Notification check:', {
-      supported: this.isSupported,
-      enabled: this.isEnabled,
-      permission: this.permission,
-      pageHidden: isPageHidden,
-      visibilityState: document.visibilityState,
-      canShow: hasPermission && isPageHidden,
-      timestamp: new Date().toISOString()
-    });
+    
     
     return hasPermission && isPageHidden;
   }
@@ -112,48 +84,36 @@ class BrowserNotificationService {
 
   // Core notification display method
   showNotification({ title, body, icon = '/icon-192x192.png', tag, data = {}, onClick }) {
-    console.log('🔔 Attempting to show notification:', { 
-      title, 
-      body, 
-      tag,
-      visibilityState: document.visibilityState,
-      permission: this.permission,
-      enabled: this.isEnabled
-    });
+    
     
     // Auto-request permission if not done yet
     if (!this.permissionRequested && this.permission === 'default') {
-      console.log('🔔 Auto-requesting permission...');
+      //console.log('🔔 Auto-requesting permission...');
       this.requestPermission().then(() => {
         // Retry showing notification after permission
         if (this.canShowNotifications()) {
-          console.log('🔔 Permission granted, retrying notification...');
+          //console.log('🔔 Permission granted, retrying notification...');
           this.displayNotification({ title, body, icon, tag, data, onClick });
         } else {
-          console.log('🔕 Still cannot show notification after permission grant');
+          //console.log('🔕 Still cannot show notification after permission grant');
         }
       });
       return false;
     }
     
     if (!this.canShowNotifications()) {
-      console.log('🔕 Cannot show notification - conditions not met:', {
-        supported: this.isSupported,
-        enabled: this.isEnabled,
-        pageHidden: document.visibilityState === 'hidden',
-        visibilityState: document.visibilityState
-      });
+      
       return false;
     }
     
-    console.log('✅ All conditions met, displaying notification...');
+    //console.log('✅ All conditions met, displaying notification...');
     return this.displayNotification({ title, body, icon, tag, data, onClick });
   }
 
   // Display the actual notification
   displayNotification({ title, body, icon, tag, data, onClick }) {
     try {
-      console.log('✅ Displaying notification:', title);
+      //console.log('✅ Displaying notification:', title);
       
       const notification = new Notification(title, {
         body,
@@ -171,7 +131,7 @@ class BrowserNotificationService {
 
       // Handle click
       notification.onclick = (event) => {
-        console.log('🔔 Notification clicked:', title);
+        //console.log('🔔 Notification clicked:', title);
         
         // Focus the window
         if (window) {
@@ -192,7 +152,7 @@ class BrowserNotificationService {
         notification.close();
       }, 5000);
 
-      console.log('✅ Notification displayed successfully:', title);
+      //console.log('✅ Notification displayed successfully:', title);
       return notification;
       
     } catch (error) {
@@ -203,7 +163,7 @@ class BrowserNotificationService {
 
   // Clear all notifications
   clearAllNotifications() {
-    console.log('🧹 Clearing all notifications...');
+    //console.log('🧹 Clearing all notifications...');
     this.activeNotifications.forEach((notification, tag) => {
       try {
         notification.close();
@@ -223,7 +183,7 @@ class BrowserNotificationService {
       tag: `friend-request-${senderId}`,
       data: { type: 'friend_request', senderId, requestId, senderName },
       onClick: (data) => {
-        console.log('🔔 Friend request notification clicked:', data);
+        //console.log('🔔 Friend request notification clicked:', data);
         // Navigate to notifications or friend requests
         if (typeof window !== 'undefined') {
           window.focus();
@@ -241,7 +201,7 @@ class BrowserNotificationService {
       tag: `message-${chatId}`,
       data: { type: 'message', chatId, senderId, senderName },
       onClick: (data) => {
-        console.log('🔔 Message notification clicked:', data);
+        //console.log('🔔 Message notification clicked:', data);
         // Navigate to chat
         if (typeof window !== 'undefined') {
           window.focus();
@@ -259,7 +219,7 @@ class BrowserNotificationService {
       tag: `match-${matchId}`,
       data: { type: 'match', matchId, matchedUserName },
       onClick: (data) => {
-        console.log('🔔 Match notification clicked:', data);
+        //console.log('🔔 Match notification clicked:', data);
         // Navigate to matches
         if (typeof window !== 'undefined') {
           window.focus();
@@ -277,7 +237,7 @@ class BrowserNotificationService {
       tag: `message-request-${senderId}`,
       data: { type: 'message_request', senderId, requestId, senderName },
       onClick: (data) => {
-        console.log('🔔 Message request notification clicked:', data);
+        //console.log('🔔 Message request notification clicked:', data);
         if (typeof window !== 'undefined') {
           window.focus();
         }
@@ -294,7 +254,7 @@ class BrowserNotificationService {
       tag: `friend-accepted-${friendId}`,
       data: { type: 'friend_accepted', friendId, friendName },
       onClick: (data) => {
-        console.log('🔔 Friend accepted notification clicked:', data);
+        //console.log('🔔 Friend accepted notification clicked:', data);
         if (typeof window !== 'undefined') {
           window.focus();
         }
@@ -304,7 +264,7 @@ class BrowserNotificationService {
 
   // Profile visit notifications
   showProfileVisitNotification({ visitorName, visitorId }) {
-    console.log('👀 Showing profile visit notification:', { visitorName, visitorId });
+    //console.log('👀 Showing profile visit notification:', { visitorName, visitorId });
     
     // Validate input parameters
     if (!visitorName || !visitorId) {
@@ -327,7 +287,7 @@ class BrowserNotificationService {
         timestamp: new Date().toISOString()
       },
       onClick: (data) => {
-        console.log('🔔 Profile visit notification clicked:', data);
+        //console.log('🔔 Profile visit notification clicked:', data);
         
         // Focus the window
         if (typeof window !== 'undefined') {
@@ -343,7 +303,7 @@ class BrowserNotificationService {
           // Or navigate to notifications page
           // window.location.href = '/notifications';
           
-          console.log('✅ Profile visit notification click handled successfully');
+          //console.log('✅ Profile visit notification click handled successfully');
         } catch (error) {
           console.error('❌ Error handling profile visit notification click:', error);
         }
@@ -365,7 +325,7 @@ class BrowserNotificationService {
         timestamp: Date.now()
       },
       onClick: () => {
-        console.log('📞 Voice call notification clicked');
+        //console.log('📞 Voice call notification clicked');
         // Focus the window to bring the app to foreground
         window.focus();
         // The call modal should already be handled by the socket listener
@@ -382,7 +342,7 @@ class BrowserNotificationService {
       tag: `reaction-${chatId}-${senderId}`,
       data: { type: 'reaction', chatId, senderId, senderName, emoji },
       onClick: (data) => {
-        console.log('🔔 Reaction notification clicked:', data);
+        //console.log('🔔 Reaction notification clicked:', data);
         if (typeof window !== 'undefined') {
           window.focus();
         }
@@ -393,7 +353,7 @@ class BrowserNotificationService {
   // Force show notification (for testing)
   forceShowNotification({ title, body, icon, tag, data, onClick }) {
     if (!this.canForceShow()) {
-      console.log('🔕 Cannot force show - no permission');
+      //console.log('🔕 Cannot force show - no permission');
       return false;
     }
     

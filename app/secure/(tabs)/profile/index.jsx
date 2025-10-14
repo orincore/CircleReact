@@ -1,35 +1,35 @@
-import React, { useState, useEffect, useRef } from "react";
-import { LinearGradient } from "expo-linear-gradient";
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View, 
-  Image, 
-  RefreshControl, 
-  Animated, 
-  Dimensions, 
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Modal 
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
-import { useAuth } from "@/contexts/AuthContext";
-import { useSubscription } from "@/contexts/SubscriptionContext";
-import { circleStatsApi } from "@/src/api/circle-stats";
+import Avatar from "@/components/Avatar";
 import { ProfilePremiumBadge } from "@/components/PremiumBadge";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import SubscriptionModal from "@/components/SubscriptionModal";
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import { formatPhoneNumber } from "@/constants/countries";
-import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
-import Avatar from "@/components/Avatar";
 import UserProfileModal from "@/src/components/UserProfileModal";
+import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { BannerAd } = getAdComponents();
 
@@ -123,7 +123,7 @@ export default function ProfileScreen() {
       setLoadingPhotos(true);
       const userPhotos = await PhotoGalleryService.getPhotos(token);
       setPhotos(userPhotos || []);
-      console.log('📸 Loaded photos:', userPhotos?.length || 0);
+      //console.log('📸 Loaded photos:', userPhotos?.length || 0);
     } catch (error) {
       console.error('❌ Failed to load photos:', error);
       // Set empty array on error to prevent crashes
@@ -139,10 +139,10 @@ export default function ProfileScreen() {
     
     try {
       setLoadingFriends(true);
-      console.log('👥 Loading friends list...');
+      //console.log('👥 Loading friends list...');
       const response = await friendsApi.getFriendsList(token);
       setFriends(response.friends || []);
-      console.log('✅ Loaded friends:', response.friends?.length || 0);
+      //console.log('✅ Loaded friends:', response.friends?.length || 0);
       
       // Update stats with actual friends count
       setStats(prev => ({
@@ -305,7 +305,7 @@ export default function ProfileScreen() {
                 key={friend.id}
                 style={styles.friendItem}
                 onPress={() => {
-                  console.log('👤 Opening profile for:', friend.name);
+                  //console.log('👤 Opening profile for:', friend.name);
                   setSelectedFriend(friend);
                   setShowFriendProfile(true);
                 }}
@@ -547,7 +547,7 @@ export default function ProfileScreen() {
         total_friends: response.stats.total_friends || 0
       };
       setStats(statsWithTotal);
-      console.log('📊 Loaded stats:', statsWithTotal);
+      //console.log('📊 Loaded stats:', statsWithTotal);
     } catch (error) {
       console.error('Failed to load stats:', error);
       // Set default stats on error

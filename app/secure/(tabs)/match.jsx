@@ -1,37 +1,41 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  RefreshControl,
-  useWindowDimensions,
-  Modal,
-  ActivityIndicator,
-  Animated,
-  Easing,
-  AppState,
-  Platform,
-  Alert,
-  Share,
-  Linking,
-} from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Location from "expo-location";
-import LocationMap from "@/components/LocationMap";
-import { matchmakingApi } from "@/src/api/matchmaking";
-import { useAuth } from "@/contexts/AuthContext";
-import { updateLocationGql, nearbyUsersGql } from "@/src/api/graphql";
-import { getSocket, closeSocket } from "@/src/api/socket";
-import FriendRequestsSection from "@/src/components/FriendRequestsSection";
-import FriendRequestMatchCard from "@/src/components/FriendRequestMatchCard";
-import { useSubscription } from "@/contexts/SubscriptionContext";
 import { getAdComponents } from "@/components/ads/AdWrapper";
+import LiveActivityFeed from "@/components/LiveActivityFeed";
+import Toast from "@/components/Toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { CirclePointsHelper, circleStatsApi } from "@/src/api/circle-stats";
+import { friendsApi } from "@/src/api/friends";
+import { nearbyUsersGql, updateLocationGql } from "@/src/api/graphql";
+import { matchmakingApi } from "@/src/api/matchmaking";
+import { getSocket } from "@/src/api/socket";
+import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
+import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
+import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  AppState,
+  Easing,
+  Image,
+  Linking,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 const { useInterstitialAd, AdMobService } = getAdComponents();
 
@@ -283,15 +287,6 @@ const searchingStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 });
-import UserProfileModal from "@/src/components/UserProfileModal";
-import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
-import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
-import { friendsApi } from "@/src/api/friends";
-import { testBrowserNotifications, testProfileVisitNotification, debugNotificationSystem, forceEnableNotifications, testBackendProfileVisitNotification, simulateSocketNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
-import { getUserPreferences, getPreferencesForMatching } from "@/utils/preferences";
-import Toast from "@/components/Toast";
-import { circleStatsApi, CirclePointsHelper } from "@/src/api/circle-stats";
-import LiveActivityFeed from "@/components/LiveActivityFeed";
 
 const mockMatches = [
   { id: 1, name: "Ava", age: 27, location: "2 km away", compatibility: "92%" },
@@ -321,14 +316,14 @@ export default function MatchScreen() {
       window.testSocketUserEvents = testSocketUserEvents;
       window.debugNotificationSystem = debugNotificationSystem;
       window.forceEnableNotifications = forceEnableNotifications;
-      console.log('🧪 Browser notification testing available:');
-      console.log('   - window.debugNotificationSystem() - Debug entire notification system');
-      console.log('   - window.forceEnableNotifications() - Force enable notifications');
-      console.log('   - window.testSocketUserEvents() - Test socket user event reception');
-      console.log('   - window.testBackendProfileVisitNotification() - Test exact backend format');
-      console.log('   - window.simulateSocketNotification() - Simulate socket event');
-      console.log('   - window.testBrowserNotifications() - Test all notification types');
-      console.log('   - window.testProfileVisitNotification() - Test profile visit notifications');
+      //console.log('🧪 Browser notification testing available:');
+      //console.log('   - window.debugNotificationSystem() - Debug entire notification system');
+      //console.log('   - window.forceEnableNotifications() - Force enable notifications');
+      //console.log('   - window.testSocketUserEvents() - Test socket user event reception');
+      //console.log('   - window.testBackendProfileVisitNotification() - Test exact backend format');
+      //console.log('   - window.simulateSocketNotification() - Simulate socket event');
+      //console.log('   - window.testBrowserNotifications() - Test all notification types');
+      //console.log('   - window.testProfileVisitNotification() - Test profile visit notifications');
     }
   }, []);
   const [isSearching, setIsSearching] = useState(false);
@@ -545,7 +540,7 @@ export default function MatchScreen() {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "background") {
         // Socket will handle connection management automatically
-        console.log('App went to background');
+        //console.log('App went to background');
       } else if (state === "active") {
         // Reconnect socket if needed
         if (token && isSearching) {
@@ -599,7 +594,7 @@ export default function MatchScreen() {
       setHasActiveSession(false);
       acceptedNotifiedRef.current = false;
     } catch (e) {
-      console.log('Cleanup completed (some errors ignored)');
+      //console.log('Cleanup completed (some errors ignored)');
     }
   };
 
@@ -616,7 +611,7 @@ export default function MatchScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission denied');
+        //console.log('Location permission denied');
         return;
       }
 
@@ -640,7 +635,7 @@ export default function MatchScreen() {
           country = location.country;
         }
       } catch (error) {
-        console.log('Reverse geocoding failed:', error);
+        //console.log('Reverse geocoding failed:', error);
       }
 
       // Update location in database via GraphQL
@@ -690,7 +685,7 @@ export default function MatchScreen() {
         }
       }
       
-      console.log('📍 Loading nearby users at:', latitude, longitude);
+      //console.log('📍 Loading nearby users at:', latitude, longitude);
       const users = await nearbyUsersGql(latitude, longitude, radiusKm, 50, token);
       
       // Transform to match expected format
@@ -725,9 +720,9 @@ export default function MatchScreen() {
             setIsSearching(false);
             setMatchedUser(null);
             setShowModal(false);
-            console.log('Matchmaking cancelled due to app backgrounding');
+            //console.log('Matchmaking cancelled due to app backgrounding');
           } catch (error) {
-            console.log('Failed to cancel matchmaking on background:', error);
+            //console.log('Failed to cancel matchmaking on background:', error);
           }
         }
       }
@@ -777,7 +772,7 @@ export default function MatchScreen() {
 
     // Listen for pending requests list
     socket.on('friend:requests:pending_list', ({ requests }) => {
-      console.log('📋 Pending friend requests loaded via socket:', requests);
+      //console.log('📋 Pending friend requests loaded via socket:', requests);
       
       // Only update if we have requests from socket
       if (requests && requests.length > 0) {
@@ -787,8 +782,8 @@ export default function MatchScreen() {
 
     // Listen for new friend requests
     socket.on('friend:request:received', ({ request, sender }) => {
-      console.log('📨 New friend request received:', request);
-      console.log('📨 Sender info:', sender);
+      //console.log('📨 New friend request received:', request);
+      //console.log('📨 Sender info:', sender);
       
       // Attach sender info to request for display
       const requestWithSender = { ...request, sender };
@@ -807,7 +802,7 @@ export default function MatchScreen() {
 
     // Listen for friend request acceptance
     socket.on('friend:request:accepted', ({ request, acceptedBy, friendship, friend }) => {
-      console.log('✅ Friend request accepted:', { request, acceptedBy, friendship, friend });
+      //console.log('✅ Friend request accepted:', { request, acceptedBy, friendship, friend });
       
       // Remove from pending requests - use friendship.id if request is undefined
       const requestId = request?.id || friendship?.id;
@@ -828,7 +823,7 @@ export default function MatchScreen() {
 
     // Listen for friend request decline
     socket.on('friend:request:declined', ({ request, declinedBy }) => {
-      console.log('❌ Friend request declined:', request);
+      //console.log('❌ Friend request declined:', request);
       
       // Remove from pending requests
       if (request && request.id) {
@@ -838,7 +833,7 @@ export default function MatchScreen() {
 
     // Listen for friend request cancellation
     socket.on('friend:request:cancelled', ({ request, cancelledBy }) => {
-      console.log('🚫 Friend request cancelled:', request);
+      //console.log('🚫 Friend request cancelled:', request);
       
       // Remove from pending requests
       if (request && request.id) {
@@ -855,7 +850,7 @@ export default function MatchScreen() {
 
     // Listen for message request cancellation
     socket.on('message:request:cancelled', ({ proposal, cancelledBy }) => {
-      console.log('🚫 Message request cancelled:', proposal);
+      //console.log('🚫 Message request cancelled:', proposal);
       
       // Show toast notification
       setToast({
@@ -867,7 +862,7 @@ export default function MatchScreen() {
 
     // Listen for unfriend events
     socket.on('friend:unfriended', ({ unfriendedBy, friendship }) => {
-      console.log('💔 Unfriended by user:', unfriendedBy);
+      //console.log('💔 Unfriended by user:', unfriendedBy);
       
       // Show toast notification
       setToast({
@@ -879,7 +874,7 @@ export default function MatchScreen() {
 
     // Listen for sent confirmation
     socket.on('friend:request:sent', ({ request, success }) => {
-      console.log('✅ Friend request sent:', request);
+      //console.log('✅ Friend request sent:', request);
       
       if (success) {
         Alert.alert(
@@ -924,7 +919,7 @@ export default function MatchScreen() {
   // Refresh when user interests/needs change (after settings update)
   useEffect(() => {
     if (user) {
-      console.log('Match screen loaded for user:', user.id);
+      //console.log('Match screen loaded for user:', user.id);
       loadPassedMatches();
       loadNearbyUsers();
       loadFriendRequests();
@@ -933,9 +928,9 @@ export default function MatchScreen() {
       // Ensure socket is connected
       const socket = getSocket();
       if (socket) {
-        console.log('✅ Socket connected:', socket.connected);
+        //console.log('✅ Socket connected:', socket.connected);
         if (!socket.connected) {
-          console.log('🔄 Reconnecting socket...');
+          //console.log('🔄 Reconnecting socket...');
           socket.connect();
         }
       } else {
@@ -1033,7 +1028,7 @@ export default function MatchScreen() {
       AdMobService.incrementMatchCount();
       if (shouldShowAds() && AdMobService.shouldShowAfterMatch()) {
         showInterstitial(() => {
-          console.log('✅ Interstitial ad completed after pass');
+          //console.log('✅ Interstitial ad completed after pass');
         });
       }
     } catch (error) {
@@ -1051,9 +1046,9 @@ export default function MatchScreen() {
     if (!token) return;
     
     try {
-      console.log('🚀 Initializing Circle points...');
+      //console.log('🚀 Initializing Circle points...');
       const response = await circleStatsApi.initialize(token);
-      console.log('✅ Circle points initialized:', response);
+      //console.log('✅ Circle points initialized:', response);
       
       // Reload stats to show updated data
       await loadCircleStats();
@@ -1165,7 +1160,7 @@ export default function MatchScreen() {
       
       // Get user preferences for matching
       const userPreferences = await getUserPreferences();
-      console.log('📋 User preferences loaded:', userPreferences);
+      //console.log('📋 User preferences loaded:', userPreferences);
       
       // Get user location for better matching (optional)
       let location = null;
@@ -1179,7 +1174,7 @@ export default function MatchScreen() {
           };
         }
       } catch (locationError) {
-        console.log('Location not available, continuing without it');
+        //console.log('Location not available, continuing without it');
       }
       
       // Determine if user is looking for friendship based on their needs
@@ -1188,7 +1183,7 @@ export default function MatchScreen() {
       
       // Get matching preferences based on user settings and relationship type
       const matchingPrefs = getPreferencesForMatching(userPreferences, user, isForFriendship);
-      console.log('🎯 Matching preferences:', matchingPrefs);
+      //console.log('🎯 Matching preferences:', matchingPrefs);
       
       // Prepare location data with preferences
       const locationData = location ? {
@@ -1288,7 +1283,7 @@ export default function MatchScreen() {
   };
 
   const handleAcceptRequest = (request) => {
-    console.log('Accepting friend request:', request);
+    //console.log('Accepting friend request:', request);
     
     // Extract the display name using the correct field names
     const displayName = (() => {
@@ -1339,7 +1334,7 @@ export default function MatchScreen() {
   };
 
   const handleRejectRequest = (request) => {
-    console.log('Rejecting friend request:', request);
+    //console.log('Rejecting friend request:', request);
     
     // Extract the display name using the correct field names
     const displayName = (() => {

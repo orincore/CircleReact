@@ -15,7 +15,7 @@ const testConnection = async () => {
     }
     
     const data = await response.json();
-    console.log('Friends API connection test:', data);
+    //console.log('Friends API connection test:', data);
     return true;
   } catch (error) {
     console.error('Friends API connection failed:', error);

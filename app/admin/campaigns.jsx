@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/src/api/config';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-  RefreshControl,
   Modal,
-  TextInput,
   Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@/src/api/config';
 
 export default function AdminCampaigns() {
   const router = useRouter();
@@ -41,8 +41,8 @@ export default function AdminCampaigns() {
   });
 
   useEffect(() => {
-    console.log('🌐 API_BASE_URL:', API_BASE_URL);
-    console.log('📍 Campaigns endpoint:', `${API_BASE_URL}/api/admin/campaigns`);
+    //console.log('🌐 API_BASE_URL:', API_BASE_URL);
+    //console.log('📍 Campaigns endpoint:', `${API_BASE_URL}/api/admin/campaigns`);
     loadCampaigns();
   }, [page, statusFilter, typeFilter]);
 
@@ -61,7 +61,7 @@ export default function AdminCampaigns() {
         type: typeFilter,
       });
 
-      console.log('📡 Fetching campaigns from:', `${API_BASE_URL}/api/admin/campaigns?${params}`);
+      //console.log('📡 Fetching campaigns from:', `${API_BASE_URL}/api/admin/campaigns?${params}`);
       
       const response = await fetch(
         `${API_BASE_URL}/api/admin/campaigns?${params}`,
@@ -72,10 +72,10 @@ export default function AdminCampaigns() {
         }
       );
 
-      console.log('📊 Campaigns response status:', response.status);
+      //console.log('📊 Campaigns response status:', response.status);
 
       if (response.status === 401 || response.status === 403) {
-        console.log('🔒 Auth failed, redirecting to login');
+        //console.log('🔒 Auth failed, redirecting to login');
         router.replace('/admin/login');
         return;
       }
@@ -87,7 +87,7 @@ export default function AdminCampaigns() {
       }
 
       const data = await response.json();
-      console.log('✅ Campaigns loaded:', data);
+      //console.log('✅ Campaigns loaded:', data);
       setCampaigns(data.campaigns || []);
       setPagination(data.pagination);
     } catch (error) {
@@ -163,14 +163,14 @@ export default function AdminCampaigns() {
     );
     
     if (!confirmed) {
-      console.log('❌ Send cancelled by user');
+      //console.log('❌ Send cancelled by user');
       return;
     }
 
     try {
       const token = await AsyncStorage.getItem('authToken');
-      console.log('🚀 Sending campaign:', campaignId);
-      console.log('📍 API URL:', `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`);
+      //console.log('🚀 Sending campaign:', campaignId);
+      //console.log('📍 API URL:', `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`);
       
       const response = await fetch(
         `${API_BASE_URL}/api/admin/campaigns/${campaignId}/send`,
@@ -183,11 +183,11 @@ export default function AdminCampaigns() {
         }
       );
 
-      console.log('📡 Response status:', response.status);
+      //console.log('📡 Response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Campaign sent successfully:', data);
+        //console.log('✅ Campaign sent successfully:', data);
         window.alert(`Success!\n\n${data.message || 'Campaign sent successfully'}`);
         loadCampaigns();
       } else {
@@ -216,13 +216,13 @@ export default function AdminCampaigns() {
     );
     
     if (!confirmed) {
-      console.log('❌ Delete cancelled by user');
+      //console.log('❌ Delete cancelled by user');
       return;
     }
 
     try {
       const token = await AsyncStorage.getItem('authToken');
-      console.log('🗑️ Deleting campaign:', campaignId);
+      //console.log('🗑️ Deleting campaign:', campaignId);
       
       const response = await fetch(
         `${API_BASE_URL}/api/admin/campaigns/${campaignId}`,
@@ -235,7 +235,7 @@ export default function AdminCampaigns() {
       );
 
       if (response.ok) {
-        console.log('✅ Campaign deleted successfully');
+        //console.log('✅ Campaign deleted successfully');
         window.alert('Success!\n\nCampaign deleted successfully');
         loadCampaigns();
       } else {
@@ -477,7 +477,7 @@ export default function AdminCampaigns() {
                   <TouchableOpacity
                     style={[styles.actionButton, styles.sendButton]}
                     onPress={() => {
-                      console.log('🔘 Send button clicked for campaign:', campaign.id, campaign.name);
+                      //console.log('🔘 Send button clicked for campaign:', campaign.id, campaign.name);
                       handleSendCampaign(campaign.id, campaign.name);
                     }}
                     activeOpacity={0.7}
@@ -490,7 +490,7 @@ export default function AdminCampaigns() {
                   <TouchableOpacity
                     style={[styles.actionButton, styles.deleteButton]}
                     onPress={() => {
-                      console.log('🗑️ Delete button clicked for campaign:', campaign.id, campaign.name);
+                      //console.log('🗑️ Delete button clicked for campaign:', campaign.id, campaign.name);
                       handleDeleteCampaign(campaign.id, campaign.name);
                     }}
                     activeOpacity={0.7}

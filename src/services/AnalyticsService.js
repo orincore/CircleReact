@@ -31,7 +31,7 @@ class AnalyticsService {
         sessionId: this.sessionId,
       });
       
-      console.log('📊 Analytics initialized:', this.sessionId);
+      //console.log('📊 Analytics initialized:', this.sessionId);
     } catch (error) {
       console.error('Analytics initialization error:', error);
     }
@@ -243,7 +243,7 @@ class AnalyticsService {
       });
 
       if (response.ok) {
-        console.log(`📊 Flushed ${events.length} analytics events`);
+        //console.log(`📊 Flushed ${events.length} analytics events`);
       } else {
         console.error('Analytics flush failed:', response.status);
         // Re-add events to queue on failure

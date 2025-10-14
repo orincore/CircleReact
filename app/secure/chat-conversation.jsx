@@ -1,50 +1,48 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { LinearGradient } from "expo-linear-gradient";
+import VoiceCallModal from "@/components/VoiceCallModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { chatApi } from "@/src/api/chat";
+import { API_BASE_URL } from "@/src/api/config";
+import { friendsApi } from "@/src/api/friends";
+import { getSocket } from "@/src/api/socket";
+import CachedMediaImage from '@/src/components/CachedMediaImage';
+import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
+import ConfirmationDialog from "@/src/components/ConfirmationDialog";
+import ReactionBar from "@/src/components/ReactionBar";
+import ReactionPicker from "@/src/components/ReactionPicker";
+import UserProfileModal from "@/src/components/UserProfileModal";
+import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
+import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
+import { useVoiceCall } from "@/src/hooks/useVoiceCall";
+import MediaCacheService from '@/src/services/MediaCacheService';
+import socketService from "@/src/services/socketService";
+import { voiceCallService } from "@/src/services/VoiceCallService";
+import { pickImage, pickVideo, takePhoto, uploadMediaToS3 } from '@/src/utils/mediaUpload';
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
   FlatList,
+  Image,
+  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Alert,
-  Pressable,
-  Dimensions,
-  Image,
-  ActivityIndicator,
-  Animated,
-  Easing,
-  StatusBar,
-  Keyboard,
-  Modal
+  View
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/contexts/AuthContext";
-import { getSocket } from "@/src/api/socket";
-import socketService from "@/src/services/socketService";
-import ConfirmationDialog from "@/src/components/ConfirmationDialog";
-import { chatApi } from "@/src/api/chat";
-import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
-import { friendsApi } from "@/src/api/friends";
-import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
-import UserProfileModal from "@/src/components/UserProfileModal";
-import { API_BASE_URL } from "@/src/api/config";
-import ReactionPicker from "@/src/components/ReactionPicker";
-import ReactionBar from "@/src/components/ReactionBar";
-import VoiceCallModal from "@/components/VoiceCallModal";
-import { voiceCallService } from "@/src/services/VoiceCallService";
-import { useVoiceCall } from "@/src/hooks/useVoiceCall";
-import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
-import { pickImage, pickVideo, takePhoto } from '@/src/utils/mediaUpload';
-import { uploadMediaToS3 } from '@/src/utils/mediaUpload';
-import MediaCacheService from '@/src/services/MediaCacheService';
-import CachedMediaImage from '@/src/components/CachedMediaImage';
-import MediaSaveService from '@/src/services/MediaSaveService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -260,21 +258,13 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
   };
 
   const handleMenuPress = (e) => {
-    console.log('🔘 Menu button pressed', { 
-      showMenu, 
-      isBrowser, 
-      messageId: message.id,
-      willShow: !showMenu 
-    });
     if (isBrowser && e?.stopPropagation) {
       e.stopPropagation();
     }
     setShowMenu(!showMenu);
-    console.log('🔘 Menu state after toggle:', !showMenu);
   };
 
   const handleMenuAction = (action) => {
-    console.log('Menu action triggered:', action, { onEdit: !!onEdit, onDelete: !!onDelete, onReact: !!onReact });
     setShowMenu(false);
     
     // Add small delay to ensure menu closes first
@@ -282,19 +272,16 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
       switch (action) {
         case 'edit':
           if (onEdit) {
-            console.log('Calling onEdit with message:', message.id);
             onEdit(message);
           }
           break;
         case 'delete':
           if (onDelete) {
-            console.log('Calling onDelete with message:', message.id);
             onDelete(message);
           }
           break;
         case 'react':
           if (onReact) {
-            console.log('Calling onReact with message:', message.id);
             onReact(message);
           }
           break;
@@ -314,7 +301,6 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
 
   // Don't render messages that have no content
   if ((!message.text || message.text.trim() === '') && !message.mediaUrl) {
-    console.log('⚠️ Skipping empty message:', message.id);
     return null;
   }
 
@@ -498,18 +484,6 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
             styles.messageDropdown,
             isMine ? styles.messageDropdownMine : styles.messageDropdownTheirs
           ]}>
-            {console.log('🎯 Dropdown menu rendering!', { 
-              messageId: message.id, 
-              isBrowser, 
-              showMenu, 
-              isMine,
-              hasOnReact: !!onReact,
-              hasOnEdit: !!onEdit,
-              hasOnDelete: !!onDelete,
-              willShowReact: !!onReact,
-              willShowEdit: isMine && !!onEdit,
-              willShowDelete: isMine && !!onDelete
-            })}
             {isMine && onEdit && (
               <TouchableOpacity 
                 style={styles.menuItem}
@@ -598,6 +572,7 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
         [{ text: 'OK', onPress: onFriendRequestSent }]
       );
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to send friend request:', error);
       Alert.alert('Error', error.message || 'Failed to send friend request. Please try again.');
     } finally {
@@ -609,7 +584,6 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
   const handleAcceptFriendRequest = async () => {
     if (!requestStatus?.requestId || !token || sendingRequest) return;
     
-    console.log('✅ Accepting friend request:', requestStatus.requestId);
     setSendingRequest(true);
     try {
       const { FriendRequestService } = await import('@/src/services/FriendRequestService');
@@ -621,7 +595,8 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
         [{ text: 'OK', onPress: onFriendRequestSent }]
       );
     } catch (error) {
-      console.error('❌ Failed to accept friend request:', error);
+      // eslint-disable-next-line no-console
+      console.error('Failed to accept friend request:', error);
       Alert.alert('Error', error.message || 'Failed to accept friend request. Please try again.');
     } finally {
       setSendingRequest(false);
@@ -631,7 +606,6 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
   const handleDeclineFriendRequest = async () => {
     if (!requestStatus?.requestId || !token || sendingRequest) return;
     
-    console.log('❌ Declining friend request:', requestStatus.requestId);
     setSendingRequest(true);
     try {
       const { FriendRequestService } = await import('@/src/services/FriendRequestService');
@@ -643,7 +617,8 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
         [{ text: 'OK', onPress: onFriendRequestSent }]
       );
     } catch (error) {
-      console.error('❌ Failed to decline friend request:', error);
+      // eslint-disable-next-line no-console
+      console.error('Failed to decline friend request:', error);
       Alert.alert('Error', error.message || 'Failed to decline friend request. Please try again.');
     } finally {
       setSendingRequest(false);
@@ -894,8 +869,8 @@ export default function InstagramChatScreen() {
     const initializeCache = async () => {
       try {
         await MediaCacheService.initialize();
-        console.log('📱 Media cache initialized for chat:', conversationId);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to initialize media cache:', error);
       }
     };
@@ -916,13 +891,11 @@ export default function InstagramChatScreen() {
   useEffect(() => {
     if (conversationId) {
       setCurrentChatId(conversationId);
-      console.log('🔔 Set current chat ID for notifications:', conversationId);
     }
     
     // Clear current chat when component unmounts
     return () => {
       setCurrentChatId(null);
-      console.log('🔔 Cleared current chat ID for notifications');
     };
   }, [conversationId, setCurrentChatId]);
 
@@ -931,6 +904,7 @@ export default function InstagramChatScreen() {
     const seen = new Set();
     return messageArray.filter(msg => {
       if (seen.has(msg.id)) {
+        // eslint-disable-next-line no-console
         console.warn('Duplicate message detected and removed:', msg.id);
         return false;
       }
@@ -987,10 +961,6 @@ export default function InstagramChatScreen() {
   const fetchUserProfile = async (userId) => {
     try {
       const targetUserId = userId || otherUserId;
-      console.log('🖼️ Fetching profile picture for user:', targetUserId);
-      console.log('🌐 Platform:', Platform.OS);
-      console.log('🔗 API URL:', `${API_BASE_URL}/api/friends/user/${targetUserId}/profile`);
-      
       const response = await fetch(`${API_BASE_URL}/api/friends/user/${targetUserId}/profile`, {
         method: 'GET',
         headers: {
@@ -999,25 +969,16 @@ export default function InstagramChatScreen() {
         },
       });
       
-      console.log('📡 Response status:', response.status);
-      
       if (response.ok) {
         const userData = await response.json();
-        console.log('📊 User data received:', userData);
         
         if (userData.profilePhotoUrl) {
-          console.log('✅ Found profile picture:', userData.profilePhotoUrl);
           setUserAvatar(userData.profilePhotoUrl);
-        } else {
-          console.log('⚠️ No profile picture URL in response');
         }
-      } else {
-        console.log('❌ Response not OK:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.log('❌ Error response:', errorText);
       }
     } catch (error) {
-      console.error('❌ Error fetching user profile:', error);
+      // eslint-disable-next-line no-console
+      console.error('Error fetching user profile:', error);
     }
   };
 
@@ -1031,7 +992,6 @@ export default function InstagramChatScreen() {
   // Check friendship status when otherUserId is available from params
   useEffect(() => {
     if (otherUserId && otherUserId !== myUserId && token) {
-      console.log('👤 otherUserId available from params, checking friendship status:', otherUserId);
       checkBlockStatus(otherUserId);
       checkFriendshipStatus(otherUserId);
       
@@ -1040,14 +1000,12 @@ export default function InstagramChatScreen() {
         fetchUserProfile(otherUserId);
       }
     } else {
-      console.log('👤 otherUserId not available yet:', { otherUserId, myUserId, token: !!token });
     }
   }, [otherUserId, token, myUserId]);
 
   // Try to extract otherUserId from conversationId if not available from params
   useEffect(() => {
     if (!otherUserId && conversationId && myUserId) {
-      console.log('👤 Attempting to extract otherUserId from conversationId:', conversationId);
       
       // If conversationId is a UUID, we need a different approach
       // For now, let's try to get it from the friendships table directly
@@ -1055,9 +1013,6 @@ export default function InstagramChatScreen() {
         if (!token) return;
         
         try {
-          console.log('🔍 Querying friendships table to find other user for chat:', conversationId);
-          
-          // Try to find friendships involving current user
           const response = await fetch(`${API_BASE_URL}/api/friends/list`, {
             method: 'GET',
             headers: {
@@ -1068,30 +1023,33 @@ export default function InstagramChatScreen() {
           
           if (response.ok) {
             const data = await response.json();
-            console.log('👥 User friends list:', data);
             
             // Look for friends and try to match with the conversation
             if (data.friends && data.friends.length > 0) {
-              console.log('👥 Available friends:', data.friends);
               
               // For debugging: if current user is one of the known users, set the other
               if (myUserId === '5d73dab8-eb6a-4842-a368-6ddfe0e7b208') {
-                console.log('👤 Debug: Setting otherUserId to known friend');
                 setOtherUserId('8ccd6396-3d6f-475d-abac-a3a0a0aea279');
               } else if (myUserId === '8ccd6396-3d6f-475d-abac-a3a0a0aea279') {
-                console.log('👤 Debug: Setting otherUserId to known friend');
                 setOtherUserId('5d73dab8-eb6a-4842-a368-6ddfe0e7b208');
               } else if (data.friends.length === 1) {
                 // If there's only one friend, it's likely the other user
                 const friend = data.friends[0];
                 const friendUserId = friend.user_id || friend.id;
-                console.log('👤 Found potential otherUserId from friends list:', friendUserId);
                 setOtherUserId(friendUserId);
+              } else {
+                // If there are multiple friends, try to find the one that matches the conversation
+                const matchingFriend = data.friends.find(friend => friend.conversation_id === conversationId);
+                if (matchingFriend) {
+                  const friendUserId = matchingFriend.user_id || matchingFriend.id;
+                  setOtherUserId(friendUserId);
+                }
               }
             }
           }
         } catch (error) {
-          console.error('❌ Error trying to extract otherUserId:', error);
+          // eslint-disable-next-line no-console
+          console.error('Error trying to extract otherUserId:', error);
         }
       };
       
@@ -1107,6 +1065,7 @@ export default function InstagramChatScreen() {
         const response = await chatApi.getMuteStatus(conversationId, token);
         setIsChatMuted(response.isMuted);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load mute status:', error);
       }
     };
@@ -1152,7 +1111,6 @@ export default function InstagramChatScreen() {
         try {
           scrollToBottom();
         } catch (error) {
-          console.log('Scroll error:', error);
         }
       }, 100);
       return () => clearTimeout(timer);
@@ -1177,7 +1135,6 @@ export default function InstagramChatScreen() {
     
     // Connection state listener
     const handleConnectionState = (state) => {
-      console.log('🔌 Socket connection state changed:', state);
       setConnectionStatus(state);
       
       if (state === 'disconnected' || state === 'reconnecting') {
@@ -1188,19 +1145,18 @@ export default function InstagramChatScreen() {
         
         const timer = setInterval(() => {
           setRetryCount(prev => prev + 1);
-          console.log('🔄 Attempting socket reconnection...');
           
           try {
             const s = getSocket(token);
             if (s && s.connected) {
-              console.log('✅ Socket reconnected successfully');
               setConnectionStatus('connected');
               setRetryCount(0);
               clearInterval(timer);
               setRetryTimer(null);
             }
           } catch (error) {
-            console.error('❌ Reconnection attempt failed:', error);
+            // eslint-disable-next-line no-console
+            console.error('Reconnection attempt failed:', error);
           }
         }, 5000);
         
@@ -1239,20 +1195,17 @@ export default function InstagramChatScreen() {
     socketService.setCurrentChatId(conversationId);
 
     const s = getSocket(token);
-    console.log('🔌 Setting up socket listeners for chat:', conversationId);
-    console.log('👤 Current otherUserId:', otherUserId);
-    console.log('🔗 Socket connected:', s.connected);
     
     // Add a test listener to see if ANY socket events are being received
     s.onAny((eventName, ...args) => {
       if (eventName.startsWith('friend:')) {
-        console.log('🎧 Socket event received:', eventName, args);
       }
     });
     
     // Register for background messages for this chat
     const backgroundMessageHandler = (data) => {
       if (!data || !data.message) {
+        // eslint-disable-next-line no-console
         console.warn('Invalid background message data:', data);
         return;
       }
@@ -1267,7 +1220,6 @@ export default function InstagramChatScreen() {
 
     // Handle message status updates
     const handleMessageSent = ({ messageId, chatId }) => {
-      console.log('✅ Message sent confirmation:', { messageId, chatId });
       if (chatId !== conversationId) return;
       
       setMessages(prev => {
@@ -1287,7 +1239,6 @@ export default function InstagramChatScreen() {
     };
 
     const handleDeliveryReceipt = ({ messageId, chatId, status }) => {
-      console.log('📨 Delivery receipt received:', { messageId, chatId, status });
       if (chatId !== conversationId) return;
       setMessages(prev => prev.map(msg => 
         msg.id === messageId ? { ...msg, status: status } : msg
@@ -1295,7 +1246,6 @@ export default function InstagramChatScreen() {
     };
 
     const handleReadReceipt = ({ messageId, chatId, status }) => {
-      console.log('👁️ Read receipt received:', { messageId, chatId, status });
       if (chatId !== conversationId) return;
       setMessages(prev => prev.map(msg => 
         msg.id === messageId ? { ...msg, status: 'read' } : msg
@@ -1307,255 +1257,15 @@ export default function InstagramChatScreen() {
     s.on('chat:message:delivery_receipt', handleDeliveryReceipt);
     s.on('chat:message:read_receipt', handleReadReceipt);
 
-    const handleHistory = ({ chatId, messages }) => {
-      if (chatId !== conversationId) return;
-      const asc = [...messages].sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
-      const mappedMessages = asc.map(m => ({
-        id: m.id,
-        senderId: m.senderId,
-        text: m.text,
-        mediaUrl: m.mediaUrl,
-        mediaType: m.mediaType,
-        thumbnail: m.thumbnail,
-        createdAt: m.createdAt,
-        updatedAt: m.updatedAt,
-        isEdited: m.isEdited,
-        isDeleted: m.isDeleted,
-        reactions: m.reactions || [],
-        status: m.senderId === myUserId ? (m.status || 'sent') : undefined, // Use backend status or default to 'sent'
-      }));
-      
-      setMessages(mappedMessages);
-      
-      // Preload media cache for all messages with media
-      MediaCacheService.preloadChatMedia(mappedMessages);
-      
-      // Set pagination state
-      if (asc.length) {
-        setOldestAt(asc[0].createdAt);
-        setHasMore(asc.length >= 30); // Assume more if we got a full page
-      } else {
-        setHasMore(false);
-      }
-      
-      // Extract other user's ID from messages
-      const others = asc.filter(m => m.senderId !== myUserId);
-      if (others.length > 0 && !otherUserId) {
-        const foundOtherUserId = others[0].senderId;
-        console.log('👤 Found other user ID from messages:', foundOtherUserId);
-        console.log('👤 Setting otherUserId state to:', foundOtherUserId);
-        setOtherUserId(foundOtherUserId);
-        
-        // Check block status and friendship status when we find the other user
-        checkBlockStatus(foundOtherUserId);
-        checkFriendshipStatus(foundOtherUserId);
-      } else if (others.length === 0 && !otherUserId) {
-        // No messages yet, try to extract other user ID from conversation ID
-        console.log('👤 No messages found, attempting to extract otherUserId from conversationId:', conversationId);
-        console.log('👤 Current myUserId:', myUserId);
-        
-        // Conversation ID might be in format: userId1-userId2 or a UUID
-        // Try to extract the other user ID if it's in a recognizable format
-        if (conversationId.includes('-') && conversationId.length > 20) {
-          // Might be a UUID format, try to get other user from chat members API
-          console.log('👤 ConversationId appears to be UUID format, fetching chat members');
-          fetchChatMembers(conversationId);
-        } else {
-          // Try to parse as user1-user2 format
-          const parts = conversationId.split('-');
-          if (parts.length >= 2) {
-            const possibleOtherUserId = parts.find(part => part !== myUserId);
-            if (possibleOtherUserId && possibleOtherUserId !== myUserId) {
-              console.log('👤 Extracted otherUserId from conversationId:', possibleOtherUserId);
-              setOtherUserId(possibleOtherUserId);
-              checkBlockStatus(possibleOtherUserId);
-              checkFriendshipStatus(possibleOtherUserId);
-            }
-          }
-        }
-        
-        // Browser-specific debugging
-        if (Platform.OS === 'web' && otherUserId) {
-          console.log('🌐 Browser detected - testing API connectivity');
-          console.log('🔗 API Base URL:', API_BASE_URL);
-          
-          // Test API connectivity
-          fetch(`${API_BASE_URL}/api/friends/status/${otherUserId}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          })
-          .then(response => {
-            console.log('🧪 API test response status:', response.status);
-            return response.json();
-          })
-          .then(data => {
-            console.log('🧪 API test response data:', data);
-          })
-          .catch(error => {
-            console.error('🧪 API test failed:', error);
-          });
-        }
-      }
-      
-      if (others.length) {
-        const last = others[others.length - 1];
-        try { s.emit('chat:delivered', { chatId: conversationId, messageId: last.id }); } catch {}
-        try { s.emit('chat:read', { chatId: conversationId, messageId: last.id }); } catch {}
-      }
-    };
-
-    const handleMessage = (data) => {
-      if (!data || !data.message) {
-        console.warn('Invalid message data received:', data);
-        return;
-      }
-      
-      const { message } = data;
-      if (!message || !message.chatId || !message.id) {
-        console.warn('Invalid message object:', message);
-        return;
-      }
-      
-      if (message.chatId !== conversationId) return;
-      
-      setMessages(prev => {
-        // Check if message already exists to prevent duplicates
-        const existingIndex = prev.findIndex(m => m.id === message.id);
-        if (existingIndex !== -1) {
-          // Update existing message
-          const updated = [...prev];
-          updated[existingIndex] = {
-            id: message.id,
-            senderId: message.senderId,
-            text: message.text,
-            mediaUrl: message.mediaUrl,
-            mediaType: message.mediaType,
-            thumbnail: message.thumbnail,
-            createdAt: message.createdAt,
-            updatedAt: message.updatedAt,
-            isEdited: message.isEdited || false,
-            isDeleted: message.isDeleted || false,
-            reactions: message.reactions || [],
-            status: message.senderId === myUserId ? 'sent' : undefined,
-          };
-          return updated;
-        } else {
-          // Add new message and auto-scroll if user is near bottom
-          const newMessages = [...prev, {
-            id: message.id,
-            senderId: message.senderId,
-            text: message.text,
-            mediaUrl: message.mediaUrl,
-            mediaType: message.mediaType,
-            thumbnail: message.thumbnail,
-            createdAt: message.createdAt,
-            updatedAt: message.updatedAt,
-            isEdited: message.isEdited || false,
-            isDeleted: message.isDeleted || false,
-            reactions: message.reactions || [],
-            status: message.senderId === myUserId ? 'sent' : undefined,
-          }];
-          
-          // Auto-scroll to bottom if user is already near bottom or if it's their own message
-          setTimeout(() => {
-            if (!showScrollToBottom || message.senderId === myUserId) {
-              scrollToBottom();
-            }
-          }, 100);
-          
-          return newMessages;
-        }
-      });
-      
-      if (message.senderId !== myUserId) {
-        console.log('📨 Marking message as delivered:', message.id);
-        try { s.emit('chat:message:delivered', { messageId: message.id }); } catch {}
-        console.log('👁️ Marking message as read:', message.id);
-        try { s.emit('chat:message:read', { messageId: message.id }); } catch {}
-      }
-    };
-
-    const handleDelivered = (data) => {
-      if (!data || !data.chatId || !data.messageId) return;
-      const { chatId, messageId, by } = data;
-      if (chatId !== conversationId) return;
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, deliveredBy: [...new Set([...(m.deliveredBy||[]), by])] } : m));
-    };
-
-    const handleRead = (data) => {
-      if (!data || !data.chatId || !data.messageId) return;
-      const { chatId, messageId, by } = data;
-      if (chatId !== conversationId) return;
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, readBy: [...new Set([...(m.readBy||[]), by])] } : m));
-    };
-
-    const handleTyping = (data) => {
-      if (!data || !data.chatId || !Array.isArray(data.users)) return;
-      const { chatId, users } = data;
-      if (chatId !== conversationId) return;
-      
-      const newTypingUsers = users.filter(u => u !== myUserId);
-      const wasTyping = typingUsers.length > 0;
-      const isNowTyping = newTypingUsers.length > 0;
-      
-      setTypingUsers(newTypingUsers);
-      
-      // Auto-scroll to bottom when typing indicator appears (but only if user is near bottom)
-      if (!wasTyping && isNowTyping && !showScrollToBottom) {
-        setTimeout(() => {
-          scrollToBottom();
-        }, 200); // Small delay to let the typing indicator render
-      }
-    };
-
-    const handlePresence = (data) => {
-      if (!data || !data.chatId) return;
-      const { chatId, online } = data;
-      if (chatId === conversationId) setIsOnline(!!online);
-    };
-
-    const handleReactionAdded = (data) => {
-      if (!data || !data.chatId || !data.messageId || !data.reaction) return;
-      const { chatId, messageId, reaction } = data;
-      if (chatId !== conversationId) return;
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { 
-              ...msg, 
-              reactions: [...(msg.reactions || []), reaction]
-            }
-          : msg
-      ));
-    };
-
-    const handleReactionRemoved = (data) => {
-      if (!data || !data.chatId || !data.messageId || !data.userId || !data.emoji) return;
-      const { chatId, messageId, userId, emoji } = data;
-      if (chatId !== conversationId) return;
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { 
-              ...msg, 
-              reactions: (msg.reactions || []).filter(r => 
-                !(r.userId === userId && r.emoji === emoji)
-              )
-            }
-          : msg
-      ));
-    };
-
     s.emit('chat:join', { chatId: conversationId });
     
     // Auto-mark all messages as read when chat is opened
     const markChatAsReadOnOpen = () => {
-      console.log('📖 Auto-marking chat as read on open:', conversationId);
       try {
         s.emit('chat:mark-all-read', { chatId: conversationId });
       } catch (error) {
-        console.error('❌ Error auto-marking chat as read:', error);
+        // eslint-disable-next-line no-console
+        console.error('Error auto-marking chat as read:', error);
       }
     };
     
@@ -1628,10 +1338,7 @@ export default function InstagramChatScreen() {
 
     // Real-time friend request events
     s.on('friend:request:received', (data) => {
-      console.log('📨 Received friend request:', data);
-      console.log('🔍 Checking if this is for current user:', data.receiver_id, '===', myUserId);
       if (data.receiver_id === myUserId) {
-        console.log('✅ Setting request status to received');
         setRequestStatus({
           type: 'friend_request',
           direction: 'received',
@@ -1640,19 +1347,13 @@ export default function InstagramChatScreen() {
         
         // Set otherUserId if not already set
         if (!otherUserId && data.sender_id) {
-          console.log('📝 Setting otherUserId from received friend request:', data.sender_id);
           setOtherUserId(data.sender_id);
         }
-      } else {
-        console.log('❌ Friend request not for current user');
       }
     });
 
     s.on('friend:request:sent', (data) => {
-      console.log('📤 Friend request sent confirmed:', data);
-      console.log('🔍 Checking if this is from current user:', data.sender_id, '===', myUserId);
       if (data.sender_id === myUserId) {
-        console.log('✅ Setting request status to sent');
         setRequestStatus({
           type: 'friend_request',
           direction: 'sent',
@@ -1661,36 +1362,19 @@ export default function InstagramChatScreen() {
         
         // Set otherUserId if not already set
         if (!otherUserId && data.receiver_id) {
-          console.log('📝 Setting otherUserId from sent friend request:', data.receiver_id);
           setOtherUserId(data.receiver_id);
         }
-      } else {
-        console.log('❌ Friend request not from current user');
       }
     });
 
     s.on('friend:request:accepted', (data) => {
-      console.log('✅ Friend request accepted:', data);
-      console.log('🔍 Checking if accepted request involves otherUserId:', otherUserId);
-      console.log('🔍 data.sender_id:', data.sender_id, 'data.receiver_id:', data.receiver_id);
-      
       // Check if this event involves the current user (myUserId)
       const isForCurrentUser = data.sender_id === myUserId || data.receiver_id === myUserId;
       
       // Also check if we know the otherUserId and it matches
-      const isForCurrentChat = otherUserId && (data.sender_id === otherUserId || data.receiver_id === otherUserId);
-      
-      console.log('🔍 Event matching check:', { 
-        isForCurrentUser, 
-        isForCurrentChat, 
-        myUserId, 
-        otherUserId,
-        eventSenderId: data.sender_id,
-        eventReceiverId: data.receiver_id
-      });
+      // const isForCurrentChat = otherUserId && (data.sender_id === otherUserId || data.receiver_id === otherUserId);
       
       if (isForCurrentUser) {
-        console.log('✅ Friend request accepted - updating friendship status to friends');
         setFriendshipStatus('friends');
         setRequestStatus(null);
         setChatDisabled(false);
@@ -1698,36 +1382,27 @@ export default function InstagramChatScreen() {
         // Update otherUserId if it's not set yet
         if (!otherUserId) {
           const newOtherUserId = data.sender_id !== myUserId ? data.sender_id : data.receiver_id;
-          console.log('📝 Setting otherUserId from friend request event:', newOtherUserId);
           setOtherUserId(newOtherUserId);
         }
         
         // Immediately refresh the friendship status to make sure it's in sync
         const targetUserId = otherUserId || (data.sender_id !== myUserId ? data.sender_id : data.receiver_id);
         if (targetUserId) {
-          console.log('🔄 Immediately refreshing friendship status after friend request accepted');
-          // Refresh immediately and again after 1 second to ensure it's updated
           checkFriendshipStatus(targetUserId);
           setTimeout(() => {
-            console.log('🔄 Second refresh of friendship status');
             checkFriendshipStatus(targetUserId);
           }, 1000);
         }
-      } else {
-        console.log('❌ Friend request accepted but not for current chat user');
-        console.log('❌ Debug info:', { otherUserId, conversationId, myUserId });
       }
     });
 
     s.on('friend:request:declined', (data) => {
-      console.log('❌ Friend request declined:', data);
       if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
         setRequestStatus(null);
       }
     });
 
     s.on('friend:request:cancelled', (data) => {
-      console.log('🚫 Friend request cancelled:', data);
       if (data.cancelledBy === otherUserId) {
         setRequestStatus(null);
       }
@@ -1745,7 +1420,6 @@ export default function InstagramChatScreen() {
 
     // Handle automatic friendship from matchmaking
     s.on('friend:auto_added', (data) => {
-      console.log('👥 Automatic friendship created:', data);
       if (data.friend_id === otherUserId) {
         setFriendshipStatus('friends');
         setRequestStatus(null);
@@ -1753,7 +1427,7 @@ export default function InstagramChatScreen() {
         
         // Show success message
         if (Platform.OS === 'web') {
-          window.alert(`🎉 ${data.message}`);
+          window.alert(` ${data.message}`);
         } else {
           Alert.alert('New Friend!', data.message);
         }
@@ -1762,7 +1436,6 @@ export default function InstagramChatScreen() {
 
     // Chat clearing events
     s.on('chat:clear:success', (data) => {
-      console.log('✅ Chat cleared successfully:', data);
       if (data.chatId === conversationId) {
         // Clear all messages from the UI for this user only
         setMessages([]);
@@ -1783,7 +1456,8 @@ export default function InstagramChatScreen() {
     });
 
     s.on('chat:clear:error', (data) => {
-      console.error('❌ Chat clear error:', data);
+      // eslint-disable-next-line no-console
+      console.error('Chat clear error:', data);
       
       // Show error message
       if (Platform.OS === 'web') {
@@ -1792,9 +1466,6 @@ export default function InstagramChatScreen() {
         Alert.alert('Error', data.error || 'Failed to clear chat. Please try again.');
       }
     });
-
-    // Note: Removed 'chat:cleared:by:other' handler since we no longer notify other users
-    // when someone clears their chat - it's now user-specific
 
     return () => {
       // Clear the mark as read timeout
@@ -1843,9 +1514,8 @@ export default function InstagramChatScreen() {
     try {
       const response = await friendsApi.getBlockStatus(otherUserId, token);
       setBlockStatus(response);
-      
-      console.log('Block status:', response);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to check block status:', error);
     }
   };
@@ -1853,61 +1523,41 @@ export default function InstagramChatScreen() {
   // Check friendship status and pending requests between users
   const checkFriendshipStatus = async (otherUserId) => {
     if (!token || !otherUserId) {
-      console.log('❌ Cannot check friendship status - missing token or otherUserId:', { token: !!token, otherUserId });
       return;
     }
     
     try {
-      console.log('🔍 Checking friendship status for user:', otherUserId);
-      console.log('🔍 My user ID:', myUserId);
-      console.log('🔍 Other user ID:', otherUserId);
-      console.log('🔍 Using token:', token ? 'Present' : 'Missing');
-      
       const response = await friendsApi.getFriendStatus(otherUserId, token);
-      console.log('✅ Raw friendship status response:', response);
-      
-      // Preserve the actual status from the API response, including "unknown"
       const status = response.status; // Keep original status: 'friends', 'not_friends', or 'unknown'
-      console.log('📊 Determined friendship status:', status, 'from response.status:', response.status);
       
       setFriendshipStatus(status);
-      console.log('📊 Friendship status state updated to:', status);
       
       // If not friends (but not unknown), check for pending requests
       if (status === 'not_friends') {
-        console.log('👥 Not friends - checking for pending requests');
         await checkPendingRequests(otherUserId);
       } else if (status === 'friends') {
-        console.log('👥 Already friends - clearing request status');
         setRequestStatus(null);
       } else if (status === 'unknown') {
-        console.log('👥 Unknown friendship status - preserving state, not checking requests');
         // Don't check pending requests or clear request status for unknown status
       }
     } catch (error) {
-      console.error('❌ Failed to check friendship status:', error);
-      console.error('❌ Error details:', error.message);
+      // eslint-disable-next-line no-console
+      console.error('Failed to check friendship status:', error);
+      // eslint-disable-next-line no-console
+      console.error('Error details:', error.message);
       
       // Only set to 'not_friends' if current status is not already 'unknown'
       // This preserves the 'unknown' status when there are API errors
       if (friendshipStatus !== 'unknown') {
         setFriendshipStatus('not_friends');
-        console.log('📊 Friendship status defaulted to: not_friends due to error');
-        // Still check for pending requests even if friendship check failed
         await checkPendingRequests(otherUserId);
-      } else {
-        console.log('📊 Preserving unknown friendship status despite API error');
       }
     }
   };
 
   // Fetch chat members to find the other user ID
   const fetchChatMembers = async (chatId) => {
-    console.log('👤 Attempting to determine otherUserId for chat:', chatId);
-    
-    // Check if we have otherUserId in the URL parameters
     if (paramOtherUserId && paramOtherUserId !== myUserId) {
-      console.log('👤 Found otherUserId from URL params:', paramOtherUserId);
       setOtherUserId(paramOtherUserId);
       checkBlockStatus(paramOtherUserId);
       checkFriendshipStatus(paramOtherUserId);
@@ -1916,7 +1566,6 @@ export default function InstagramChatScreen() {
     
     // For now, since there's no specific chat members endpoint, 
     // we'll rely on the message-based detection or show UI with unknown status
-    console.log('👤 No otherUserId available yet, will show UI with unknown status');
   };
 
   // Check for pending friend requests
@@ -1924,9 +1573,6 @@ export default function InstagramChatScreen() {
     if (!token || !otherUserId) return;
     
     try {
-      console.log('🔍 Checking pending friend requests for user:', otherUserId);
-      
-      // Check for pending friend requests
       const friendRequestResponse = await fetch(`${API_BASE_URL}/api/friends/pending-status/${otherUserId}`, {
         method: 'GET',
         headers: {
@@ -1937,7 +1583,6 @@ export default function InstagramChatScreen() {
       
       if (friendRequestResponse.ok) {
         const friendRequestData = await friendRequestResponse.json();
-        console.log('📋 Friend request status:', friendRequestData);
         
         if (friendRequestData.hasPendingRequest) {
           setRequestStatus({
@@ -1945,17 +1590,15 @@ export default function InstagramChatScreen() {
             direction: friendRequestData.direction, // 'sent' or 'received'
             requestId: friendRequestData.requestId
           });
-          console.log('📨 Found pending friend request:', friendRequestData.direction);
           return;
         }
       }
       
       // No pending requests found
       setRequestStatus(null);
-      console.log('📭 No pending friend requests found');
-      
     } catch (error) {
-      console.error('❌ Failed to check pending friend requests:', error);
+      // eslint-disable-next-line no-console
+      console.error('Failed to check pending friend requests:', error);
       setRequestStatus(null);
     }
   };
@@ -1967,15 +1610,6 @@ export default function InstagramChatScreen() {
     const isUnknownStatus = friendshipStatus === 'unknown';
     // Disable chat if blocked, not friends, or status is still unknown
     const shouldDisable = isBlocked || isNotFriends || isUnknownStatus;
-    
-    console.log('💬 Chat status update:', {
-      blockStatus,
-      friendshipStatus,
-      isBlocked,
-      isNotFriends,
-      isUnknownStatus,
-      shouldDisable
-    });
     
     setChatDisabled(shouldDisable);
   }, [blockStatus, friendshipStatus]);
@@ -2040,11 +1674,8 @@ export default function InstagramChatScreen() {
 
   // Handle media selection and upload
   const handleMediaPick = async (type) => {
-    console.log('📸 Media pick started:', type);
-    
     // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      console.log('⏱️ Upload timeout - resetting');
       setUploadingMedia(false);
       Alert.alert('Timeout', 'Media selection took too long. Please try again.');
     }, 30000); // 30 second timeout
@@ -2055,8 +1686,6 @@ export default function InstagramChatScreen() {
 
       let media = null;
       
-      console.log('📱 Launching picker for:', type);
-      
       try {
         if (type === 'image') {
           media = await pickImage();
@@ -2066,17 +1695,15 @@ export default function InstagramChatScreen() {
           media = await takePhoto();
         }
       } catch (pickerError) {
-        console.error('❌ Picker error:', pickerError);
+        // eslint-disable-next-line no-console
+        console.error('Picker error:', pickerError);
         clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Picker Error', pickerError.message || 'Failed to open media picker');
         return;
       }
 
-      console.log('📸 Media selected:', media);
-
       if (!media) {
-        console.log('❌ No media selected (user cancelled)');
         clearTimeout(timeoutId);
         setUploadingMedia(false);
         return;
@@ -2084,7 +1711,8 @@ export default function InstagramChatScreen() {
 
       // Validate media has required properties
       if (!media.uri) {
-        console.error('❌ Invalid media object - no URI:', media);
+        // eslint-disable-next-line no-console
+        console.error('Invalid media object - no URI:', media);
         clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Error', 'Invalid media selected');
@@ -2093,12 +1721,10 @@ export default function InstagramChatScreen() {
 
       // Upload to S3
       const mediaType = media.type === 'video' ? 'video' : 'image';
-      console.log('📤 Starting upload:', mediaType, 'URI:', media.uri);
       
       try {
         const uploadResult = await uploadMediaToS3(media.uri, mediaType, token);
-        console.log('✅ Upload complete:', uploadResult);
-
+        
         // Send media message
         const tempId = `temp-${Date.now()}`;
         const tempMessage = {
@@ -2127,11 +1753,8 @@ export default function InstagramChatScreen() {
           mediaType: uploadResult.type,
           thumbnail: uploadResult.thumbnail,
         };
-        console.log('📤 Sending media message via socket:', messageData);
         s.emit('chat:message', messageData);
 
-        console.log('✅ Media message sent');
-        
         // Cache media with temporary message ID for now
         // Will be updated with actual message ID when confirmation is received
         if (uploadResult.tempCacheId) {
@@ -2144,7 +1767,8 @@ export default function InstagramChatScreen() {
           });
         }
       } catch (uploadError) {
-        console.error('❌ Upload error:', uploadError);
+        // eslint-disable-next-line no-console
+        console.error('Upload error:', uploadError);
         clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Upload Failed', uploadError.message || 'Failed to upload media to server');
@@ -2154,7 +1778,8 @@ export default function InstagramChatScreen() {
       clearTimeout(timeoutId);
       setUploadingMedia(false);
     } catch (error) {
-      console.error('❌ Media upload error:', error);
+      // eslint-disable-next-line no-console
+      console.error('Media upload error:', error);
       clearTimeout(timeoutId);
       setUploadingMedia(false);
       Alert.alert('Upload Failed', error.message || 'Failed to upload media');
@@ -2170,6 +1795,7 @@ export default function InstagramChatScreen() {
       // Also call API as backup
       await chatApi.editMessage(messageId, newText, token);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to edit message:', error);
       Alert.alert('Error', 'Failed to edit message');
     }
@@ -2191,6 +1817,7 @@ export default function InstagramChatScreen() {
       // Also call API as backup
       await chatApi.deleteMessage(conversationId, messageToDelete.id, token);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to delete message:', error);
       Alert.alert('Error', 'Failed to delete message');
     } finally {
@@ -2212,14 +1839,13 @@ export default function InstagramChatScreen() {
         newMutedState ? 'Notifications muted for this chat' : 'Notifications enabled for this chat'
       );
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to toggle mute:', error);
       Alert.alert('Error', 'Failed to update notification settings');
     }
   };
 
   const handleReactToMessage = (message, event) => {
-    console.log('🎭 React to message called:', { messageId: message.id, isBrowser: Platform.OS === 'web' });
-    
     if (Platform.OS === 'web') {
       // Show emoji picker on browser
       setEmojiPickerMessage(message);
@@ -2265,6 +1891,7 @@ export default function InstagramChatScreen() {
       setShowReactionBar(false);
       setSelectedMessage(null);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to toggle reaction:', error);
     }
   };
@@ -2288,12 +1915,12 @@ export default function InstagramChatScreen() {
       
       setSelectedMessage(null);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to toggle reaction:', error);
     }
   };
 
   const startEditMessage = (message) => {
-    console.log('✏️ Starting edit for message:', message.id);
     setEditingMessage(message);
     setEditingMessageId(message.id);
     setOriginalMessageText(message.text);
@@ -2404,25 +2031,15 @@ export default function InstagramChatScreen() {
 
   // Handle avatar click to show user profile
   const handleAvatarClick = () => {
-    console.log('Avatar clicked, opening profile modal');
     setShowUserProfile(true);
   };
 
   // Voice call handlers
   const handleStartVoiceCall = async () => {
-    console.log('🔘 Call button clicked!');
-    console.log('📊 Call button debug info:', {
-      otherUserId,
-      friendshipStatus,
-      conversationName,
-      userAvatar,
-      startVoiceCall: typeof startVoiceCall,
-      platform: Platform.OS
-    });
-
     // Check if call is already in progress
     if (voiceCallService.callState !== 'idle') {
-      console.warn('⚠️ Call already in progress, ignoring button click');
+      // eslint-disable-next-line no-console
+      console.warn('Call already in progress, ignoring button click');
       Alert.alert('Call in Progress', 'You already have an active call. Please end the current call before starting a new one.');
       return;
     }
@@ -2433,24 +2050,13 @@ export default function InstagramChatScreen() {
       const isDevelopmentIP = typeof window !== 'undefined' && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(window.location.href);
       const isHTTP = typeof window !== 'undefined' && window.location.protocol === 'http:';
       
-      console.log('📱 Mobile browser debug info:', {
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-        isMobile: typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-        isIOS,
-        isDevelopmentIP,
-        isHTTP,
-        protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-        hasWebRTC: typeof window !== 'undefined' && !!window.RTCPeerConnection,
-        hasMediaDevices: typeof navigator !== 'undefined' && !!navigator.mediaDevices,
-        hasGetUserMedia: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
-        isSecureContext: typeof window !== 'undefined' && window.isSecureContext
-      });
-      
       // Show specific warning for iOS HTTP development
       if (isIOS && isDevelopmentIP && isHTTP) {
+        // eslint-disable-next-line no-console
         console.warn('⚠️ iOS HTTP Development Mode Detected!');
+        // eslint-disable-next-line no-console
         console.warn('⚠️ Voice calls will likely fail on iOS with HTTP on IP addresses');
+        // eslint-disable-next-line no-console
         console.warn('⚠️ This is expected browser security behavior');
       }
     }
@@ -2458,7 +2064,7 @@ export default function InstagramChatScreen() {
     // Proceed with actual voice call for all platforms
 
     if (!otherUserId || friendshipStatus !== 'friends') {
-      console.log('❌ Cannot call - not friends or no otherUserId');
+      //console.log('❌ Cannot call - not friends or no otherUserId');
       Alert.alert('Cannot Call', 'You can only call friends.');
       return;
     }
@@ -2470,13 +2076,13 @@ export default function InstagramChatScreen() {
     }
 
     try {
-      console.log('📞 Starting voice call to:', otherUserId);
+      //console.log('📞 Starting voice call to:', otherUserId);
       
       // For iOS Safari, trigger any pending audio play due to user interaction
       if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         if (isIOS && voiceCallService.pendingRemoteAudioPlay) {
-          console.log('🍎 iOS user interaction detected - enabling audio playback');
+          //console.log('🍎 iOS user interaction detected - enabling audio playback');
           voiceCallService.forcePlayRemoteAudio();
         }
       }
@@ -2505,7 +2111,7 @@ export default function InstagramChatScreen() {
   };
 
   const handleCloseVoiceCall = () => {
-    console.log('📞 Closing voice call modal');
+    //console.log('📞 Closing voice call modal');
     setShowVoiceCall(false);
     setVoiceCallData(null);
   };
@@ -2516,7 +2122,7 @@ export default function InstagramChatScreen() {
     if (!socket) return;
 
     const handleIncomingCall = (data) => {
-      console.log('📞 Incoming voice call:', data);
+      //console.log('📞 Incoming voice call:', data);
       
       // Only show if it's from the current chat user
       if (data.callerId === otherUserId) {
@@ -2538,7 +2144,7 @@ export default function InstagramChatScreen() {
 
   // Clear chat function
   const handleClearChat = () => {
-    console.log('🗑️ handleClearChat called');
+    //console.log('🗑️ handleClearChat called');
     
     if (Platform.OS === 'web') {
       // Use custom dialog on web
@@ -2566,10 +2172,10 @@ export default function InstagramChatScreen() {
 
   // Confirm clear chat function
   const confirmClearChat = () => {
-    console.log('🗑️ User confirmed clearing chat:', conversationId);
+    //console.log('🗑️ User confirmed clearing chat:', conversationId);
     const s = getSocket(token);
     if (s) {
-      console.log('📡 Emitting chat:clear event');
+      //console.log('📡 Emitting chat:clear event');
       s.emit('chat:clear', { chatId: conversationId });
     } else {
       console.error('❌ No socket connection available');
@@ -2756,10 +2362,10 @@ export default function InstagramChatScreen() {
                   <TouchableOpacity 
                     style={styles.desktopMediaButton}
                     onPress={() => {
-                      console.log('🖥️ Desktop + button clicked, current state:', showMediaOptions);
-                      console.log('🖥️ Platform.OS:', Platform.OS);
+                      //console.log('🖥️ Desktop + button clicked, current state:', showMediaOptions);
+                      //console.log('🖥️ Platform.OS:', Platform.OS);
                       setShowMediaOptions(!showMediaOptions);
-                      console.log('🖥️ Setting showMediaOptions to:', !showMediaOptions);
+                      //console.log('🖥️ Setting showMediaOptions to:', !showMediaOptions);
                     }}
                   >
                     <Ionicons name="add-circle" size={32} color="#7C2B86" />
@@ -2967,7 +2573,7 @@ export default function InstagramChatScreen() {
                 hovered ? styles.headerBtnHoverWeb : null
               ]}
               onPress={() => {
-                console.log('📋 Opening chat menu (web)');
+                //console.log('📋 Opening chat menu (web)');
                 setShowChatMenu(true);
               }}
             >
@@ -3031,7 +2637,7 @@ export default function InstagramChatScreen() {
             <TouchableOpacity 
               style={styles.headerAction}
               onPress={() => {
-                console.log('📋 Opening chat menu (mobile)');
+                //console.log('📋 Opening chat menu (mobile)');
                 setShowChatMenu(true);
               }}
             >
@@ -3281,9 +2887,9 @@ export default function InstagramChatScreen() {
                 <TouchableOpacity 
                   style={styles.mediaButton}
                   onPress={() => {
-                    console.log('📱 Media button clicked, current state:', showMediaOptions);
+                    //console.log('📱 Media button clicked, current state:', showMediaOptions);
                     setShowMediaOptions(!showMediaOptions);
-                    console.log('📱 Setting showMediaOptions to:', !showMediaOptions);
+                    //console.log('📱 Setting showMediaOptions to:', !showMediaOptions);
                   }}
                 >
                   <Ionicons name="add-circle" size={screenData.isDesktop ? 32 : 28} color="#7C2B86" />
@@ -3518,7 +3124,7 @@ export default function InstagramChatScreen() {
             paddingBottom: '100px'
           }}
           onClick={() => {
-            console.log('🎭 Closing media options (web)');
+            //console.log('🎭 Closing media options (web)');
             setShowMediaOptions(false);
           }}
         >
@@ -3548,7 +3154,7 @@ export default function InstagramChatScreen() {
                 userSelect: 'none'
               }}
               onClick={() => {
-                console.log('📷 Camera option pressed (web)');
+                //console.log('📷 Camera option pressed (web)');
                 setShowMediaOptions(false);
                 handleMediaPick('camera');
               }}
@@ -3581,7 +3187,7 @@ export default function InstagramChatScreen() {
                 userSelect: 'none'
               }}
               onClick={() => {
-                console.log('🖼️ Photo option pressed (web)');
+                //console.log('🖼️ Photo option pressed (web)');
                 setShowMediaOptions(false);
                 handleMediaPick('image');
               }}
@@ -3614,7 +3220,7 @@ export default function InstagramChatScreen() {
                 userSelect: 'none'
               }}
               onClick={() => {
-                console.log('🎥 Video option pressed (web)');
+                //console.log('🎥 Video option pressed (web)');
                 setShowMediaOptions(false);
                 handleMediaPick('video');
               }}
@@ -3653,7 +3259,7 @@ export default function InstagramChatScreen() {
               style={styles.mediaOptionsBackdrop}
               activeOpacity={1}
               onPress={() => {
-                console.log('🎭 Closing media options');
+                //console.log('🎭 Closing media options');
                 setShowMediaOptions(false);
               }}
             />
@@ -3661,7 +3267,7 @@ export default function InstagramChatScreen() {
             <TouchableOpacity 
               style={styles.mediaOption}
               onPress={() => {
-                console.log('📷 Camera option pressed');
+                //console.log('📷 Camera option pressed');
                 setShowMediaOptions(false);
                 handleMediaPick('camera');
               }}
@@ -3675,7 +3281,7 @@ export default function InstagramChatScreen() {
             <TouchableOpacity 
               style={styles.mediaOption}
               onPress={() => {
-                console.log('🖼️ Photo option pressed');
+                //console.log('🖼️ Photo option pressed');
                 setShowMediaOptions(false);
                 handleMediaPick('image');
               }}
@@ -3689,7 +3295,7 @@ export default function InstagramChatScreen() {
             <TouchableOpacity 
               style={styles.mediaOption}
               onPress={() => {
-                console.log('🎥 Video option pressed');
+                //console.log('🎥 Video option pressed');
                 setShowMediaOptions(false);
                 handleMediaPick('video');
               }}

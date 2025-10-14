@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 // Complete auth session for better mobile handling
 WebBrowser.maybeCompleteAuthSession();
@@ -39,10 +39,10 @@ export const useSpotifyAuth = () => {
     redirectUri = 'circle://auth/spotify/callback';
   }
 
-  console.log('🔧 Spotify Auth Config:');
-  console.log('Platform:', Platform.OS);
-  console.log('Redirect URI:', redirectUri);
-  console.log('Client ID:', spotifyConfig.clientId);
+  //console.log('🔧 Spotify Auth Config:');
+  //console.log('Platform:', Platform.OS);
+  //console.log('Redirect URI:', redirectUri);
+  //console.log('Client ID:', spotifyConfig.clientId);
 
   // Create auth request
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
@@ -64,7 +64,7 @@ export const useSpotifyAuth = () => {
       setError(response.error?.message || 'Authentication failed');
       setIsLoading(false);
     } else if (response?.type === 'cancel') {
-      console.log('Spotify auth cancelled by user');
+      //console.log('Spotify auth cancelled by user');
       setError('Authentication cancelled');
       setIsLoading(false);
     }
@@ -72,7 +72,7 @@ export const useSpotifyAuth = () => {
 
   const handleAuthSuccess = async (authResponse) => {
     try {
-      console.log('✅ Spotify auth success:', authResponse);
+      //console.log('✅ Spotify auth success:', authResponse);
       
       const { code, state } = authResponse.params;
       
@@ -80,13 +80,13 @@ export const useSpotifyAuth = () => {
         throw new Error('No authorization code received');
       }
 
-      console.log('📤 Sending callback to backend...');
+      //console.log('📤 Sending callback to backend...');
       
       // Send the authorization code to our backend with authentication token
       const result = await socialAccountsApi.handleSpotifyCallback(code, state || 'expo-auth-session', token);
       
       if (result.success) {
-        console.log('✅ Spotify account linked successfully');
+        //console.log('✅ Spotify account linked successfully');
         setError(null);
         return { success: true, account: result.account };
       } else {
@@ -107,8 +107,8 @@ export const useSpotifyAuth = () => {
       setIsLoading(true);
       setError(null);
       
-      console.log('🚀 Starting Spotify authentication...');
-      console.log('Auth request ready:', !!request);
+      //console.log('🚀 Starting Spotify authentication...');
+      //console.log('Auth request ready:', !!request);
       
       if (!request) {
         throw new Error('Auth request not ready');
@@ -120,7 +120,7 @@ export const useSpotifyAuth = () => {
         showInRecents: true,
       });
 
-      console.log('Auth prompt result:', result);
+      //console.log('Auth prompt result:', result);
       
       if (result.type === 'cancel') {
         setIsLoading(false);

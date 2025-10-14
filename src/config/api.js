@@ -4,7 +4,7 @@ const getApiBaseUrl = () => {
   // ALWAYS check for explicit env variable first (highest priority)
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (envUrl && envUrl.trim()) {
-    console.log('🌐 API Configuration: Using EXPO_PUBLIC_API_BASE_URL from .env:', envUrl.trim());
+    //console.log('🌐 API Configuration: Using EXPO_PUBLIC_API_BASE_URL from .env:', envUrl.trim());
     return envUrl.trim();
   }
 
@@ -16,22 +16,22 @@ const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     // Browser environment - check hostname
     const hostname = window.location.hostname;
-    console.log('🔍 Hostname detection:', { hostname, isDev, nodeEnv: process.env.NODE_ENV });
+    //console.log('🔍 Hostname detection:', { hostname, isDev, nodeEnv: process.env.NODE_ENV });
     
     // Force MacBook IP for development (no SSL)
     if (isDev || hostname === 'localhost' || hostname === '127.0.0.1') {
       // Local development - use MacBook IP with HTTP (no SSL)
-      console.log('🏠 Using MacBook IP backend (no SSL):', `http://${MACBOOK_IP}:8080`);
+      //console.log('🏠 Using MacBook IP backend (no SSL):', `http://${MACBOOK_IP}:8080`);
       return `http://${MACBOOK_IP}:8080`;
     } else {
       // Production - using custom domain with SSL
-      console.log('🌐 Using production backend');
+      //console.log('🌐 Using production backend');
       return 'https://api.circle.orincore.com';
     }
   }
   
   // Node.js environment (React Native) - fallback only
-  console.log('🏠 Using fallback MacBook IP backend:', `http://${MACBOOK_IP}:8080`);
+  //console.log('🏠 Using fallback MacBook IP backend:', `http://${MACBOOK_IP}:8080`);
   return `http://${MACBOOK_IP}:8080`;
 };
 
@@ -54,8 +54,4 @@ export const isProduction = () => {
   return process.env.NODE_ENV === 'production';
 };
 
-console.log('🌐 API Configuration:', {
-  baseUrl: API_BASE_URL,
-  environment: isProduction() ? 'production' : 'development',
-  platform: typeof window !== 'undefined' ? 'web' : 'native'
-});
+

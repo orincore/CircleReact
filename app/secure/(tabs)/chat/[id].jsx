@@ -1,37 +1,37 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { chatApi } from "@/src/api/chat";
+import { friendsApi } from "@/src/api/friends";
+import { getSocket, socketService } from "@/src/api/socket";
+import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
+import ConfirmationDialog from "@/src/components/ConfirmationDialog";
+import MessageActionMenu from "@/src/components/MessageActionMenu";
+import ReactionBar from "@/src/components/ReactionBar";
+import ReactionPicker from "@/src/components/ReactionPicker";
+import UserProfileModal from "@/src/components/UserProfileModal";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
   FlatList,
+  Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Animated,
-  Easing,
-  Pressable,
-  Image,
-  Dimensions,
-  StatusBar,
-  Keyboard,
-  Alert,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { chatApi } from "@/src/api/chat";
-import { useAuth } from "@/contexts/AuthContext";
-import { socketService, getSocket } from "@/src/api/socket";
-import { friendsApi } from "@/src/api/friends";
-import { BlurView } from "expo-blur";
-import ReactionPicker from "@/src/components/ReactionPicker";
-import ReactionBar from "@/src/components/ReactionBar";
-import MessageActionMenu from "@/src/components/MessageActionMenu";
-import ConfirmationDialog from "@/src/components/ConfirmationDialog";
-import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
-import UserProfileModal from "@/src/components/UserProfileModal";
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -498,7 +498,7 @@ export default function InstagramChatScreen() {
 
     // Handle message status updates
     const handleMessageSent = ({ messageId, chatId }) => {
-      console.log('✅ Message sent confirmation:', { messageId, chatId });
+      //console.log('✅ Message sent confirmation:', { messageId, chatId });
       if (chatId !== conversationId) return;
       
       setMessages(prev => {
@@ -518,7 +518,7 @@ export default function InstagramChatScreen() {
     };
 
     const handleDeliveryReceipt = ({ messageId, chatId, status }) => {
-      console.log('📨 Delivery receipt received:', { messageId, chatId, status });
+      //console.log('📨 Delivery receipt received:', { messageId, chatId, status });
       if (chatId !== conversationId) return;
       setMessages(prev => prev.map(msg => 
         msg.id === messageId ? { ...msg, status: status } : msg
@@ -526,7 +526,7 @@ export default function InstagramChatScreen() {
     };
 
     const handleReadReceipt = ({ messageId, chatId, status }) => {
-      console.log('👁️ Read receipt received:', { messageId, chatId, status });
+      //console.log('👁️ Read receipt received:', { messageId, chatId, status });
       if (chatId !== conversationId) return;
       setMessages(prev => prev.map(msg => 
         msg.id === messageId ? { ...msg, status: 'read' } : msg
@@ -565,7 +565,7 @@ export default function InstagramChatScreen() {
       const others = asc.filter(m => m.senderId !== myUserId);
       if (others.length > 0 && !otherUserId) {
         const foundOtherUserId = others[0].senderId;
-        console.log('Found other user ID from messages:', foundOtherUserId);
+        //console.log('Found other user ID from messages:', foundOtherUserId);
         setOtherUserId(foundOtherUserId);
         
         // Check block status when we find the other user
@@ -637,9 +637,9 @@ export default function InstagramChatScreen() {
       });
       
       if (message.senderId !== myUserId) {
-        console.log('📨 Marking message as delivered:', message.id);
+        //console.log('📨 Marking message as delivered:', message.id);
         try { s.emit('chat:message:delivered', { messageId: message.id }); } catch {}
-        console.log('👁️ Marking message as read:', message.id);
+        //console.log('👁️ Marking message as read:', message.id);
         try { s.emit('chat:message:read', { messageId: message.id }); } catch {}
       }
     };
@@ -820,7 +820,7 @@ export default function InstagramChatScreen() {
       const isBlocked = response.isBlocked || response.isBlockedBy;
       setChatDisabled(isBlocked);
       
-      console.log('Block status:', response, 'Chat disabled:', isBlocked);
+      //console.log('Block status:', response, 'Chat disabled:', isBlocked);
     } catch (error) {
       console.error('Failed to check block status:', error);
     }
@@ -1093,7 +1093,7 @@ export default function InstagramChatScreen() {
 
   // Handle avatar click to show user profile
   const handleAvatarClick = () => {
-    console.log('Avatar clicked, opening profile modal');
+    //console.log('Avatar clicked, opening profile modal');
     setShowUserProfile(true);
   };
 

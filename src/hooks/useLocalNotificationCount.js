@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSocket } from '../api/socket';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getSocket } from '../api/socket';
 
 const STORAGE_KEY = 'local_notification_count';
 
@@ -22,7 +22,7 @@ export const useLocalNotificationCount = () => {
     const socket = getSocket(token);
     
     const handleNewNotification = (data) => {
-      console.log('🔔 New notification received, incrementing local count');
+      //console.log('🔔 New notification received, incrementing local count');
       incrementCount();
     };
 
@@ -63,7 +63,7 @@ export const useLocalNotificationCount = () => {
   const saveLocalCount = async (count) => {
     try {
       await AsyncStorage.setItem(getStorageKey(), count.toString());
-      console.log('💾 Saved local notification count:', count);
+      //console.log('💾 Saved local notification count:', count);
     } catch (error) {
       console.error('❌ Failed to save local notification count:', error);
     }
@@ -78,13 +78,13 @@ export const useLocalNotificationCount = () => {
   }, []);
 
   const resetCount = useCallback(() => {
-    console.log('🔄 Resetting local notification count to 0');
+    //console.log('🔄 Resetting local notification count to 0');
     setNotificationCount(0);
     saveLocalCount(0);
   }, []);
 
   const setCount = useCallback((count) => {
-    console.log('📝 Setting local notification count to:', count);
+    //console.log('📝 Setting local notification count to:', count);
     setNotificationCount(count);
     saveLocalCount(count);
   }, []);
@@ -96,22 +96,22 @@ export const useLocalNotificationCount = () => {
       
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
-          console.log('⏰ Server sync timeout, keeping local count');
+          //console.log('⏰ Server sync timeout, keeping local count');
           resolve(notificationCount);
         }, 5000);
 
         socket.once('notifications:count', (data) => {
           clearTimeout(timeout);
           const serverCount = data.count || 0;
-          console.log('🔄 Server notification count:', serverCount);
+          //console.log('🔄 Server notification count:', serverCount);
           
           // Only update if server count is higher (in case we missed some notifications)
           if (serverCount > notificationCount) {
-            console.log('📈 Server count higher, updating local count');
+            //console.log('📈 Server count higher, updating local count');
             setCount(serverCount);
             resolve(serverCount);
           } else {
-            console.log('📊 Keeping local count:', notificationCount);
+            //console.log('📊 Keeping local count:', notificationCount);
             resolve(notificationCount);
           }
         });

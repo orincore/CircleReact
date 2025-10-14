@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, TextInput, Platform } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { API_BASE_URL } from '@/src/api/config';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { API_BASE_URL } from '@/src/api/config';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function UserDetailScreen() {
   const { userId } = useLocalSearchParams();
@@ -278,7 +278,7 @@ export default function UserDetailScreen() {
         });
 
     if (!confirmed) {
-      console.log('❌ Restore cancelled by user');
+      //console.log('❌ Restore cancelled by user');
       return;
     }
 
@@ -297,7 +297,7 @@ export default function UserDetailScreen() {
         return;
       }
 
-      console.log('🔄 Restoring user:', userId);
+      //console.log('🔄 Restoring user:', userId);
       const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/restore`, {
         method: 'POST',
         headers: {
@@ -306,15 +306,15 @@ export default function UserDetailScreen() {
         }
       });
 
-      console.log('📥 Restore response status:', response.status);
+      //console.log('📥 Restore response status:', response.status);
       const data = await response.json();
-      console.log('📥 Restore response data:', data);
+      //console.log('📥 Restore response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to restore user');
       }
 
-      console.log('✅ User restored successfully');
+      //console.log('✅ User restored successfully');
       if (Platform.OS === 'web') {
         window.alert('User restored successfully');
       } else {
@@ -373,17 +373,7 @@ export default function UserDetailScreen() {
 
       // First create a refund request
       // Temporary hardcoded URL to bypass undefined API_BASE_URL issue
-      const apiUrl = 'https://api.circle.orincore.com'
-      console.log('🔍 API URL Debug:', {
-        EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
-        API_BASE_URL: API_BASE_URL,
-        finalApiUrl: apiUrl
-      });
-      console.log('🔍 Creating refund request:', {
-        subscription_id: selectedSubscription.id,
-        reason: refundReason || 'Admin-initiated refund',
-        url: `${apiUrl}/api/refunds/request`
-      });
+  
 
       const refundResponse = await fetch(`${apiUrl}/api/refunds/request`, {
         method: 'POST',
@@ -398,16 +388,16 @@ export default function UserDetailScreen() {
         })
       });
 
-      console.log('🔍 Refund response status:', refundResponse.status);
+      //console.log('🔍 Refund response status:', refundResponse.status);
       
       if (!refundResponse.ok) {
         const errorData = await refundResponse.json();
-        console.log('❌ Refund request failed:', errorData);
+        //console.log('❌ Refund request failed:', errorData);
         throw new Error(errorData.error || 'Failed to create refund request');
       }
 
       const refundData = await refundResponse.json();
-      console.log('✅ Refund request created:', refundData);
+      //console.log('✅ Refund request created:', refundData);
       
       Alert.alert('Success', 'Refund has been processed successfully. The user will receive an email confirmation.');
       setShowRefundModal(false);
@@ -704,11 +694,7 @@ export default function UserDetailScreen() {
           <Text style={styles.sectionTitle}>Actions</Text>
           
           {/* Debug info */}
-          {console.log('🔍 User state:', { 
-            deleted_at: user.deleted_at, 
-            is_suspended: user.is_suspended,
-            showRestoreButton: !!user.deleted_at 
-          })}
+       
           
           {!user.is_suspended ? (
             <TouchableOpacity

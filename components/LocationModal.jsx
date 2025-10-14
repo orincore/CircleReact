@@ -1,21 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  ScrollView,
-  TextInput,
-  Image,
-  Animated,
-  Dimensions,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import LocationMap from './LocationMap';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -119,16 +119,16 @@ export default function LocationModal({
   });
 
   const handleUserSelect = (user) => {
-    console.log('LocationModal handleUserSelect called for user:', user.id, user.name);
+    //console.log('LocationModal handleUserSelect called for user:', user.id, user.name);
     setSelectedUserId(user.id);
     setHighlightedPin(user.id);
     
     // Call the parent callback to show user profile modal
     if (onUserPress) {
-      console.log('LocationModal calling onUserPress callback');
+      //console.log('LocationModal calling onUserPress callback');
       onUserPress(user);
     } else {
-      console.log('LocationModal: No onUserPress callback provided');
+      //console.log('LocationModal: No onUserPress callback provided');
     }
   };
 

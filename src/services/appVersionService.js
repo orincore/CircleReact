@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
+import { Platform } from 'react-native';
 import { API_BASE_URL } from '../api/config';
 
 const VERSION_KEY = '@circle:app_version';
@@ -27,7 +27,7 @@ class AppVersionService {
         await this.checkForUpdates();
       }
       
-      console.log(`📱 App Version Service initialized - v${this.currentVersion} (${this.buildNumber})`);
+      //console.log(`📱 App Version Service initialized - v${this.currentVersion} (${this.buildNumber})`);
     } catch (error) {
       console.error('App version service initialization error:', error);
     }
@@ -101,7 +101,7 @@ class AppVersionService {
         const update = await Updates.checkForUpdateAsync();
         
         if (update.isAvailable) {
-          console.log('📱 App update available');
+          //console.log('📱 App update available');
           await this.handleUpdateAvailable(update);
         }
       }
@@ -130,7 +130,7 @@ class AppVersionService {
         updateId: update.manifest?.id,
       });
 
-      console.log('📱 Update downloaded, will apply on next restart');
+      //console.log('📱 Update downloaded, will apply on next restart');
     } catch (error) {
       console.error('Error handling update:', error);
     }
@@ -210,7 +210,7 @@ class AppVersionService {
         });
         
         await AsyncStorage.setItem(installKey, 'true');
-        console.log('📱 App installation tracked');
+        //console.log('📱 App installation tracked');
       }
     } catch (error) {
       console.error('Error tracking installation:', error);
@@ -232,7 +232,7 @@ class AppVersionService {
           upgrade_date: new Date().toISOString(),
         });
         
-        console.log(`📱 App upgrade tracked: ${lastVersion} → ${this.currentVersion}`);
+        //console.log(`📱 App upgrade tracked: ${lastVersion} → ${this.currentVersion}`);
       }
       
       // Update stored version
@@ -265,7 +265,7 @@ class AppVersionService {
       await this.trackEvent('review_prompt_shown');
       
       // You can integrate with expo-store-review here
-      console.log('📱 Review prompt would be shown here');
+      //console.log('📱 Review prompt would be shown here');
     } catch (error) {
       console.error('Error prompting for review:', error);
     }
