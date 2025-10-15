@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerSupportScreen from "../../../settings/customer-support";
+import Constants from "expo-constants";
 
 const LOCATION_OPTIONS = [
   { id: 'local', label: 'Local Only', description: 'Within 10km of your location' },
@@ -1146,6 +1147,16 @@ export default function SettingsScreen() {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* App Version */}
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>
+              Circle v{Constants.expoConfig?.version || '1.0.1'}
+            </Text>
+            <Text style={styles.versionSubtext}>
+              © 2025 ORINCORE Technologies
+            </Text>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -1666,5 +1677,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 18,
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  versionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 4,
+  },
+  versionSubtext: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.4)',
   },
 });

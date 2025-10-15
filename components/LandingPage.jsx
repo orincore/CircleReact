@@ -13,6 +13,7 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import Constants from 'expo-constants';
 
 export default function LandingPage({ onSignUp, onLogIn }) {
   const { width } = useWindowDimensions();
@@ -468,6 +469,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                 <View>
                   <Text style={styles.footerCopyright}>© 2025 Circle. All rights reserved.</Text>
                   <Text style={styles.footerBranding}>An App by ORINCORE Technologies</Text>
+                  <Text style={styles.footerVersion}>Version {Constants.expoConfig?.version || '1.0.1'}</Text>
                 </View>
                 <View style={styles.footerSocials}>
                   <TouchableOpacity 
@@ -1210,6 +1212,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.5)',
     marginTop: 4,
+  },
+  footerVersion: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.4)',
+    marginTop: 4,
+    fontWeight: '500',
   },
   footerSocials: {
     flexDirection: 'row',
