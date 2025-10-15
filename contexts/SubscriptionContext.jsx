@@ -159,7 +159,7 @@ export const SubscriptionProvider = ({ children }) => {
       const token = await AsyncStorage.getItem('@circle:access_token');
       if (!token) throw new Error('Not authenticated');
 
-      const response = await fetch(`${API_BASE_URL}/api/subscription/cancel`, {
+      const response = await fetch(`${API_BASE_URL}/api/cashfree/cancel-subscription`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

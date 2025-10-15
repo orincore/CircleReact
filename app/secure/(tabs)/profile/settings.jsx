@@ -425,7 +425,7 @@ export default function SettingsScreen() {
           return;
         }
 
-        const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
+        const response = await fetch(`${apiUrl}/api/cashfree/cancel-subscription`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -472,7 +472,7 @@ export default function SettingsScreen() {
                   return;
                 }
 
-                const response = await fetch(`${apiUrl}/api/subscription/cancel`, {
+                const response = await fetch(`${apiUrl}/api/cashfree/cancel-subscription`, {
                   method: 'POST',
                   headers: {
                     'Authorization': `Bearer ${token}`,
