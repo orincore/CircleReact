@@ -50,6 +50,8 @@ export default function SignupContact() {
   const [showCodePicker, setShowCodePicker] = useState(false);
   const [errors, setErrors] = useState({});
   const [codeQuery, setCodeQuery] = useState("");
+  const [referralCode, setReferralCode] = useState(data.referralCode || "");
+  const [referralValid, setReferralValid] = useState(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -126,7 +128,8 @@ export default function SignupContact() {
       ...prev, 
       email: email.trim(), 
       countryCode, 
-      phoneNumber: (phoneNumber || '').trim() 
+      phoneNumber: (phoneNumber || '').trim(),
+      referralCode: referralCode.trim().toUpperCase()
     }));
     router.push("/signup/about");
   };
@@ -228,6 +231,26 @@ export default function SignupContact() {
                 </View>
                 {!!errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
                 <Text style={styles.helperText}>Optional, but helps with account recovery</Text>
+              </View>
+
+              {/* Referral Code (optional) */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>🎁 Referral Code (Optional)</Text>
+                <View style={[styles.inputWrapper, referralCode && styles.inputWrapperFilled]}>
+                  <Ionicons name="gift" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
+                  <TextInput 
+                    value={referralCode} 
+                    onChangeText={(text) => setReferralCode(text.toUpperCase())} 
+                    placeholder="Enter referral code" 
+                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
+                    autoCapitalize="characters"
+                    style={styles.input} 
+                  />
+                  {referralCode && referralValid && (
+                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                  )}
+                </View>
+                <Text style={styles.helperText}>Have a referral code? Enter it to get rewards! 🎉</Text>
               </View>
 
               {/* Trust badge */}

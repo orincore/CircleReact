@@ -1,6 +1,7 @@
 import UserConsentModal from "@/components/UserConsentModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { VerificationProvider } from "@/contexts/VerificationContext";
 import BrowserNotificationProvider from "@/src/components/BrowserNotificationProvider";
 import ConnectionStatus from "@/src/components/ConnectionStatus";
 import NotificationManager from "@/src/components/NotificationManager";
@@ -156,20 +157,22 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <SubscriptionProvider>
-            <BrowserNotificationProvider>
-              <ConnectionStatus />
-              <Stack screenOptions={{ headerShown: false }} />
-              <NotificationManager />
-              
-              {/* User Consent Modal for GDPR Compliance */}
-              <UserConsentModal
-                visible={showConsentModal}
-                onAccept={handleConsentAccept}
-                onDecline={handleConsentDecline}
-              />
-            </BrowserNotificationProvider>
-          </SubscriptionProvider>
+          <VerificationProvider>
+            <SubscriptionProvider>
+              <BrowserNotificationProvider>
+                <ConnectionStatus />
+                <Stack screenOptions={{ headerShown: false }} />
+                <NotificationManager />
+                
+                {/* User Consent Modal for GDPR Compliance */}
+                <UserConsentModal
+                  visible={showConsentModal}
+                  onAccept={handleConsentAccept}
+                  onDecline={handleConsentDecline}
+                />
+              </BrowserNotificationProvider>
+            </SubscriptionProvider>
+          </VerificationProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

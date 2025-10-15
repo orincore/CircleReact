@@ -1,5 +1,7 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
+import VerificationBanner from "@/components/VerificationBanner";
+import VerificationGuard from "@/components/VerificationGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { chatApi } from "@/src/api/chat";
@@ -291,6 +293,11 @@ export default function ChatListScreen() {
         <View style={[styles.floatingOrb, styles.orb3]} />
       </LinearGradient>
 
+      {/* Verification Banner */}
+      <VerificationBanner />
+
+      {/* Lock messaging for unverified users */}
+      <VerificationGuard feature="messaging">
       <View style={[styles.contentContainer, { paddingHorizontal: responsive.horizontalPadding }]}>
         <View style={styles.header}>
           <View style={styles.headerIconContainer}>
@@ -463,6 +470,7 @@ export default function ChatListScreen() {
       {BannerAd && shouldShowAds() && (
         <BannerAd placement="chat_list_bottom" />
       )}
+      </VerificationGuard>
     </View>
   );
 }

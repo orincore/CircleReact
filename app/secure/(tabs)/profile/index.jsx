@@ -18,12 +18,14 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Clipboard,
   Dimensions,
   Image,
   Modal,
   Platform,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -75,7 +77,8 @@ export default function ProfileScreen() {
         refreshUser(),
         subscriptionContext?.fetchSubscription?.(),
         loadStats(),
-        loadPhotos()
+        loadPhotos(),
+        loadReferralData()
       ]);
       
       // Load friends last to ensure correct count
@@ -105,6 +108,8 @@ export default function ProfileScreen() {
   const [friends, setFriends] = useState([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [referralData, setReferralData] = useState(null);
+  const [loadingReferral, setLoadingReferral] = useState(false);
   
   // Friends pagination and search state
   const [friendsSearchQuery, setFriendsSearchQuery] = useState('');
@@ -123,7 +128,8 @@ export default function ProfileScreen() {
     const loadAllData = async () => {
       await Promise.all([
         loadStats(),
-        loadPhotos()
+        loadPhotos(),
+        loadReferralData()
       ]);
       // Load friends last to ensure it updates stats correctly
       await loadFriends();
@@ -677,6 +683,47 @@ export default function ProfileScreen() {
     }
   }, [user?.id, token]); // Only trigger when user ID or token actually changes
 
+  // Load referral data
+  const loadReferralData = async () => {
+    if (!token) {
+      console.log('⚠️ No token available for referral data');
+      return;
+    }
+    try {
+      setLoadingReferral(true);
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
+      console.log('📊 Loading referral data from:', `${API_URL}/api/referrals/my-referral`);
+      
+      const response = await fetch(`${API_URL}/api/referrals/my-referral`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Referral data loaded:', data);
+        setReferralData(data);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to load referral data:', response.status, errorText);
+        // Set empty data so card doesn't show
+        setReferralData(null);
+      }
+    } catch (error) {
+      console.error('❌ Error loading referral data:', error);
+      console.error('Error details:', error.message);
+      // Set empty data so card doesn't show
+      setReferralData(null);
+    } finally {
+      setLoadingReferral(false);
+    }
+  };
+
   const loadStats = async () => {
     if (!token) return;
     try {
@@ -1213,6 +1260,59 @@ export default function ProfileScreen() {
                 style={styles.desktopBanner}
                 compact={true}
               />
+              
+              {/* Referral Card - Desktop */}
+              {referralData && (
+                <View style={styles.desktopReferralCard}>
+                  <LinearGradient
+                    colors={['rgba(255, 111, 181, 0.15)', 'rgba(161, 106, 232, 0.15)']}
+                    style={styles.desktopReferralGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.desktopReferralHeader}>
+                      <LinearGradient
+                        colors={['#FF6FB5', '#A16AE8']}
+                        style={styles.desktopReferralIcon}
+                      >
+                        <Ionicons name="gift" size={18} color="#FFFFFF" />
+                      </LinearGradient>
+                      <Text style={styles.desktopReferralTitle}>Referral Program</Text>
+                    </View>
+                    
+                    <View style={styles.desktopReferralCodeBox}>
+                      <Text style={styles.desktopReferralCodeLabel}>Your Code</Text>
+                      <Text style={styles.desktopReferralCodeValue}>{referralData.referral_code}</Text>
+                    </View>
+                    
+                    <View style={styles.desktopReferralStats}>
+                      <View style={styles.desktopReferralStatItem}>
+                        <Text style={styles.desktopReferralStatValue}>{referralData.total_referrals || 0}</Text>
+                        <Text style={styles.desktopReferralStatLabel}>Referrals</Text>
+                      </View>
+                      <View style={styles.desktopReferralStatItem}>
+                        <Text style={styles.desktopReferralStatValue}>₹{referralData.total_earnings || 0}</Text>
+                        <Text style={styles.desktopReferralStatLabel}>Earned</Text>
+                      </View>
+                    </View>
+                    
+                    <TouchableOpacity 
+                      style={styles.desktopReferralButton}
+                      onPress={() => router.push('/secure/(tabs)/profile/referrals')}
+                    >
+                      <LinearGradient
+                        colors={['#FF6FB5', '#A16AE8']}
+                        style={styles.desktopReferralButtonGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <Text style={styles.desktopReferralButtonText}>View Details</Text>
+                        <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                </View>
+              )}
             </View>
           </Animated.View>
 
@@ -1467,6 +1567,128 @@ export default function ProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+          
+          {/* Referral Code Card */}
+          {(referralData || loadingReferral) && (
+            <Animated.View 
+              style={[
+                styles.referralCard,
+                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+              ]}
+            >
+              <LinearGradient
+                colors={['rgba(255, 111, 181, 0.15)', 'rgba(161, 106, 232, 0.15)']}
+                style={styles.referralGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                {loadingReferral ? (
+                  <View style={styles.referralLoadingContainer}>
+                    <ActivityIndicator size="large" color="#FF6FB5" />
+                    <Text style={styles.referralLoadingText}>Loading referral data...</Text>
+                  </View>
+                ) : referralData ? (
+                  <>
+                    <View style={styles.referralHeader}>
+                      <View style={styles.referralHeaderLeft}>
+                        <LinearGradient
+                          colors={['#FF6FB5', '#A16AE8']}
+                          style={styles.referralIcon}
+                        >
+                          <Ionicons name="gift" size={20} color="#FFFFFF" />
+                        </LinearGradient>
+                        <View>
+                          <Text style={styles.referralTitle}>Referral Program</Text>
+                          <Text style={styles.referralSubtitle}>Earn ₹10 per referral</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.trackButton}
+                        onPress={() => router.push('/secure/(tabs)/profile/referrals')}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.trackButtonText}>Track</Text>
+                        <Ionicons name="arrow-forward" size={16} color="#FF6FB5" />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.referralCodeContainer}>
+                      <View style={styles.codeBox}>
+                        <Text style={styles.codeLabel}>Your Code</Text>
+                        <Text style={styles.codeValue}>{referralData.referral_code}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.copyIconButton}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            navigator.clipboard.writeText(referralData.referral_code);
+                          } else {
+                            Clipboard.setString(referralData.referral_code);
+                          }
+                          Alert.alert('Copied!', 'Referral code copied to clipboard');
+                        }}
+                      >
+                        <Ionicons name="copy-outline" size={20} color="#FF6FB5" />
+                      </TouchableOpacity>
+                    </View>
+                
+                    <View style={styles.referralStats}>
+                      <View style={styles.referralStat}>
+                        <Text style={styles.referralStatValue}>{referralData.total_referrals || 0}</Text>
+                        <Text style={styles.referralStatLabel}>Referrals</Text>
+                      </View>
+                      <View style={styles.referralDivider} />
+                      <View style={styles.referralStat}>
+                        <Text style={styles.referralStatValue}>₹{referralData.pending_earnings || 0}</Text>
+                        <Text style={styles.referralStatLabel}>Pending</Text>
+                      </View>
+                      <View style={styles.referralDivider} />
+                      <View style={styles.referralStat}>
+                        <Text style={styles.referralStatValue}>₹{referralData.total_earnings || 0}</Text>
+                        <Text style={styles.referralStatLabel}>Total Earned</Text>
+                      </View>
+                    </View>
+                    
+                    {/* Share Button */}
+                    <TouchableOpacity 
+                      style={styles.shareReferralButton}
+                      onPress={async () => {
+                        try {
+                          const APP_URL = 'https://circle.orincore.com';
+                          const shareLink = `${APP_URL}/signup?ref=${referralData.referral_code}`;
+                          const shareText = `Join Circle and find meaningful connections! Use my referral code ${referralData.referral_code} and we both benefit! 🎉\n\n${shareLink}`;
+                          
+                          if (Platform.OS === 'web') {
+                            await navigator.clipboard.writeText(shareLink);
+                            Alert.alert('Link Copied!', 'Referral link copied to clipboard. Share it with your friends!');
+                          } else {
+                            await Share.share({
+                              message: shareText,
+                              url: shareLink,
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Error sharing:', error);
+                          Alert.alert('Error', 'Failed to share referral link');
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={['#FF6FB5', '#A16AE8']}
+                        style={styles.shareReferralGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <Ionicons name="share-social" size={18} color="#FFFFFF" />
+                        <Text style={styles.shareReferralText}>Share Referral Link</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </>
+                ) : null}
+              </LinearGradient>
+            </Animated.View>
+          )}
           
           {/* Tabs */}
           <Animated.View 
@@ -2137,6 +2359,237 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: 'rgba(124, 43, 134, 0.8)',
     fontStyle: 'italic',
+  },
+  
+  // Referral Card Styles
+  referralCard: {
+    marginBottom: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  referralGradient: {
+    padding: 18,
+  },
+  referralHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  referralHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  referralIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referralTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  referralSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  trackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 111, 181, 0.3)',
+  },
+  trackButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
+  },
+  referralCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  codeBox: {
+    flex: 1,
+  },
+  codeLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  codeValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+  },
+  copyIconButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    borderRadius: 8,
+  },
+  referralStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  referralStat: {
+    alignItems: 'center',
+  },
+  referralStatValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  referralStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  referralDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  shareReferralButton: {
+    marginTop: 14,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  shareReferralGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  shareReferralText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  referralLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  referralLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  
+  // Desktop Referral Card Styles
+  desktopReferralCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 111, 181, 0.2)',
+  },
+  desktopReferralGradient: {
+    padding: 20,
+  },
+  desktopReferralHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  desktopReferralIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desktopReferralTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  desktopReferralCodeBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  desktopReferralCodeLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  desktopReferralCodeValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+  },
+  desktopReferralStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  desktopReferralStatItem: {
+    alignItems: 'center',
+  },
+  desktopReferralStatValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  desktopReferralStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  desktopReferralButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  desktopReferralButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+  },
+  desktopReferralButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   
   // Desktop Styles

@@ -1,6 +1,8 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import LiveActivityFeed from "@/components/LiveActivityFeed";
 import Toast from "@/components/Toast";
+import VerificationBanner from "@/components/VerificationBanner";
+import VerificationGuard from "@/components/VerificationGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { CirclePointsHelper, circleStatsApi } from "@/src/api/circle-stats";
@@ -1438,6 +1440,12 @@ export default function MatchScreen() {
       </LinearGradient>
 
       <Toast visible={toast.visible} text={toast.text} type={toast.type} />
+      
+      {/* Verification Banner */}
+      <VerificationBanner />
+      
+      {/* Lock matching feature for unverified users */}
+      <VerificationGuard feature="matching and swiping">
 
       {isLargeScreen ? (
         // DESKTOP/WEB VIEW - Dashboard Style
@@ -2063,6 +2071,8 @@ export default function MatchScreen() {
           </View>
         </View>
       </Modal>
+      
+      </VerificationGuard>
     </View>
   );
 }
