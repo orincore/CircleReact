@@ -38,7 +38,9 @@ export default function SubscriptionPage() {
 
   const loadPlans = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/cashfree/plans`);
+      const response = await axios.get(`${API_URL}/api/cashfree/plans`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setPlans(response.data.plans || []);
     } catch (error) {
       console.error('Error loading plans:', error);
@@ -59,7 +61,7 @@ export default function SubscriptionPage() {
     }
   };
 
-  const handleSubscribe = async (planId) => {
+  const handleSubscribe = async (planId, isFree = false) => {
     if (!token) {
       Alert.alert('Error', 'Please login to subscribe');
       return;
@@ -67,7 +69,33 @@ export default function SubscriptionPage() {
 
     setProcessing(true);
     try {
-      // Create order
+      // Handle free subscription
+      if (isFree) {
+        const response = await axios.post(
+          `${API_URL}/api/cashfree/claim-free-subscription`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data.success) {
+          Alert.alert(
+            '🎉 Success!',
+            'Your free 1-month subscription has been activated!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  loadSubscriptionStatus();
+                  router.back();
+                }
+              }
+            ]
+          );
+        }
+        return;
+      }
+
+      // Create order for paid subscription
       const response = await axios.post(
         `${API_URL}/api/cashfree/create-order`,
         { planId },
@@ -236,6 +264,7 @@ export default function SubscriptionPage() {
             {plans.map((plan) => {
               const isCurrentPlan = currentSubscription?.is_subscribed && 
                                     currentSubscription?.plan === plan.duration;
+              const isFree = plan.isFree || false;
               
               return (
                 <TouchableOpacity
@@ -248,10 +277,15 @@ export default function SubscriptionPage() {
                   disabled={isCurrentPlan}
                 >
                   <LinearGradient
-                    colors={plan.popular ? ['#FF6FB5', '#A16AE8'] : ['#7C2B86', '#5D5FEF']}
+                    colors={isFree ? ['#4CAF50', '#45B049'] : plan.popular ? ['#FF6FB5', '#A16AE8'] : ['#7C2B86', '#5D5FEF']}
                     style={styles.planGradient}
                   >
-                    {plan.popular && (
+                    {isFree && (
+                      <View style={styles.freeBadge}>
+                        <Text style={styles.freeText}>🎉 LIMITED OFFER</Text>
+                      </View>
+                    )}
+                    {plan.popular && !isFree && (
                       <View style={styles.popularBadge}>
                         <Text style={styles.popularText}>MOST POPULAR</Text>
                       </View>
@@ -268,8 +302,14 @@ export default function SubscriptionPage() {
                       <View style={styles.priceContainer}>
                         <Text style={styles.currency}>₹</Text>
                         <Text style={styles.planPrice}>{plan.price}</Text>
+                        {plan.originalPrice && plan.originalPrice > 0 && (
+                          <Text style={styles.originalPrice}>₹{plan.originalPrice}</Text>
+                        )}
                         <Text style={styles.planPeriod}>/{plan.duration === 'monthly' ? 'month' : 'year'}</Text>
                       </View>
+                      {isFree && plan.promoMessage && (
+                        <Text style={styles.promoMessage}>{plan.promoMessage}</Text>
+                      )}
                     </View>
 
                     <View style={styles.featuresContainer}>
@@ -302,20 +342,23 @@ export default function SubscriptionPage() {
           {!currentSubscription?.is_subscribed && (
             <TouchableOpacity
               style={styles.subscribeButton}
-              onPress={() => handleSubscribe(selectedPlan)}
+              onPress={() => {
+                const selectedPlanData = plans.find(p => p.id === selectedPlan);
+                handleSubscribe(selectedPlan, selectedPlanData?.isFree || false);
+              }}
               disabled={processing}
             >
               <LinearGradient
-                colors={['#7C2B86', '#A16AE8']}
+                colors={plans.find(p => p.id === selectedPlan)?.isFree ? ['#4CAF50', '#45B049'] : ['#7C2B86', '#A16AE8']}
                 style={styles.subscribeGradient}
               >
                 {processing ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="card" size={24} color="#FFFFFF" />
+                    <Ionicons name={plans.find(p => p.id === selectedPlan)?.isFree ? "gift" : "card"} size={24} color="#FFFFFF" />
                     <Text style={styles.subscribeText}>
-                      Subscribe Now
+                      {plans.find(p => p.id === selectedPlan)?.isFree ? 'Claim Free Subscription' : 'Subscribe Now'}
                     </Text>
                   </>
                 )}
@@ -477,6 +520,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1a0b2e',
   },
+  freeBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomLeftRadius: 12,
+  },
+  freeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1a0b2e',
+  },
   savingsBadge: {
     position: 'absolute',
     top: 10,
@@ -518,6 +575,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
     marginLeft: 4,
+  },
+  originalPrice: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.4)',
+    textDecorationLine: 'line-through',
+    marginLeft: 8,
+  },
+  promoMessage: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginTop: 8,
+    fontWeight: '600',
   },
   featuresContainer: {
     gap: 12,
