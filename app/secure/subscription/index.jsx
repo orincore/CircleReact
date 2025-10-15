@@ -57,7 +57,7 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const handleSubscribe = async (planId) => {
+  const handleSubscribe = async (planId, isFree = false) => {
     if (!token) {
       Alert.alert('Error', 'Please login to subscribe');
       return;
@@ -65,7 +65,33 @@ export default function SubscriptionScreen() {
 
     setProcessing(true);
     try {
-      // Create order
+      // Handle free subscription
+      if (isFree) {
+        const response = await axios.post(
+          `${API_URL}/api/cashfree/claim-free-subscription`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data.success) {
+          Alert.alert(
+            '🎉 Success!',
+            'Your free 1-month subscription has been activated!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  loadSubscriptionStatus();
+                  router.back();
+                }
+              }
+            ]
+          );
+        }
+        return;
+      }
+
+      // Create order for paid subscription
       const response = await axios.post(
         `${API_URL}/api/cashfree/create-order`,
         { planId },
@@ -191,12 +217,18 @@ export default function SubscriptionScreen() {
 
   const renderPlanCard = (plan) => {
     const isPopular = plan.popular;
+    const isFree = plan.isFree || false;
     const isCurrentPlan = currentSubscription?.is_subscribed && 
                           currentSubscription?.plan === plan.duration;
 
     return (
       <View key={plan.id} style={styles.planCard}>
-        {isPopular && (
+        {isFree && (
+          <View style={styles.freeBadge}>
+            <Text style={styles.freeText}>🎉 LIMITED OFFER</Text>
+          </View>
+        )}
+        {isPopular && !isFree && (
           <View style={styles.popularBadge}>
             <Text style={styles.popularText}>MOST POPULAR</Text>
           </View>
@@ -207,8 +239,17 @@ export default function SubscriptionScreen() {
         <View style={styles.priceContainer}>
           <Text style={styles.currency}>₹</Text>
           <Text style={styles.price}>{plan.price}</Text>
+          {plan.originalPrice && plan.originalPrice > 0 && (
+            <Text style={styles.originalPrice}>₹{plan.originalPrice}</Text>
+          )}
           <Text style={styles.duration}>/{plan.duration === 'monthly' ? 'month' : 'year'}</Text>
         </View>
+
+        {isFree && plan.promoMessage && (
+          <View style={styles.promoMessageBadge}>
+            <Text style={styles.promoMessageText}>{plan.promoMessage}</Text>
+          </View>
+        )}
 
         {plan.savings && (
           <View style={styles.savingsBadge}>
@@ -231,12 +272,12 @@ export default function SubscriptionScreen() {
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.subscribeButton, isPopular && styles.popularButton]}
-            onPress={() => handleSubscribe(plan.id)}
+            style={[styles.subscribeButton, (isPopular || isFree) && styles.popularButton]}
+            onPress={() => handleSubscribe(plan.id, isFree)}
             disabled={processing}
           >
             <LinearGradient
-              colors={isPopular ? ['#FF6FB5', '#A16AE8'] : ['#7C2B86', '#5D5FEF']}
+              colors={isFree ? ['#4CAF50', '#45B049'] : isPopular ? ['#FF6FB5', '#A16AE8'] : ['#7C2B86', '#5D5FEF']}
               style={styles.buttonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -244,7 +285,7 @@ export default function SubscriptionScreen() {
               {processing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.buttonText}>Subscribe Now</Text>
+                <Text style={styles.buttonText}>{isFree ? 'Claim Free Subscription' : 'Subscribe Now'}</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
@@ -433,6 +474,41 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  freeBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  freeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  promoMessageBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  promoMessageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+    textAlign: 'center',
+  },
+  originalPrice: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.4)',
+    textDecorationLine: 'line-through',
+    marginLeft: 8,
   },
   planName: {
     fontSize: 24,
