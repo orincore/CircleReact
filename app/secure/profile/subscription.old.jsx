@@ -59,6 +59,7 @@ export default function SubscriptionPage() {
     }
   };
 
+
   const handleSubscribe = async (planId) => {
     if (!token) {
       Alert.alert('Error', 'Please login to subscribe');
@@ -139,22 +140,7 @@ export default function SubscriptionPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LinearGradient
-          colors={['#1a0b2e', '#2d1b4e', '#1a0b2e']}
-          style={styles.backgroundGradient}
-        >
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF6FB5" />
-            <Text style={styles.loadingText}>Loading plans...</Text>
-          </View>
-        </LinearGradient>
-      </SafeAreaView>
-    );
-  }
-
+  // Don't render if not authenticated
   if (!token || !user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -184,6 +170,74 @@ export default function SubscriptionPage() {
     );
   }
 
+  if (showPaymentForm) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <LinearGradient
+          colors={['#1a0b2e', '#2d1b4e', '#1a0b2e']}
+          style={styles.backgroundGradient}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => setShowPaymentForm(false)}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Payment</Text>
+          </View>
+
+          <PaymentForm
+            planType={selectedPlan}
+            token={token}
+            onSuccess={async (data) => {
+              const isDemo = data?.demo;
+              
+              // Refresh both user data and subscription data
+              if (!isDemo) {
+                try {
+                  // Small delay to ensure backend has processed the subscription
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  await Promise.all([
+                    refreshUser(),
+                    fetchSubscription()
+                  ]);
+                } catch (error) {
+                  console.error('Failed to refresh data after payment:', error);
+                }
+              }
+              
+              if (Platform.OS === 'web') {
+                window.alert(
+                  isDemo 
+                    ? 'Demo Success!\n\nDemo subscription activated! In a real app, you would now have premium features.'
+                    : 'Success!\n\nYour subscription has been activated! You now have access to premium features.'
+                );
+                router.back();
+              } else {
+                Alert.alert(
+                  isDemo ? 'Demo Success!' : 'Success!',
+                  isDemo 
+                    ? 'Demo subscription activated! In a real app, you would now have premium features.'
+                    : 'Your subscription has been activated! You now have access to premium features.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        router.back();
+                      }
+                    }
+                  ]
+                );
+              }
+            }}
+            onCancel={() => setShowPaymentForm(false)}
+          />
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
@@ -198,132 +252,119 @@ export default function SubscriptionPage() {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Choose Your Plan</Text>
+          <Text style={styles.headerTitle}>Upgrade to Premium</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Current Subscription Status */}
-          {currentSubscription?.is_subscribed && (
-            <View style={styles.statusCard}>
-              <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-              <View style={styles.statusInfo}>
-                <Text style={styles.statusTitle}>Active Subscription</Text>
-                <Text style={styles.statusText}>
-                  {currentSubscription.plan === 'monthly' ? 'Monthly' : 'Yearly'} Plan
-                </Text>
-                <Text style={styles.statusExpiry}>
-                  Expires: {new Date(currentSubscription.expires_at).toLocaleDateString()}
-                </Text>
-              </View>
-            </View>
-          )}
-
           {/* Hero Section */}
           <View style={styles.heroSection}>
+            <View style={styles.limitedOfferBadge}>
+              <Ionicons name="flash" size={20} color="#FFD700" />
+              <Text style={styles.limitedOfferText}>LIMITED TIME OFFER</Text>
+              <Ionicons name="flash" size={20} color="#FFD700" />
+            </View>
             <View style={styles.heroIcon}>
               <Ionicons name="diamond" size={48} color="#FFD700" />
             </View>
-            <Text style={styles.heroTitle}>Upgrade to Premium</Text>
-            <Text style={styles.heroSubtitle}>
-              Unlock premium features and enhance your experience
+            <Text style={styles.heroTitle}>Get Premium for FREE!</Text>
+            <Text style={styles.offerPrice}>
+              <Text style={styles.originalPrice}>$9.99</Text>
+              <Text style={styles.freePrice}> $0</Text>
             </Text>
+            <Text style={styles.heroSubtitle}>
+              🎉 Special launch offer - Get full premium access at no cost!
+            </Text>
+            <View style={styles.offerTimer}>
+              <Ionicons name="time-outline" size={16} color="#FF6FB5" />
+              <Text style={styles.offerTimerText}>Offer ends soon - Claim now!</Text>
+            </View>
           </View>
 
           {/* Plans */}
           <View style={styles.plansContainer}>
-            {plans.map((plan) => {
-              const isCurrentPlan = currentSubscription?.is_subscribed && 
-                                    currentSubscription?.plan === plan.duration;
-              
-              return (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[
-                    styles.planCard,
-                    selectedPlan === plan.id && styles.selectedPlan
-                  ]}
-                  onPress={() => setSelectedPlan(plan.id)}
-                  disabled={isCurrentPlan}
+            {plans.map((plan) => (
+              <TouchableOpacity
+                key={plan.id}
+                style={[
+                  styles.planCard,
+                  selectedPlan === plan.id && styles.selectedPlan
+                ]}
+                onPress={() => setSelectedPlan(plan.id)}
+              >
+                <LinearGradient
+                  colors={plan.gradient}
+                  style={styles.planGradient}
                 >
-                  <LinearGradient
-                    colors={plan.popular ? ['#FF6FB5', '#A16AE8'] : ['#7C2B86', '#5D5FEF']}
-                    style={styles.planGradient}
-                  >
-                    {plan.popular && (
-                      <View style={styles.popularBadge}>
-                        <Text style={styles.popularText}>MOST POPULAR</Text>
-                      </View>
-                    )}
-                    
-                    {plan.savings && (
-                      <View style={styles.savingsBadge}>
-                        <Text style={styles.savingsText}>{plan.savings}</Text>
-                      </View>
-                    )}
-
-                    <View style={styles.planHeader}>
-                      <Text style={styles.planName}>{plan.name}</Text>
-                      <View style={styles.priceContainer}>
-                        <Text style={styles.currency}>₹</Text>
-                        <Text style={styles.planPrice}>{plan.price}</Text>
-                        <Text style={styles.planPeriod}>/{plan.duration === 'monthly' ? 'month' : 'year'}</Text>
-                      </View>
+                  {plan.popular && (
+                    <View style={styles.popularBadge}>
+                      <Text style={styles.popularText}>MOST POPULAR</Text>
                     </View>
-
-                    <View style={styles.featuresContainer}>
-                      {plan.features.map((feature, index) => (
-                        <View key={index} style={styles.featureItem}>
-                          <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                          <Text style={styles.featureText}>{feature}</Text>
-                        </View>
-                      ))}
+                  )}
+                  
+                  <View style={styles.planHeader}>
+                    <Text style={styles.planName}>{plan.name}</Text>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.planOriginalPrice}>{plan.originalPrice}</Text>
+                      <Text style={styles.planPrice}>{plan.price}</Text>
+                      <Text style={styles.planPeriod}>{plan.period}</Text>
                     </View>
+                  </View>
 
-                    {selectedPlan === plan.id && !isCurrentPlan && (
-                      <View style={styles.selectedIndicator}>
-                        <Ionicons name="checkmark-circle" size={24} color="#00FF94" />
+                  <View style={styles.featuresContainer}>
+                    {plan.features.map((feature, index) => (
+                      <View key={index} style={styles.featureItem}>
+                        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                        <Text style={styles.featureText}>{feature}</Text>
                       </View>
-                    )}
+                    ))}
+                  </View>
 
-                    {isCurrentPlan && (
-                      <View style={styles.currentPlanBadge}>
-                        <Text style={styles.currentPlanText}>CURRENT PLAN</Text>
-                      </View>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-              );
-            })}
+                  {selectedPlan === plan.id && (
+                    <View style={styles.selectedIndicator}>
+                      <Ionicons name="checkmark-circle" size={24} color="#00FF94" />
+                    </View>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Subscribe Button */}
-          {!currentSubscription?.is_subscribed && (
-            <TouchableOpacity
-              style={styles.subscribeButton}
-              onPress={() => handleSubscribe(selectedPlan)}
-              disabled={processing}
+          <TouchableOpacity
+            style={styles.subscribeButton}
+            onPress={handleSubscribe}
+            disabled={loading}
+          >
+            <LinearGradient
+              colors={['#7C2B86', '#A16AE8']}
+              style={styles.subscribeGradient}
             >
-              <LinearGradient
-                colors={['#7C2B86', '#A16AE8']}
-                style={styles.subscribeGradient}
-              >
-                {processing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="card" size={24} color="#FFFFFF" />
-                    <Text style={styles.subscribeText}>
-                      Subscribe Now
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="gift" size={24} color="#FFD700" />
+                  <Text style={styles.subscribeText}>
+                    Claim FREE {plans.find(p => p.id === selectedPlan)?.name}
+                  </Text>
+                  <View style={styles.freeBadge}>
+                    <Text style={styles.freeBadgeText}>FREE</Text>
+                  </View>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* Features Highlight */}
           <View style={styles.highlightSection}>
             <Text style={styles.highlightTitle}>Why Upgrade?</Text>
+            <View style={styles.highlightItem}>
+              <Ionicons name="logo-instagram" size={24} color="#E4405F" />
+              <View style={styles.highlightText}>
+                <Text style={styles.highlightItemTitle}>See Instagram Usernames</Text>
+                <Text style={styles.highlightItemDesc}>View full Instagram profiles of other users</Text>
+              </View>
+            </View>
             <View style={styles.highlightItem}>
               <Ionicons name="infinite" size={24} color="#00FF94" />
               <View style={styles.highlightText}>
@@ -332,17 +373,10 @@ export default function SubscriptionPage() {
               </View>
             </View>
             <View style={styles.highlightItem}>
-              <Ionicons name="eye-off" size={24} color="#FFD700" />
+              <Ionicons name="shield-checkmark" size={24} color="#FFD700" />
               <View style={styles.highlightText}>
-                <Text style={styles.highlightItemTitle}>Ad-Free Experience</Text>
-                <Text style={styles.highlightItemDesc}>Enjoy the app without any advertisements</Text>
-              </View>
-            </View>
-            <View style={styles.highlightItem}>
-              <Ionicons name="headset" size={24} color="#FF6FB5" />
-              <View style={styles.highlightText}>
-                <Text style={styles.highlightItemTitle}>Priority Support</Text>
-                <Text style={styles.highlightItemDesc}>Get help faster with priority customer support</Text>
+                <Text style={styles.highlightItemTitle}>Premium Badge</Text>
+                <Text style={styles.highlightItemDesc}>Stand out with a premium profile badge</Text>
               </View>
             </View>
           </View>
@@ -380,49 +414,27 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 16,
-  },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.3)',
-  },
-  statusInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#4CAF50',
-    marginBottom: 4,
-  },
-  statusText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 2,
-  },
-  statusExpiry: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
   heroSection: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 40,
+  },
+  limitedOfferBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 20,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  limitedOfferText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFD700',
+    letterSpacing: 1,
   },
   heroIcon: {
     width: 80,
@@ -434,17 +446,46 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '900',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
   },
+  offerPrice: {
+    marginBottom: 16,
+  },
+  originalPrice: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textDecorationLine: 'line-through',
+  },
+  freePrice: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#00FF94',
+  },
   heroSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     lineHeight: 24,
+    marginBottom: 16,
+  },
+  offerTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 111, 181, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 8,
+  },
+  offerTimerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
   },
   plansContainer: {
     marginBottom: 30,
@@ -475,47 +516,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1a0b2e',
   },
-  savingsBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  savingsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
   planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
   planName: {
     fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 12,
   },
   priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'flex-end',
   },
-  currency: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  planOriginalPrice: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textDecorationLine: 'line-through',
+    marginBottom: 4,
   },
   planPrice: {
-    fontSize: 48,
+    fontSize: 40,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#00FF94',
   },
   planPeriod: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginLeft: 4,
   },
   featuresContainer: {
     gap: 12,
@@ -526,7 +555,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     flex: 1,
   },
@@ -534,20 +563,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     left: 20,
-  },
-  currentPlanBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  currentPlanText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
   },
   subscribeButton: {
     marginBottom: 30,
@@ -559,12 +574,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
-    gap: 12,
+    gap: 8,
   },
   subscribeText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  freeBadge: {
+    backgroundColor: '#00FF94',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  freeBadgeText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#1a0b2e',
+    letterSpacing: 1,
   },
   highlightSection: {
     marginBottom: 40,
