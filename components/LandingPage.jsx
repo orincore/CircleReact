@@ -77,30 +77,30 @@ export default function LandingPage({ onSignUp, onLogIn }) {
   
   const features = [
     {
-      icon: 'heart-circle',
-      title: 'Smart Matching',
-      description: 'AI-powered algorithm finds your perfect match based on interests and compatibility.',
+      icon: 'ban',
+      title: 'No Swiping Required',
+      description: 'Stop endless swiping! Our AI automatically finds and suggests your perfect matches based on deep compatibility analysis.',
       color: '#FF6FB5',
       gradient: ['#FF6FB5', '#FF8CC5'],
     },
     {
-      icon: 'chatbubble-ellipses',
-      title: 'Real-time Chat',
-      description: 'Connect instantly with messaging, voice calls, and video chats.',
+      icon: 'heart-circle',
+      title: 'Smart AI Matching',
+      description: 'Advanced AI algorithm analyzes interests, personality, and preferences to find truly compatible connections.',
       color: '#A16AE8',
       gradient: ['#A16AE8', '#B88EF0'],
     },
     {
       icon: 'navigate-circle',
-      title: 'Location-Based',
-      description: 'Discover people nearby or explore connections around the world.',
+      title: 'Location-Based Discovery',
+      description: 'Find people nearby or explore connections worldwide. Your choice, your preferences.',
       color: '#5D5FEF',
       gradient: ['#5D5FEF', '#7D7FF5'],
     },
     {
-      icon: 'shield-checkmark',
-      title: 'Safe & Secure',
-      description: 'Verified profiles and 24/7 moderation keep your experience safe.',
+      icon: 'chatbubble-ellipses',
+      title: 'Real Connections',
+      description: 'Instant messaging, voice & video calls. Build meaningful relationships through authentic conversations.',
       color: '#10B981',
       gradient: ['#10B981', '#34D399'],
     },
@@ -145,42 +145,68 @@ export default function LandingPage({ onSignUp, onLogIn }) {
           style={[
             styles.navbar,
             {
-              backgroundColor: scrollY > 50 ? '#7C2B86' : 'rgba(124, 43, 134, 0.95)',
+              backgroundColor: scrollY > 50 ? 'rgba(31, 17, 71, 0.98)' : 'rgba(31, 17, 71, 0.85)',
               borderBottomWidth: scrollY > 50 ? 1 : 0,
-              borderBottomColor: 'rgba(255, 255, 255, 0.2)',
-              backdropFilter: 'blur(10px)',
+              borderBottomColor: 'rgba(255, 214, 242, 0.15)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: scrollY > 50 ? '0 4px 30px rgba(124, 43, 134, 0.3)' : 'none',
             }
           ]}
         >
           <View style={[styles.navContent, styles.navContentLarge]}>
+            {/* Logo Section */}
             <View style={styles.logoContainer}>
-              <View>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
-                <Text style={styles.logoName}>Circle</Text>
+              <View style={styles.logoWrapper}>
+                <View style={styles.logoGlow}>
+                  <Image 
+                    source={require('@/assets/logo/circle-logo.png')} 
+                    style={styles.logoImage}
+                    resizeMode="contain"
+                  />
+                </View>
+                <View style={styles.logoTextContainer}>
+                  <Text style={styles.logoName}>Circle</Text>
+                  <Text style={styles.brandingText}>by ORINCORE</Text>
+                </View>
               </View>
-              <Text style={styles.brandingText}>An App by ORINCORE Technologies</Text>
             </View>
             
+            {/* Navigation Links */}
             <View style={styles.navLinks}>
-              <TouchableOpacity style={styles.navLink}>
+              <TouchableOpacity 
+                style={styles.navLink}
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    window.location.href = '/features';
+                  }
+                }}
+              >
+                <Ionicons name="sparkles" size={16} color="#FFD6F2" style={styles.navLinkIcon} />
                 <Text style={styles.navLinkText}>Features</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.navLink} onPress={() => scrollToSection('how-it-works')}>
+                <Ionicons name="rocket" size={16} color="#FFD6F2" style={styles.navLinkIcon} />
                 <Text style={styles.navLinkText}>How It Works</Text>
               </TouchableOpacity>
-              {/* Testimonials nav link removed */}
             </View>
             
+            {/* Action Buttons */}
             <View style={styles.navActions}>
               <TouchableOpacity style={styles.navLoginBtn} onPress={onLogIn}>
+                <Ionicons name="log-in-outline" size={18} color="#FFE8FF" />
                 <Text style={styles.navLoginText}>Log In</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.navSignupBtn} onPress={onSignUp}>
-                <Text style={styles.navSignupText}>Sign Up Free</Text>
+                <LinearGradient
+                  colors={['#FF6FB5', '#A16AE8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.navSignupGradient}
+                >
+                  <Ionicons name="person-add" size={18} color="#FFFFFF" />
+                  <Text style={styles.navSignupText}>Get Started</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -194,6 +220,26 @@ export default function LandingPage({ onSignUp, onLogIn }) {
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
+        {/* Inauguration Banner - Desktop Only */}
+        {isLargeScreen && (
+          <View style={styles.inaugurationBanner}>
+            <LinearGradient
+              colors={['#FFD700', '#FFA500', '#FFD700']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.inaugurationGradient}
+            >
+              <View style={styles.inaugurationContent}>
+                <Ionicons name="sparkles" size={24} color="#7C2B86" />
+                <Text style={styles.inaugurationText}>
+                  🎉 <Text style={styles.inaugurationBold}>Grand Launch!</Text> Circle is officially live today - Join the celebration and be among the first to find your perfect connections!
+                </Text>
+                <Ionicons name="sparkles" size={24} color="#7C2B86" />
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+
         {/* Hero Section */}
         <LinearGradient
           colors={['#7C2B86', '#A16AE8', '#5D5FEF']}
@@ -215,13 +261,17 @@ export default function LandingPage({ onSignUp, onLogIn }) {
             {isLargeScreen ? (
               <View style={styles.heroGrid}>
                 <View style={styles.heroLeft}>
+                  <View style={styles.launchBadge}>
+                    <Ionicons name="rocket" size={16} color="#FFD700" />
+                    <Text style={styles.launchBadgeText}>LAUNCHING TODAY • OCT 15, 2025</Text>
+                  </View>
                   <Text style={styles.heroTitle}>
                     Find Your Circle.{'\n'}
                     <Text style={styles.heroTitleAccent}>Build Real Connections.</Text>
                   </Text>
                   
                   <Text style={styles.heroSubtitle}>
-                    Join thousands making meaningful friendships and finding love through smart matching, real-time chat, and authentic community.
+                    Stop endless swiping! Our AI finds your perfect match automatically based on compatibility, interests, and location. Join thousands making meaningful friendships and finding love through intelligent matching.
                   </Text>
                   
                   {/* Stats removed for browser */}
@@ -419,7 +469,15 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               <View style={styles.footerLinks}>
                 <View style={styles.footerColumn}>
                   <Text style={styles.footerColumnTitle}>Product</Text>
-                  <TouchableOpacity><Text style={styles.footerLink}>Features</Text></TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.location.href = '/features';
+                      }
+                    }}
+                  >
+                    <Text style={styles.footerLink}>Features</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => scrollToSection('how-it-works')}>
                     <Text style={styles.footerLink}>How It Works</Text>
                   </TouchableOpacity>
@@ -518,6 +576,53 @@ const styles = StyleSheet.create({
     backgroundColor: '#5D5FEF', // Match gradient end color to prevent white space
   },
   
+  // Inauguration Banner
+  inaugurationBanner: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  inaugurationGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  inaugurationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    maxWidth: 1200,
+    marginHorizontal: 'auto',
+  },
+  inaugurationText: {
+    fontSize: 15,
+    color: '#7C2B86',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  inaugurationBold: {
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  launchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.4)',
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  launchBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFD700',
+    letterSpacing: 1,
+  },
+  
   // Navigation
   navbar: {
     position: 'absolute',
@@ -525,8 +630,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1000,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    ...(Platform.OS === 'web' && {
+      transition: 'all 0.3s ease',
+    }),
   },
   navContent: {
     flexDirection: 'row',
@@ -534,40 +642,83 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   navContentLarge: {
-    maxWidth: 1200,
+    maxWidth: 1280,
     marginHorizontal: 'auto',
     width: '100%',
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 24,
+  },
+  logoWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  logoGlow: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 111, 181, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 214, 242, 0.3)',
+    shadowColor: '#FF6FB5',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  logoTextContainer: {
+    flexDirection: 'column',
   },
   brandingText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
+    fontSize: 10,
+    color: 'rgba(255, 214, 242, 0.7)',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   logoImage: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
   },
   logoName: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '900',
     color: '#FFFFFF',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(255, 111, 181, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   navLinks: {
     flexDirection: 'row',
-    gap: 32,
+    gap: 8,
   },
   navLink: {
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 242, 0.1)',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    }),
+  },
+  navLinkIcon: {
+    opacity: 0.8,
   },
   navLinkText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#FFE8FF',
+    letterSpacing: 0.3,
   },
   navActions: {
     flexDirection: 'row',
@@ -575,24 +726,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navLoginBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  navLoginText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  navSignupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 214, 242, 0.25)',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    }),
+  },
+  navLoginText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFE8FF',
+    letterSpacing: 0.3,
+  },
+  navSignupBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#FF6FB5',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  navSignupGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    }),
   },
   navSignupText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#7C2B86',
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   hamburger: {
     padding: 8,

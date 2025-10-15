@@ -99,8 +99,26 @@ export default function RootLayout() {
         document.head.appendChild(meta);
       }
 
-      // Set page title
-      document.title = 'Circle - Find Your Circle';
+      // Set page title with SEO-optimized text
+      document.title = 'Circle - No Swiping Dating & Friendship App | AI-Powered Smart Matching';
+      
+      // Add meta description
+      let metaDescription = document.querySelector('meta[name="description"]');
+      if (!metaDescription) {
+        metaDescription = document.createElement('meta');
+        metaDescription.name = 'description';
+        document.head.appendChild(metaDescription);
+      }
+      metaDescription.content = 'Stop swiping! Circle uses AI-powered smart matching to find your perfect partner or friends automatically. No endless swiping - just real, meaningful connections based on compatibility, interests, and location. Join Circle today!';
+      
+      // Add keywords meta tag
+      let metaKeywords = document.querySelector('meta[name="keywords"]');
+      if (!metaKeywords) {
+        metaKeywords = document.createElement('meta');
+        metaKeywords.name = 'keywords';
+        document.head.appendChild(metaKeywords);
+      }
+      metaKeywords.content = 'no swiping dating app, smart matching, AI dating, friendship app, relationship app, find friends, find love, dating without swiping, intelligent matchmaking, compatibility matching, location based dating, interest based matching, real connections, meaningful relationships, Circle app, ORINCORE';
 
       // Remove existing favicons
       const existingFavicons = document.querySelectorAll('link[rel*="icon"]');

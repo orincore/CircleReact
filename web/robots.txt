@@ -1,0 +1,36 @@
+# robots.txt for Circle - No Swiping Dating & Friendship App
+
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Disallow private/secure areas
+Disallow: /secure/
+Disallow: /admin/
+Disallow: /api/
+
+# Allow important pages
+Allow: /login
+Allow: /signup
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+
+# Sitemap location
+Sitemap: https://circle.orincore.com/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
+
+# Specific rules for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
