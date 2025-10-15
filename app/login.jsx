@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
 import { Linking } from "react-native";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -32,25 +32,29 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   
-  // Animation values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  // Animation values - only for web/desktop
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+    // Only animate on web/desktop to avoid lag on mobile
+    if (Platform.OS === 'web' || isLargeScreen) {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(30);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLargeScreen]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -84,6 +88,7 @@ export default function Login() {
           style={[styles.loginSection, isLargeScreen && styles.loginSectionLarge]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
+          pointerEvents="box-none"
         >
           <SafeAreaView style={styles.safeArea}>
             <KeyboardAvoidingView
@@ -307,7 +312,9 @@ export default function Login() {
                             placeholderTextColor="rgba(31, 17, 71, 0.4)"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            autoCorrect={false}
                             style={styles.input}
+                            removeClippedSubviews={true}
                           />
                         </View>
                       </View>
@@ -322,7 +329,9 @@ export default function Login() {
                             placeholder="Enter your password"
                             placeholderTextColor="rgba(31, 17, 71, 0.4)"
                             secureTextEntry={!showPassword}
+                            autoCorrect={false}
                             style={styles.input}
+                            removeClippedSubviews={true}
                           />
                           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                             <Ionicons 

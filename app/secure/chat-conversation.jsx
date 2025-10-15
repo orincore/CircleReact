@@ -863,6 +863,7 @@ export default function InstagramChatScreen() {
   const [messages, setMessages] = useState([]);
   const [oldestAt, setOldestAt] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [otherUserOnline, setOtherUserOnline] = useState(false);
 
   // Initialize media cache service
   useEffect(() => {
@@ -999,7 +1000,13 @@ export default function InstagramChatScreen() {
       if (!userAvatar) {
         fetchUserProfile(otherUserId);
       }
-    } else {
+      
+      // Periodically refresh friendship status every 10 seconds
+      const friendshipInterval = setInterval(() => {
+        checkFriendshipStatus(otherUserId);
+      }, 10000);
+      
+      return () => clearInterval(friendshipInterval);
     }
   }, [otherUserId, token, myUserId]);
 
@@ -1272,6 +1279,79 @@ export default function InstagramChatScreen() {
     // Mark as read after a shorter delay for better UX
     const markReadTimeout = setTimeout(markChatAsReadOnOpen, 800);
     
+    // Socket event handlers
+    const handleHistory = (data) => {
+      if (!data || !data.messages) return;
+      setMessages(data.messages);
+      if (data.oldestAt) setOldestAt(data.oldestAt);
+    };
+
+    const handleMessage = (data) => {
+      if (!data || !data.message) return;
+      const msg = data.message;
+      if (msg.chatId !== conversationId) return;
+      setMessages(prev => [...prev, msg]);
+    };
+
+    const handleDelivered = (data) => {
+      if (!data || !data.messageId) return;
+      setMessages(prev => prev.map(msg => 
+        msg.id === data.messageId ? { ...msg, status: 'delivered' } : msg
+      ));
+    };
+
+    const handleRead = (data) => {
+      if (!data || !data.messageId) return;
+      setMessages(prev => prev.map(msg => 
+        msg.id === data.messageId ? { ...msg, status: 'read' } : msg
+      ));
+    };
+
+    const handleTyping = (data) => {
+      if (!data || !data.userId) return;
+      if (data.isTyping) {
+        setTypingUsers(prev => [...new Set([...prev, data.userId])]);
+      } else {
+        setTypingUsers(prev => prev.filter(id => id !== data.userId));
+      }
+    };
+
+    const handlePresence = (data) => {
+      if (!data) return;
+      // Handle user presence updates
+      setOtherUserOnline(data.isOnline || false);
+    };
+
+    const handleReactionAdded = (data) => {
+      if (!data || !data.messageId || !data.reaction) return;
+      const { chatId, messageId, reaction } = data;
+      if (chatId !== conversationId) return;
+      
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const reactions = msg.reactions || [];
+          return { ...msg, reactions: [...reactions, reaction] };
+        }
+        return msg;
+      }));
+    };
+
+    const handleReactionRemoved = (data) => {
+      if (!data || !data.messageId || !data.userId || !data.emoji) return;
+      const { chatId, messageId, userId, emoji } = data;
+      if (chatId !== conversationId) return;
+      
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const reactions = (msg.reactions || []).filter(
+            r => !(r.userId === userId && r.emoji === emoji)
+          );
+          return { ...msg, reactions };
+        }
+        return msg;
+      }));
+    };
+    
     s.on('chat:history', handleHistory);
     s.on('chat:message', handleMessage);
     s.on('chat:delivered', handleDelivered);
@@ -1368,30 +1448,40 @@ export default function InstagramChatScreen() {
     });
 
     s.on('friend:request:accepted', (data) => {
+      console.log('🎉 Friend request accepted event received:', data);
+      
       // Check if this event involves the current user (myUserId)
       const isForCurrentUser = data.sender_id === myUserId || data.receiver_id === myUserId;
       
       // Also check if we know the otherUserId and it matches
-      // const isForCurrentChat = otherUserId && (data.sender_id === otherUserId || data.receiver_id === otherUserId);
+      const targetUserId = data.sender_id !== myUserId ? data.sender_id : data.receiver_id;
+      const isForCurrentChat = otherUserId && (data.sender_id === otherUserId || data.receiver_id === otherUserId);
       
       if (isForCurrentUser) {
+        console.log('✅ Updating friendship status to friends');
         setFriendshipStatus('friends');
         setRequestStatus(null);
         setChatDisabled(false);
         
         // Update otherUserId if it's not set yet
         if (!otherUserId) {
-          const newOtherUserId = data.sender_id !== myUserId ? data.sender_id : data.receiver_id;
+          const newOtherUserId = targetUserId;
+          console.log('📝 Setting otherUserId:', newOtherUserId);
           setOtherUserId(newOtherUserId);
         }
         
         // Immediately refresh the friendship status to make sure it's in sync
-        const targetUserId = otherUserId || (data.sender_id !== myUserId ? data.sender_id : data.receiver_id);
         if (targetUserId) {
+          console.log('🔄 Refreshing friendship status for:', targetUserId);
           checkFriendshipStatus(targetUserId);
           setTimeout(() => {
             checkFriendshipStatus(targetUserId);
           }, 1000);
+        }
+        
+        // Show a toast notification
+        if (isForCurrentChat) {
+          console.log('🎊 You are now friends! You can send messages.');
         }
       }
     });

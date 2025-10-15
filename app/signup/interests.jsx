@@ -351,14 +351,14 @@ const styles = StyleSheet.create({
   
   // Category Sections
   categorySection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
-    paddingBottom: 8,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(124, 43, 134, 0.2)",
   },

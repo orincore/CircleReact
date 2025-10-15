@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
+import VerifiedBadge from '../../components/VerifiedBadge';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
 
@@ -177,6 +178,24 @@ export default function UserProfileModal({
 
   const loadUserProfile = async () => {
     setLoading(true);
+    
+    // Validate userId before proceeding
+    if (!userId) {
+      console.error('❌ UserProfileModal: No userId provided');
+      setLoading(false);
+      return;
+    }
+    
+    console.log('👤 UserProfileModal loading profile for userId:', userId);
+    console.log('👤 Current user ID:', user?.id);
+    
+    // If this is the problematic user ID, log a warning
+    if (userId === '90e13323-9404-4b92-999d-b609320b6e1a') {
+      console.error('🚨 STALE USER ID DETECTED!');
+      console.error('This user ID is cached on this device but the user no longer exists.');
+      console.error('Recommendation: Clear app data or AsyncStorage on this device.');
+    }
+    
     try {
       // Record profile visit for Circle stats (only if viewing someone else's profile)
       if (userId && user?.id && userId !== user.id) {
@@ -210,9 +229,27 @@ export default function UserProfileModal({
         // Try the direct user profile endpoint first
         try {
           const result = await exploreApi.getUserProfile(userId, token);
-          if (result.user) {
+          if (result && result.user) {
             actualUserData = result.user;
-            //console.log('Fetched actual user data via profile endpoint:', actualUserData);
+            console.log('✅ Fetched user profile successfully');
+          } else if (result === null) {
+            // User not found (404) - handle gracefully
+            console.warn('⚠️ User profile not found - user may have been deleted');
+            setLoading(false);
+            setProfileData({
+              id: userId,
+              name: userName || 'Deleted User',
+              username: userName ? `@${userName}` : '@deleted',
+              avatar: userAvatar,
+              bio: 'This user is no longer available',
+              location: 'N/A',
+              joinedDate: 'N/A',
+              stats: { chats: 0, friends: 0, messages: 0 },
+              interests: [],
+              isOnline: false,
+              lastSeen: 'Unavailable'
+            });
+            return;
           }
         } catch (profileError) {
           //console.log('Profile endpoint failed, trying search fallback:', profileError);
@@ -286,6 +323,7 @@ export default function UserProfileModal({
         avatar: actualUserData?.profilePhoto || userAvatar,
         bio: actualUserData?.about || 'No bio available',
         instagramUsername: actualUserData?.instagramUsername || null,
+        verification_status: actualUserData?.verification_status || 'unverified',
         location: 'Location not specified',
         joinedDate: actualUserData?.joinedDate ? `Joined ${new Date(actualUserData.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
         stats: {
@@ -775,46 +813,48 @@ export default function UserProfileModal({
   };
 
   const handleUnfriend = async () => {
-    if (!token || !userId) return;
+    if (!token || !userId) {
+      console.error('❌ Cannot unfriend: missing token or userId');
+      return;
+    }
+    
+    console.log('🔄 Attempting to unfriend user:', userId);
     
     try {
-      const socket = getSocket(token);
-      
-      // Set up listeners for unfriend response
-      const handleUnfriendConfirmed = (data) => {
-        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
-        socket.off('friend:unfriend:error', handleUnfriendError);
-        
-        if (data.success) {
-          setFriendStatus('none');
-          setCanMessage(false);
-          setMessagePermission(null);
-          setShowUnfriendConfirm(false);
-          Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
+      // Use API call instead of socket for more reliability
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/friends/unfriend/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      };
+      });
       
-      const handleUnfriendError = (error) => {
-        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
-        socket.off('friend:unfriend:error', handleUnfriendError);
-        Alert.alert('Error', error.error || 'Failed to remove friend. Please try again.');
-      };
+      const result = await response.json();
       
-      socket.on('friend:unfriend:confirmed', handleUnfriendConfirmed);
-      socket.on('friend:unfriend:error', handleUnfriendError);
-      
-      // Send unfriend request - backend expects friendId
-      socket.emit('friend:unfriend', { friendId: userId });
-      
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        socket.off('friend:unfriend:confirmed', handleUnfriendConfirmed);
-        socket.off('friend:unfriend:error', handleUnfriendError);
-      }, 10000);
+      if (response.ok && result.success) {
+        console.log('✅ Successfully unfriended user');
+        setFriendStatus('none');
+        setCanMessage(false);
+        setMessagePermission(null);
+        setShowUnfriendConfirm(false);
+        Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
+        
+        // Also emit socket event for real-time updates
+        try {
+          const socket = getSocket(token);
+          socket.emit('friend:unfriend', { friendId: userId });
+        } catch (socketError) {
+          console.warn('Socket emit failed, but API call succeeded:', socketError);
+        }
+      } else {
+        console.error('❌ Unfriend failed:', result);
+        Alert.alert('Error', result.error || 'Failed to remove friend. Please try again.');
+      }
       
     } catch (error) {
-      console.error('Failed to remove friend:', error);
-      Alert.alert('Error', 'Failed to remove friend. Please try again.');
+      console.error('❌ Failed to remove friend:', error);
+      Alert.alert('Error', 'Failed to remove friend. Please check your connection and try again.');
     }
   };
 
@@ -903,7 +943,12 @@ export default function UserProfileModal({
                     ]} />
                   </View>
                   
-                  <Text style={styles.name}>{profileData.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={styles.name}>{profileData.name}</Text>
+                    {profileData.verification_status === 'verified' && (
+                      <VerifiedBadge size={22} />
+                    )}
+                  </View>
                   <Text style={styles.username}>{profileData.username}</Text>
                   <Text style={styles.lastSeen}>{profileData.lastSeen}</Text>
                 </View>

@@ -46,14 +46,21 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
 
   if (!res.ok) {
     const errorMessage = (isJson && (data as any)?.error) || `HTTP ${res.status} on ${method} ${url}`;
-    console.error(`🚨 API Error [${res.status}]:`, {
-      url,
-      method,
-      status: res.status,
-      statusText: res.statusText,
-      error: errorMessage,
-      details: isJson ? data : null,
-    });
+    
+    // Only log non-404 errors to reduce noise
+    if (res.status !== 404) {
+      console.error(`🚨 API Error [${res.status}]:`, {
+        url,
+        method,
+        status: res.status,
+        statusText: res.statusText,
+        error: errorMessage,
+        details: isJson ? data : null,
+      });
+    } else {
+      // Just log 404s as warnings
+      console.warn(`⚠️ Resource not found [404]: ${method} ${url}`);
+    }
     
     const err: ApiError = new Error(errorMessage);
     err.status = res.status;

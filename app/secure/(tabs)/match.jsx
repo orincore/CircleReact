@@ -3,6 +3,7 @@ import LiveActivityFeed from "@/components/LiveActivityFeed";
 import Toast from "@/components/Toast";
 import VerificationBanner from "@/components/VerificationBanner";
 import VerificationGuard from "@/components/VerificationGuard";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { CirclePointsHelper, circleStatsApi } from "@/src/api/circle-stats";
@@ -1653,7 +1654,12 @@ export default function MatchScreen() {
                       </View>
                     </View>
                     <View style={styles.heroMatchInfo}>
-                      <Text style={styles.heroMatchName}>{nearbyUsers[0].name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={styles.heroMatchName}>{nearbyUsers[0].name}</Text>
+                        {nearbyUsers[0].verification_status === 'verified' && (
+                          <VerifiedBadge size={20} />
+                        )}
+                      </View>
                       <Text style={styles.heroMatchAge}>{nearbyUsers[0].age} years old</Text>
                       <View style={styles.heroMatchTags}>
                         {nearbyUsers[0].interests?.slice(0, 3).map((interest, idx) => (
@@ -1711,7 +1717,12 @@ export default function MatchScreen() {
                             </View>
                           </View>
                           <View style={styles.matchCardInfo}>
-                            <Text style={styles.matchCardName}>{user.name}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={styles.matchCardName}>{user.name}</Text>
+                              {user.verification_status === 'verified' && (
+                                <VerifiedBadge size={16} />
+                              )}
+                            </View>
                             <Text style={styles.matchCardAge}>{user.age}</Text>
                             <View style={styles.matchCardTags}>
                               {user.interests?.slice(0, 2).map((interest, idx) => (

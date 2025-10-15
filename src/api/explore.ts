@@ -54,8 +54,22 @@ export const exploreApi = {
     http.get<ExploreResponse>('/api/explore/compatible-users', token),
 
   // Get user profile by ID
-  getUserProfile: (userId: string, token?: string | null) =>
-    http.get<UserProfileResponse>(`/api/explore/user/${userId}`, token),
+  getUserProfile: async (userId: string, token?: string | null) => {
+    try {
+      // Log where this request is coming from
+      console.log('📍 Fetching user profile for:', userId);
+      console.trace('Called from:'); // This will show the call stack
+      return await http.get<UserProfileResponse>(`/api/explore/user/${userId}`, token);
+    } catch (error: any) {
+      // Gracefully handle 404 - user might have been deleted
+      if (error.status === 404) {
+        console.warn(`⚠️ User profile not found: ${userId} - This user may have been deleted`);
+        console.warn('💡 Tip: Clear app data or check your chat/friend lists for stale records');
+        return null;
+      }
+      throw error;
+    }
+  },
 
   // Search users by name, username, or email
   searchUsers: (query: string, limit = 20, token?: string | null) =>

@@ -11,7 +11,7 @@ import Alert from '@/utils/alert';
 import Constants from 'expo-constants';
 
 const MOVEMENTS = ['left', 'right', 'up', 'down'];
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
+const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.orincore.com';
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 const IS_WEB = Platform.OS === 'web';
 
@@ -20,8 +20,13 @@ export default function FaceVerificationScreen() {
   const { token } = useAuth();
   const { refreshStatus } = useVerification();
   const cameraRef = useRef(null);
+  const videoElementRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const streamRef = useRef(null);
   
   const [permission, requestPermission] = useCameraPermissions();
+  const [webCameraPermission, setWebCameraPermission] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentMovement, setCurrentMovement] = useState(0);
   const [completedMovements, setCompletedMovements] = useState([]);
@@ -30,6 +35,7 @@ export default function FaceVerificationScreen() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(null);
 
   useEffect(() => {
     let interval;
@@ -43,6 +49,64 @@ export default function FaceVerificationScreen() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
+  // Auto-advance to next movement every 3 seconds
+  useEffect(() => {
+    if (isRecording && currentMovement < MOVEMENTS.length) {
+      const timer = setTimeout(() => {
+        handleMovementComplete();
+      }, 3000); // 3 seconds per movement
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isRecording, currentMovement]);
+
+  // Initialize web camera
+  useEffect(() => {
+    if (IS_WEB) {
+      // Small delay to ensure video element is mounted
+      setTimeout(() => {
+        initWebCamera();
+      }, 100);
+    }
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const initWebCamera = async () => {
+    try {
+      console.log('🎥 Requesting web camera access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' },
+        audio: false 
+      });
+      console.log('✅ Web camera stream obtained');
+      streamRef.current = stream;
+      if (videoElementRef.current) {
+        videoElementRef.current.srcObject = stream;
+        // Wait for video to be ready
+        videoElementRef.current.onloadedmetadata = () => {
+          console.log('✅ Web camera ready');
+          setWebCameraPermission('granted');
+          setIsCameraReady(true);
+        };
+      } else {
+        console.log('✅ Web camera ready (no video element yet)');
+        setWebCameraPermission('granted');
+        setIsCameraReady(true);
+      }
+    } catch (error) {
+      console.error('❌ Web camera error:', error);
+      setWebCameraPermission('denied');
+    }
+  };
+
+  const requestWebCameraPermission = () => {
+    initWebCamera();
+  };
+
   const handleCameraReady = () => {
     // Add longer delay to ensure camera is fully initialized
     setTimeout(() => {
@@ -52,6 +116,12 @@ export default function FaceVerificationScreen() {
   };
 
   const startRecording = async () => {
+    // Web recording
+    if (IS_WEB) {
+      return startWebRecording();
+    }
+
+    // Native recording
     if (!cameraRef.current) {
       Alert.alert('Error', 'Camera not available');
       return;
@@ -114,8 +184,69 @@ export default function FaceVerificationScreen() {
     }
   };
 
+  const startWebRecording = async () => {
+    if (!streamRef.current) {
+      Alert.alert('Error', 'Camera not available');
+      return;
+    }
+
+    try {
+      console.log('🎥 Starting countdown...');
+      
+      // Show 3-2-1 countdown
+      for (let i = 3; i > 0; i--) {
+        setCountdown(i);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      setCountdown(0);
+      
+      console.log('🎥 Starting web recording...');
+      setIsRecording(true);
+      setCurrentMovement(0);
+      setCompletedMovements([]);
+      recordedChunksRef.current = [];
+      
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType: 'video/webm;codecs=vp8',
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        setVideoUri(url);
+        setIsRecording(false);
+      };
+      
+      mediaRecorder.start();
+      console.log('📹 Web recording started');
+      
+      // Auto-stop after 30 seconds
+      setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          stopRecording();
+        }
+      }, 30000);
+      
+    } catch (error) {
+      console.error('❌ Web recording error:', error);
+      setIsRecording(false);
+      setCountdown(0);
+      Alert.alert('Recording Error', `Failed to record video: ${error.message}`);
+    }
+  };
+
   const stopRecording = () => {
-    if (cameraRef.current && isRecording) {
+    if (IS_WEB && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    } else if (cameraRef.current && isRecording) {
       cameraRef.current.stopRecording();
     }
   };
@@ -196,8 +327,9 @@ export default function FaceVerificationScreen() {
 
   const getMovementInstruction = () => {
     if (!isRecording) return 'Press Start to begin recording';
+    if (currentMovement >= MOVEMENTS.length) return 'Recording complete!';
     const movement = MOVEMENTS[currentMovement];
-    return `Turn your head ${movement.toUpperCase()}`;
+    return `Turn your head ${movement.toUpperCase()} (${currentMovement + 1}/${MOVEMENTS.length})`;
   };
 
   if (!permission) {
@@ -208,19 +340,17 @@ export default function FaceVerificationScreen() {
     );
   }
 
-  // Show bypass for Web and Expo Go (video recording not supported)
-  if (IS_WEB || IS_EXPO_GO) {
+  // Show bypass for Expo Go only (video recording not supported)
+  if (IS_EXPO_GO) {
     return (
       <LinearGradient colors={['#1a0b2e', '#2d1b4e']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.permissionContainer}>
             <Ionicons name="information-circle-outline" size={80} color="#A16AE8" />
-            <Text style={styles.permissionTitle}>
-              {IS_WEB ? 'Web Platform' : 'Expo Go Limitation'}
-            </Text>
+            <Text style={styles.permissionTitle}>Expo Go Limitation</Text>
             <Text style={styles.permissionText}>
               Face verification with video recording requires a native build.{'\n\n'}
-              {IS_WEB ? 'On web, this feature works in production with native camera APIs.' : 'In Expo Go, video recording is not fully supported.'}{'\n\n'}
+              In Expo Go, video recording is not fully supported.{'\n\n'}
               For testing purposes, you can skip verification.
             </Text>
             <TouchableOpacity 
@@ -243,7 +373,29 @@ export default function FaceVerificationScreen() {
     );
   }
 
-  if (!permission.granted) {
+  // Web camera permission check
+  if (IS_WEB && webCameraPermission === 'denied') {
+    return (
+      <LinearGradient colors={['#1a0b2e', '#2d1b4e']} style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.permissionContainer}>
+            <Ionicons name="camera-outline" size={80} color="#A16AE8" />
+            <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+            <Text style={styles.permissionText}>
+              We need access to your camera to verify your identity
+            </Text>
+            <TouchableOpacity style={styles.permissionButton} onPress={requestWebCameraPermission}>
+              <LinearGradient colors={['#FF6FB5', '#A16AE8']} style={styles.buttonGradient}>
+                <Text style={styles.buttonText}>Grant Permission</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
+  if (!IS_WEB && !permission.granted) {
     return (
       <LinearGradient colors={['#1a0b2e', '#2d1b4e']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -278,15 +430,30 @@ export default function FaceVerificationScreen() {
         {!videoUri ? (
           <>
             <View style={styles.cameraContainer}>
-              <CameraView
-                ref={cameraRef}
-                style={styles.camera}
-                facing="front"
-                onCameraReady={handleCameraReady}
-              />
+              {IS_WEB ? (
+                <video
+                  ref={videoElementRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scaleX(-1)', // Mirror for selfie view
+                  }}
+                />
+              ) : (
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.camera}
+                  facing="front"
+                  onCameraReady={handleCameraReady}
+                />
+              )}
               <View style={styles.overlay}>
                 <View style={styles.faceGuide} />
-                {!isCameraReady && (
+                {!isCameraReady && !IS_WEB && (
                   <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color="#FF6FB5" />
                     <Text style={styles.loadingText}>Initializing camera...</Text>
@@ -345,8 +512,17 @@ export default function FaceVerificationScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.nextButton} onPress={handleMovementComplete}>
-                  <Text style={styles.nextText}>Next Movement</Text>
+                <TouchableOpacity 
+                  style={styles.stopButton} 
+                  onPress={stopRecording}
+                >
+                  <LinearGradient 
+                    colors={['#EF4444', '#DC2626']} 
+                    style={styles.stopGradient}
+                  >
+                    <Ionicons name="stop" size={28} color="#FFFFFF" />
+                    <Text style={styles.stopText}>Stop Recording</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
             </View>
@@ -423,6 +599,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#000',
+    maxHeight: Platform.OS === 'web' ? 600 : undefined,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 500 : undefined,
   },
   camera: {
     flex: 1,
@@ -433,9 +613,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   faceGuide: {
-    width: 250,
-    height: 300,
-    borderRadius: 125,
+    width: Platform.OS === 'web' ? 200 : 250,
+    height: Platform.OS === 'web' ? 240 : 300,
+    borderRadius: Platform.OS === 'web' ? 100 : 125,
     borderWidth: 3,
     borderColor: '#FF6FB5',
     borderStyle: 'dashed',
@@ -537,14 +717,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  nextButton: {
+  stopButton: {
     flex: 1,
-    backgroundColor: '#FF6FB5',
     borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
+    overflow: 'hidden',
   },
-  nextText: {
+  stopGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+  },
+  stopText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',

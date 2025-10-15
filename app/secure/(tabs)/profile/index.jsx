@@ -2,6 +2,7 @@ import Avatar from "@/components/Avatar";
 import { ProfilePremiumBadge } from "@/components/PremiumBadge";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import SubscriptionModal from "@/components/SubscriptionModal";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import { formatPhoneNumber } from "@/constants/countries";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1469,6 +1470,9 @@ export default function ProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.profileName}>{displayName}</Text>
+                {user?.verification_status === 'verified' && (
+                  <VerifiedBadge size={24} />
+                )}
                 {isPremium && plan !== 'free' && (
                   <ProfilePremiumBadge 
                     plan={plan} 
