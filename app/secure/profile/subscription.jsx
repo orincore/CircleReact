@@ -77,14 +77,23 @@ export default function SubscriptionPage() {
       const { payment_session_id, order_id } = response.data;
 
       if (Platform.OS === 'web') {
-        // Redirect to Cashfree payment page
-        const paymentUrl = `https://payments.cashfree.com/order/#/${payment_session_id}`;
-        
-        // Store order_id in sessionStorage for verification after return
+        // Store order_id for verification after return
         window.sessionStorage.setItem('pending_order_id', order_id);
         
-        // Redirect to payment page
-        window.location.href = paymentUrl;
+        // Load Cashfree SDK from CDN and open checkout
+        const script = document.createElement('script');
+        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.onload = () => {
+          const cashfree = window.Cashfree({
+            mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+          });
+          
+          cashfree.checkout({
+            paymentSessionId: payment_session_id,
+            redirectTarget: '_self'
+          });
+        };
+        document.head.appendChild(script);
       } else {
         // For mobile, you would use Cashfree SDK or WebView
         Alert.alert(
