@@ -23,6 +23,7 @@ export default function AdminLayout() {
     { name: 'Dashboard', icon: 'grid', path: '/admin/dashboard' },
     { name: 'AI Dashboard', icon: 'sparkles', path: '/admin/ai-dashboard' },
     { name: 'Users', icon: 'people', path: '/admin/users' },
+    { name: 'Referrals', icon: 'gift', path: '/admin/referrals' },
     { name: 'Subscriptions', icon: 'diamond', path: '/admin/subscriptions' },
     { name: 'Revenue', icon: 'trending-up', path: '/admin/revenue' },
     { name: 'Refunds', icon: 'card', path: '/admin/refunds' },
@@ -99,24 +100,33 @@ export default function AdminLayout() {
           {/* Logout Button */}
           <TouchableOpacity
             style={[styles.logoutButton, sidebarCollapsed && styles.logoutButtonCollapsed]}
-            onPress={() => {
-              Alert.alert(
-                'Logout',
-                'Are you sure you want to logout?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await AsyncStorage.removeItem('authToken');
-                      await AsyncStorage.removeItem('isAdmin');
-                      await AsyncStorage.removeItem('adminRole');
-                      router.replace('/admin/login');
+            onPress={async () => {
+              if (Platform.OS === 'web') {
+                if (window.confirm('Are you sure you want to logout?')) {
+                  await AsyncStorage.removeItem('authToken');
+                  await AsyncStorage.removeItem('isAdmin');
+                  await AsyncStorage.removeItem('adminRole');
+                  router.replace('/admin/login');
+                }
+              } else {
+                Alert.alert(
+                  'Logout',
+                  'Are you sure you want to logout?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Logout',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await AsyncStorage.removeItem('authToken');
+                        await AsyncStorage.removeItem('isAdmin');
+                        await AsyncStorage.removeItem('adminRole');
+                        router.replace('/admin/login');
+                      },
                     },
-                  },
-                ]
-              );
+                  ]
+                );
+              }
             }}
           >
             <Ionicons name="log-out" size={24} color="#FFFFFF" />

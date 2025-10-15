@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Clipboard,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,6 +31,9 @@ export default function ReferralsScreen() {
   const [upiId, setUpiId] = useState('');
   const [shareLink, setShareLink] = useState('');
   const [selectedTab, setSelectedTab] = useState('overview'); // overview, transactions, earnings
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -48,14 +52,27 @@ export default function ReferralsScreen() {
       setUpiId(response.data.upi_id || '');
     } catch (error) {
       console.error('Error loading referral data:', error);
-      Alert.alert('Error', 'Failed to load referral information');
+      if (!refreshing) {
+        Alert.alert('Error', 'Failed to load referral information');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadReferralData(),
+      loadShareLink(),
+      showAllTransactions ? loadTransactions() : Promise.resolve()
+    ]);
   };
 
   const loadTransactions = async (status = null) => {
     if (!token) return;
+    setLoadingTransactions(true);
     try {
       const url = status 
         ? `${API_URL}/api/referrals/my-referrals/transactions?status=${status}`
@@ -67,6 +84,9 @@ export default function ReferralsScreen() {
       setTransactions(response.data.transactions || []);
     } catch (error) {
       console.error('Error loading transactions:', error);
+      Alert.alert('Error', 'Failed to load transactions');
+    } finally {
+      setLoadingTransactions(false);
     }
   };
 
@@ -209,7 +229,19 @@ export default function ReferralsScreen() {
   return (
     <LinearGradient colors={['#1F1147', '#2D1B69']} style={styles.gradient}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.container} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FF6FB5"
+              colors={['#FF6FB5', '#A16AE8']}
+              progressBackgroundColor="#1F1147"
+            />
+          }
+        >
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -352,19 +384,109 @@ export default function ReferralsScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="list" size={24} color="#FF6FB5" />
-              <Text style={styles.cardTitle}>Recent Referrals</Text>
+              <Text style={styles.cardTitle}>Referral History</Text>
             </View>
 
-            <TouchableOpacity 
-              style={styles.viewAllButton}
-              onPress={() => {
-                loadTransactions();
-                setSelectedTab('transactions');
-              }}
-            >
-              <Text style={styles.viewAllText}>View All Transactions</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FF6FB5" />
-            </TouchableOpacity>
+            {!showAllTransactions ? (
+              <TouchableOpacity 
+                style={styles.viewAllButton}
+                onPress={() => {
+                  setShowAllTransactions(true);
+                  loadTransactions();
+                }}
+              >
+                <Text style={styles.viewAllText}>View All Transactions</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FF6FB5" />
+              </TouchableOpacity>
+            ) : (
+              <View>
+                {loadingTransactions ? (
+                  <View style={styles.transactionsLoading}>
+                    <ActivityIndicator size="small" color="#FF6FB5" />
+                    <Text style={styles.loadingText}>Loading transactions...</Text>
+                  </View>
+                ) : transactions.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="document-text-outline" size={48} color="rgba(255, 255, 255, 0.3)" />
+                    <Text style={styles.emptyText}>No referrals yet</Text>
+                    <Text style={styles.emptySubtext}>Share your code to start earning!</Text>
+                  </View>
+                ) : (
+                  <View>
+                    {transactions.map((transaction, index) => (
+                      <View key={transaction.id || index} style={styles.transactionItem}>
+                        <View style={styles.transactionHeader}>
+                          <View style={styles.transactionLeft}>
+                            <Ionicons 
+                              name={getStatusIcon(transaction.status)} 
+                              size={20} 
+                              color={getStatusColor(transaction.status)} 
+                            />
+                            <View style={styles.transactionInfo}>
+                              <Text style={styles.transactionNumber}>
+                                {transaction.referral_number}
+                              </Text>
+                              <Text style={styles.transactionDate}>
+                                {new Date(transaction.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.transactionRight}>
+                            <Text style={styles.transactionAmount}>
+                              ₹{transaction.reward_amount || 10}
+                            </Text>
+                            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(transaction.status) }]}>
+                              <Text style={styles.statusText}>
+                                {transaction.status.toUpperCase()}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                        
+                        {transaction.referred_user && (
+                          <View style={styles.transactionDetails}>
+                            <Ionicons name="person" size={14} color="rgba(255, 255, 255, 0.5)" />
+                            <Text style={styles.transactionDetailText}>
+                              Referred: {transaction.referred_user.username || 'User'}
+                            </Text>
+                          </View>
+                        )}
+                        
+                        {transaction.rejection_reason && (
+                          <View style={styles.rejectionReason}>
+                            <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                            <Text style={styles.rejectionText}>
+                              {transaction.rejection_reason}
+                            </Text>
+                          </View>
+                        )}
+                        
+                        {transaction.payment_reference && (
+                          <View style={styles.paymentReference}>
+                            <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                            <Text style={styles.paymentRefText}>
+                              Ref: {transaction.payment_reference}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    
+                    <TouchableOpacity 
+                      style={styles.collapseButton}
+                      onPress={() => setShowAllTransactions(false)}
+                    >
+                      <Text style={styles.collapseText}>Show Less</Text>
+                      <Ionicons name="chevron-up" size={16} color="#FF6FB5" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* How It Works */}
@@ -667,5 +789,132 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 20,
     paddingTop: 4,
+  },
+  transactionsLoading: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  transactionItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  transactionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  transactionRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  transactionDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  transactionDetailText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  rejectionReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    padding: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 6,
+  },
+  rejectionText: {
+    fontSize: 12,
+    color: '#EF4444',
+    flex: 1,
+  },
+  paymentReference: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    padding: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 6,
+  },
+  paymentRefText: {
+    fontSize: 12,
+    color: '#10B981',
+    flex: 1,
+  },
+  collapseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  collapseText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6FB5',
   },
 });

@@ -116,22 +116,32 @@ function AdminDashboard() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout from admin panel?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.removeItem('isAdmin');
-            await AsyncStorage.removeItem('adminRole');
-            router.replace('/admin/login');
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to logout from admin panel?')) {
+        await AsyncStorage.removeItem('authToken');
+        await AsyncStorage.removeItem('isAdmin');
+        await AsyncStorage.removeItem('adminRole');
+        router.replace('/admin/login');
+      }
+    } else {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout from admin panel?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: async () => {
+              await AsyncStorage.removeItem('authToken');
+              await AsyncStorage.removeItem('isAdmin');
+              await AsyncStorage.removeItem('adminRole');
+              router.replace('/admin/login');
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const onRefresh = () => {

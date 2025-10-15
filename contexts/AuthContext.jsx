@@ -70,8 +70,25 @@ export function AuthProvider({ children }) {
     let fullUser;
     try {
       fullUser = await meGql(resp.access_token);
+      
+      // If user data is null or undefined, logout
+      if (!fullUser && !resp.user) {
+        console.error('❌ Unable to fetch user data - logging out');
+        await logOut();
+        return;
+      }
+      
       setUser(fullUser || resp.user || null);
     } catch (_e) {
+      console.error('❌ Failed to fetch user profile:', _e);
+      
+      // If we can't get user data at all, logout
+      if (!resp.user) {
+        console.error('❌ No user data available - logging out');
+        await logOut();
+        return;
+      }
+      
       fullUser = resp.user;
       setUser(resp.user || null);
     }
@@ -186,6 +203,7 @@ export function AuthProvider({ children }) {
         needs: Array.isArray(payload.needs) ? payload.needs : (payload.needs ? payload.needs : []),
         about: payload.about || undefined,
         instagramUsername: payload.instagramUsername || undefined,
+        referralCode: payload.referralCode || undefined,
       });
       
       // For new signups, store token and user but don't set as authenticated
@@ -372,14 +390,24 @@ export function AuthProvider({ children }) {
     if (!token) return null;
     try {
       const fullUser = await meGql(token);
+      
+      // If unable to fetch user data, logout
+      if (!fullUser) {
+        console.error('❌ Unable to fetch user data during refresh - logging out');
+        await logOut();
+        return null;
+      }
+      
       setUser(fullUser);
       try { await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUser)); } catch {}
       return fullUser;
     } catch (e) {
-      console.warn("Failed to refresh user", e);
+      console.error("❌ Failed to refresh user - logging out", e);
+      // If refresh fails, logout the user
+      await logOut();
       return null;
     }
-  }, [token]);
+  }, [token, logOut]);
 
   const checkCurrentAccountStatus = useCallback(async () => {
     if (!token || !isAuthenticated) return;
@@ -393,9 +421,15 @@ export function AuthProvider({ children }) {
           //console.log('⚠️ Account blocked, forcing logout');
           await logOut();
         }
+      } else {
+        // Unable to fetch user data, logout
+        console.error('❌ Unable to fetch user data during status check - logging out');
+        await logOut();
       }
     } catch (e) {
-      console.warn("Failed to check account status", e);
+      console.error("❌ Failed to check account status - logging out", e);
+      // If we can't verify the account, logout for security
+      await logOut();
     }
   }, [token, isAuthenticated, checkAccountStatus, logOut]);
 

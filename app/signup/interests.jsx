@@ -146,6 +146,7 @@ export default function SignupInterests() {
         needs: norm.needsArr,
         instagramUsername: instagramUsernameValue,
         about: (data.about || '').trim(),
+        referralCode: data.referralCode || undefined,
       };
       
       await signUp(payload);
@@ -168,6 +169,7 @@ export default function SignupInterests() {
           needs: [],
           instagramUsername: (data.instagramUsername || '').trim().replace('@', ''),
           about: (data.about || '').trim(),
+          referralCode: data.referralCode || undefined,
         };
         try {
           console.log('🔄 Retrying signup with empty interests/needs');

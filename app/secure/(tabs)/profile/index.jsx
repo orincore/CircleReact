@@ -693,7 +693,6 @@ export default function ProfileScreen() {
     try {
       setLoadingReferral(true);
       const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
-      console.log('📊 Loading referral data from:', `${API_URL}/api/referrals/my-referral`);
       
       const response = await fetch(`${API_URL}/api/referrals/my-referral`, {
         method: 'GET',
@@ -703,11 +702,9 @@ export default function ProfileScreen() {
         }
       });
       
-      console.log('📡 Response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Referral data loaded:', data);
         setReferralData(data);
       } else {
         const errorText = await response.text();

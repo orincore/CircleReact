@@ -45,26 +45,60 @@ const AdminAuthGuard = ({ children }) => {
       //console.log('🔍 AdminAuthGuard - Stored token:', storedToken ? 'Present' : 'Missing');
       //console.log('🔍 AdminAuthGuard - Stored isAdmin:', isAdmin);
       
-      if (storedToken && isAdmin === 'true') {
-        //console.log('✅ AdminAuthGuard - Admin credentials found, allowing access');
-        //console.log('🔄 AdminAuthGuard - Setting authorized state...');
+      if (!storedToken || isAdmin !== 'true') {
+        //console.log('❌ AdminAuthGuard - No admin credentials found, redirecting to login');
+        setAuthState({
+          isVerifying: false,
+          isAuthorized: false,
+          hasChecked: true
+        });
+        redirectToLogin();
+        return;
+      }
+      
+      // Verify token with backend API
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/verify`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${storedToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
+        if (response.ok) {
+          const data = await response.json();
+          if (data.isAdmin) {
+            //console.log('✅ AdminAuthGuard - Admin verified by backend, allowing access');
+            setAuthState({
+              isVerifying: false,
+              isAuthorized: true,
+              hasChecked: true
+            });
+            return;
+          }
+        }
+        
+        // If verification fails, clear credentials and redirect
+        //console.log('❌ AdminAuthGuard - Backend verification failed');
+        await AsyncStorage.removeItem('authToken');
+        await AsyncStorage.removeItem('isAdmin');
+        await AsyncStorage.removeItem('adminRole');
+        setAuthState({
+          isVerifying: false,
+          isAuthorized: false,
+          hasChecked: true
+        });
+        redirectToLogin();
+      } catch (apiError) {
+        // If API call fails, allow access but log warning (for offline scenarios)
+        console.warn('⚠️ AdminAuthGuard - Could not verify with backend, allowing cached access');
         setAuthState({
           isVerifying: false,
           isAuthorized: true,
           hasChecked: true
         });
-        //console.log('✅ AdminAuthGuard - State updated: authorized=true, verifying=false');
-        return;
       }
-      
-      //console.log('❌ AdminAuthGuard - No admin credentials found, redirecting to login');
-      setAuthState({
-        isVerifying: false,
-        isAuthorized: false,
-        hasChecked: true
-      });
-      redirectToLogin();
     } catch (error) {
       console.error('Error checking admin status:', error);
       setAuthState({
