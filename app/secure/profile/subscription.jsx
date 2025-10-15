@@ -77,9 +77,17 @@ export default function SubscriptionPage() {
       const { payment_session_id, order_id } = response.data;
 
       if (Platform.OS === 'web') {
-        // For web, redirect to Cashfree payment page
-        const cashfreeUrl = `https://sandbox.cashfree.com/pg/view/order/${payment_session_id}`;
-        window.open(cashfreeUrl, '_blank');
+        // Load Cashfree SDK and redirect to payment page
+        const cashfree = await import('@cashfreepayments/cashfree-js');
+        const cashfreeInstance = await cashfree.load({
+          mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+        });
+        
+        // Open Cashfree checkout
+        cashfreeInstance.checkout({
+          paymentSessionId: payment_session_id,
+          returnUrl: `${API_URL.replace('/api', '')}/subscription/verify?order_id=${order_id}`
+        });
         
         // Show instructions
         Alert.alert(
