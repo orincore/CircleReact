@@ -77,29 +77,14 @@ export default function SubscriptionPage() {
       const { payment_session_id, order_id } = response.data;
 
       if (Platform.OS === 'web') {
-        // Load Cashfree SDK and redirect to payment page
-        const cashfree = await import('@cashfreepayments/cashfree-js');
-        const cashfreeInstance = await cashfree.load({
-          mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
-        });
+        // Redirect to Cashfree payment page
+        const paymentUrl = `https://payments.cashfree.com/order/#/${payment_session_id}`;
         
-        // Open Cashfree checkout
-        cashfreeInstance.checkout({
-          paymentSessionId: payment_session_id,
-          returnUrl: `${API_URL.replace('/api', '')}/subscription/verify?order_id=${order_id}`
-        });
+        // Store order_id in sessionStorage for verification after return
+        window.sessionStorage.setItem('pending_order_id', order_id);
         
-        // Show instructions
-        Alert.alert(
-          'Payment Window Opened',
-          'Complete the payment in the new window. After payment, return here to verify.',
-          [
-            {
-              text: 'Verify Payment',
-              onPress: () => verifyPayment(order_id)
-            }
-          ]
-        );
+        // Redirect to payment page
+        window.location.href = paymentUrl;
       } else {
         // For mobile, you would use Cashfree SDK or WebView
         Alert.alert(
