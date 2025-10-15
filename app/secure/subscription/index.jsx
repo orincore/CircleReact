@@ -25,6 +25,7 @@ export default function SubscriptionScreen() {
   const [plans, setPlans] = useState([]);
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -136,6 +137,58 @@ export default function SubscriptionScreen() {
     }
   };
 
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      'Cancel Subscription',
+      '⚠️ Important: No refunds will be issued.\n\nYou will retain access to premium features until the end of your current billing period.\n\nAre you sure you want to cancel?',
+      [
+        {
+          text: 'Keep Subscription',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: confirmCancelSubscription
+        }
+      ]
+    );
+  };
+
+  const confirmCancelSubscription = async () => {
+    setCancelling(true);
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/cashfree/cancel-subscription`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        Alert.alert(
+          'Subscription Cancelled',
+          response.data.message,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                loadSubscriptionStatus();
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.error || 'Failed to cancel subscription'
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const renderPlanCard = (plan) => {
     const isPopular = plan.popular;
     const isCurrentPlan = currentSubscription?.is_subscribed && 
@@ -228,16 +281,41 @@ export default function SubscriptionScreen() {
           {/* Current Subscription Status */}
           {currentSubscription?.is_subscribed && (
             <View style={styles.statusCard}>
-              <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
+              <Ionicons 
+                name={currentSubscription.is_cancelled ? "time-outline" : "checkmark-circle"} 
+                size={32} 
+                color={currentSubscription.is_cancelled ? "#FFA500" : "#4CAF50"} 
+              />
               <View style={styles.statusInfo}>
-                <Text style={styles.statusTitle}>Active Subscription</Text>
+                <Text style={styles.statusTitle}>
+                  {currentSubscription.is_cancelled ? 'Subscription Ending' : 'Active Subscription'}
+                </Text>
                 <Text style={styles.statusText}>
                   {currentSubscription.plan === 'monthly' ? 'Monthly' : 'Yearly'} Plan
                 </Text>
                 <Text style={styles.statusExpiry}>
-                  Expires: {new Date(currentSubscription.expires_at).toLocaleDateString()}
+                  {currentSubscription.is_cancelled ? 'Access until: ' : 'Expires: '}
+                  {new Date(currentSubscription.expires_at).toLocaleDateString()}
                 </Text>
+                {currentSubscription.is_cancelled && (
+                  <Text style={styles.cancelledNote}>
+                    Subscription cancelled - No auto-renewal
+                  </Text>
+                )}
               </View>
+              {!currentSubscription.is_cancelled && (
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={handleCancelSubscription}
+                  disabled={cancelling}
+                >
+                  {cancelling ? (
+                    <ActivityIndicator size="small" color="#FF6B6B" />
+                  ) : (
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -323,6 +401,12 @@ const styles = StyleSheet.create({
   statusExpiry: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  cancelledNote: {
+    fontSize: 11,
+    color: '#FFA500',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   plansContainer: {
     marginBottom: 24,
@@ -458,5 +542,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 20,
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    marginLeft: 12,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6B6B',
   },
 });
