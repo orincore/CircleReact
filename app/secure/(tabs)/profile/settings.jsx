@@ -1107,13 +1107,15 @@ export default function SettingsScreen() {
                 )}
               </View>
 
-              <TouchableOpacity 
-                style={styles.cancelSubscriptionButton} 
-                onPress={handleCancelSubscription}
-              >
-                <Ionicons name="close-circle" size={20} color="#FF4D67" />
-                <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
-              </TouchableOpacity>
+              {subscription?.subscription?.status === 'active' && (
+                <TouchableOpacity 
+                  style={styles.cancelSubscriptionButton} 
+                  onPress={handleCancelSubscription}
+                >
+                  <Ionicons name="close-circle" size={20} color="#FF4D67" />
+                  <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -1449,6 +1451,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    marginTop: 12,
   },
   chip: {
     flexDirection: 'row',

@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 16,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(124, 43, 134, 0.2)",

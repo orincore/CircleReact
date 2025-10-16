@@ -20,11 +20,19 @@ export const SubscriptionProvider = ({ children }) => {
 
   // Check if user is premium
   const isPremium = () => {
+    // Check if subscription is active (not expired or cancelled without access)
+    if (subscription?.is_premium === false || subscription?.status === 'expired') {
+      return false;
+    }
     return subscription?.is_premium || subscription?.plan === 'premium' || subscription?.plan === 'premium_plus';
   };
 
   // Get user's plan
   const getPlan = () => {
+    // If subscription is expired or not active, return free
+    if (subscription?.is_premium === false || subscription?.status === 'expired' || subscription?.status === 'free') {
+      return 'free';
+    }
     return subscription?.plan || 'free';
   };
 

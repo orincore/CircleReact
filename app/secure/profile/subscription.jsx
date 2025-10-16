@@ -233,7 +233,7 @@ export default function SubscriptionPage() {
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Current Subscription Status */}
-          {currentSubscription?.is_subscribed && (
+          {currentSubscription?.is_subscribed ? (
             <View style={styles.statusCard}>
               <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
               <View style={styles.statusInfo}>
@@ -243,6 +243,16 @@ export default function SubscriptionPage() {
                 </Text>
                 <Text style={styles.statusExpiry}>
                   Expires: {new Date(currentSubscription.expires_at).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+          ) : currentSubscription && !currentSubscription.is_subscribed && (
+            <View style={[styles.statusCard, styles.freeStatusCard]}>
+              <Ionicons name="person-circle-outline" size={32} color="#9CA3AF" />
+              <View style={styles.statusInfo}>
+                <Text style={[styles.statusTitle, styles.freeStatusTitle]}>Free Member</Text>
+                <Text style={styles.statusText}>
+                  Upgrade to unlock premium features
                 </Text>
               </View>
             </View>
@@ -464,6 +474,13 @@ const styles = StyleSheet.create({
   statusExpiry: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  freeStatusCard: {
+    backgroundColor: 'rgba(156, 163, 175, 0.1)',
+    borderColor: 'rgba(156, 163, 175, 0.3)',
+  },
+  freeStatusTitle: {
+    color: '#9CA3AF',
   },
   heroSection: {
     alignItems: 'center',
