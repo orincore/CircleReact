@@ -317,6 +317,13 @@ export default function SubscriptionPage() {
                         )}
                         <Text style={styles.planPeriod}>/{plan.duration === 'monthly' ? 'month' : 'year'}</Text>
                       </View>
+                      {!isFree && (
+                        <View style={styles.priceBreakdown}>
+                          <Text style={styles.priceBreakdownText}>
+                            Base: ₹{plan.duration === 'monthly' ? '149' : '1,499'} + GST (18%)
+                          </Text>
+                        </View>
+                      )}
                       {isFree && plan.promoMessage && (
                         <Text style={styles.promoMessage}>{plan.promoMessage}</Text>
                       )}
@@ -618,6 +625,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 8,
     fontWeight: '600',
+  },
+  priceBreakdown: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  priceBreakdownText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
   featuresContainer: {
     gap: 12,

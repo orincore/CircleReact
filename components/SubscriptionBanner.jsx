@@ -13,7 +13,11 @@ export const SubscriptionBanner = ({
   if (isPremium && plan !== 'free') {
     // Premium Banner
     return (
-      <View style={[styles.bannerContainer, compact && styles.compactBannerContainer, style]}>
+      <TouchableOpacity 
+        style={[styles.bannerContainer, compact && styles.compactBannerContainer, style]}
+        onPress={onUpgradePress}
+        activeOpacity={0.8}
+      >
         <LinearGradient
           colors={plan === 'premium_plus' ? ['#FFD700', '#FFA500', '#FF8C00'] : ['#7C2B86', '#A16AE8', '#C084FC']}
           style={styles.premiumBanner}
@@ -64,7 +68,7 @@ export const SubscriptionBanner = ({
             end={{ x: 1, y: 1 }}
           />
         </LinearGradient>
-      </View>
+      </TouchableOpacity>
     );
   } else {
     // Free Banner
