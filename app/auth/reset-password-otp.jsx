@@ -222,6 +222,17 @@ export default function ResetPasswordOTP() {
               </Text>
             )}
           </View>
+
+          {/* Spam Warning Banner */}
+          <View style={styles.webSpamWarning}>
+            <Ionicons name="warning" size={20} color="#FF6B00" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.webSpamWarningTitle}>⚠️ Check Your Spam Folder</Text>
+              <Text style={styles.webSpamWarningText}>
+                OTP emails may land in spam. Please check your spam/junk folder.
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -306,6 +317,19 @@ export default function ResetPasswordOTP() {
                 Resend in {countdown}s
               </Text>
             )}
+          </View>
+
+          {/* Spam Warning Banner */}
+          <View style={styles.spamWarningBanner}>
+            <View style={styles.warningIconContainer}>
+              <Ionicons name="warning" size={24} color="#FF6B00" />
+            </View>
+            <View style={styles.warningTextContainer}>
+              <Text style={styles.warningTitle}>⚠️ Check Your Spam Folder</Text>
+              <Text style={styles.warningText}>
+                OTP emails may land in spam. Please check your spam/junk folder if you don't see the email in your inbox.
+              </Text>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -445,6 +469,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94a3b8',
   },
+  webSpamWarning: {
+    backgroundColor: '#FFF4E6',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 16,
+  },
+  webSpamWarningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6B00',
+    marginBottom: 4,
+  },
+  webSpamWarningText: {
+    fontSize: 12,
+    color: '#8B4000',
+    lineHeight: 16,
+  },
 
   // Mobile styles (existing)
   container: {
@@ -572,5 +618,34 @@ const styles = StyleSheet.create({
   countdownText: {
     fontSize: 16,
     color: '#A0A0A0',
+  },
+  spamWarningBanner: {
+    backgroundColor: '#FFF4E6',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginTop: 24,
+  },
+  warningIconContainer: {
+    marginTop: 2,
+  },
+  warningTextContainer: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF6B00',
+    marginBottom: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#8B4000',
+    lineHeight: 18,
+    fontWeight: '500',
   },
 });

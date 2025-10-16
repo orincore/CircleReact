@@ -267,11 +267,17 @@ export default function VerifyEmailPostSignup() {
               )}
             </View>
 
-            {/* Help Text */}
-            <View style={styles.helpSection}>
-              <Text style={styles.helpText}>
-                💡 Check your spam folder if you don't see the email
-              </Text>
+            {/* Spam Warning Banner */}
+            <View style={styles.spamWarningBanner}>
+              <View style={styles.warningIconContainer}>
+                <Ionicons name="warning" size={24} color="#FF6B00" />
+              </View>
+              <View style={styles.warningTextContainer}>
+                <Text style={styles.warningTitle}>⚠️ Check Your Spam Folder</Text>
+                <Text style={styles.warningText}>
+                  OTP emails may land in spam. Please check your spam/junk folder if you don't see the email in your inbox.
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -420,13 +426,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
   },
-  helpSection: {
-    alignItems: 'center',
+  spamWarningBanner: {
+    backgroundColor: '#FFF4E6',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginTop: 8,
   },
-  helpText: {
+  warningIconContainer: {
+    marginTop: 2,
+  },
+  warningTextContainer: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF6B00',
+    marginBottom: 6,
+  },
+  warningText: {
     fontSize: 13,
-    color: '#999',
-    textAlign: 'center',
+    color: '#8B4000',
     lineHeight: 18,
+    fontWeight: '500',
   },
 });
