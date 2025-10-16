@@ -24,7 +24,11 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "BILLING_VERSION": "6.2.1"
       }
     },
     "production-apk": {

@@ -1,0 +1,31 @@
+// This file contains gradle configurations to force Play Billing Library 6.2.1
+// Place this content in your android/app/build.gradle file
+
+// Add this AFTER the dependencies block
+configurations.all {
+    resolutionStrategy {
+        // Force Play Billing Library to version 6.2.1
+        force 'com.android.billingclient:billing:6.2.1'
+        force 'com.android.billingclient:billing-ktx:6.2.1'
+        
+        // Ensure all transitive dependencies use the same version
+        eachDependency { details ->
+            if (details.requested.group == 'com.android.billingclient') {
+                details.useVersion '6.2.1'
+            }
+        }
+    }
+}
+
+// Alternative: Add this to dependencies block
+dependencies {
+    // ... your existing dependencies ...
+    
+    // Force Play Billing Library version
+    implementation('com.android.billingclient:billing:6.2.1') {
+        force = true
+    }
+    implementation('com.android.billingclient:billing-ktx:6.2.1') {
+        force = true
+    }
+}
