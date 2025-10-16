@@ -206,27 +206,74 @@ export default function FaceVerificationScreen() {
       setCompletedMovements([]);
       recordedChunksRef.current = [];
       
-      const mediaRecorder = new MediaRecorder(streamRef.current, {
-        mimeType: 'video/webm;codecs=vp8',
-      });
+      // Determine best MIME type for the browser
+      let mimeType = 'video/webm;codecs=vp8';
+      const supportedTypes = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp8',
+        'video/webm',
+        'video/mp4;codecs=h264',
+        'video/mp4'
+      ];
       
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          console.log('✅ Using MIME type:', type);
+          break;
+        }
+      }
+      
+      // Create MediaRecorder with best supported options
+      const options = {
+        mimeType: mimeType,
+        videoBitsPerSecond: 2500000 // 2.5 Mbps for good quality
+      };
+      
+      const mediaRecorder = new MediaRecorder(streamRef.current, options);
       mediaRecorderRef.current = mediaRecorder;
       
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
+          console.log('📦 Data chunk received:', event.data.size, 'bytes');
           recordedChunksRef.current.push(event.data);
         }
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        console.log('🛑 Recording stopped, chunks:', recordedChunksRef.current.length);
+        if (recordedChunksRef.current.length === 0) {
+          Alert.alert('Error', 'No video data recorded. Please try again.');
+          setIsRecording(false);
+          return;
+        }
+        
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        console.log('📹 Video blob created:', blob.size, 'bytes');
+        
+        if (blob.size < 1000) {
+          Alert.alert('Error', 'Video file too small. Please try recording again.');
+          setIsRecording(false);
+          return;
+        }
+        
         const url = URL.createObjectURL(blob);
         setVideoUri(url);
         setIsRecording(false);
       };
       
-      mediaRecorder.start();
-      console.log('📹 Web recording started');
+      mediaRecorder.onerror = (event) => {
+        console.error('❌ MediaRecorder error:', event);
+        Alert.alert('Recording Error', 'Failed to record video. Please try again.');
+        setIsRecording(false);
+        setCountdown(0);
+      };
+      
+      // Start recording with timeslice for better mobile support
+      // Request data every 1 second to ensure we get chunks even if browser crashes
+      mediaRecorder.start(1000);
+      console.log('📹 Web recording started with MIME type:', mimeType);
       
       // Auto-stop after 30 seconds
       setTimeout(() => {
@@ -239,7 +286,7 @@ export default function FaceVerificationScreen() {
       console.error('❌ Web recording error:', error);
       setIsRecording(false);
       setCountdown(0);
-      Alert.alert('Recording Error', `Failed to record video: ${error.message}`);
+      Alert.alert('Recording Error', `Failed to record video: ${error.message}. Your browser may not support video recording.`);
     }
   };
 
@@ -276,15 +323,38 @@ export default function FaceVerificationScreen() {
       if (Platform.OS === 'web') {
         const response = await fetch(videoUri);
         const blob = await response.blob();
-        formData.append('video', blob, 'verification.mp4');
+        
+        console.log('📤 Uploading video:', blob.size, 'bytes, type:', blob.type);
+        
+        // Determine file extension based on blob type
+        let filename = 'verification.mp4';
+        if (blob.type.includes('webm')) {
+          filename = 'verification.webm';
+        }
+        
+        // Append with proper filename and type
+        formData.append('video', blob, filename);
+        
+        // Add device info for better debugging
+        formData.append('device_info', JSON.stringify({
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          videoType: blob.type,
+          videoSize: blob.size
+        }));
       } else {
         formData.append('video', {
           uri: videoUri,
           type: 'video/mp4',
           name: 'verification.mp4'
         });
+        
+        formData.append('device_info', JSON.stringify({
+          platform: Platform.OS
+        }));
       }
       
+      console.log('📤 Submitting verification...');
       const response = await fetch(`${API_URL}/api/verification/submit`, {
         method: 'POST',
         headers: {
@@ -294,6 +364,7 @@ export default function FaceVerificationScreen() {
       });
       
       const result = await response.json();
+      console.log('📥 Verification result:', result);
       
       if (result.success) {
         // Refresh verification status
