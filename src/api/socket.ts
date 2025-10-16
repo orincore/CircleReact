@@ -1,6 +1,6 @@
 import io from "socket.io-client";
 import { API_BASE_URL } from "../config/api.js";
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 
 let socket: any | null = null;
 let reconnectAttempts = 0;
@@ -10,6 +10,8 @@ let pingInterval: any = null;
 let connectionState = 'disconnected'; // 'connecting', 'connected', 'disconnected', 'reconnecting'
 let isInitialized = false;
 let currentToken: string | null = null;
+let appStateSubscription: any = null;
+let isAppInBackground = false;
 
 // Socket service for managing chat state and message handlers
 class SocketService {
@@ -284,15 +286,22 @@ function createSocket(token?: string | null) {
     socket.on('disconnect', (reason: string) => {
       console.warn('⚠️ Socket disconnected:', reason, {
         platform: Platform.OS,
-        wasConnected: isInitialized
+        wasConnected: isInitialized,
+        isAppInBackground
       });
       clearIntervals();
-      socketService.notifyConnectionState('disconnected');
+      
+      // Don't notify disconnection if app is in background (normal behavior)
+      if (!isAppInBackground) {
+        socketService.notifyConnectionState('disconnected');
+      }
       
       // Enhanced reconnection logic
+      // Don't reconnect if app is in background - will reconnect when app comes to foreground
       const shouldReconnect = reason !== 'io client disconnect' && 
                              reason !== 'io server disconnect' &&
-                             isInitialized; // Only reconnect if was previously connected
+                             isInitialized && // Only reconnect if was previously connected
+                             !isAppInBackground; // Don't reconnect when app is backgrounded
       
       if (shouldReconnect) {
         attemptReconnection(token);
@@ -328,6 +337,37 @@ function createSocket(token?: string | null) {
     socket.io.on('upgradeError', (error: any) => {
       console.warn('⚠️ Socket transport upgrade failed:', error);
     });
+
+    // Setup AppState listener for mobile apps
+    if (Platform.OS !== 'web') {
+      // Remove existing listener if any
+      if (appStateSubscription) {
+        appStateSubscription.remove();
+      }
+
+      appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+        console.log('📱 App state changed:', nextAppState);
+        
+        if (nextAppState === 'background' || nextAppState === 'inactive') {
+          // App going to background
+          isAppInBackground = true;
+          console.log('📱 App going to background - socket will pause');
+        } else if (nextAppState === 'active') {
+          // App coming to foreground
+          const wasInBackground = isAppInBackground;
+          isAppInBackground = false;
+          console.log('📱 App coming to foreground');
+          
+          // Reconnect if we were disconnected while in background
+          if (wasInBackground && socket && !socket.connected && token) {
+            console.log('🔄 Reconnecting after returning from background...');
+            setTimeout(() => {
+              createSocket(token);
+            }, 500);
+          }
+        }
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error creating socket:', error);

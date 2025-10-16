@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
 import { socketService, forceReconnect } from '../api/socket';
@@ -10,7 +11,9 @@ export default function ConnectionStatus() {
   const pathname = usePathname();
   const [connectionState, setConnectionState] = useState('disconnected');
   const [showDetails, setShowDetails] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const retryTimeoutRef = React.useRef(null);
 
   useEffect(() => {
     // Only setup listeners if authenticated
@@ -21,15 +24,50 @@ export default function ConnectionStatus() {
     // Listen to connection state changes
     const handleConnectionChange = (state) => {
       setConnectionState(state);
+      
+      // Auto-retry when disconnected or failed
+      if ((state === 'disconnected' || state === 'failed' || state === 'error') && token) {
+        // Clear any existing retry timeout
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+        
+        // Increment retry count
+        setRetryCount(prev => prev + 1);
+        
+        // Auto-retry immediately (no delay for first few attempts)
+        retryTimeoutRef.current = setTimeout(() => {
+          console.log('🔄 Auto-retrying connection...');
+          forceReconnect(token);
+        }, 500); // Very short delay
+      } else if (state === 'connected' || state === 'refreshed') {
+        // Reset retry count on successful connection
+        setRetryCount(0);
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+      }
     };
 
     socketService.addConnectionListener(handleConnectionChange);
     
-    // Get initial state
-    setConnectionState(socketService.getConnectionState());
+    // Get initial state and trigger auto-retry if needed
+    const initialState = socketService.getConnectionState();
+    setConnectionState(initialState);
+    
+    // If initially disconnected, trigger auto-retry
+    if ((initialState === 'disconnected' || initialState === 'failed') && token) {
+      setTimeout(() => {
+        console.log('🔄 Initial auto-retry...');
+        forceReconnect(token);
+      }, 500);
+    }
 
     return () => {
       socketService.removeConnectionListener(handleConnectionChange);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
     };
   }, [token, user]);
 
@@ -143,8 +181,19 @@ export default function ConnectionStatus() {
     return null;
   }
 
+  // Hide the bar during connecting/reconnecting states
+  if (connectionState === 'connecting' || connectionState === 'reconnecting') {
+    return null;
+  }
+
+  // Only show the bar if we've failed multiple times (after 3 retry attempts)
+  // This gives auto-retry a chance to work without showing the UI
+  if (retryCount < 3) {
+    return null;
+  }
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <TouchableOpacity 
         style={[styles.statusBar, { backgroundColor: config.color + '15' }]}
         onPress={() => setShowDetails(!showDetails)}
@@ -182,7 +231,7 @@ export default function ConnectionStatus() {
           color={config.color} 
         />
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
