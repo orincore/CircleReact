@@ -69,23 +69,50 @@ export default function ExploreScreen() {
   };
 
   const loadExploreData = async (isRefresh = false) => {
-    if (!token) return;
+    if (!token) {
+      console.warn('[ExploreScreen] No token available');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
       // Use the new all-sections endpoint for smart user distribution
-      const response = await exploreApi.getAllSections(token);
+      const response = await Promise.race([
+        exploreApi.getAllSections(token),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 15000)
+        )
+      ]);
 
-      setTopUsers(response.topUsers || []);
-      setNewUsers(response.newUsers || []);
-      setCompatibleUsers(response.compatibleUsers || []);
+      // Validate response
+      if (!response || typeof response !== 'object') {
+        console.error('[ExploreScreen] Invalid response:', response);
+        setTopUsers([]);
+        setNewUsers([]);
+        setCompatibleUsers([]);
+        return;
+      }
+
+      setTopUsers(Array.isArray(response.topUsers) ? response.topUsers : []);
+      setNewUsers(Array.isArray(response.newUsers) ? response.newUsers : []);
+      setCompatibleUsers(Array.isArray(response.compatibleUsers) ? response.compatibleUsers : []);
 
      
     } catch (error) {
-      console.error('Failed to load explore data:', error);
-      Alert.alert('Error', 'Failed to load explore data. Please try again.');
+      console.error('[ExploreScreen] Failed to load explore data:', error);
+      // Set empty arrays to prevent crashes
+      setTopUsers([]);
+      setNewUsers([]);
+      setCompatibleUsers([]);
+      
+      // Only show alert if not a timeout
+      if (!error.message?.includes('timeout')) {
+        Alert.alert('Error', 'Failed to load explore data. Please try again.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,7 +120,13 @@ export default function ExploreScreen() {
   };
 
   const handleSearch = useCallback(async (query) => {
-    if (!token || !query.trim() || query.trim().length < 2) {
+    if (!token) {
+      console.warn('[ExploreScreen] No token for search');
+      setSearchResults([]);
+      return;
+    }
+    
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
       setSearchResults([]);
       return;
     }

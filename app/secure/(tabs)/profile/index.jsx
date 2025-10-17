@@ -73,17 +73,23 @@ export default function ProfileScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // Refresh all data in parallel
-      await Promise.all([
-        refreshUser(),
-        subscriptionContext?.fetchSubscription?.(),
-        loadStats(),
-        loadPhotos(),
-        loadReferralData()
-      ]);
+      // Refresh all data in parallel with individual error handling
+      const promises = [
+        refreshUser().catch(err => console.error('Failed to refresh user:', err)),
+        subscriptionContext?.fetchSubscription?.().catch(err => console.error('Failed to refresh subscription:', err)),
+        loadStats().catch(err => console.error('Failed to load stats:', err)),
+        loadPhotos().catch(err => console.error('Failed to load photos:', err)),
+        loadReferralData().catch(err => console.error('Failed to load referral data:', err))
+      ].filter(Boolean); // Remove undefined promises
+      
+      await Promise.allSettled(promises);
       
       // Load friends last to ensure correct count
-      await loadFriends();
+      try {
+        await loadFriends();
+      } catch (err) {
+        console.error('Failed to load friends:', err);
+      }
       
       // Small delay to allow context updates to propagate
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -127,13 +133,24 @@ export default function ProfileScreen() {
   // Load stats from API
   useEffect(() => {
     const loadAllData = async () => {
-      await Promise.all([
-        loadStats(),
-        loadPhotos(),
-        loadReferralData()
-      ]);
-      // Load friends last to ensure it updates stats correctly
-      await loadFriends();
+      try {
+        const promises = [
+          loadStats().catch(err => console.error('Failed to load stats:', err)),
+          loadPhotos().catch(err => console.error('Failed to load photos:', err)),
+          loadReferralData().catch(err => console.error('Failed to load referral data:', err))
+        ];
+        
+        await Promise.allSettled(promises);
+        
+        // Load friends last to ensure it updates stats correctly
+        try {
+          await loadFriends();
+        } catch (err) {
+          console.error('Failed to load friends:', err);
+        }
+      } catch (error) {
+        console.error('Failed to load all data:', error);
+      }
     };
     
     if (token) {
@@ -143,7 +160,10 @@ export default function ProfileScreen() {
   
   // Load user photos
   const loadPhotos = async () => {
-    if (!token) return;
+    if (!token) {
+      console.warn('No token available for loading photos');
+      return;
+    }
     
     try {
       setLoadingPhotos(true);

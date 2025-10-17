@@ -57,16 +57,45 @@ export default function Login() {
   }, [isLargeScreen]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      setError("Please enter your email/username and password.");
+    // Validate inputs
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      setError("Please enter your email or username.");
       return;
     }
+    
+    if (!password || typeof password !== 'string' || !password.trim()) {
+      setError("Please enter your password.");
+      return;
+    }
+    
     setSubmitting(true);
     setError(null);
+    
     try {
-      await logIn(email, password);
+      // Add timeout to prevent hanging
+      const loginPromise = logIn(email.trim(), password);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Login timeout. Please check your connection.')), 30000)
+      );
+      
+      await Promise.race([loginPromise, timeoutPromise]);
     } catch (e) {
-      setError(e?.message || "Login failed");
+      console.error('[Login] Error:', e);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (e?.message?.includes('timeout')) {
+        errorMessage = 'Connection timeout. Please check your internet and try again.';
+      } else if (e?.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (e?.message?.includes('credentials') || e?.message?.includes('password')) {
+        errorMessage = 'Invalid email/username or password.';
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }

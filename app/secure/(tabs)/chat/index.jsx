@@ -44,7 +44,12 @@ export default function ChatListScreen() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
 
   const loadInbox = async (isRefresh = false) => {
-    if (!token) return;
+    if (!token) {
+      console.warn('No token available for loading inbox');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     
     try {
       if (isRefresh) setRefreshing(true);
@@ -60,11 +65,23 @@ export default function ChatListScreen() {
         timeoutPromise
       ]);
       
+      // Validate response
+      if (!response || !Array.isArray(response.inbox)) {
+        console.error('Invalid inbox response:', response);
+        setConversations([]);
+        return;
+      }
+      
       // Sort conversations by most recent message (descending order)
       const sortedConversations = response.inbox.sort((a, b) => {
-        const aTime = new Date(a.chat.last_message_at || a.chat.created_at).getTime();
-        const bTime = new Date(b.chat.last_message_at || b.chat.created_at).getTime();
-        return bTime - aTime; // Most recent first
+        try {
+          const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
+          const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
+          return bTime - aTime; // Most recent first
+        } catch (err) {
+          console.error('Error sorting conversations:', err);
+          return 0;
+        }
       });
       
       setConversations(sortedConversations);
@@ -72,8 +89,12 @@ export default function ChatListScreen() {
       // Initialize unread counts from server data
       const initialUnreadCounts = {};
       sortedConversations.forEach(conv => {
-        if (conv.unreadCount > 0) {
-          initialUnreadCounts[conv.chat.id] = conv.unreadCount;
+        try {
+          if (conv?.unreadCount > 0 && conv?.chat?.id) {
+            initialUnreadCounts[conv.chat.id] = conv.unreadCount;
+          }
+        } catch (err) {
+          console.error('Error processing conversation unread count:', err);
         }
       });
       setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
@@ -102,9 +123,19 @@ export default function ChatListScreen() {
     const handleNewMessage = ({ message }) => {
       //console.log('📨 New message received in chat list:', message);
       
+      if (!message || !message.chatId) {
+        console.error('Invalid message received:', message);
+        return;
+      }
+      
       setConversations(prev => {
+        if (!Array.isArray(prev)) {
+          console.error('Conversations state is not an array');
+          return [];
+        }
+        
         const updatedConversations = prev.map(conv => {
-          if (conv.chat.id === message.chatId) {
+          if (conv?.chat?.id === message.chatId) {
             return {
               ...conv,
               lastMessage: {

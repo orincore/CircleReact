@@ -155,7 +155,15 @@ export default function LocationPage() {
         });
       }
       
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Wrap permission request in try-catch for production builds
+      let status = 'denied';
+      try {
+        const result = await Location.requestForegroundPermissionsAsync();
+        status = result?.status || 'denied';
+      } catch (permError) {
+        console.error('Location permission error:', permError);
+        status = 'denied';
+      }
       if (status !== 'granted') {
         //console.log('Location permission denied');
         // Even if permission denied, keep the default region for web
@@ -171,9 +179,24 @@ export default function LocationPage() {
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      // Wrap location fetch in try-catch for production builds
+      let position;
+      try {
+        position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeout: 10000, // 10 second timeout
+        });
+      } catch (locError) {
+        console.error('Failed to get current position:', locError);
+        setLoading(false);
+        return;
+      }
+
+      if (!position?.coords) {
+        console.error('Invalid position data received');
+        setLoading(false);
+        return;
+      }
 
       const { latitude, longitude } = position.coords;
       
@@ -207,15 +230,31 @@ export default function LocationPage() {
 
   // Get structured location data from coordinates with robust parsing
   const getLocationData = async (latitude, longitude) => {
+    // Validate input parameters
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || 
+        isNaN(latitude) || isNaN(longitude)) {
+      console.error('Invalid coordinates provided:', { latitude, longitude });
+      return {
+        city: 'Unknown City',
+        country: 'Unknown Country',
+        address: 'Invalid coordinates',
+        displayName: 'Unknown Location'
+      };
+    }
     
     try {
       // Try Expo Location first (works on mobile)
       if (Platform.OS !== 'web') {
         try {
-          const reverseGeocode = await Location.reverseGeocodeAsync({
-            latitude,
-            longitude,
-          });
+          const reverseGeocode = await Promise.race([
+            Location.reverseGeocodeAsync({
+              latitude,
+              longitude,
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Geocoding timeout')), 5000)
+            )
+          ]);
           
           if (reverseGeocode.length > 0) {
             const location = reverseGeocode[0];

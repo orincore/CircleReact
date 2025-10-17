@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ export default function FaceVerificationScreen() {
   const streamRef = useRef(null);
   
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [webCameraPermission, setWebCameraPermission] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentMovement, setCurrentMovement] = useState(0);
@@ -131,6 +132,20 @@ export default function FaceVerificationScreen() {
       Alert.alert('Please Wait', 'Camera is still initializing. Please wait a moment...');
       return;
     }
+
+    // Check and request microphone permission for video recording
+    if (!micPermission?.granted) {
+      console.log('🎤 Requesting microphone permission...');
+      const { status } = await requestMicPermission();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Microphone Permission Required',
+          'Video recording requires microphone access. Please grant permission in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
     
     try {
       console.log('🎥 Starting countdown...');
@@ -154,10 +169,11 @@ export default function FaceVerificationScreen() {
         throw new Error('Camera reference lost');
       }
       
-      console.log('📹 Calling recordAsync...');
+      console.log('📹 Calling recordAsync with mute option...');
       const video = await cameraRef.current.recordAsync({
         maxDuration: 30,
         quality: '720p',
+        mute: false, // Explicitly set audio recording
       });
       
       console.log('✅ Recording complete:', video.uri);
@@ -168,10 +184,17 @@ export default function FaceVerificationScreen() {
       setIsRecording(false);
       setCountdown(0);
       
+      // Handle specific error cases
       if (error.message?.includes('not ready')) {
         Alert.alert(
           'Camera Not Ready', 
           'The camera is still initializing. Please wait a few seconds and try again.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.message?.includes('RECORD_AUDIO') || error.message?.includes('permission')) {
+        Alert.alert(
+          'Permission Required',
+          'Video recording requires microphone permission. Please grant permission in your device settings and try again.',
           [{ text: 'OK' }]
         );
       } else {
@@ -403,7 +426,7 @@ export default function FaceVerificationScreen() {
     return `Turn your head ${movement.toUpperCase()} (${currentMovement + 1}/${MOVEMENTS.length})`;
   };
 
-  if (!permission) {
+  if (!permission || !micPermission) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#A16AE8" />
@@ -466,21 +489,30 @@ export default function FaceVerificationScreen() {
     );
   }
 
-  if (!IS_WEB && !permission.granted) {
+  if (!IS_WEB && (!permission.granted || !micPermission.granted)) {
     return (
       <LinearGradient colors={['#1a0b2e', '#2d1b4e']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.permissionContainer}>
             <Ionicons name="camera-outline" size={80} color="#A16AE8" />
-            <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+            <Text style={styles.permissionTitle}>Permissions Required</Text>
             <Text style={styles.permissionText}>
-              We need access to your camera to verify your identity
+              We need access to your camera and microphone to verify your identity with video recording
             </Text>
-            <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-              <LinearGradient colors={['#FF6FB5', '#A16AE8']} style={styles.buttonGradient}>
-                <Text style={styles.buttonText}>Grant Permission</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            {!permission.granted && (
+              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                <LinearGradient colors={['#FF6FB5', '#A16AE8']} style={styles.buttonGradient}>
+                  <Text style={styles.buttonText}>Grant Camera Permission</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+            {!micPermission.granted && (
+              <TouchableOpacity style={[styles.permissionButton, { marginTop: 12 }]} onPress={requestMicPermission}>
+                <LinearGradient colors={['#FF6FB5', '#A16AE8']} style={styles.buttonGradient}>
+                  <Text style={styles.buttonText}>Grant Microphone Permission</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaView>
       </LinearGradient>

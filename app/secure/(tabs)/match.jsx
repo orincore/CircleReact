@@ -399,8 +399,22 @@ export default function MatchScreen() {
 
   // Realtime matchmaking via socket.io
   useEffect(() => {
-    if (!token) return;
-    const s = getSocket(token);
+    if (!token) {
+      console.warn('[MatchScreen] No token available for socket connection');
+      return;
+    }
+    
+    let s;
+    try {
+      s = getSocket(token);
+      if (!s) {
+        console.error('[MatchScreen] Failed to get socket instance');
+        return;
+      }
+    } catch (error) {
+      console.error('[MatchScreen] Error getting socket:', error);
+      return;
+    }
     
     // Clear any stale state when socket connects
     s.on('connect', () => {
@@ -411,20 +425,36 @@ export default function MatchScreen() {
     });
     
     const onProposal = (payload) => {
-      const o = payload.other;
-      setMatchedUser({
-        id: o.id,
-        firstName: o.first_name,
-        lastName: o.last_name,
-        age: o.age,
-        location: "Nearby",
-        gender: o.gender,
-        avatar: o.profile_photo_url || "https://i.pravatar.cc/300?img=12",
-        description: generateDescription(o.interests, o.needs),
-        compatibility: "High match",
-        interests: o.interests || [],
-        needs: o.needs || [],
-      });
+      try {
+        if (!payload || !payload.other) {
+          console.error('[MatchScreen] Invalid proposal payload:', payload);
+          return;
+        }
+        
+        const o = payload.other;
+        if (!o.id) {
+          console.error('[MatchScreen] Missing user ID in proposal:', o);
+          return;
+        }
+        
+        setMatchedUser({
+          id: o.id,
+          firstName: o.first_name || 'Unknown',
+          lastName: o.last_name || '',
+          age: o.age || 0,
+          location: "Nearby",
+          gender: o.gender || 'other',
+          avatar: o.profile_photo_url || "https://i.pravatar.cc/300?img=12",
+          description: generateDescription(o.interests, o.needs),
+          compatibility: "High match",
+          interests: o.interests || [],
+          needs: o.needs || [],
+        });
+      } catch (error) {
+        console.error('[MatchScreen] Error handling proposal:', error);
+        showToast('Error loading match. Please try again.', 'error');
+        return;
+      }
       setIsSearching(false);
       setShowModal(true);
       setHasActiveSession(true); // Set active session since user is now in a proposal
@@ -435,18 +465,36 @@ export default function MatchScreen() {
       showToast(`${payload.by} has accepted to chat. Waiting for you…`, "info");
     };
     const onMatched = (payload) => {
-      setIsSearching(false);
-      setShowModal(false);
-      setHasActiveSession(false); // End the active session - user got matched
-      showToast(payload.message || "You got a match!", "success");
-      setTimeout(() => router.push({ 
-        pathname: "/secure/chat-conversation", 
-        params: { 
-          id: payload.chatId, 
-          name: payload.otherName,
-          avatar: matchedUser?.avatar || ""
-        } 
-      }), 700);
+      try {
+        if (!payload || !payload.chatId) {
+          console.error('[MatchScreen] Invalid matched payload:', payload);
+          showToast('Match created but navigation failed', 'error');
+          return;
+        }
+        
+        setIsSearching(false);
+        setShowModal(false);
+        setHasActiveSession(false); // End the active session - user got matched
+        showToast(payload.message || "You got a match!", "success");
+        
+        setTimeout(() => {
+          try {
+            router.push({ 
+              pathname: "/secure/chat-conversation", 
+              params: { 
+                id: payload.chatId, 
+                name: payload.otherName || 'Match',
+                avatar: matchedUser?.avatar || ""
+              } 
+            });
+          } catch (navError) {
+            console.error('[MatchScreen] Navigation error:', navError);
+            showToast('Please check your chats', 'info');
+          }
+        }, 700);
+      } catch (error) {
+        console.error('[MatchScreen] Error handling match:', error);
+      }
     };
     
     const onSearchingStarted = () => {
