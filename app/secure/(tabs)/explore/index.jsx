@@ -35,6 +35,8 @@ export default function ExploreScreen() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [passedUserIds, setPassedUserIds] = useState(new Set());
+  const [matchStatuses, setMatchStatuses] = useState({}); // userId -> status
+  const [processingMatch, setProcessingMatch] = useState(null); // userId being processed
 
   useEffect(() => {
     loadPassedUsers();
@@ -124,103 +126,230 @@ export default function ExploreScreen() {
 
   const handlePassUser = async (userId, userName) => {
     try {
-      // Add to passed users with 15-day expiry
-      const passedData = await AsyncStorage.getItem('explorePassedUsers');
-      const passedUsers = passedData ? JSON.parse(passedData) : {};
+      setProcessingMatch(userId);
       
-      const expiryTime = Date.now() + (15 * 24 * 60 * 60 * 1000); // 15 days from now
-      passedUsers[userId] = expiryTime;
+      // Send pass action to backend
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+      console.log('🔍 Pass User - API URL:', API_URL);
+      const response = await fetch(`${API_URL}/api/explore/match`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetUserId: userId,
+          actionType: 'pass'
+        })
+      });
       
-      await AsyncStorage.setItem('explorePassedUsers', JSON.stringify(passedUsers));
+      const result = await response.json();
       
-      // Update state to hide the user immediately
-      setPassedUserIds(prev => new Set([...prev, userId]));
-      
-      // Show confirmation
-      Alert.alert('User Passed', `${userName || 'User'} won't appear in your discover section for 15 days.`);
+      if (response.ok) {
+        // Add to passed users with 15-day expiry
+        const passedData = await AsyncStorage.getItem('explorePassedUsers');
+        const passedUsers = passedData ? JSON.parse(passedData) : {};
+        
+        const expiryTime = Date.now() + (15 * 24 * 60 * 60 * 1000);
+        passedUsers[userId] = expiryTime;
+        
+        await AsyncStorage.setItem('explorePassedUsers', JSON.stringify(passedUsers));
+        
+        // Update state
+        setPassedUserIds(prev => new Set([...prev, userId]));
+        setMatchStatuses(prev => ({ ...prev, [userId]: 'passed' }));
+        
+        Alert.alert('User Passed', `${userName || 'User'} won't appear in your discover section for 15 days.`);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to pass user');
+      }
     } catch (error) {
       console.error('Error passing user:', error);
       Alert.alert('Error', 'Failed to pass user. Please try again.');
+    } finally {
+      setProcessingMatch(null);
     }
   };
 
-  const renderUserCard = ({ item: user, showCompatibility = false }) => (
-    <View style={styles.userCardContainer}>
-      <TouchableOpacity
-        style={styles.userCard}
-        onPress={() => handleUserPress(user)}
-      >
-        <View style={styles.userAvatar}>
-          {user.profilePhoto ? (
-            <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.fallbackAvatar}>
-              <Text style={styles.fallbackAvatarText}>
-                {user.name?.charAt(0)?.toUpperCase() || '?'}
-              </Text>
-            </View>
-          )}
-          {user.isOnline && <View style={styles.onlineIndicator} />}
-        </View>
-
-        <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {user.name || 'Unknown User'}
-          </Text>
-          {user.username && (
-            <Text style={styles.userUsername} numberOfLines={1}>
-              @{user.username}
-            </Text>
-          )}
-          {user.age && (
-            <Text style={styles.userAge}>
-              {user.age} years old
-            </Text>
-          )}
-          
-          {showCompatibility && user.compatibilityScore && (
-            <View style={styles.compatibilityBadge}>
-              <Ionicons name="heart" size={12} color="#FF6B9D" />
-              <Text style={styles.compatibilityText}>
-                {user.compatibilityScore}% match
-              </Text>
-            </View>
-          )}
-
-          {user.interests && user.interests.length > 0 && (
-            <View style={styles.interestsContainer}>
-              {user.interests.slice(0, 3).map((interest, index) => (
-                <View key={index} style={styles.interestTag}>
-                  <Text style={styles.interestText}>{interest}</Text>
-                </View>
-              ))}
-              {user.interests.length > 3 && (
-                <Text style={styles.moreInterests}>+{user.interests.length - 3}</Text>
-              )}
-            </View>
-          )}
-
-          {user.isFriend && (
-            <View style={styles.friendBadge}>
-              <Ionicons name="people" size={12} color="#22C55E" />
-              <Text style={styles.friendText}>Friend</Text>
-            </View>
-          )}
-        </View>
-
-        <Ionicons name="chevron-forward" size={20} color="rgba(31, 17, 71, 0.4)" />
-      </TouchableOpacity>
+  const handleMatchUser = async (userId, userName, actionType = 'like') => {
+    try {
+      setProcessingMatch(userId);
       
-      {/* Pass Button */}
-      <TouchableOpacity 
-        style={styles.passButton}
-        onPress={() => handlePassUser(user.id, user.name)}
-      >
-        <Ionicons name="close-circle" size={20} color="#FF6B9D" />
-        <Text style={styles.passButtonText}>Pass</Text>
-      </TouchableOpacity>
-    </View>
-  );
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+      console.log('🔍 Match User - API URL:', API_URL);
+      console.log('🔍 Match User - Full URL:', `${API_URL}/api/explore/match`);
+      const response = await fetch(`${API_URL}/api/explore/match`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetUserId: userId,
+          actionType: actionType // 'like' or 'super_like'
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setMatchStatuses(prev => ({ ...prev, [userId]: result.matchStatus }));
+        
+        if (result.matchStatus === 'matched') {
+          Alert.alert(
+            "It's a Match! 🎉",
+            `You and ${userName || 'this user'} have matched! Start chatting now.`,
+            [
+              { text: 'Later', style: 'cancel' },
+              { text: 'Chat Now', onPress: () => {/* Navigate to chat */} }
+            ]
+          );
+        } else if (result.matchStatus === 'pending') {
+          Alert.alert(
+            actionType === 'super_like' ? 'Super Like Sent! ⭐' : 'Match Request Sent ✓',
+            `${userName || 'User'} will be notified of your interest.`
+          );
+        }
+      } else {
+        Alert.alert('Error', result.error || 'Failed to send match request');
+      }
+    } catch (error) {
+      console.error('Error matching user:', error);
+      Alert.alert('Error', 'Failed to send match request. Please try again.');
+    } finally {
+      setProcessingMatch(null);
+    }
+  };
+
+  const renderUserCard = ({ item: user, showCompatibility = false }) => {
+    const matchStatus = matchStatuses[user.id];
+    const isProcessing = processingMatch === user.id;
+    
+    return (
+      <View style={styles.userCard}>
+        {/* User Info Section */}
+        <TouchableOpacity
+          style={styles.userInfoSection}
+          onPress={() => handleUserPress(user)}
+        >
+          <View style={styles.userAvatar}>
+            {user.profilePhoto ? (
+              <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.fallbackAvatar}>
+                <Text style={styles.fallbackAvatarText}>
+                  {user.name?.charAt(0)?.toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+            {user.isOnline && <View style={styles.onlineIndicator} />}
+          </View>
+
+          <View style={styles.userInfo}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user.name || 'Unknown User'}
+            </Text>
+            {user.username && (
+              <Text style={styles.userUsername} numberOfLines={1}>
+                @{user.username}
+              </Text>
+            )}
+            {user.age && (
+              <Text style={styles.userAge}>
+                {user.age} years old
+              </Text>
+            )}
+            
+            {showCompatibility && user.compatibilityScore && (
+              <View style={styles.compatibilityBadge}>
+                <Ionicons name="heart" size={12} color="#FF6B9D" />
+                <Text style={styles.compatibilityText}>
+                  {user.compatibilityScore}% match
+                </Text>
+              </View>
+            )}
+
+            {user.interests && user.interests.length > 0 && (
+              <View style={styles.interestsContainer}>
+                {user.interests.slice(0, 3).map((interest, index) => (
+                  <View key={index} style={styles.interestTag}>
+                    <Text style={styles.interestText}>{interest}</Text>
+                  </View>
+                ))}
+                {user.interests.length > 3 && (
+                  <Text style={styles.moreInterests}>+{user.interests.length - 3}</Text>
+                )}
+              </View>
+            )}
+
+            {user.isFriend && (
+              <View style={styles.friendBadge}>
+                <Ionicons name="people" size={12} color="#22C55E" />
+                <Text style={styles.friendText}>Friend</Text>
+              </View>
+            )}
+            
+            {/* Match Status Badge */}
+            {matchStatus === 'matched' && (
+              <View style={styles.matchedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                <Text style={styles.matchedText}>Matched ✓</Text>
+              </View>
+            )}
+            {matchStatus === 'pending' && (
+              <View style={styles.pendingBadge}>
+                <Ionicons name="time-outline" size={14} color="#F59E0B" />
+                <Text style={styles.pendingText}>Pending ⏳</Text>
+              </View>
+            )}
+          </View>
+
+          <Ionicons name="chevron-forward" size={20} color="rgba(31, 17, 71, 0.4)" />
+        </TouchableOpacity>
+        
+        {/* Quick Action Buttons - Inside Same Card */}
+        {!matchStatus && (
+          <View style={styles.quickActionsContainer}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.passActionButton]}
+              onPress={() => handlePassUser(user.id, user.name)}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <Ionicons name="close-circle" size={32} color="#EF4444" />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.likeActionButton]}
+              onPress={() => handleMatchUser(user.id, user.name, 'like')}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <Ionicons name="heart-circle" size={40} color="#10B981" />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.superLikeActionButton]}
+              onPress={() => handleMatchUser(user.id, user.name, 'super_like')}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#FFD700" />
+              ) : (
+                <Ionicons name="star" size={32} color="#FFD700" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderSection = (title, users, icon, showCompatibility = false) => {
     // Filter out passed users
@@ -551,18 +680,18 @@ const styles = StyleSheet.create({
   separator: {
     height: 12,
   },
-  userCardContainer: {
-    position: 'relative',
-  },
   userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 20,
-    padding: 18,
-    gap: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+  },
+  userInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    gap: 16,
   },
   userAvatar: {
     position: 'relative',
@@ -757,5 +886,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FF6B9D',
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  actionButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+  },
+  passActionButton: {
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  likeActionButton: {
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  superLikeActionButton: {
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+  },
+  matchedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  matchedText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  pendingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
 });

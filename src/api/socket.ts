@@ -93,14 +93,16 @@ function clearIntervals() {
 // Enhanced reconnection logic
 function attemptReconnection(token?: string | null) {
   if (reconnectAttempts >= maxReconnectAttempts) {
-    console.error('🔴 Max reconnection attempts reached. Please refresh the page.');
+    console.error('🔴 Max reconnection attempts reached. Please check your connection.');
     socketService.notifyConnectionState('failed');
     return;
   }
 
   reconnectAttempts++;
-  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000); // Exponential backoff, max 30s
+  // More gradual exponential backoff: 2s, 4s, 6s, 8s, 10s (max)
+  const delay = Math.min(2000 * reconnectAttempts, 10000);
   
+  console.log(`🔄 Scheduling reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} in ${delay/1000}s`);
   socketService.notifyConnectionState('reconnecting');
 
   reconnectTimer = setTimeout(() => {
@@ -136,8 +138,8 @@ function createSocket(token?: string | null) {
       auth: token ? { token } : undefined,
       reconnection: false, // We handle reconnection manually
       autoConnect: true,
-      // Production-specific timeouts
-      timeout: isProduction ? 30000 : 15000, // Longer timeout for production
+      // Platform and environment-specific timeouts
+      timeout: Platform.OS === 'ios' ? 45000 : (isProduction ? 30000 : 15000), // Longer timeout for iOS
       forceNew: true,
       upgrade: isProduction ? false : true, // Disable upgrade in production initially
       rememberUpgrade: isProduction ? false : true, // Don't remember upgrade in production

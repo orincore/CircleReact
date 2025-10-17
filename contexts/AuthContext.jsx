@@ -29,6 +29,8 @@ export function AuthProvider({ children }) {
   const USER_KEY = "@circle:user";
   const statusCheckIntervalRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
+  const statusCheckRetries = useRef(0);
+  const maxStatusCheckRetries = 3;
 
   const checkAccountStatus = useCallback(async (userData, accessToken) => {
     // Check if account is deleted or suspended
@@ -71,24 +73,24 @@ export function AuthProvider({ children }) {
     try {
       fullUser = await meGql(resp.access_token);
       
-      // If user data is null or undefined, logout
+      // If user data is null or undefined, use resp.user as fallback
       if (!fullUser && !resp.user) {
-        console.error('❌ Unable to fetch user data - logging out');
-        await logOut();
-        return;
+        console.warn('⚠️ Unable to fetch full user profile - using login response data');
       }
       
       setUser(fullUser || resp.user || null);
     } catch (_e) {
-      console.error('❌ Failed to fetch user profile:', _e);
+      const isAuthError = _e?.isAuthError === true || _e?.status === 401 || _e?.status === 403;
       
-      // If we can't get user data at all, logout
-      if (!resp.user) {
-        console.error('❌ No user data available - logging out');
+      if (isAuthError && !resp.user) {
+        // Authentication failed and no fallback data
+        console.error('❌ Authentication failed during login - logging out');
         await logOut();
         return;
       }
       
+      // Network error or we have fallback data from login response
+      console.warn('⚠️ Failed to fetch full user profile, using login response data:', _e.message);
       fullUser = resp.user;
       setUser(resp.user || null);
     }
@@ -391,10 +393,9 @@ export function AuthProvider({ children }) {
     try {
       const fullUser = await meGql(token);
       
-      // If unable to fetch user data, logout
+      // If unable to fetch user data, return null but don't logout
       if (!fullUser) {
-        console.error('❌ Unable to fetch user data during refresh - logging out');
-        await logOut();
+        console.warn('⚠️ Unable to fetch user data during refresh');
         return null;
       }
       
@@ -402,9 +403,17 @@ export function AuthProvider({ children }) {
       try { await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUser)); } catch {}
       return fullUser;
     } catch (e) {
-      console.error("❌ Failed to refresh user - logging out", e);
-      // If refresh fails, logout the user
-      await logOut();
+      const isAuthError = e?.isAuthError === true || e?.status === 401 || e?.status === 403;
+      
+      if (isAuthError) {
+        // Authentication failed - token is invalid
+        console.error("❌ Authentication failed during refresh - logging out", e.status);
+        await logOut();
+        return null;
+      }
+      
+      // Network error - don't logout, just log warning
+      console.warn("⚠️ Network error during user refresh - keeping current session:", e.message);
       return null;
     }
   }, [token, logOut]);
@@ -415,34 +424,59 @@ export function AuthProvider({ children }) {
     try {
       const fullUser = await meGql(token);
       if (fullUser) {
+        // Reset retry counter on success
+        statusCheckRetries.current = 0;
+        
         const accountOk = await checkAccountStatus(fullUser, token);
         if (!accountOk) {
           // Account is blocked, force logout
-          //console.log('⚠️ Account blocked, forcing logout');
+          console.log('⚠️ Account blocked, forcing logout');
           await logOut();
         }
       } else {
-        // Unable to fetch user data, logout
-        console.error('❌ Unable to fetch user data during status check - logging out');
-        await logOut();
+        // Unable to fetch user data but no error thrown - could be temporary
+        console.warn('⚠️ Unable to fetch user data during status check - will retry');
+        statusCheckRetries.current++;
+        
+        // Only logout after multiple consecutive failures
+        if (statusCheckRetries.current >= maxStatusCheckRetries) {
+          console.error('❌ Multiple failed status checks - logging out');
+          await logOut();
+        }
       }
     } catch (e) {
-      console.error("❌ Failed to check account status - logging out", e);
-      // If we can't verify the account, logout for security
-      await logOut();
+      // Check if this is an authentication error (401/403)
+      const isAuthError = e?.isAuthError === true || e?.status === 401 || e?.status === 403;
+      
+      if (isAuthError) {
+        // Authentication failed - token is invalid, logout immediately
+        console.error('❌ Authentication error during status check - logging out', e.status);
+        await logOut();
+      } else {
+        // Network or other transient error - don't logout, just log and retry
+        console.warn('⚠️ Network error during status check - will retry later:', e.message);
+        statusCheckRetries.current++;
+        
+        // Only logout after multiple consecutive failures
+        if (statusCheckRetries.current >= maxStatusCheckRetries) {
+          console.error('❌ Multiple consecutive network failures during status check - logging out for security');
+          await logOut();
+        }
+      }
     }
   }, [token, isAuthenticated, checkAccountStatus, logOut]);
 
-  // Periodic account status check (every 30 seconds)
+  // Periodic account status check (every 5 minutes - reduced from 30 seconds)
   useEffect(() => {
     if (isAuthenticated && token) {
-      // Check immediately
+      // Check immediately on mount
       checkCurrentAccountStatus();
       
-      // Set up interval for periodic checks
+      // Set up interval for periodic checks (5 minutes instead of 30 seconds)
+      // This reduces unnecessary network requests and prevents aggressive logouts
       statusCheckIntervalRef.current = setInterval(() => {
         checkCurrentAccountStatus();
-      }, 30000); // Check every 30 seconds
+      }, 300000); // Check every 5 minutes (300000ms)
       
       return () => {
         if (statusCheckIntervalRef.current) {

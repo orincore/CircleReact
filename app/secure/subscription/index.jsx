@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -117,11 +118,25 @@ export default function SubscriptionScreen() {
           ]
         );
       } else {
-        // For mobile, you would use Cashfree SDK or WebView
+        // For mobile, redirect to website
         Alert.alert(
-          'Payment',
-          'Mobile payment integration coming soon. Please use web version.',
-          [{ text: 'OK' }]
+          'Subscribe on Website',
+          'To subscribe, please visit our website:\n\ncircle.orincore.com\n\nAfter subscribing, your premium features will be automatically activated in the app.',
+          [
+            {
+              text: 'Open Website',
+              onPress: () => {
+                // Open website in external browser
+                const url = 'https://circle.orincore.com/secure/subscription';
+                if (Platform.OS === 'android') {
+                  Linking.openURL(url);
+                } else {
+                  Linking.openURL(url);
+                }
+              }
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
         );
       }
     } catch (error) {

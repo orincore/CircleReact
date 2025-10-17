@@ -39,6 +39,23 @@ async function gqlFetch<T>(query: string, variables: any = {}, token?: string | 
     },
     body: JSON.stringify({ query, variables }),
   });
+  
+  // Check for authentication errors (401/403) and throw with status code
+  if (res.status === 401 || res.status === 403) {
+    const error: any = new Error(`Authentication failed: ${res.status}`);
+    error.status = res.status;
+    error.isAuthError = true;
+    throw error;
+  }
+  
+  // For other non-OK statuses, include status in error
+  if (!res.ok) {
+    const error: any = new Error(`HTTP error: ${res.status}`);
+    error.status = res.status;
+    error.isAuthError = false;
+    throw error;
+  }
+  
   return (await res.json()) as T;
 }
 
