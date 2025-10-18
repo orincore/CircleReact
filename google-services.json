@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "179931830205",
+    "project_id": "circle-5d074",
+    "storage_bucket": "circle-5d074.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179931830205:android:d41bf99f881266d7a964d4",
+        "android_client_info": {
+          "package_name": "com.orincore.Circle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCk6cHIQjqLLBtU-xOqOBuVFoaOdj2JWaQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

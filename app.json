@@ -23,7 +23,8 @@
           "location"
         ]
       },
-      "bundleIdentifier": "com.orincore.Circle"
+      "bundleIdentifier": "com.orincore.Circle",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -54,7 +55,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.orincore.Circle",
       "versionCode": 11,
-      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.orincore.Circle"
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.orincore.Circle",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

@@ -41,8 +41,9 @@ yarn-error.*
 app-example
 
 # Firebase config files (sensitive)
-google-services.json
-GoogleService-Info.plist
+# Temporarily allowing these for EAS builds
+# google-services.json
+# GoogleService-Info.plist
 
 # generated native folders
 /ios
