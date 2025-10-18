@@ -17,6 +17,8 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-firebase/app": "^23.4.1",
+    "@react-native-firebase/messaging": "^23.4.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
@@ -40,7 +42,7 @@
     "expo-linear-gradient": "~15.0.7",
     "expo-linking": "~8.0.8",
     "expo-location": "~19.0.7",
-    "expo-media-library": "~17.0.3",
+    "expo-media-library": "~18.2.0",
     "expo-notifications": "~0.32.11",
     "expo-router": "~6.0.8",
     "expo-splash-screen": "~31.0.10",
@@ -70,8 +72,6 @@
     "@types/socket.io-client": "^1.4.36",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
-    "install": "^0.13.0",
-    "npm": "^11.6.1",
     "socket.io-client": "^4.8.1",
     "typescript": "~5.9.2"
   },
@@ -82,6 +82,19 @@
           "react-native-webrtc"
         ]
       }
+    },
+    "install": {
+      "exclude": [
+        "expo",
+        "expo-dev-client",
+        "expo-device",
+        "expo-file-system",
+        "expo-font",
+        "expo-image",
+        "expo-notifications",
+        "expo-router",
+        "expo-web-browser"
+      ]
     }
   },
   "private": true

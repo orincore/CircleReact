@@ -11,8 +11,8 @@ import socketService from "@/src/services/socketService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 const { BannerAd } = getAdComponents();
 
@@ -115,52 +115,91 @@ export default function ChatListScreen() {
 
   // Socket event handlers for real-time updates
   useEffect(() => {
-    if (!token || !user?.id) return;
+    if (!token || !user?.id) {
+      console.warn('[ChatList] Missing token or user ID for socket connection');
+      return;
+    }
 
-    const socket = getSocket(token);
+    let socket;
+    try {
+      socket = getSocket(token);
+      if (!socket) {
+        console.error('[ChatList] Failed to get socket instance');
+        return;
+      }
+    } catch (error) {
+      console.error('[ChatList] Error getting socket:', error);
+      return;
+    }
 
     // Handle new messages in chat list
     const handleNewMessage = ({ message }) => {
-      //console.log('📨 New message received in chat list:', message);
-      
-      if (!message || !message.chatId) {
-        console.error('Invalid message received:', message);
-        return;
-      }
-      
-      setConversations(prev => {
-        if (!Array.isArray(prev)) {
-          console.error('Conversations state is not an array');
-          return [];
+      try {
+        //console.log('📨 New message received in chat list:', message);
+        
+        if (!message || !message.chatId) {
+          console.error('[ChatList] Invalid message received:', message);
+          return;
         }
         
-        const updatedConversations = prev.map(conv => {
-          if (conv?.chat?.id === message.chatId) {
-            return {
-              ...conv,
-              lastMessage: {
-                id: message.id,
-                text: message.text,
-                created_at: new Date(message.createdAt).toISOString(),
-                sender_id: message.senderId,
-                status: message.senderId === user.id ? (message.status || 'sent') : undefined,
-              },
-              chat: {
-                ...conv.chat,
-                last_message_at: new Date(message.createdAt).toISOString(),
+        setConversations(prev => {
+          try {
+            if (!Array.isArray(prev)) {
+              console.error('[ChatList] Conversations state is not an array:', prev);
+              return [];
+            }
+        
+            const updatedConversations = prev.map(conv => {
+              try {
+                if (!conv || !conv.chat) {
+                  console.warn('[ChatList] Invalid conversation object:', conv);
+                  return conv;
+                }
+                
+                if (conv.chat.id === message.chatId) {
+                  return {
+                    ...conv,
+                    lastMessage: {
+                      id: message.id || 'unknown',
+                      text: message.text || '',
+                      created_at: message.createdAt ? new Date(message.createdAt).toISOString() : new Date().toISOString(),
+                      sender_id: message.senderId,
+                      status: message.senderId === user.id ? (message.status || 'sent') : undefined,
+                    },
+                    chat: {
+                      ...conv.chat,
+                      last_message_at: message.createdAt ? new Date(message.createdAt).toISOString() : new Date().toISOString()
+                    }
+                  };
+                }
+                return conv;
+              } catch (convError) {
+                console.error('[ChatList] Error processing conversation:', convError, conv);
+                return conv;
               }
-            };
-          }
-          return conv;
-        });
+            });
 
-        // Sort conversations by most recent message (descending order)
-        return updatedConversations.sort((a, b) => {
-          const aTime = new Date(a.chat.last_message_at || a.chat.created_at).getTime();
-          const bTime = new Date(b.chat.last_message_at || b.chat.created_at).getTime();
-          return bTime - aTime; // Most recent first
+            // Sort conversations by most recent message (descending order)
+            const sortedConversations = updatedConversations.sort((a, b) => {
+              try {
+                const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
+                const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
+                return bTime - aTime; // Most recent first
+              } catch (err) {
+                console.error('[ChatList] Sort error:', err);
+                return 0;
+              }
+            });
+            
+            return sortedConversations;
+          } catch (stateError) {
+            console.error('[ChatList] Error updating conversations state:', stateError);
+            return prev;
+          }
         });
-      });
+      } catch (error) {
+        console.error('[ChatList] Error in handleNewMessage:', error);
+      }
 
       // Update unread count if message is not from current user
       if (message.senderId !== user.id) {
@@ -235,70 +274,132 @@ export default function ChatListScreen() {
       handleMessageStatusUpdate({ messageId, chatId, status: 'read' });
     };
 
-    // Register global handlers
-    socketService.addMessageHandler('chat-list', handleBackgroundMessage);
-    
-    // Listen to socket events
-    socket.on('chat:message', handleNewMessage);
-    socket.on('chat:typing', handleTyping);
-    socket.on('chat:read', handleRead);
-    socket.on('chat:message:delivery_receipt', handleDeliveryReceipt);
-    socket.on('chat:message:read_receipt', handleReadReceipt);
-    socket.on('chat:unread_count', handleUnreadCountUpdate);
-    
-    //console.log('🔌 Socket listeners registered for chat list');
+    try {
+      // Register global handlers
+      if (socketService && typeof socketService.addMessageHandler === 'function') {
+        socketService.addMessageHandler('chat-list', handleBackgroundMessage);
+      }
+      
+      // Listen to socket events
+      if (socket && typeof socket.on === 'function') {
+        socket.on('chat:message', handleNewMessage);
+        socket.on('chat:typing', handleTyping);
+        socket.on('chat:read', handleRead);
+        socket.on('chat:message:delivery_receipt', handleDeliveryReceipt);
+        socket.on('chat:message:read_receipt', handleReadReceipt);
+        socket.on('chat:unread_count', handleUnreadCountUpdate);
+        
+        //console.log('🔌 Socket listeners registered for chat list');
+      }
+    } catch (error) {
+      console.error('[ChatList] Error registering socket listeners:', error);
+    }
 
     return () => {
-      //console.log('🔌 Cleaning up socket listeners for chat list');
-      socketService.removeMessageHandler('chat-list');
-      socket.off('chat:message', handleNewMessage);
-      socket.off('chat:typing', handleTyping);
-      socket.off('chat:read', handleRead);
-      socket.off('chat:message:delivery_receipt', handleDeliveryReceipt);
-      socket.off('chat:message:read_receipt', handleReadReceipt);
-      socket.off('chat:unread_count', handleUnreadCountUpdate);
+      try {
+        //console.log('🔌 Cleaning up socket listeners for chat list');
+        
+        if (socketService && typeof socketService.removeMessageHandler === 'function') {
+          socketService.removeMessageHandler('chat-list');
+        }
+        
+        if (socket && typeof socket.off === 'function') {
+          socket.off('chat:message', handleNewMessage);
+          socket.off('chat:typing', handleTyping);
+          socket.off('chat:read', handleRead);
+          socket.off('chat:message:delivery_receipt', handleDeliveryReceipt);
+          socket.off('chat:message:read_receipt', handleReadReceipt);
+          socket.off('chat:unread_count', handleUnreadCountUpdate);
+        }
+      } catch (error) {
+        console.error('[ChatList] Error cleaning up socket listeners:', error);
+      }
     };
   }, [token, user?.id]);
 
   const formatTime = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    try {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      
+      // Check for invalid date
+      if (isNaN(date.getTime())) {
+        console.warn('[ChatList] Invalid date:', dateString);
+        return '';
+      }
+      
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d`;
-    return date.toLocaleDateString();
+      if (diffMins < 1) return 'now';
+      if (diffMins < 60) return `${diffMins}m`;
+      if (diffHours < 24) return `${diffHours}h`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d`;
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('[ChatList] Error formatting time:', error);
+      return '';
+    }
   };
 
-  const filteredConversations = conversations.filter(item => 
-    (item.otherName && item.otherName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (item.lastMessage && item.lastMessage.text && item.lastMessage.text.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredConversations = React.useMemo(() => {
+    try {
+      if (!Array.isArray(conversations)) {
+        console.error('[ChatList] Conversations is not an array:', conversations);
+        return [];
+      }
+      
+      return conversations.filter(item => {
+        try {
+          if (!item) return false;
+          
+          const query = (searchQuery || '').toLowerCase();
+          const otherName = (item.otherName || '').toLowerCase();
+          const messageText = (item.lastMessage?.text || '').toLowerCase();
+          
+          return otherName.includes(query) || messageText.includes(query);
+        } catch (err) {
+          console.error('[ChatList] Error filtering conversation:', err, item);
+          return false;
+        }
+      });
+    } catch (error) {
+      console.error('[ChatList] Error in filteredConversations:', error);
+      return [];
+    }
+  }, [conversations, searchQuery]);
 
 
   const handleChatPress = (chatId, name, profilePhoto) => {
-    // Clear unread count when entering chat
-    //console.log(`📱 Opening chat ${chatId}, clearing unread count`);
-    setUnreadCounts(prev => ({
-      ...prev,
-      [chatId]: 0
-    }));
-    
-    router.push({
-      pathname: "/secure/chat-conversation",
-      params: { 
-        id: chatId, 
-        name: name,
-        avatar: profilePhoto
+    try {
+      if (!chatId) {
+        console.error('[ChatList] Invalid chatId:', chatId);
+        return;
       }
-    });
+      
+      // Clear unread count when entering chat
+      //console.log(`📱 Opening chat ${chatId}, clearing unread count`);
+      setUnreadCounts(prev => ({
+        ...prev,
+        [chatId]: 0
+      }));
+      
+      router.push({
+        pathname: "/secure/chat-conversation",
+        params: { 
+          id: chatId, 
+          name: name || 'Chat',
+          avatar: profilePhoto || ''
+        }
+      });
+    } catch (error) {
+      console.error('[ChatList] Error opening chat:', error);
+      Alert.alert('Error', 'Failed to open chat. Please try again.');
+    }
   };
 
   const handleChatCreated = (chatId, name, profilePhoto) => {
@@ -373,7 +474,14 @@ export default function ChatListScreen() {
         ) : (
           <FlatList
             data={filteredConversations}
-            keyExtractor={(item) => item.chat.id}
+            keyExtractor={(item) => {
+              try {
+                return item?.chat?.id || `fallback-${Math.random()}`;
+              } catch (error) {
+                console.error('[ChatList] Error in keyExtractor:', error);
+                return `error-${Math.random()}`;
+              }
+            }}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             refreshControl={
@@ -392,9 +500,15 @@ export default function ChatListScreen() {
               </View>
             }
             renderItem={({ item }) => {
-              const chatId = item.chat.id;
-              const isTyping = typingIndicators[chatId] && typingIndicators[chatId].length > 0;
-              const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
+              try {
+                if (!item || !item.chat || !item.chat.id) {
+                  console.warn('[ChatList] Invalid item in renderItem:', item);
+                  return null;
+                }
+                
+                const chatId = item.chat.id;
+                const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
+                const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
               
               return (
                 <TouchableOpacity
@@ -485,6 +599,10 @@ export default function ChatListScreen() {
                   )}
                 </TouchableOpacity>
               );
+              } catch (error) {
+                console.error('[ChatList] Error rendering chat item:', error, item);
+                return null;
+              }
             }}
           />
           )}
@@ -498,7 +616,7 @@ export default function ChatListScreen() {
       />
 
       {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
-      {BannerAd && shouldShowAds() && (
+      {BannerAd && shouldShowAds && (
         <BannerAd placement="chat_list_bottom" />
       )}
       </VerificationGuard>

@@ -79,6 +79,17 @@
         }
       ],
       [
+        "@react-native-firebase/app",
+        {
+          "android": {
+            "googleServicesFile": "./google-services.json"
+          },
+          "ios": {
+            "googleServicesFile": "./GoogleService-Info.plist"
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -116,6 +127,10 @@
       "eas": {
         "projectId": "c9234d97-8ff5-45bc-8f8f-8772ef0926a5"
       }
+    },
+    "react-native-google-mobile-ads": {
+      "android_app_id": "ca-app-pub-7904629558122562~8832481283",
+      "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
     }
   }
 }

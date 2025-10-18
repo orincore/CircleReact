@@ -24,7 +24,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Avatar from '../../components/Avatar';
+// Removed Avatar import to fix require cycle
 import VerifiedBadge from '../../components/VerifiedBadge';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
@@ -926,21 +926,16 @@ export default function UserProfileModal({
                 {/* Avatar and Basic Info */}
                 <View style={styles.profileHeader}>
                   <View style={styles.avatarContainer}>
-                    <Avatar 
-                      user={{
-                        id: userId,
-                        first_name: profileData.name.split(' ')[0],
-                        last_name: profileData.name.split(' ')[1],
-                        profile_photo_url: profileData.avatar,
-                        name: profileData.name
-                      }}
-                      size={100}
-                      disabled={true}
-                    />
-                    <View style={[
-                      styles.onlineIndicator, 
-                      { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
-                    ]} />
+                    <View style={styles.avatarWrapper}>
+                      <Image 
+                        source={{ uri: profileData.avatar || 'https://via.placeholder.com/120' }}
+                        style={styles.avatarImage}
+                      />
+                      <View style={[
+                        styles.onlineIndicator, 
+                        { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
+                      ]} />
+                    </View>
                   </View>
                   
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
@@ -2361,5 +2356,16 @@ const styles = StyleSheet.create({
   photoViewerDotActive: {
     backgroundColor: '#FFFFFF',
     width: 24,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f0f0',
   },
 });

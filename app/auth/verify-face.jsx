@@ -24,6 +24,7 @@ export default function FaceVerificationScreen() {
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const streamRef = useRef(null);
+  const recordingStartTimeRef = useRef(null);
   
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -158,6 +159,7 @@ export default function FaceVerificationScreen() {
       setCountdown(0);
       
       console.log('🎥 Starting recording...');
+      recordingStartTimeRef.current = Date.now(); // Track start time
       setIsRecording(true);
       setCurrentMovement(0);
       setCompletedMovements([]);
@@ -169,41 +171,66 @@ export default function FaceVerificationScreen() {
         throw new Error('Camera reference lost');
       }
       
-      console.log('📹 Calling recordAsync with mute option...');
-      const video = await cameraRef.current.recordAsync({
+      console.log('📹 Calling recordAsync...');
+      
+      // Start recording with proper configuration for Android
+      // Note: Don't await here, let it record in background
+      cameraRef.current.recordAsync({
         maxDuration: 30,
-        quality: '720p',
-        mute: false, // Explicitly set audio recording
+        quality: CameraView.Constants?.VideoQuality?.['720p'] || '720p',
+        mute: false, // Record with audio (required for Android)
+        mirror: false, // Don't mirror the recording
+      }).then((video) => {
+        console.log('✅ Recording complete:', video?.uri);
+        if (video && video.uri) {
+          setVideoUri(video.uri);
+        }
+        setIsRecording(false);
+      }).catch((error) => {
+        console.error('❌ Recording error:', error);
+        setIsRecording(false);
+        setCountdown(0);
+        
+        // Handle specific error cases
+        if (error.message?.includes('not ready')) {
+          Alert.alert(
+            'Camera Not Ready', 
+            'The camera is still initializing. Please wait a few seconds and try again.',
+            [{ text: 'OK' }]
+          );
+        } else if (error.message?.includes('RECORD_AUDIO') || error.message?.includes('permission')) {
+          Alert.alert(
+            'Permission Required',
+            'Video recording requires microphone permission. Please grant permission in your device settings and try again.',
+            [{ text: 'OK' }]
+          );
+        } else if (error.message?.includes('stopped before') || error.message?.includes('no data') || error.message?.includes('Recording was stopped')) {
+          Alert.alert(
+            'Recording Issue',
+            'Please complete all face movements slowly and hold each position for a moment. The recording needs at least 3 seconds to work properly.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Recording Error', 
+            `Failed to record video: ${error.message}. Please try again.`,
+            [{ text: 'OK' }]
+          );
+        }
       });
       
-      console.log('✅ Recording complete:', video.uri);
-      setVideoUri(video.uri);
-      setIsRecording(false);
+      // Wait a bit to ensure recording actually starts
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
     } catch (error) {
-      console.error('❌ Recording error:', error);
+      console.error('❌ Recording setup error:', error);
       setIsRecording(false);
       setCountdown(0);
-      
-      // Handle specific error cases
-      if (error.message?.includes('not ready')) {
-        Alert.alert(
-          'Camera Not Ready', 
-          'The camera is still initializing. Please wait a few seconds and try again.',
-          [{ text: 'OK' }]
-        );
-      } else if (error.message?.includes('RECORD_AUDIO') || error.message?.includes('permission')) {
-        Alert.alert(
-          'Permission Required',
-          'Video recording requires microphone permission. Please grant permission in your device settings and try again.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert(
-          'Recording Error', 
-          `Failed to record video: ${error.message}. Please try again.`,
-          [{ text: 'OK' }]
-        );
-      }
+      Alert.alert(
+        'Recording Error', 
+        `Failed to start recording: ${error.message}. Please try again.`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -224,6 +251,7 @@ export default function FaceVerificationScreen() {
       setCountdown(0);
       
       console.log('🎥 Starting web recording...');
+      recordingStartTimeRef.current = Date.now(); // Track start time for web too
       setIsRecording(true);
       setCurrentMovement(0);
       setCompletedMovements([]);
@@ -313,22 +341,47 @@ export default function FaceVerificationScreen() {
     }
   };
 
-  const stopRecording = () => {
-    if (IS_WEB && mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-    } else if (cameraRef.current && isRecording) {
-      cameraRef.current.stopRecording();
+  const stopRecording = async () => {
+    try {
+      // Ensure minimum recording duration (3 seconds for better reliability)
+      const minDuration = 3000; // 3 seconds
+      const startTime = recordingStartTimeRef.current || Date.now();
+      const elapsed = Date.now() - startTime;
+      
+      console.log(`📹 Attempting to stop recording after ${elapsed}ms`);
+      
+      // If we haven't recorded for minimum duration, wait
+      if (elapsed < minDuration) {
+        const waitTime = minDuration - elapsed;
+        console.log(`⏳ Waiting ${waitTime}ms more to meet minimum duration`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      console.log(`✅ Stopping recording after ${Date.now() - startTime}ms total`);
+      
+      if (IS_WEB && mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      } else if (cameraRef.current && isRecording) {
+        cameraRef.current.stopRecording();
+      }
+      
+      recordingStartTimeRef.current = null; // Reset
+    } catch (error) {
+      console.error('Error stopping recording:', error);
     }
   };
 
-  const handleMovementComplete = () => {
+  const handleMovementComplete = async () => {
     const newCompleted = [...completedMovements, MOVEMENTS[currentMovement]];
     setCompletedMovements(newCompleted);
     
     if (currentMovement < MOVEMENTS.length - 1) {
+      // Add a small delay between movements to ensure users don't rush
+      await new Promise(resolve => setTimeout(resolve, 800)); // 0.8 second delay
       setCurrentMovement(currentMovement + 1);
     } else {
-      // All movements complete
+      // All movements complete - add final delay before stopping
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second final delay
       stopRecording();
     }
   };
@@ -551,6 +604,7 @@ export default function FaceVerificationScreen() {
                   ref={cameraRef}
                   style={styles.camera}
                   facing="front"
+                  mode="video"
                   onCameraReady={handleCameraReady}
                 />
               )}

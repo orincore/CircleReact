@@ -40,6 +40,10 @@ yarn-error.*
 
 app-example
 
+# Firebase config files (sensitive)
+google-services.json
+GoogleService-Info.plist
+
 # generated native folders
 /ios
 .vercel

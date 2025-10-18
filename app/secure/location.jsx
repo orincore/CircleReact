@@ -539,22 +539,52 @@ export default function LocationPage() {
         }
       }
       
-      const users = await nearbyUsersGql(latitude, longitude, radiusKm, 50, token);
+      let users;
+      try {
+        users = await nearbyUsersGql(latitude, longitude, radiusKm, 50, token);
+      } catch (apiError) {
+        console.error('[Location] API error fetching nearby users:', apiError);
+        setNearbyUsers([]);
+        setUserCategories({ nearby: [], far: [] });
+        setIsLoadingUsers(false);
+        return;
+      }
       
-      // Transform users for map display
-      const mapUsers = users.map(user => ({
-        id: user.id,
-        name: user.firstName + (user.lastName ? ` ${user.lastName.charAt(0)}.` : ''),
-        age: user.age,
-        gender: user.gender,
-        latitude: user.location.latitude,
-        longitude: user.location.longitude,
-        photoUrl: user.profilePhotoUrl,
-        distance: user.distance,
-        compatibility: `${Math.round(85 + Math.random() * 10)}%`, // Mock compatibility for now
-        interests: user.interests,
-        needs: user.needs
-      }));
+      // Validate response
+      if (!users || !Array.isArray(users)) {
+        console.warn('[Location] Invalid users response:', users);
+        setNearbyUsers([]);
+        setUserCategories({ nearby: [], far: [] });
+        setIsLoadingUsers(false);
+        return;
+      }
+      
+      // Transform users for map display with safe access
+      const mapUsers = users.map(user => {
+        try {
+          if (!user || !user.id) {
+            console.warn('[Location] Invalid user object:', user);
+            return null;
+          }
+          
+          return {
+            id: user.id,
+            name: (user.firstName || 'Unknown') + (user.lastName ? ` ${user.lastName.charAt(0)}.` : ''),
+            age: user.age || 0,
+            gender: user.gender || 'other',
+            latitude: user.location?.latitude || 0,
+            longitude: user.location?.longitude || 0,
+            photoUrl: user.profilePhotoUrl || null,
+            distance: user.distance || 0,
+            compatibility: `${Math.round(85 + Math.random() * 10)}%`, // Mock compatibility for now
+            interests: user.interests || [],
+            needs: user.needs || []
+          };
+        } catch (err) {
+          console.error('[Location] Error transforming user:', err, user);
+          return null;
+        }
+      }).filter(Boolean); // Remove null entries
       
       // Categorize users by distance (nearby: ≤10km, far: >10km)
       const nearby = mapUsers.filter(user => user.distance <= 10);
