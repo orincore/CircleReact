@@ -24,7 +24,11 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "NODE_ENV": "production"
       }
     },
     "production-apk": {

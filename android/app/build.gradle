@@ -92,8 +92,10 @@ android {
         applicationId 'com.orincore.Circle'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "1.0.2"
+        versionCode 24
+        versionName "1.0.3"
+        
+        multiDexEnabled true
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -104,21 +106,33 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (project.hasProperty('CIRCLE_UPLOAD_STORE_FILE')) {
+                storeFile file(CIRCLE_UPLOAD_STORE_FILE)
+                storePassword CIRCLE_UPLOAD_STORE_PASSWORD
+                keyAlias CIRCLE_UPLOAD_KEY_ALIAS
+                keyPassword CIRCLE_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            // Use release signing config
+            signingConfig signingConfigs.release
+            
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
+            
+            // Ensure deterministic builds for same fingerprint
+            zipAlignEnabled true
+            debuggable false
         }
     }
     packagingOptions {
@@ -155,6 +169,12 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    
+    // MultiDex support for production builds
+    implementation("androidx.multidex:multidex:2.0.1")
+    
+    // Google Play Billing Library (required for billing permission)
+    implementation("com.android.billingclient:billing:7.1.1")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
