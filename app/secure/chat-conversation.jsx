@@ -1033,13 +1033,7 @@ export default function InstagramChatScreen() {
             
             // Look for friends and try to match with the conversation
             if (data.friends && data.friends.length > 0) {
-              
-              // For debugging: if current user is one of the known users, set the other
-              if (myUserId === '5d73dab8-eb6a-4842-a368-6ddfe0e7b208') {
-                setOtherUserId('8ccd6396-3d6f-475d-abac-a3a0a0aea279');
-              } else if (myUserId === '8ccd6396-3d6f-475d-abac-a3a0a0aea279') {
-                setOtherUserId('5d73dab8-eb6a-4842-a368-6ddfe0e7b208');
-              } else if (data.friends.length === 1) {
+              if (data.friends.length === 1) {
                 // If there's only one friend, it's likely the other user
                 const friend = data.friends[0];
                 const friendUserId = friend.user_id || friend.id;
