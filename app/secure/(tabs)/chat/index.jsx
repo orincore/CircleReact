@@ -616,7 +616,7 @@ export default function ChatListScreen() {
       />
 
       {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
-      {BannerAd && shouldShowAds && (
+      {BannerAd && shouldShowAds() && (
         <BannerAd placement="chat_list_bottom" />
       )}
       </VerificationGuard>

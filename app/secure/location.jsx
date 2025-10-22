@@ -9,6 +9,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -31,6 +32,7 @@ const isDesktop = screenWidth >= 1024; // Desktop breakpoint
 export default function LocationPage() {
   const router = useRouter();
   const { token, user } = useAuth();
+  
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDistance, setFilterDistance] = useState('all');
@@ -72,6 +74,9 @@ export default function LocationPage() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const loadingTimeoutRef = useRef(null);
 
+  // Error boundary for Maps API
+  const [hasMapError, setHasMapError] = useState(false);
+
   // Listen for screen dimension changes
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
@@ -85,6 +90,17 @@ export default function LocationPage() {
     });
 
     return () => subscription?.remove();
+  }, []);
+
+  // Handle Maps API errors
+  const handleMapError = useCallback((error) => {
+    console.error('Maps API Error:', error);
+    setHasMapError(true);
+    Alert.alert(
+      'Maps Unavailable',
+      'Unable to load maps. Please check your internet connection.',
+      [{ text: 'OK' }]
+    );
   }, []);
 
   // Pan responder for mobile drawer

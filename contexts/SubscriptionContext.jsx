@@ -264,7 +264,7 @@ export const SubscriptionProvider = ({ children }) => {
     // Computed values
     isPremium: isPremium(),
     plan: currentPlan,
-    shouldShowAds: shouldShowAds(),
+    shouldShowAds: shouldShowAds,
     canMakeMatch: canMakeMatch(),
     remainingMatches: getRemainingMatches(),
     
