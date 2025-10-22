@@ -12,7 +12,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Swipeable } from 'react-native-gesture-handler';
+import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions } from "react-native";
 
 const { BannerAd } = getAdComponents();
 
@@ -31,6 +32,111 @@ export default function ChatListScreen() {
     return 'Good Night';
   };
 
+  const openWebMenu = (chatId) => {
+    try {
+      const ref = buttonRefs.current[chatId];
+      if (ref && ref.measureInWindow) {
+        ref.measureInWindow((x, y, width, height) => {
+          // Desired menu size approximation
+          const menuWidth = 180; // matches min width + padding
+          const menuHeight = 180; // enough for 3-4 items
+          const margin = 12; // gap from screen edges
+          const { width: sw, height: sh } = Dimensions.get('window');
+          // initial desired pos (aligned to right of button, below with 8px space)
+          let nx = x - menuWidth + width;
+          let ny = y + height + 8;
+          // clamp within viewport with gap
+          nx = Math.max(margin, Math.min(nx, sw - menuWidth - margin));
+          ny = Math.max(margin, Math.min(ny, sh - menuHeight - margin));
+          setMenuCoords({ x: nx, y: ny });
+          setOpenMenuChatId(chatId);
+        });
+      } else {
+        setMenuCoords(null);
+        setOpenMenuChatId(chatId);
+      }
+    } catch (e) {
+      setMenuCoords(null);
+      setOpenMenuChatId(chatId);
+    }
+  };
+
+  const handleUnarchiveChat = async (chatId) => {
+    try {
+      if (!token) return;
+      await chatApi.setArchived(chatId, false, token);
+      setOpenMenuChatId(null);
+      await loadInbox(true);
+    } catch (e) {
+      console.error('[ChatList] Failed to unarchive chat:', e);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to unarchive chat. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to unarchive chat.');
+      }
+    }
+  };
+
+  const handleArchiveChat = async (chatId) => {
+    try {
+      if (!token) return;
+      await chatApi.setArchived(chatId, true, token);
+      setOpenMenuChatId(null);
+      await loadInbox(true);
+    } catch (e) {
+      console.error('[ChatList] Failed to archive chat:', e);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to archive chat. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to archive chat.');
+      }
+    }
+  };
+
+  const handlePinChat = async (chatId) => {
+    try {
+      if (!token) return;
+      await chatApi.setPinned(chatId, true, token);
+      setOpenMenuChatId(null);
+      await loadInbox(true);
+    } catch (e) {
+      console.error('[ChatList] Failed to pin chat:', e);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to pin chat. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to pin chat.');
+      }
+    }
+  };
+
+  const handleUnpinChat = async (chatId) => {
+    try {
+      if (!token) return;
+      await chatApi.setPinned(chatId, false, token);
+      setOpenMenuChatId(null);
+      await loadInbox(true);
+    } catch (e) {
+      console.error('[ChatList] Failed to unpin chat:', e);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to unpin chat. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to unpin chat.');
+      }
+    }
+  };
+
+  const handleDeleteChat = async (chatId) => {
+    try {
+      const confirmed = Platform.OS === 'web' ? window.confirm('Delete this chat?') : true;
+      if (!confirmed) return;
+      await chatApi.deleteChat(chatId, token);
+      setConversations(prev => Array.isArray(prev) ? prev.filter(c => c?.chat?.id !== chatId) : prev);
+    } catch (e) {
+      console.error('[ChatList] Failed to delete chat:', e);
+      Alert.alert('Error', 'Failed to delete chat. Please try again.');
+    }
+  };
+
   // Get user's first name
   const getUserFirstName = () => {
     return user?.firstName || user?.first_name || 'there';
@@ -42,6 +148,10 @@ export default function ChatListScreen() {
   const [typingIndicators, setTypingIndicators] = useState({}); // chatId -> array of typing users
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> unread count
   const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [openMenuChatId, setOpenMenuChatId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [menuCoords, setMenuCoords] = useState(null); // { x, y }
+  const buttonRefs = React.useRef({});
 
   const loadInbox = async (isRefresh = false) => {
     if (!token) {
@@ -72,12 +182,13 @@ export default function ChatListScreen() {
         return;
       }
       
-      // Sort conversations by most recent message (descending order)
+      // Sort pinned first, then by most recent message (descending)
       const sortedConversations = response.inbox.sort((a, b) => {
         try {
+          if (a?.pinned !== b?.pinned) return a?.pinned ? -1 : 1;
           const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
           const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
-          return bTime - aTime; // Most recent first
+          return bTime - aTime;
         } catch (err) {
           console.error('Error sorting conversations:', err);
           return 0;
@@ -227,6 +338,15 @@ export default function ChatListScreen() {
       }));
     };
 
+    const handleListTyping = ({ chatId, by, isTyping }) => {
+      setTypingIndicators(prev => {
+        const existing = prev[chatId] || [];
+        const others = existing.filter(u => u !== by);
+        const next = isTyping ? [...others, by] : others;
+        return { ...prev, [chatId]: next.filter(u => u !== user.id) };
+      });
+    };
+
     // Handle read receipts to clear unread counts
     const handleRead = ({ chatId, messageId, by }) => {
       //console.log('👁️ Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
@@ -274,6 +394,23 @@ export default function ChatListScreen() {
       handleMessageStatusUpdate({ messageId, chatId, status: 'read' });
     };
 
+    // Remove conversation when unfriended
+    const handleUnfriended = (data) => {
+      try {
+        if (!data || !data.unfriendedBy) return;
+        setConversations(prev => {
+          if (!Array.isArray(prev)) return prev;
+          const filtered = prev.filter(conv => conv?.otherId !== data.unfriendedBy);
+          return filtered;
+        });
+      } catch (e) {
+        console.error('[ChatList] Error handling unfriended event:', e);
+      }
+    };
+
+    // Stable list change refresher for on/off
+    const handleListChanged = () => loadInbox(true);
+
     try {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
@@ -284,13 +421,16 @@ export default function ChatListScreen() {
       if (socket && typeof socket.on === 'function') {
         socket.on('chat:message', handleNewMessage);
         socket.on('chat:typing', handleTyping);
+        socket.on('chat:list:typing', handleListTyping);
         socket.on('chat:read', handleRead);
         socket.on('chat:message:delivery_receipt', handleDeliveryReceipt);
         socket.on('chat:message:read_receipt', handleReadReceipt);
         socket.on('chat:unread_count', handleUnreadCountUpdate);
-        
-        //console.log('🔌 Socket listeners registered for chat list');
+        socket.on('friend:unfriended', handleUnfriended);
+        socket.on('chat:list:changed', handleListChanged);
       }
+
+      //console.log('🔌 Socket listeners registered for chat list');
     } catch (error) {
       console.error('[ChatList] Error registering socket listeners:', error);
     }
@@ -306,10 +446,13 @@ export default function ChatListScreen() {
         if (socket && typeof socket.off === 'function') {
           socket.off('chat:message', handleNewMessage);
           socket.off('chat:typing', handleTyping);
+          socket.off('chat:list:typing', handleListTyping);
           socket.off('chat:read', handleRead);
           socket.off('chat:message:delivery_receipt', handleDeliveryReceipt);
           socket.off('chat:message:read_receipt', handleReadReceipt);
           socket.off('chat:unread_count', handleUnreadCountUpdate);
+          socket.off('friend:unfriended', handleUnfriended);
+          socket.off('chat:list:changed', handleListChanged);
         }
       } catch (error) {
         console.error('[ChatList] Error cleaning up socket listeners:', error);
@@ -356,6 +499,7 @@ export default function ChatListScreen() {
       return conversations.filter(item => {
         try {
           if (!item) return false;
+          if (!item.otherId || !(item.otherName || '').trim()) return false;
           
           const query = (searchQuery || '').toLowerCase();
           const otherName = (item.otherName || '').toLowerCase();
@@ -373,8 +517,18 @@ export default function ChatListScreen() {
     }
   }, [conversations, searchQuery]);
 
+  // Apply archived toggle filter on top of text filtering
+  const visibleConversations = React.useMemo(() => {
+    try {
+      return filteredConversations.filter(item => showArchived ? !!item.archived : !item.archived);
+    } catch (e) {
+      console.error('[ChatList] Error computing visibleConversations:', e);
+      return filteredConversations;
+    }
+  }, [filteredConversations, showArchived]);
 
-  const handleChatPress = (chatId, name, profilePhoto) => {
+
+  const handleChatPress = (chatId, name, profilePhoto, otherUserId) => {
     try {
       if (!chatId) {
         console.error('[ChatList] Invalid chatId:', chatId);
@@ -393,7 +547,8 @@ export default function ChatListScreen() {
         params: { 
           id: chatId, 
           name: name || 'Chat',
-          avatar: profilePhoto || ''
+          avatar: profilePhoto || '',
+          otherUserId: otherUserId || ''
         }
       });
     } catch (error) {
@@ -402,14 +557,14 @@ export default function ChatListScreen() {
     }
   };
 
-  const handleChatCreated = (chatId, name, profilePhoto) => {
+  const handleChatCreated = (chatId, name, profilePhoto, otherUserId) => {
     //console.log('Chat created, navigating to:', { chatId, name, profilePhoto });
     
     // Refresh inbox to show the new chat
     loadInbox(true);
     
     // Navigate to the new chat
-    handleChatPress(chatId, name, profilePhoto);
+    handleChatPress(chatId, name, profilePhoto, otherUserId);
   };
 
   return (
@@ -430,17 +585,19 @@ export default function ChatListScreen() {
 
       {/* Lock messaging for unverified users */}
       <VerificationGuard feature="messaging">
-      <View style={[styles.contentContainer, { paddingHorizontal: responsive.horizontalPadding }]}>
+      <View style={[styles.contentContainer, { paddingHorizontal: Math.max(12, responsive.horizontalPadding / 2) }]}>
         <View style={styles.header}>
           <View style={styles.headerIconContainer}>
             <Ionicons name="chatbubbles" size={28} color="#7C2B86" />
           </View>
           <View style={styles.headerTextContainer}>
-            <Text style={[styles.messagesTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>
-              Messages
-            </Text>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setShowArchived(prev => !prev)}>
+              <Text style={[styles.messagesTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>Messages</Text>
+            </TouchableOpacity>
             <Text style={styles.headerSubtitle}>
-              {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+              {showArchived
+                ? `${conversations.filter(c => c.archived).length} archived`
+                : `${conversations.filter(c => !c.archived).length} conversation${conversations.filter(c => !c.archived).length !== 1 ? 's' : ''}`}
             </Text>
           </View>
           <TouchableOpacity 
@@ -473,7 +630,7 @@ export default function ChatListScreen() {
           </View>
         ) : (
           <FlatList
-            data={filteredConversations}
+            data={visibleConversations}
             keyExtractor={(item) => {
               try {
                 return item?.chat?.id || `fallback-${Math.random()}`;
@@ -483,6 +640,8 @@ export default function ChatListScreen() {
               }
             }}
             contentContainerStyle={styles.listContent}
+            removeClippedSubviews={false}
+            style={{ overflow: 'visible' }}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             refreshControl={
               <RefreshControl
@@ -510,63 +669,40 @@ export default function ChatListScreen() {
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
               
-              return (
+              const row = (
                 <TouchableOpacity
-                  style={[styles.chatCard, { 
-                    paddingHorizontal: responsive.spacing.lg,
-                    paddingVertical: responsive.spacing.md,
-                    gap: responsive.spacing.md 
-                  }]}
-                  onPress={() => handleChatPress(chatId, item.otherName, item.otherProfilePhoto)}
+                  style={[
+                    styles.chatRow,
+                    { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
+                    openMenuChatId === chatId && styles.chatRowElevated,
+                  ]}
+                  onPress={() => handleChatPress(chatId, item.otherName, item.otherProfilePhoto, item.otherId)}
                 >
-                  <View style={styles.avatar}>
+                  <View style={styles.avatarContainer}>
                     {item.otherProfilePhoto && item.otherProfilePhoto.trim() ? (
                       <Image 
                         source={{ uri: item.otherProfilePhoto }} 
-                        style={[styles.avatarImage, { 
-                          width: responsive.avatarSize, 
-                          height: responsive.avatarSize,
-                          borderRadius: responsive.avatarSize / 2 
-                        }]}
+                        style={[styles.avatarImage, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}
                       />
                     ) : (
-                      <View style={[styles.fallbackAvatar, { 
-                        width: responsive.avatarSize, 
-                        height: responsive.avatarSize,
-                        borderRadius: responsive.avatarSize / 2 
-                      }]}>
-                        <Text style={[styles.fallbackAvatarText, { 
-                          fontSize: responsive.isSmallScreen ? 18 : 20 
-                        }]}>
+                      <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}> 
+                        <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20 }]}> 
                           {(item.otherName && item.otherName.charAt(0).toUpperCase()) || '?'}
                         </Text>
                       </View>
                     )}
                     {isTyping && (
-                      <View style={styles.typingIndicator}>
-                        <View style={styles.typingDot} />
-                      </View>
+                      <View style={styles.typingIndicator}><View style={styles.typingDot} /></View>
                     )}
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
-                      <Text style={[styles.chatName, { fontSize: responsive.fontSize.large }]}>
-                        {item.otherName || 'Unknown'}
-                      </Text>
-                      <Text style={[styles.chatTime, { fontSize: responsive.fontSize.small }]}>
-                        {formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}
-                      </Text>
+                      <Text style={[styles.chatName, { fontSize: responsive.fontSize.large }]}>{item.otherName || 'Unknown'} {item.pinned ? '📌' : ''}</Text>
+                      <Text style={[styles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
                     <View style={styles.messageRow}>
-                      <Text style={[
-                        styles.chatMessage,
-                        { fontSize: responsive.fontSize.medium },
-                        isTyping && styles.typingText
-                      ]} numberOfLines={1}>
-                        {isTyping 
-                          ? 'typing...' 
-                          : (item.lastMessage && item.lastMessage.text) || 'No messages yet'
-                        }
+                      <Text style={[styles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
+                        {isTyping ? 'typing...' : (item.lastMessage && item.lastMessage.text) || 'No messages yet'}
                       </Text>
                       {item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
                         <Ionicons
@@ -592,12 +728,72 @@ export default function ChatListScreen() {
                       )}
                     </View>
                   </View>
-                  {currentUnreadCount > 0 && (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadText}>{currentUnreadCount}</Text>
+                  {Platform.OS === 'web' && (
+                    <View style={styles.rowMenuContainer}>
+                      <TouchableOpacity
+                        ref={(r) => { buttonRefs.current[chatId] = r; }}
+                        style={styles.rowMenuButton}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            if (openMenuChatId === chatId) {
+                              setOpenMenuChatId(null);
+                              setMenuCoords(null);
+                            } else {
+                              openWebMenu(chatId);
+                            }
+                          } else {
+                            setOpenMenuChatId(prev => prev === chatId ? null : chatId)
+                          }
+                        }}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      {openMenuChatId === chatId && Platform.OS !== 'web' && (
+                        <View style={styles.rowMenu}>
+                          <TouchableOpacity style={styles.rowMenuItem} onPress={() => { setOpenMenuChatId(null); handleDeleteChat(chatId); }}>
+                            <Ionicons name="trash" size={14} color="#FF4D4F" />
+                            <Text style={styles.rowMenuItemText}>Delete</Text>
+                          </TouchableOpacity>
+                          {item.archived ? (
+                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnarchiveChat(chatId)}>
+                              <Ionicons name="archive" size={14} color="#FFFFFF" />
+                              <Text style={styles.rowMenuItemText}>Unarchive</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleArchiveChat(chatId)}>
+                              <Ionicons name="archive" size={14} color="#FFFFFF" />
+                              <Text style={styles.rowMenuItemText}>Archive</Text>
+                            </TouchableOpacity>
+                          )}
+                          {item.pinned ? (
+                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnpinChat(chatId)}>
+                              <Ionicons name="pin" size={14} color="#FFFFFF" />
+                              <Text style={styles.rowMenuItemText}>Unpin</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handlePinChat(chatId)}>
+                              <Ionicons name="pin" size={14} color="#FFFFFF" />
+                              <Text style={styles.rowMenuItemText}>Pin</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
                     </View>
                   )}
+                  {currentUnreadCount > 0 && (
+                    <View style={styles.unreadBadge}><Text style={styles.unreadText}>{currentUnreadCount}</Text></View>
+                  )}
                 </TouchableOpacity>
+              );
+              if (Platform.OS === 'web') return row;
+              return (
+                <Swipeable renderRightActions={() => (
+                  <TouchableOpacity style={styles.rightAction} onPress={() => handleDeleteChat(chatId)}>
+                    <Ionicons name="trash" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}>
+                  {row}
+                </Swipeable>
               );
               } catch (error) {
                 console.error('[ChatList] Error rendering chat item:', error, item);
@@ -618,6 +814,41 @@ export default function ChatListScreen() {
       {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
       {BannerAd && shouldShowAds() && (
         <BannerAd placement="chat_list_bottom" />
+      )}
+      {/* Web-only menu portal to avoid underlapping */}
+      {Platform.OS === 'web' && openMenuChatId && (
+        <View style={styles.menuPortal} pointerEvents="auto">
+          {/* Click-away overlay */}
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { setOpenMenuChatId(null); setMenuCoords(null); }} />
+          <View style={[styles.rowMenu, { position: 'absolute', left: (menuCoords?.x ?? 0), top: (menuCoords?.y ?? 0) }]}>
+            <TouchableOpacity style={styles.rowMenuItem} onPress={() => { setOpenMenuChatId(null); setMenuCoords(null); handleDeleteChat(openMenuChatId); }}>
+              <Ionicons name="trash" size={14} color="#FF4D4F" />
+              <Text style={styles.rowMenuItemText}>Delete</Text>
+            </TouchableOpacity>
+            {visibleConversations.find(c => c.chat.id === openMenuChatId)?.archived ? (
+              <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleUnarchiveChat(openMenuChatId); }}>
+                <Ionicons name="archive" size={14} color="#FFFFFF" />
+                <Text style={styles.rowMenuItemText}>Unarchive</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleArchiveChat(openMenuChatId); }}>
+                <Ionicons name="archive" size={14} color="#FFFFFF" />
+                <Text style={styles.rowMenuItemText}>Archive</Text>
+              </TouchableOpacity>
+            )}
+            {visibleConversations.find(c => c.chat.id === openMenuChatId)?.pinned ? (
+              <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleUnpinChat(openMenuChatId); }}>
+                <Ionicons name="pin" size={14} color="#FFFFFF" />
+                <Text style={styles.rowMenuItemText}>Unpin</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handlePinChat(openMenuChatId); }}>
+                <Ionicons name="pin" size={14} color="#FFFFFF" />
+                <Text style={styles.rowMenuItemText}>Pin</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       )}
       </VerificationGuard>
     </View>
@@ -737,32 +968,42 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 24,
+    overflow: 'visible',
   },
   separator: {
-    height: 16,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginLeft: 72,
   },
-  chatCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-  },
-  avatar: {
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    overflow: 'visible',
     position: 'relative',
   },
+  chatRowElevated: {
+    zIndex: 10000,
+    elevation: 12,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
   avatarImage: {
-    // Responsive sizes applied inline
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)'
   },
   fallbackAvatar: {
-    backgroundColor: "rgba(255, 214, 242, 0.35)",
+    backgroundColor: "rgba(255, 214, 242, 0.25)",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)'
   },
   fallbackAvatarText: {
     fontWeight: '700',
-    color: '#7C2B86',
+    color: '#FFFFFF',
   },
   typingIndicator: {
     position: 'absolute',
@@ -790,14 +1031,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   chatName: {
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.1,
   },
   chatTime: {
-    color: "rgba(255, 255, 255, 0.5)",
+    color: "rgba(255, 255, 255, 0.45)",
   },
   messageRow: {
     flexDirection: 'row',
@@ -805,7 +1047,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chatMessage: {
-    color: "rgba(255, 255, 255, 0.7)",
+    color: "rgba(255, 255, 255, 0.65)",
     flex: 1,
   },
   messageStatus: {
@@ -817,18 +1059,71 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   unreadBadge: {
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#7C2B86",
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   unreadText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  rowMenuContainer: {
+    marginLeft: 8,
+    position: 'relative',
+    overflow: 'visible',
+    zIndex: 2,
+  },
+  rowMenuButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)'
+  },
+  rowMenu: {
+    position: 'absolute',
+    top: 32,
+    right: 8, // add tiny gap from screen edge on native
+    backgroundColor: '#1F1147',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10,
+    paddingVertical: 6,
+    minWidth: 140,
+    zIndex: 9999,
+    elevation: 8,
+    boxShadow: Platform.OS === 'web' ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
+  },
+  menuPortal: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100000,
+    elevation: 20,
+    pointerEvents: 'box-none',
+  },
+  rowMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rowMenuItemText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  rightAction: {
+    backgroundColor: '#FF4D4F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 72,
+    marginVertical: 6,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   loadingContainer: {
     flex: 1,

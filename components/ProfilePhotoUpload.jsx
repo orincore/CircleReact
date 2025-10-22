@@ -176,7 +176,7 @@ export default function ProfilePhotoUpload({ currentPhotoUrl, onUploadSuccess })
         disabled={uploading}
       >
         {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={styles.photo} />
+          <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
         ) : (
           <View style={styles.placeholderContainer}>
             <Ionicons name="person" size={60} color="#7C2B86" />

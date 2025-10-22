@@ -54,10 +54,11 @@ export const compressImage = async (uri) => {
       });
     }
     
-    // For mobile, use ImageManipulator
+    // For mobile, use ImageManipulator preserving aspect ratio
+    // Only set the max dimension, not both, to avoid distortion
     const manipResult = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: IMAGE_MAX_WIDTH, height: IMAGE_MAX_HEIGHT } }],
+      [{ resize: { width: IMAGE_MAX_WIDTH } }],
       { compress: IMAGE_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
     );
     
@@ -92,12 +93,23 @@ export const pickImage = async () => {
           if (file) {
             const reader = new FileReader();
             reader.onload = (event) => {
-              resolve({
-                uri: event.target.result,
-                type: 'image',
-                fileName: file.name,
-                fileSize: file.size,
-              });
+              // Crop to 1:1 center square on web to prevent stretching
+              try {
+                const cropped = cropSquareWeb(event.target.result);
+                resolve({
+                  uri: cropped,
+                  type: 'image',
+                  fileName: file.name,
+                  fileSize: file.size,
+                });
+              } catch {
+                resolve({
+                  uri: event.target.result,
+                  type: 'image',
+                  fileName: file.name,
+                  fileSize: file.size,
+                });
+              }
             };
             reader.onerror = reject;
             reader.readAsDataURL(file);
@@ -120,7 +132,7 @@ export const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [4, 3],
+      aspect: [1, 1],
       quality: 1,
     });
 
@@ -240,7 +252,7 @@ export const takePhoto = async () => {
 
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
-      aspect: [4, 3],
+      aspect: [1, 1],
       quality: 1,
     });
 

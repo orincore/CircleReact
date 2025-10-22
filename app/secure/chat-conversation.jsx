@@ -133,6 +133,13 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
       floatAnimation.stop();
       pulseAnimation.stop();
     };
+
+  // Keep otherUserId in sync with route param if it changes
+  useEffect(() => {
+    if (paramOtherUserId && typeof paramOtherUserId === 'string') {
+      setOtherUserId(paramOtherUserId);
+    }
+  }, [paramOtherUserId]);
   }, []);
 
   const floatTranslateY = floatAnim.interpolate({
@@ -958,6 +965,72 @@ export default function InstagramChatScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const [retryTimer, setRetryTimer] = useState(null);
   
+  // Fetch chat members to get the other user ID
+  const fetchChatMembers = async () => {
+    if (!conversationId || !token || !myUserId) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat/${conversationId}/members`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Find the other user (not me)
+        const otherMember = data.members?.find(member => member.user_id !== myUserId);
+        if (otherMember) {
+          setOtherUserId(otherMember.user_id);
+        }
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching chat members:', error);
+    }
+  };
+
+  // Fetch chat members directly when friend matching fails
+  const fetchChatMembersDirectly = async () => {
+    if (!conversationId || !token || !myUserId) {
+      console.log('❌ Missing required data for fetchChatMembersDirectly');
+      return;
+    }
+    
+    console.log('🔍 Fetching chat members for conversationId:', conversationId);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat/${conversationId}/members`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📋 Chat members response:', data);
+        
+        // Find the other user (not me)
+        const otherMember = data.members?.find(member => member.user_id !== myUserId);
+        if (otherMember) {
+          console.log('✅ Found other user:', otherMember.user_id);
+          setOtherUserId(otherMember.user_id);
+        } else {
+          console.log('❌ No other user found in chat members');
+        }
+      } else {
+        console.log('❌ Failed to fetch chat members:', response.status);
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching chat members directly:', error);
+    }
+  };
+
   // Fetch user profile function (defined outside useEffect so it can be reused)
   const fetchUserProfile = async (userId) => {
     try {
@@ -1040,10 +1113,17 @@ export default function InstagramChatScreen() {
                 setOtherUserId(friendUserId);
               } else {
                 // If there are multiple friends, try to find the one that matches the conversation
-                const matchingFriend = data.friends.find(friend => friend.conversation_id === conversationId);
+                // Backend returns chat_id, but conversationId might be the same
+                const matchingFriend = data.friends.find(friend => 
+                  friend.chat_id === conversationId || friend.conversation_id === conversationId
+                );
                 if (matchingFriend) {
                   const friendUserId = matchingFriend.user_id || matchingFriend.id;
                   setOtherUserId(friendUserId);
+                } else {
+                  // If no match found by chat_id, try to get chat members from the backend
+                  console.log('🔍 No friend match found, fetching chat members directly...');
+                  await fetchChatMembersDirectly();
                 }
               }
             }
@@ -1639,19 +1719,6 @@ export default function InstagramChatScreen() {
     }
   };
 
-  // Fetch chat members to find the other user ID
-  const fetchChatMembers = async (chatId) => {
-    if (paramOtherUserId && paramOtherUserId !== myUserId) {
-      setOtherUserId(paramOtherUserId);
-      checkBlockStatus(paramOtherUserId);
-      checkFriendshipStatus(paramOtherUserId);
-      return;
-    }
-    
-    // For now, since there's no specific chat members endpoint, 
-    // we'll rely on the message-based detection or show UI with unknown status
-  };
-
   // Check for pending friend requests
   const checkPendingRequests = async (otherUserId) => {
     if (!token || !otherUserId) return;
@@ -2115,6 +2182,22 @@ export default function InstagramChatScreen() {
 
   // Handle avatar click to show user profile
   const handleAvatarClick = () => {
+    console.log('🔍 Avatar clicked - Debug info:');
+    console.log('otherUserId:', otherUserId);
+    console.log('conversationId:', conversationId);
+    console.log('conversationName:', conversationName);
+    console.log('myUserId:', myUserId);
+
+    // If otherUserId is not known yet, try to derive from messages
+    if (!otherUserId) {
+      const candidate = [...messages].find(m => m.senderId && m.senderId !== myUserId);
+      if (candidate && candidate.senderId) {
+        setOtherUserId(candidate.senderId);
+      } else if (paramOtherUserId && typeof paramOtherUserId === 'string') {
+        setOtherUserId(paramOtherUserId);
+      }
+    }
+
     setShowUserProfile(true);
   };
 
@@ -2515,15 +2598,6 @@ export default function InstagramChatScreen() {
           />
         )}
         
-        {showUserProfile && (
-          <UserProfileModal
-            visible={showUserProfile}
-            onClose={() => setShowUserProfile(false)}
-            userId={otherUserId}
-            userName={conversationName}
-            userAvatar={userAvatar}
-          />
-        )}
         
         {showVoiceCall && voiceCallData && (
           <VoiceCallModal
@@ -3177,9 +3251,13 @@ export default function InstagramChatScreen() {
       />
 
       <UserProfileModal
-        visible={showUserProfile}
-        onClose={() => setShowUserProfile(false)}
-        userId={otherUserId || conversationId}
+        key={otherUserId || paramOtherUserId || 'unknown'}
+        visible={showUserProfile && !!(otherUserId || paramOtherUserId)}
+        onClose={() => {
+          console.log('🔒 Closing user profile modal');
+          setShowUserProfile(false);
+        }}
+        userId={otherUserId || paramOtherUserId}
         userName={conversationName}
         userAvatar={userAvatar}
       />

@@ -40,10 +40,44 @@ export interface ChatInboxItem {
   otherId?: string;
   otherName?: string;
   otherProfilePhoto: string;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export const chatApi = {
-  getInbox: (token?: string | null) => http.get<{ inbox: ChatInboxItem[] }>(`/chat/inbox`, token),
+  // Backed by new /api/chat-list but mapped to old shape { inbox: ChatInboxItem[] }
+  getInbox: async (token?: string | null): Promise<{ inbox: ChatInboxItem[] }> => {
+    // Use new chat list endpoint and map to legacy shape for UI compatibility
+    const params = new URLSearchParams()
+    // Include archived so user can unarchive from list; counts not required
+    params.set('includeCounts', 'false')
+    params.set('includeArchived', 'true')
+    const resp = await http.get<{ chats: any[] }>(`/api/chat-list?${params.toString()}`, token)
+    const inbox: ChatInboxItem[] = (resp.chats || []).map((it: any) => ({
+      chat: {
+        id: it.chatId,
+        created_at: new Date(it.lastMessage?.createdAt || Date.now()).toISOString(),
+        last_message_at: it.lastMessageAt || null,
+      },
+      lastMessage: it.lastMessage
+        ? {
+            id: it.lastMessage.id,
+            chat_id: it.chatId,
+            sender_id: it.lastMessage.senderId,
+            text: it.lastMessage.text,
+            created_at: new Date(it.lastMessage.createdAt).toISOString(),
+            status: it.lastMessage.status,
+          }
+        : null,
+      unreadCount: typeof it.unreadCount === 'number' ? it.unreadCount : 0,
+      otherId: it.otherUser?.id,
+      otherName: it.otherUser?.name,
+      otherProfilePhoto: it.otherUser?.profilePhoto || '',
+      pinned: !!it.pinned,
+      archived: !!it.archived,
+    }))
+    return { inbox }
+  },
   createChatWithUser: (userId: string, token?: string | null) =>
     http.post<{ chat: { id: string; created_at: string; last_message_at: string | null }; otherUser: { id: string; name: string; profilePhoto: string } }>(`/chat/with-user/${encodeURIComponent(userId)}`, {}, token),
   getMessages: (chatId: string, token?: string | null) =>
@@ -85,4 +119,20 @@ export const chatApi = {
     }));
     return { messages: mapped };
   },
+  deleteChat: (chatId: string, token?: string | null) =>
+    http.delete<{ success: boolean }>(`/chat/${encodeURIComponent(chatId)}`, token),
+  // New chat-list APIs
+  getChatList: (
+    opts: { includeCounts?: boolean; includeArchived?: boolean } = {},
+    token?: string | null
+  ) => {
+    const params = new URLSearchParams()
+    if (opts.includeCounts) params.set('includeCounts', 'true')
+    if (opts.includeArchived) params.set('includeArchived', 'true')
+    return http.get<{ chats: any[] }>(`/api/chat-list?${params.toString()}`, token)
+  },
+  setArchived: (chatId: string, archived: boolean, token?: string | null) =>
+    http.post<{ setting: any }, { archived: boolean }>(`/api/chat-list/${encodeURIComponent(chatId)}/archive`, { archived }, token),
+  setPinned: (chatId: string, pinned: boolean, token?: string | null) =>
+    http.post<{ setting: any }, { pinned: boolean }>(`/api/chat-list/${encodeURIComponent(chatId)}/pin`, { pinned }, token),
 };

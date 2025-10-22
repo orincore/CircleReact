@@ -59,6 +59,7 @@ export default function UserProfileModal({
   const { token, user } = useAuth();
   const subscriptionData = useSubscription();
   const { features = {} } = subscriptionData || {};
+  const [viewport, setViewport] = useState({ width: Dimensions.get('window').width, height: Dimensions.get('window').height });
   
 
   // Function to mask Instagram username for other users
@@ -176,6 +177,35 @@ export default function UserProfileModal({
     }
   }, [visible, userId, token, userName, user?.id]);
 
+  // Reset data when userId changes to avoid showing stale data
+  useEffect(() => {
+    setProfileData(null);
+    setLoading(true);
+    setUserPhotos([]);
+    setLoadingPhotos(false);
+    setSelectedPhotoIndex(0);
+    setSpotifyData(null);
+    setSpotifyExpanded(false);
+    setFriendStatus('none');
+    setFriendRequestId(null);
+    setCanMessage(false);
+    setMessagePermission(null);
+    setBlockStatus({ isBlocked: false, isBlockedBy: false });
+    setShowBlockConfirm(false);
+    setShowUnfriendConfirm(false);
+    setShowReportModal(false);
+  }, [userId]);
+
+  // Handle responsive sizing (especially for web)
+  useEffect(() => {
+    const handler = ({ window }) => setViewport({ width: window.width, height: window.height });
+    const sub = Dimensions.addEventListener('change', handler);
+    return () => {
+      if (sub?.remove) sub.remove();
+      else Dimensions.removeEventListener && Dimensions.removeEventListener('change', handler);
+    };
+  }, []);
+
   const loadUserProfile = async () => {
     setLoading(true);
     
@@ -224,15 +254,53 @@ export default function UserProfileModal({
       // Fetch actual user profile data from the backend
       let actualUserData = null;
       try {
-        const { exploreApi } = await import('@/src/api/explore');
-        
-        // Try the direct user profile endpoint first
+        // Try the friends API endpoint first (works for all users, no verification required)
         try {
-          const result = await exploreApi.getUserProfile(userId, token);
-          if (result && result.user) {
-            actualUserData = result.user;
-            console.log('✅ Fetched user profile successfully');
-          } else if (result === null) {
+          const { API_BASE_URL } = await import('@/src/api/config');
+          console.log('👤 API URL:', `${API_BASE_URL}/api/friends/user/${userId}/profile`);
+          
+          const response = await fetch(`${API_BASE_URL}/api/friends/user/${userId}/profile`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          console.log('🌐 API Response status:', response.status);
+          console.log('🌐 API Response ok:', response.ok);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('🌐 API Response data:', data);
+            // Friends API now returns complete profile data
+            actualUserData = {
+              id: data.id,
+              firstName: data.firstName || null,
+              lastName: data.lastName || null,
+              name: data.name || 'Unknown User',
+              username: data.username || null,
+              email: data.email || null,
+              profilePhoto: data.profilePhotoUrl || null,
+              profilePhotoUrl: data.profilePhotoUrl || null,
+              instagramUsername: data.instagramUsername || null,
+              age: data.age || null,
+              gender: data.gender || null,
+              about: data.about || null,
+              interests: Array.isArray(data.interests) ? data.interests : [],
+              needs: Array.isArray(data.needs) ? data.needs : [],
+              location: data.location || null,
+              phone: data.phone || null,
+              joinedDate: data.joinedDate || null,
+              verification_status: data.verification_status || 'unverified',
+              email_verified: data.email_verified === true,
+              stats: data.stats || { friends: 0, chats: 0, messages: 0 }
+            };
+            console.log('✅ Fetched complete user profile from friends API');
+            console.log('📊 Raw API response:', data);
+            console.log('📊 User stats:', data.stats);
+            console.log('📊 actualUserData created:', actualUserData);
+          } else if (response.status === 404) {
             // User not found (404) - handle gracefully
             console.warn('⚠️ User profile not found - user may have been deleted');
             setLoading(false);
@@ -250,40 +318,64 @@ export default function UserProfileModal({
               lastSeen: 'Unavailable'
             });
             return;
+          } else {
+            // API call failed
+            const errorText = await response.text();
+            console.error('❌ API call failed:', response.status, errorText);
           }
         } catch (profileError) {
-          //console.log('Profile endpoint failed, trying search fallback:', profileError);
+          console.error('❌ Friends API failed:', profileError);
+          
+          // Fallback: try explore API (has verification requirements)
+          try {
+            const { exploreApi } = await import('@/src/api/explore');
+            const result = await exploreApi.getUserProfile(userId, token);
+            if (result && result.user) {
+              actualUserData = result.user;
+              console.log('✅ Fetched user profile from explore API');
+            }
+          } catch (exploreError) {
+            console.log('Explore API also failed:', exploreError);
+          }
           
           // Fallback: try to find user via search by ID
-          try {
-            const searchResult = await exploreApi.searchUsers(userId, 1, token);
-            if (searchResult.users && searchResult.users.length > 0) {
-              const foundUser = searchResult.users.find(u => u.id === userId);
-              if (foundUser) {
-                actualUserData = foundUser;
-                //console.log('Fetched actual user data via search fallback:', actualUserData);
+          if (!actualUserData) {
+            try {
+              const { exploreApi } = await import('@/src/api/explore');
+              const searchResult = await exploreApi.searchUsers(userId, 1, token);
+              if (searchResult.users && searchResult.users.length > 0) {
+                const foundUser = searchResult.users.find(u => u.id === userId);
+                if (foundUser) {
+                  actualUserData = foundUser;
+                  //console.log('Fetched actual user data via search fallback:', actualUserData);
+                }
               }
+            } catch (searchError) {
+              //console.log('Search fallback also failed:', searchError);
             }
-          } catch (searchError) {
-            //console.log('Search fallback also failed:', searchError);
             
             // Final fallback: try to find user in explore sections
-            try {
-              const sectionsResult = await exploreApi.getAllSections(token);
-              const allUsers = [
-                ...(sectionsResult.topUsers || []),
-                ...(sectionsResult.newUsers || []),
-                ...(sectionsResult.compatibleUsers || [])
-              ];
-              const foundUser = allUsers.find(u => u.id === userId);
-              if (foundUser) {
-                actualUserData = foundUser;
-                //console.log('Fetched actual user data via sections fallback:', actualUserData);
+            if (!actualUserData) {
+              try {
+                const { exploreApi } = await import('@/src/api/explore');
+                const sectionsResult = await exploreApi.getAllSections(token);
+                const allUsers = [
+                  ...(sectionsResult.topUsers || []),
+                  ...(sectionsResult.newUsers || []),
+                  ...(sectionsResult.compatibleUsers || [])
+                ];
+                const foundUser = allUsers.find(u => u.id === userId);
+                if (foundUser) {
+                  actualUserData = foundUser;
+                  //console.log('Fetched actual user data via sections fallback:', actualUserData);
+                }
+              } catch (sectionsError) {
+                //console.log('Sections fallback also failed:', sectionsError);
               }
-            } catch (sectionsError) {
-              //console.log('Sections fallback also failed:', sectionsError);
-              
-              // Last resort: try to get user from friends list
+            }
+            
+            // Last resort: try to get user from friends list
+            if (!actualUserData) {
               try {
                 const { friendsApi } = await import('@/src/api/friends');
                 const friendsResult = await friendsApi.getFriendsList(token);
@@ -320,24 +412,30 @@ export default function UserProfileModal({
         id: userId,
         name: actualUserData?.name || userName || 'User',
         username: actualUserData?.username ? `@${actualUserData.username}` : (userName ? `@${userName}` : '@user'),
-        avatar: actualUserData?.profilePhoto || userAvatar,
+        avatar: actualUserData?.profilePhotoUrl || actualUserData?.profilePhoto || userAvatar,
         bio: actualUserData?.about || 'No bio available',
         instagramUsername: actualUserData?.instagramUsername || null,
         verification_status: actualUserData?.verification_status || 'unverified',
-        location: 'Location not specified',
+        email_verified: actualUserData?.email_verified === true,
+        age: actualUserData?.age || null,
+        gender: actualUserData?.gender || null,
+        location: actualUserData?.location || 'Location not specified',
+        phone: actualUserData?.phone || null,
+        email: actualUserData?.email || null,
         joinedDate: actualUserData?.joinedDate ? `Joined ${new Date(actualUserData.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
         stats: {
           chats: actualUserData?.stats?.chats || 0,
           friends: actualUserData?.stats?.friends || 0,
-          messages: (actualUserData?.stats?.messagesSent || 0) + (actualUserData?.stats?.messagesReceived || 0)
+          messages: actualUserData?.stats?.messages || 0
         },
-        interests: actualUserData?.interests || ['Photography', 'Travel', 'Coffee', 'Art', 'Music'],
+        interests: Array.isArray(actualUserData?.interests) && actualUserData.interests.length > 0 ? actualUserData.interests : [],
+        needs: Array.isArray(actualUserData?.needs) && actualUserData.needs.length > 0 ? actualUserData.needs : [],
         isOnline: actualUserData?.isOnline || Math.random() > 0.5,
         lastSeen: actualUserData?.isOnline ? 'Active now' : 'Last seen recently'
       };
       
-      //console.log('Profile data created:', profileData);
-      //console.log('Actual user data from API:', actualUserData);
+      console.log('📋 Profile data created:', profileData);
+      console.log('📋 Actual user data from API:', actualUserData);
       setProfileData(profileData);
       
       // Load Spotify data
@@ -471,7 +569,8 @@ export default function UserProfileModal({
       //console.log('📸 Loading photos for user:', userId);
       
       // Fetch photos from API
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com'}/api/users/${userId}/photos`, {
+      const { API_BASE_URL } = await import('@/src/api/config');
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/photos`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -821,40 +920,25 @@ export default function UserProfileModal({
     console.log('🔄 Attempting to unfriend user:', userId);
     
     try {
-      // Use API call instead of socket for more reliability
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/friends/unfriend/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        console.log('✅ Successfully unfriended user');
-        setFriendStatus('none');
-        setCanMessage(false);
-        setMessagePermission(null);
-        setShowUnfriendConfirm(false);
-        Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
-        
-        // Also emit socket event for real-time updates
-        try {
-          const socket = getSocket(token);
-          socket.emit('friend:unfriend', { friendId: userId });
-        } catch (socketError) {
-          console.warn('Socket emit failed, but API call succeeded:', socketError);
-        }
-      } else {
-        console.error('❌ Unfriend failed:', result);
-        Alert.alert('Error', result.error || 'Failed to remove friend. Please try again.');
+      // Use centralized API client which points to the correct endpoint
+      await friendsApi.removeFriend(userId, token);
+      console.log('✅ Successfully unfriended user');
+      setFriendStatus('none');
+      setCanMessage(false);
+      setMessagePermission(null);
+      setShowUnfriendConfirm(false);
+      Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
+
+      // Emit socket event for real-time updates (align payload with service convention)
+      try {
+        const socket = getSocket(token);
+        socket.emit('friend:unfriend', { userId });
+      } catch (socketError) {
+        console.warn('Socket emit failed, but API call succeeded:', socketError);
       }
-      
     } catch (error) {
-      console.error('❌ Failed to remove friend:', error);
-      Alert.alert('Error', 'Failed to remove friend. Please check your connection and try again.');
+      console.error('❌ Unfriend failed:', error);
+      Alert.alert('Error', error.message || 'Failed to remove friend. Please try again.');
     }
   };
 
@@ -886,6 +970,7 @@ export default function UserProfileModal({
   return (
     <>
     <Modal
+      key={userId}
       visible={visible}
       animationType={Platform.OS === 'ios' ? 'slide' : 'fade'}
       transparent={true}
@@ -896,7 +981,13 @@ export default function UserProfileModal({
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         
-        <View style={styles.container}>
+        <View style={[
+          styles.container,
+          Platform.OS === 'web' && {
+            width: Math.min(Math.max(360, viewport.width - 48), 520),
+            height: Math.min(Math.max(560, viewport.height - 120), 780),
+          }
+        ]}>
           <LinearGradient
             colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)']}
             style={styles.modal}
@@ -927,10 +1018,17 @@ export default function UserProfileModal({
                 <View style={styles.profileHeader}>
                   <View style={styles.avatarContainer}>
                     <View style={styles.avatarWrapper}>
-                      <Image 
-                        source={{ uri: profileData.avatar || 'https://via.placeholder.com/120' }}
-                        style={styles.avatarImage}
-                      />
+                      <LinearGradient
+                        colors={['#EBD7F4', '#7C2B86']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.avatarRing}
+                      >
+                        <Image 
+                          source={{ uri: profileData.avatar || 'https://via.placeholder.com/120' }}
+                          style={styles.avatarImage}
+                        />
+                      </LinearGradient>
                       <View style={[
                         styles.onlineIndicator, 
                         { backgroundColor: profileData.isOnline ? '#00FF94' : '#999' }
@@ -1539,8 +1637,8 @@ const styles = StyleSheet.create({
     height: '90%',
     width: '100%',
     ...(Platform.OS === 'web' && {
-      width: 400,
-      height: 600,
+      width: 440,
+      height: 720,
       marginHorizontal: 'auto',
     }),
   },
@@ -1552,9 +1650,10 @@ const styles = StyleSheet.create({
     width: '100%',
     ...(Platform.OS === 'web' && {
       borderRadius: 24,
-      boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.3)',
+      boxShadow: '0px 12px 48px rgba(0, 0, 0, 0.25)',
       height: '100%',
       width: '100%',
+      border: '1px solid rgba(124, 43, 134, 0.12)'
     }),
   },
   header: {
@@ -1565,7 +1664,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(124, 43, 134, 0.1)',
+    borderBottomColor: 'rgba(124, 43, 134, 0.12)',
   },
   headerTitle: {
     fontSize: 20,
@@ -1632,32 +1731,48 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   name: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#1F1147',
     marginBottom: 4,
   },
   username: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#7C2B86',
     marginBottom: 8,
+    letterSpacing: 0.2,
   },
   lastSeen: {
     fontSize: 14,
     color: 'rgba(31, 17, 71, 0.6)',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(124,43,134,0.08)',
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 6px 20px rgba(0,0,0,0.08)'
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 3,
+    }),
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#7C2B86',
-    marginBottom: 12,
+    marginBottom: 10,
+    letterSpacing: 0.2,
   },
   bio: {
-    fontSize: 16,
-    color: 'rgba(31, 17, 71, 0.8)',
+    fontSize: 15,
+    color: 'rgba(31, 17, 71, 0.85)',
     lineHeight: 22,
   },
   statsContainer: {
@@ -1686,17 +1801,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   interestTag: {
-    backgroundColor: 'rgba(124, 43, 134, 0.1)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(124, 43, 134, 0.08)',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(124, 43, 134, 0.2)',
+    borderColor: 'rgba(124, 43, 134, 0.18)',
   },
   interestText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#7C2B86',
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   infoItem: {
     flexDirection: 'row',
@@ -1725,6 +1841,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     gap: 8,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 6px 16px rgba(124, 43, 134, 0.25)'
+    } : {
+      shadowColor: '#7C2B86',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 6,
+    }),
   },
   actionButtonText: {
     fontSize: 16,
@@ -1740,7 +1865,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(124, 43, 134, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 43, 134, 0.3)',
+    borderColor: 'rgba(124, 43, 134, 0.24)',
     gap: 8,
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
@@ -1831,15 +1956,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 43, 134, 0.1)',
+    borderColor: 'rgba(124, 43, 134, 0.12)',
     ...(Platform.OS === 'web' ? {
-      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+      boxShadow: '0px 8px 28px rgba(0, 0, 0, 0.12)',
     } : {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOpacity: 0.12,
+      shadowRadius: 10,
+      elevation: 5,
     }),
   },
   confirmTitle: {
@@ -2032,9 +2157,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
   },
   reportTitle: {
     fontSize: 20,
@@ -2224,6 +2349,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#F5F5F5',
     position: 'relative',
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 4px 16px rgba(0,0,0,0.08)'
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 4,
+    }),
   },
   photoGalleryImage: {
     width: '100%',
@@ -2359,6 +2493,12 @@ const styles = StyleSheet.create({
   },
   avatarWrapper: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarRing: {
+    padding: 3,
+    borderRadius: 64,
     alignItems: 'center',
     justifyContent: 'center',
   },
