@@ -1,0 +1,21 @@
+# Circle App - Gradle Properties Template
+# Copy this file to gradle.properties and fill in your actual values
+
+# Android SDK and build tools
+org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+android.useAndroidX=true
+android.enableJetifier=true
+
+# React Native
+newArchEnabled=true
+hermesEnabled=true
+
+# Release Keystore Configuration
+# IMPORTANT: Fill in these values with your actual keystore credentials
+CIRCLE_UPLOAD_STORE_FILE=circle-release-key.keystore
+CIRCLE_UPLOAD_KEY_ALIAS=your-key-alias-here
+CIRCLE_UPLOAD_STORE_PASSWORD=your-store-password-here
+CIRCLE_UPLOAD_KEY_PASSWORD=your-key-password-here
+
+# Note: gradle.properties is gitignored for security
+# Never commit keystore credentials to version control
