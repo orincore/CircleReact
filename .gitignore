@@ -24,6 +24,10 @@ android/gradle.properties
 android/app/*.keystore
 android/app/*.jks
 
+# Scripts with sensitive credentials (optional - safe version can be committed)
+get-sha1.sh
+# get-keystore-sha1.sh is safe to commit (no hardcoded secrets)
+
 # Metro
 .meta-health-check*
 
