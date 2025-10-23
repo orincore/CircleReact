@@ -261,12 +261,8 @@ export default function LandingPage({ onSignUp, onLogIn }) {
             {isLargeScreen ? (
               <View style={styles.heroGrid}>
                 <View style={styles.heroLeft}>
-                  <View style={styles.launchBadge}>
-                    <Ionicons name="rocket" size={16} color="#FFD700" />
-                    <Text style={styles.launchBadgeText}>LAUNCHING TODAY • OCT 15, 2025</Text>
-                  </View>
                   <Text style={styles.heroTitle}>
-                    Find Your Circle.{'\n'}
+                    Find Your Circle.{"\n"}
                     <Text style={styles.heroTitleAccent}>Build Real Connections.</Text>
                   </Text>
                   
@@ -489,7 +485,15 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                     <Text style={styles.footerLink}>About</Text>
                   </TouchableOpacity>
                   <TouchableOpacity><Text style={styles.footerLink}>Blog</Text></TouchableOpacity>
-                  <TouchableOpacity><Text style={styles.footerLink}>Careers</Text></TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.location.href = '/careers';
+                      }
+                    }}
+                  >
+                    <Text style={styles.footerLink}>Careers</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.footerColumn}>
                   <Text style={styles.footerColumnTitle}>Legal</Text>

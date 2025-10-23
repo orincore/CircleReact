@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
 import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { BannerAd } = getAdComponents();
 
@@ -129,11 +130,57 @@ export default function ChatListScreen() {
     try {
       const confirmed = Platform.OS === 'web' ? window.confirm('Delete this chat?') : true;
       if (!confirmed) return;
-      await chatApi.deleteChat(chatId, token);
-      setConversations(prev => Array.isArray(prev) ? prev.filter(c => c?.chat?.id !== chatId) : prev);
+      setOpenMenuChatId(null);
+      // Ensure we have a token; fall back to AsyncStorage if context hasn't populated yet
+      let effectiveToken = token;
+      if (!effectiveToken) {
+        try {
+          effectiveToken = await AsyncStorage.getItem("@circle:access_token");
+        } catch {}
+      }
+      if (!effectiveToken) {
+        if (Platform.OS === 'web') {
+          window.alert('Not authenticated. Please log in again.');
+        } else {
+          Alert.alert('Error', 'Not authenticated. Please log in again.');
+        }
+        return;
+      }
+      try {
+        await chatApi.deleteChat(chatId, effectiveToken);
+        setConversations(prev => Array.isArray(prev) ? prev.filter(c => c?.chat?.id !== chatId) : prev);
+      } catch (err) {
+        const msg = String(err?.message || err);
+        // Fallback: if DELETE not available on backend (404) or not authorized (403), archive instead
+        const status = err?.status;
+        if (msg.includes('Not Found') || msg.includes('404') || msg.includes('Not authorized') || msg.includes('403') || status === 403 || status === 404) {
+          try {
+            await chatApi.setArchived(chatId, true, effectiveToken);
+            setConversations(prev => Array.isArray(prev) ? prev.filter(c => c?.chat?.id !== chatId) : prev);
+            if (Platform.OS === 'web') {
+              // Silent on success for web
+            } else {
+              Alert.alert('Archived', 'Chat archived. You can unarchive from Messages.');
+            }
+          } catch (archiveErr) {
+            console.error('[ChatList] Delete fallback archive failed:', archiveErr);
+            if (Platform.OS === 'web') {
+              window.alert('Failed to delete or archive chat. Please try again.');
+            } else {
+              Alert.alert('Error', 'Failed to delete or archive chat.');
+            }
+          }
+        } else {
+          throw err;
+        }
+      }
     } catch (e) {
       console.error('[ChatList] Failed to delete chat:', e);
-      Alert.alert('Error', 'Failed to delete chat. Please try again.');
+      if (Platform.OS === 'web') {
+        window.alert('Failed to delete chat. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete chat.');
+      }
     }
   };
 

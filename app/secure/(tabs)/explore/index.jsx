@@ -4,6 +4,7 @@ import UserProfileModal from '@/src/components/UserProfileModal';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import AnnouncementBanner from '@/components/AnnouncementBanner';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -259,85 +260,85 @@ export default function ExploreScreen() {
     const isProcessing = processingMatch === user.id;
     
     return (
-      <View style={styles.userCard}>
+      <View style={styles.userCardNew}>
         {/* User Info Section */}
         <TouchableOpacity
-          style={styles.userInfoSection}
+          style={styles.userInfoSectionNew}
           onPress={() => handleUserPress(user)}
         >
-          <View style={styles.userAvatar}>
+          <View style={styles.userAvatarNew}>
             {user.profilePhoto ? (
-              <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+              <Image source={{ uri: user.profilePhoto }} style={styles.avatarImageNew} />
             ) : (
-              <View style={styles.fallbackAvatar}>
-                <Text style={styles.fallbackAvatarText}>
+              <View style={styles.fallbackAvatarNew}>
+                <Text style={styles.fallbackAvatarTextNew}>
                   {user.name?.charAt(0)?.toUpperCase() || '?'}
                 </Text>
               </View>
             )}
-            {user.isOnline && <View style={styles.onlineIndicator} />}
+            {user.isOnline && <View style={styles.onlineIndicatorNew} />}
           </View>
 
-          <View style={styles.userInfo}>
-            <Text style={styles.userName} numberOfLines={1}>
+          <View style={styles.userInfoNew}>
+            <Text style={styles.userNameNew} numberOfLines={1}>
               {user.name || 'Unknown User'}
             </Text>
             {user.username && (
-              <Text style={styles.userUsername} numberOfLines={1}>
+              <Text style={styles.userUsernameNew} numberOfLines={1}>
                 @{user.username}
               </Text>
             )}
             {user.age && (
-              <Text style={styles.userAge}>
+              <Text style={styles.userAgeNew}>
                 {user.age} years old
               </Text>
             )}
             
             {showCompatibility && user.compatibilityScore && (
-              <View style={styles.compatibilityBadge}>
+              <View style={styles.compatibilityBadgeNew}>
                 <Ionicons name="heart" size={12} color="#FF6B9D" />
-                <Text style={styles.compatibilityText}>
+                <Text style={styles.compatibilityTextNew}>
                   {user.compatibilityScore}% match
                 </Text>
               </View>
             )}
 
             {user.interests && user.interests.length > 0 && (
-              <View style={styles.interestsContainer}>
+              <View style={styles.interestsContainerNew}>
                 {user.interests.slice(0, 3).map((interest, index) => (
-                  <View key={index} style={styles.interestTag}>
-                    <Text style={styles.interestText}>{interest}</Text>
+                  <View key={index} style={styles.interestTagNew}>
+                    <Text style={styles.interestTextNew}>{interest}</Text>
                   </View>
                 ))}
                 {user.interests.length > 3 && (
-                  <Text style={styles.moreInterests}>+{user.interests.length - 3}</Text>
+                  <Text style={styles.moreInterestsNew}>+{user.interests.length - 3}</Text>
                 )}
               </View>
             )}
 
             {user.isFriend && (
-              <View style={styles.friendBadge}>
+              <View style={styles.friendBadgeNew}>
                 <Ionicons name="people" size={12} color="#22C55E" />
-                <Text style={styles.friendText}>Friend</Text>
+                <Text style={styles.friendTextNew}>Friend</Text>
               </View>
             )}
             
             {/* Match Status Badge */}
             {matchStatus === 'matched' && (
-              <View style={styles.matchedBadge}>
+              <View style={styles.matchedBadgeNew}>
                 <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                <Text style={styles.matchedText}>Matched ✓</Text>
+                <Text style={styles.matchedTextNew}>Matched ✓</Text>
               </View>
             )}
             {matchStatus === 'pending' && (
-              <View style={styles.pendingBadge}>
+              <View style={styles.pendingBadgeNew}>
                 <Ionicons name="time-outline" size={14} color="#F59E0B" />
-                <Text style={styles.pendingText}>Pending ⏳</Text>
+                <Text style={styles.pendingTextNew}>Pending ⏳</Text>
               </View>
             )}
           </View>
 
-          <Ionicons name="chevron-forward" size={20} color="rgba(31, 17, 71, 0.4)" />
+          <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.4)" />
         </TouchableOpacity>
         
         {/* Quick Action Buttons - Inside Same Card */}
@@ -389,12 +390,14 @@ export default function ExploreScreen() {
     const filteredUsers = users?.filter(user => !passedUserIds.has(user.id)) || [];
     
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name={icon} size={20} color="#7C2B86" />
-          <Text style={styles.sectionTitle}>{title}</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>{filteredUsers?.length || 0}</Text>
+      <View style={styles.sectionNew}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionIconContainer}>
+            <Ionicons name={icon} size={18} color="#FFD6F2" />
+          </View>
+          <Text style={styles.sectionTitleNew}>{title}</Text>
+          <View style={styles.countBadgeNew}>
+            <Text style={styles.countTextNew}>{filteredUsers?.length || 0}</Text>
           </View>
         </View>
         
@@ -452,8 +455,8 @@ export default function ExploreScreen() {
       </LinearGradient>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
+        style={styles.scrollViewNew}
+        contentContainerStyle={styles.contentContainerNew}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -464,25 +467,27 @@ export default function ExploreScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerIconContainer}>
-            <Ionicons name="compass" size={32} color="#FF6FB5" />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.exploreTitle}>Explore</Text>
+        {/* Modern Header */}
+        <View style={styles.headerNew}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greetingText}>Explore</Text>
             <Text style={styles.subtitle}>Find your next connection</Text>
           </View>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" />
+        {/* Announcements - Edge to Edge */}
+        <View style={{ marginHorizontal: -16 }}>
+          <AnnouncementBanner placement="explore" />
+        </View>
+
+        {/* Search Bar - Modern Style */}
+        <View style={styles.searchContainerNew}>
+          <View style={styles.searchBarNew}>
+            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.6)" />
             <TextInput
               placeholder="Search by name, username, or email"
-              placeholderTextColor="rgba(255, 255, 255, 0.4)"
-              style={styles.searchInput}
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              style={styles.searchInputNew}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -989,6 +994,252 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#F59E0B',
+  },
+  // New Modern Styles
+  scrollViewNew: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  contentContainerNew: {
+    paddingBottom: 100,
+  },
+  headerNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 0,
+    marginTop: 8,
+  },
+  searchContainerNew: {
+    marginBottom: 20,
+    marginTop: 16,
+  },
+  searchBarNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  searchInputNew: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  sectionNew: {
+    marginBottom: 24,
+  },
+  sectionHeaderNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    paddingHorizontal: 0,
+  },
+  sectionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 214, 242, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitleNew: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  countBadgeNew: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  countTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userCardNew: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    overflow: 'hidden',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  // New improved user card styles
+  userInfoSectionNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    gap: 16,
+  },
+  userAvatarNew: {
+    position: 'relative',
+  },
+  avatarImageNew: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  fallbackAvatarNew: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 214, 242, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 214, 242, 0.4)',
+  },
+  fallbackAvatarTextNew: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFD6F2',
+  },
+  onlineIndicatorNew: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#22C55E',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  userInfoNew: {
+    flex: 1,
+    gap: 4,
+  },
+  userNameNew: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  userUsernameNew: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 4,
+  },
+  userAgeNew: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 8,
+  },
+  compatibilityBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
+  },
+  compatibilityTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF6B9D',
+  },
+  friendBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  friendTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#22C55E',
+  },
+  interestsContainerNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  interestTagNew: {
+    backgroundColor: 'rgba(255, 107, 181, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 181, 0.25)',
+  },
+  interestTextNew: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFD6F2',
+  },
+  moreInterestsNew: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+  matchedBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  matchedTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  pendingBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  pendingTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#F59E0B',
   },
 });

@@ -5,7 +5,7 @@ import socketService from "@/src/services/socketService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useSegments } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 const AuthContext = createContext(undefined);
 
@@ -367,13 +367,25 @@ export function AuthProvider({ children }) {
     const isSecureRoute = firstSegment === "secure";
     const isSignupFlow = firstSegment === "signup"; // allow viewing summary even when authed
     const isAuthFlow = firstSegment === "auth"; // allow email verification even when authed
+    // Public marketing pages that should remain accessible on web even when authenticated
+    const publicWebFirstSegments = new Set([
+      undefined, // home route
+      "",       // home on some platforms
+      "index",  // home on expo-router
+      "features",
+      "privacy",
+      "terms",
+      "contact",
+      "careers",
+    ]);
+    const isPublicWebRoute = Platform.OS === 'web' && publicWebFirstSegments.has(firstSegment);
 
     if (!isAuthenticated && isSecureRoute) {
       router.replace("/");
       return;
     }
 
-    if (isAuthenticated && !isSecureRoute && !isSignupFlow && !isAuthFlow) {
+    if (isAuthenticated && !isSecureRoute && !isSignupFlow && !isAuthFlow && !isPublicWebRoute) {
       router.replace("/secure/match");
     }
   }, [isAuthenticated, isRestoring, router, segments]);

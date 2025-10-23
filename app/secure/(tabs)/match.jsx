@@ -12,6 +12,7 @@ import { nearbyUsersGql, updateLocationGql } from "@/src/api/graphql";
 import { matchmakingApi } from "@/src/api/matchmaking";
 import { getSocket } from "@/src/api/socket";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -1484,17 +1485,6 @@ export default function MatchScreen() {
       >
         {/* Floating orbs */}
         <View style={[styles.floatingOrb, styles.orb1]} />
-        <View style={[styles.floatingOrb, styles.orb2]} />
-        <View style={[styles.floatingOrb, styles.orb3]} />
-      </LinearGradient>
-
-      <Toast visible={toast.visible} text={toast.text} type={toast.type} />
-      
-      {/* Verification Banner */}
-      <VerificationBanner />
-      
-      {/* Lock matching feature for unverified users */}
-      <VerificationGuard feature="matching and swiping">
 
       {isLargeScreen ? (
         // DESKTOP/WEB VIEW - Dashboard Style
@@ -1666,6 +1656,7 @@ export default function MatchScreen() {
             </ScrollView>
           </View>
 
+
           {/* Right Panel - Matches Grid */}
           <View style={styles.mainPanel}>
             <ScrollView
@@ -1680,6 +1671,9 @@ export default function MatchScreen() {
                 />
               }
             >
+              {/* Announcements */}
+              <AnnouncementBanner placement="match" />
+
               {/* Browser Notification Banner */}
               <NotificationPermissionBanner />
 
@@ -1801,7 +1795,7 @@ export default function MatchScreen() {
           </View>
         </View>
       ) : (
-        // MOBILE VIEW - Swipeable Cards
+        // MOBILE VIEW - Purple Theme
         <View style={styles.mobileContainer}>
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -1815,7 +1809,7 @@ export default function MatchScreen() {
               />
             }
           >
-            {/* Mobile Header */}
+            {/* Mobile Header - Purple Theme */}
             <View style={styles.mobileHeader}>
               <View style={styles.mobileHeaderLeft}>
                 <Text style={styles.greetingText}>{getGreeting()}, {getUserFirstName()}!</Text>
@@ -1830,62 +1824,51 @@ export default function MatchScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Announcement Banner - Hero Style (edge-to-edge) */}
+            <View style={{ marginHorizontal: -16 }}>
+              <AnnouncementBanner placement="match" />
+            </View>
+
             {/* Browser Notification Banner */}
             <NotificationPermissionBanner />
 
-            {/* Special Feature Cards - Highlighted at Top */}
-            <View style={styles.specialFeaturesContainer}>
+            {/* Quick Action Cards - Zepto Style */}
+            <View style={styles.quickActionsContainer}>
               <TouchableOpacity 
-                style={styles.specialFeatureCard}
+                style={styles.quickActionCard}
                 onPress={handleStartMatch}
                 activeOpacity={0.9}
               >
-                <LinearGradient
-                  colors={['#7C2B86', '#5D5FEF', '#FF6FB5']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.specialFeatureGradient}
-                >
-                  <View style={styles.specialFeatureGlow} />
-                  <View style={styles.specialFeatureContent}>
-                    <View style={styles.specialFeatureIconContainer}>
-                      <Ionicons name="flash" size={40} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.specialFeatureTextContainer}>
-                      <Text style={styles.specialFeatureTitle}>Live Match</Text>
-                      <Text style={styles.specialFeatureSubtitle}>Find your perfect match instantly</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={28} color="rgba(255,255,255,0.8)" />
+                <View style={styles.quickActionContent}>
+                  <View style={styles.quickActionIcon}>
+                    <Ionicons name="flash" size={24} color="#FFD6F2" />
                   </View>
-                </LinearGradient>
+                  <View style={styles.quickActionText}>
+                    <Text style={styles.quickActionTitle}>Live Match</Text>
+                    <Text style={styles.quickActionSubtitle}>Find instantly</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#999" />
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.specialFeatureCard, user?.invisibleMode && styles.disabledCard]}
+                style={[styles.quickActionCard, user?.invisibleMode && styles.disabledCard]}
                 onPress={handleLocationSearch}
                 activeOpacity={user?.invisibleMode ? 1 : 0.9}
                 disabled={user?.invisibleMode}
               >
-                <LinearGradient
-                  colors={user?.invisibleMode ? ['#4A4A4A', '#3A3A3A', '#2A2A2A'] : ['#5D5FEF', '#7C2B86', '#FF6FB5']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.specialFeatureGradient}
-                >
-                  <View style={styles.specialFeatureGlow} />
-                  <View style={styles.specialFeatureContent}>
-                    <View style={styles.specialFeatureIconContainer}>
-                      <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={40} color={user?.invisibleMode ? "#999999" : "#FFFFFF"} />
-                    </View>
-                    <View style={styles.specialFeatureTextContainer}>
-                      <Text style={[styles.specialFeatureTitle, user?.invisibleMode && styles.disabledText]}>Location Search</Text>
-                      <Text style={[styles.specialFeatureSubtitle, user?.invisibleMode && styles.disabledText]}>
-                        {user?.invisibleMode ? 'Disabled in invisible mode' : 'Explore matches near you'}
-                      </Text>
-                    </View>
-                    <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={28} color={user?.invisibleMode ? "#666666" : "rgba(255,255,255,0.8)"} />
+                <View style={styles.quickActionContent}>
+                  <View style={styles.quickActionIcon}>
+                    <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={24} color={user?.invisibleMode ? "rgba(255,255,255,0.5)" : "#FFD6F2"} />
                   </View>
-                </LinearGradient>
+                  <View style={styles.quickActionText}>
+                    <Text style={[styles.quickActionTitle, user?.invisibleMode && styles.disabledText]}>Location Search</Text>
+                    <Text style={[styles.quickActionSubtitle, user?.invisibleMode && styles.disabledText]}>
+                      {user?.invisibleMode ? 'Disabled' : 'Explore nearby'}
+                    </Text>
+                  </View>
+                  <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={20} color={user?.invisibleMode ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.7)"} />
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -2131,7 +2114,7 @@ export default function MatchScreen() {
         </View>
       </Modal>
       
-      </VerificationGuard>
+      </LinearGradient>
     </View>
   );
 }
@@ -5081,5 +5064,105 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FF6FB5',
+  },
+  // New Zepto-style mobile header
+  mobileHeaderNew: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  locationSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginHorizontal: 4,
+  },
+  profileButton: {
+    padding: 4,
+  },
+  profileAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#7C2B86',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  searchPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+    flex: 1,
+  },
+  // Quick Action Cards - Zepto Style
+  quickActionsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  quickActionCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  quickActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionText: {
+    flex: 1,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  quickActionSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  disabledCard: {
+    opacity: 0.6,
+  },
+  disabledText: {
+    color: '#999',
   },
 });

@@ -20,11 +20,39 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
   const url = `${API_BASE_URL}${path}`;
   let res: Response;
   try {
+    // Centralized token fallback (web only): if caller didn't pass a token but user is logged in,
+    // try to read from localStorage to avoid races with context hydration.
+    let effectiveToken: string | null | undefined = token;
+    // Try localStorage on web first
+    if (!effectiveToken && typeof window !== 'undefined') {
+      try {
+        effectiveToken = window.localStorage?.getItem?.('@circle:access_token') || effectiveToken;
+      } catch {}
+    }
+    // Always try AsyncStorage (web/native) via dynamic import if still missing
+    if (!effectiveToken) {
+      try {
+        // @ts-ignore - optional dependency at runtime
+        const mod = await import('@react-native-async-storage/async-storage');
+        const maybeToken = await mod.default.getItem?.('@circle:access_token');
+        if (maybeToken) effectiveToken = maybeToken;
+      } catch {}
+    }
+
+    // Validate token formatting
+    const isValidToken = (t: any) => typeof t === 'string' && t.trim().length > 10 && t !== 'undefined' && t !== 'null';
+    const useToken = isValidToken(effectiveToken) ? (effectiveToken as string) : undefined;
+
+    // Minimal diagnostics: log token validity for chat DELETE and warn if missing token on non-GET secure paths
+    if ((method === 'DELETE' && path.startsWith('/chat/')) || (!useToken && method !== 'GET')) {
+      const len = typeof effectiveToken === 'string' ? effectiveToken.length : 0;
+      console.warn('[HTTP]', method, path, 'authValid=', !!useToken, 'tokenLen=', len);
+    }
     res = await fetch(url, {
       method,
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(useToken ? { Authorization: `Bearer ${useToken}` } : {}),
         ...(headers || {}),
       },
       body: body ? JSON.stringify(body) : undefined,

@@ -70,6 +70,32 @@ export default function SettingsScreen() {
   
   const [loading, setLoading] = useState(true);
 
+  // External link helpers (web opens new tab; native opens absolute URL)
+  const getWebBaseUrl = () => {
+    return process.env.EXPO_PUBLIC_WEB_BASE_URL || 'http://localhost:8081';
+  };
+
+  const openWebPath = (path) => {
+    try {
+      if (Platform.OS === 'web') {
+        window.open(path, '_blank');
+      } else {
+        const base = getWebBaseUrl();
+        Linking.openURL(`${base}${path}`);
+      }
+    } catch (e) {}
+  };
+
+  const openExternalUrl = (url) => {
+    try {
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        Linking.openURL(url);
+      }
+    } catch (e) {}
+  };
+
   // Load preferences from storage and reload when user data changes
   useEffect(() => {
     if (user) {
@@ -1118,6 +1144,149 @@ export default function SettingsScreen() {
               )}
             </View>
           )}
+
+          {/* Company & Legal */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="information-circle" size={20} color="#FFD6F2" />
+              <Text style={styles.sectionTitle}>Company & Legal</Text>
+            </View>
+            <Text style={styles.sectionDescription}>
+              Quick links open in your browser
+            </Text>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/features')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="sparkles" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Features</Text>
+                    <Text style={styles.settingItemDescription}>Explore Circle features</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/#how-it-works')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="rocket" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>How It Works</Text>
+                    <Text style={styles.settingItemDescription}>Learn our matching flow</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/careers')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="briefcase" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Careers</Text>
+                    <Text style={styles.settingItemDescription}>Join our team</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openExternalUrl('https://orincore.com/about')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="business" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>About</Text>
+                    <Text style={styles.settingItemDescription}>Learn about ORINCORE</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/privacy')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="shield-checkmark" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Privacy Policy</Text>
+                    <Text style={styles.settingItemDescription}>How we protect your data</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/terms')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="document-text" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Terms of Service</Text>
+                    <Text style={styles.settingItemDescription}>Read our terms</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/contact')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="mail" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Contact</Text>
+                    <Text style={styles.settingItemDescription}>Get in touch with us</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 8 }} />
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openExternalUrl('https://x.com/orincore_tweet')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="logo-twitter" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>X (Twitter)</Text>
+                    <Text style={styles.settingItemDescription}>Follow our updates</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openExternalUrl('https://instagram.com/ig_orincore')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="logo-instagram" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Instagram</Text>
+                    <Text style={styles.settingItemDescription}>See behind the scenes</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.advancedSettingItem}>
+              <TouchableOpacity style={styles.settingItemContent} onPress={() => openExternalUrl('https://www.facebook.com/orincore')}>
+                <View style={styles.settingItemLeft}>
+                  <View style={styles.settingIconContainer}><Ionicons name="logo-facebook" size={18} color="#FFE8FF" /></View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingItemTitle}>Facebook</Text>
+                    <Text style={styles.settingItemDescription}>Join our community</Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={18} color="#FFE8FF" />
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* Delete Account Section */}
           <View style={styles.dangerZone}>

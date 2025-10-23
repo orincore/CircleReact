@@ -38,6 +38,30 @@ export default function FeaturesPage() {
     ]).start();
   }, []);
 
+  const handleBack = () => {
+    try {
+      // Prefer expo-router's canGoBack if available
+      const canGoBack = typeof router?.canGoBack === 'function' ? router.canGoBack() : undefined;
+      if (canGoBack) {
+        router.back();
+        return;
+      }
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history) {
+        // If browser has history entries, use native back
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+      }
+
+      // Fallback: go to landing
+      router.replace('/');
+    } catch (e) {
+      router.replace('/');
+    }
+  };
+
   const features = [
     {
       icon: 'ban',
@@ -155,7 +179,7 @@ export default function FeaturesPage() {
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.backButton} 
-              onPress={() => router.back()}
+              onPress={handleBack}
             >
               <Ionicons name="arrow-back" size={24} color="#FFE8FF" />
               <Text style={styles.backText}>Back</Text>

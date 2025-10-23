@@ -213,6 +213,12 @@ function AdminDashboard() {
             color="#4CAF50"
           />
           <ActionButton
+            icon="megaphone"
+            label="Announcements"
+            onPress={() => router.push('/admin/announcements')}
+            color="#A855F7"
+          />
+          <ActionButton
             icon="flag"
             label="Reports"
             onPress={() => router.push('/admin/reports')}

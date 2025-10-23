@@ -109,8 +109,13 @@ class LocationTrackingService {
         console.warn('⚠️ No auth token available - background location updates may fail');
       }
       
-      // Check if already tracking
-      const isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      const hasHasStarted = typeof Location.hasStartedLocationUpdatesAsync === 'function';
+      let isTracking = false;
+      if (hasHasStarted) {
+        isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      } else if (typeof TaskManager.isTaskRegisteredAsync === 'function') {
+        isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      }
       if (isTracking) {
         //console.log('📍 Location tracking already active');
         return true;
@@ -124,19 +129,21 @@ class LocationTrackingService {
       }
 
       // Start background location updates
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.Balanced, // Good balance of accuracy and battery
-        timeInterval: MIN_UPDATE_INTERVAL, // 5 minutes
-        distanceInterval: 100, // Update if moved 100 meters
-        deferredUpdatesInterval: MIN_UPDATE_INTERVAL,
-        foregroundService: {
-          notificationTitle: 'Circle Location',
-          notificationBody: 'Updating your location for better matches',
-          notificationColor: '#7C2B86',
-        },
-        pausesUpdatesAutomatically: false, // Keep tracking even when stationary
-        showsBackgroundLocationIndicator: true, // iOS requirement
-      });
+      if (typeof Location.startLocationUpdatesAsync === 'function') {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.Balanced, // Good balance of accuracy and battery
+          timeInterval: MIN_UPDATE_INTERVAL, // 5 minutes
+          distanceInterval: 100, // Update if moved 100 meters
+          deferredUpdatesInterval: MIN_UPDATE_INTERVAL,
+          foregroundService: {
+            notificationTitle: 'Circle Location',
+            notificationBody: 'Updating your location for better matches',
+            notificationColor: '#7C2B86',
+          },
+          pausesUpdatesAutomatically: false, // Keep tracking even when stationary
+          showsBackgroundLocationIndicator: true, // iOS requirement
+        });
+      }
 
       // Mark tracking as enabled
       await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'true');
@@ -154,9 +161,15 @@ class LocationTrackingService {
     try {
       //console.log('🛑 Stopping location tracking service...');
       
-      const isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      const hasHasStarted = typeof Location.hasStartedLocationUpdatesAsync === 'function';
+      let isTracking = false;
+      if (hasHasStarted) {
+        isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      } else if (typeof TaskManager.isTaskRegisteredAsync === 'function') {
+        isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      }
       
-      if (isTracking) {
+      if (isTracking && typeof Location.stopLocationUpdatesAsync === 'function') {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
 
@@ -175,7 +188,13 @@ class LocationTrackingService {
   static async isTrackingEnabled() {
     try {
       const enabled = await AsyncStorage.getItem(LOCATION_TRACKING_KEY);
-      const isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      const hasHasStarted = typeof Location.hasStartedLocationUpdatesAsync === 'function';
+      let isTracking = false;
+      if (hasHasStarted) {
+        isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      } else if (typeof TaskManager.isTaskRegisteredAsync === 'function') {
+        isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      }
       
       return enabled === 'true' && isTracking;
     } catch (error) {
