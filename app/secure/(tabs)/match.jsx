@@ -2,7 +2,6 @@ import { getAdComponents } from "@/components/ads/AdWrapper";
 import LiveActivityFeed from "@/components/LiveActivityFeed";
 import Toast from "@/components/Toast";
 import VerificationBanner from "@/components/VerificationBanner";
-import VerificationGuard from "@/components/VerificationGuard";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
