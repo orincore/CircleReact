@@ -1,5 +1,5 @@
 import io from "socket.io-client";
-import { API_BASE_URL } from "../config/api.js";
+import { API_BASE_URL, getWebSocketUrl } from "../config/api.js";
 import { Platform, AppState } from 'react-native';
 
 let socket: any | null = null;
@@ -124,8 +124,9 @@ function createSocket(token?: string | null) {
     clearIntervals();
     socketService.notifyConnectionState('connecting');
 
-    // Enhanced socket configuration for production
-    const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+    // Get WebSocket URL using the new helper
+    const wsUrl = getWebSocketUrl();
+    const isProduction = wsUrl.includes('api.circle.orincore.com');
     
     const socketConfig = {
       path: "/ws",
@@ -160,7 +161,7 @@ function createSocket(token?: string | null) {
     };
     
 
-    socket = io(API_BASE_URL, socketConfig);
+    socket = io(wsUrl, socketConfig);
 
     // Connection successful
     socket.on('connect', () => {
@@ -215,7 +216,7 @@ function createSocket(token?: string | null) {
         context: error.context,
         type: error.type,
         transport: error.transport,
-        url: API_BASE_URL,
+        url: wsUrl,
         timestamp: new Date().toISOString()
       });
       socketService.notifyConnectionState('disconnected');
@@ -228,12 +229,12 @@ function createSocket(token?: string | null) {
         }
         
         // Production domain specific debugging
-        if (API_BASE_URL.includes('api.circle.orincore.com')) {
+        if (wsUrl.includes('api.circle.orincore.com')) {
           console.error('🏭 PRODUCTION SOCKET ERROR ANALYSIS:', {
             domain: 'api.circle.orincore.com',
             transport: socket.io?.engine?.transport?.name || 'unknown',
             readyState: socket.io?.engine?.readyState || 'unknown',
-            url: API_BASE_URL,
+            url: wsUrl,
             error: error.message,
             errorType: error.type,
             errorCode: error.code,
@@ -382,7 +383,8 @@ function createSocket(token?: string | null) {
 function startHeartbeat() {
   clearIntervals(); // Clear any existing intervals
   
-  const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+  const wsUrl = getWebSocketUrl();
+  const isProduction = wsUrl.includes('api.circle.orincore.com');
   const heartbeatInterval = isProduction ? 20000 : 25000; // More frequent in production
   
   pingInterval = setInterval(() => {
@@ -502,11 +504,12 @@ export function forceReconnect(token?: string | null) {
 
 // Production socket diagnostics (for browser console debugging)
 export function diagnoseProductionSocket() {
-  const isProduction = API_BASE_URL.includes('api.circle.orincore.com');
+  const wsUrl = getWebSocketUrl();
+  const isProduction = wsUrl.includes('api.circle.orincore.com');
   
   //console.log('🔍 SOCKET DIAGNOSTIC REPORT:', {
   //  environment: isProduction ? 'PRODUCTION' : 'LOCAL',
-  //  url: API_BASE_URL,
+  //  url: wsUrl,
   //  socketExists: !!socket,
   //  connected: socket?.connected || false,
   //  socketId: socket?.id || 'none',
