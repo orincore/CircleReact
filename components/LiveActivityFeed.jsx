@@ -77,6 +77,10 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
 
   // Add new activity with animation
   const addActivity = (activity) => {
+    if (activity.type === 'profile_visited') {
+      return;
+    }
+
     const newActivity = {
       id: Date.now() + Math.random(),
       ...activity,
@@ -151,7 +155,6 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
     const activityEvents = [
       'activity:user_matched',
       'activity:user_joined',
-      'activity:profile_visited',
       'activity:friend_request_sent',
       'activity:friends_connected',
       'activity:location_updated',
@@ -179,12 +182,14 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
 
     const handleInitialActivities = (data) => {
       if (data.activities && Array.isArray(data.activities)) {
-        const processedActivities = data.activities.map(activity => ({
-          ...activity,
-          id: activity.id || Date.now() + Math.random(),
-          timestamp: new Date(activity.timestamp || Date.now()),
-          isNew: false, // Initial activities are not new
-        }));
+        const processedActivities = data.activities
+          .filter(activity => activity.type !== 'profile_visited')
+          .map(activity => ({
+            ...activity,
+            id: activity.id || Date.now() + Math.random(),
+            timestamp: new Date(activity.timestamp || Date.now()),
+            isNew: false, // Initial activities are not new
+          }));
         
         setActivities(processedActivities);
         setCurrentPage(0); // Reset to first page

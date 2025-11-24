@@ -14,6 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { friendsApi } from '@/src/api/friends';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSocket } from '@/src/api/socket';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
 
 export default function FriendRequestCard({ 
   request, 
@@ -32,10 +33,10 @@ export default function FriendRequestCard({
     setActionType('accept');
     
     try {
-      // Use socket instead of REST API for consistency
-      const socket = getSocket(token);
-      socket.emit('friend:request:accept', { requestId: request.id });
+      // Use the improved FriendRequestService
+      const result = await FriendRequestService.acceptFriendRequest(request.id, token);
       
+      // Call parent callback on success
       onAccept(request);
       
       // Show success message
@@ -46,7 +47,18 @@ export default function FriendRequestCard({
       );
     } catch (error) {
       console.error('Failed to accept friend request:', error);
-      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to accept friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
       setActionType(null);
@@ -69,14 +81,25 @@ export default function FriendRequestCard({
             setActionType('reject');
             
             try {
-              // Use socket instead of REST API for consistency
-              const socket = getSocket(token);
-              socket.emit('friend:request:decline', { requestId: request.id });
+              // Use the improved FriendRequestService
+              const result = await FriendRequestService.declineFriendRequest(request.id, token);
               
+              // Call parent callback on success
               onReject(request);
             } catch (error) {
               console.error('Failed to reject friend request:', error);
-              Alert.alert('Error', 'Failed to reject friend request. Please try again.');
+              
+              // Show specific error message
+              let errorMessage = 'Failed to reject friend request. Please try again.';
+              if (error.message.includes('timeout')) {
+                errorMessage = 'Request timed out. Please check your connection and try again.';
+              } else if (error.message.includes('Socket connection not available')) {
+                errorMessage = 'Connection issue. Please refresh the page and try again.';
+              } else if (error.message.includes('not found')) {
+                errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+              }
+              
+              Alert.alert('Error', errorMessage);
             } finally {
               setLoading(false);
               setActionType(null);

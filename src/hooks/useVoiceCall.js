@@ -13,7 +13,8 @@ if (Platform.OS === 'android') {
       const isCallNotification = notification.request.content.data?.type === 'incoming_call';
       
       return {
-        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
         priority: Notifications.AndroidNotificationPriority.MAX,

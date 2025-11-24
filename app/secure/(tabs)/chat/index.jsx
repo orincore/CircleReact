@@ -1,8 +1,8 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
-import VerificationBanner from "@/components/VerificationBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { chatApi } from "@/src/api/chat";
 import { getSocket } from "@/src/api/socket";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
@@ -20,8 +20,113 @@ const { BannerAd } = getAdComponents();
 export default function ChatListScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const responsive = useResponsiveDimensions();
   const { shouldShowAds } = useSubscription();
+  
+  // Create dynamic styles based on theme
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    headerTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: theme.textTertiary,
+      marginTop: 2,
+    },
+    searchBar: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    searchInput: {
+      color: theme.textPrimary,
+    },
+    chatItem: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 16,
+      marginVertical: 4,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+    },
+    chatName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.textPrimary,
+    },
+    chatMessage: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    chatTime: {
+      fontSize: 12,
+      color: theme.textTertiary,
+    },
+    newMessageButton: {
+      backgroundColor: theme.primary,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.4 : 0.2,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    emptyText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.textPrimary,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+    emptySubtext: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginTop: 8,
+    },
+    loadingText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      marginTop: 16,
+    },
+    decorativeShape1: {
+      position: 'absolute',
+      width: 200,
+      height: 200,
+      borderRadius: 100,
+      backgroundColor: theme.decorative1,
+      top: -50,
+      right: -50,
+      opacity: isDarkMode ? 1 : 0.3,
+    },
+    decorativeShape2: {
+      position: 'absolute',
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      backgroundColor: theme.decorative2,
+      bottom: 100,
+      left: -30,
+      opacity: isDarkMode ? 1 : 0.3,
+    },
+  };
   
   // Get time-based greeting
   const getGreeting = () => {
@@ -614,39 +719,38 @@ export default function ChatListScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, dynamicStyles.container]}>
       {/* Animated Background */}
       <LinearGradient
-        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+        colors={[theme.background, theme.backgroundSecondary, theme.background]}
         style={styles.backgroundGradient}
       >
+        {/* Decorative Elements */}
+        <View style={dynamicStyles.decorativeShape1} />
+        <View style={dynamicStyles.decorativeShape2} />
         {/* Floating orbs */}
-        <View style={[styles.floatingOrb, styles.orb1]} />
-        <View style={[styles.floatingOrb, styles.orb2]} />
-        <View style={[styles.floatingOrb, styles.orb3]} />
+        <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
+        <View style={[styles.floatingOrb, styles.orb2, { backgroundColor: theme.decorative2 }]} />
+        <View style={[styles.floatingOrb, styles.orb3, { backgroundColor: theme.decorative1 }]} />
       </LinearGradient>
-
-      {/* Verification Banner */}
-      <VerificationBanner />
-
       {/* Lock messaging for unverified users */}
       <View style={[styles.contentContainer, { paddingHorizontal: Math.max(12, responsive.horizontalPadding / 2) }]}>
         <View style={styles.header}>
           <View style={styles.headerIconContainer}>
-            <Ionicons name="chatbubbles" size={28} color="#7C2B86" />
+            <Ionicons name="chatbubbles" size={28} color={theme.primary} />
           </View>
           <View style={styles.headerTextContainer}>
             <TouchableOpacity activeOpacity={0.8} onPress={() => setShowArchived(prev => !prev)}>
-              <Text style={[styles.messagesTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>Messages</Text>
+              <Text style={[styles.messagesTitle, dynamicStyles.headerTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>Messages</Text>
             </TouchableOpacity>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerSubtitle, dynamicStyles.headerSubtitle]}>
               {showArchived
                 ? `${conversations.filter(c => c.archived).length} archived`
                 : `${conversations.filter(c => !c.archived).length} conversation${conversations.filter(c => !c.archived).length !== 1 ? 's' : ''}`}
             </Text>
           </View>
           <TouchableOpacity 
-            style={[styles.newMessageButton, { 
+            style={[styles.newMessageButton, dynamicStyles.newMessageButton, { 
               width: responsive.buttonHeight, 
               height: responsive.buttonHeight,
               borderRadius: responsive.buttonHeight / 2 
@@ -657,12 +761,12 @@ export default function ChatListScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.searchBar, { paddingHorizontal: responsive.spacing.lg }]}>
-          <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.5)" />
+        <View style={[styles.searchBar, dynamicStyles.searchBar, { paddingHorizontal: responsive.spacing.lg }]}>
+          <Ionicons name="search" size={20} color={theme.textMuted} />
           <TextInput
             placeholder="Search conversations"
-            placeholderTextColor="rgba(255, 255, 255, 0.4)"
-            style={styles.searchInput}
+            placeholderTextColor={theme.textPlaceholder}
+            style={[styles.searchInput, dynamicStyles.searchInput]}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -670,8 +774,8 @@ export default function ChatListScreen() {
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FFE8FF" />
-            <Text style={styles.loadingText}>Loading conversations...</Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingText, dynamicStyles.loadingText]}>Loading conversations...</Text>
           </View>
         ) : (
           <FlatList
@@ -692,15 +796,15 @@ export default function ChatListScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => loadInbox(true)}
-                tintColor="#FFE8FF"
-                colors={["#FFE8FF"]}
+                tintColor={theme.primary}
+                colors={[theme.primary]}
               />
             }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="chatbubbles-outline" size={64} color="rgba(255, 255, 255, 0.5)" />
-                <Text style={styles.emptyText}>No conversations yet</Text>
-                <Text style={styles.emptySubtext}>Start a new conversation to see it here</Text>
+                <Ionicons name="chatbubbles-outline" size={64} color={theme.textMuted} />
+                <Text style={[styles.emptyText, dynamicStyles.emptyText]}>No conversations yet</Text>
+                <Text style={[styles.emptySubtext, dynamicStyles.emptySubtext]}>Start a new conversation to see it here</Text>
               </View>
             }
             renderItem={({ item }) => {
@@ -718,6 +822,7 @@ export default function ChatListScreen() {
                 <TouchableOpacity
                   style={[
                     styles.chatRow,
+                    dynamicStyles.chatItem,
                     { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
                     openMenuChatId === chatId && styles.chatRowElevated,
                   ]}
@@ -730,8 +835,8 @@ export default function ChatListScreen() {
                         style={[styles.avatarImage, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}
                       />
                     ) : (
-                      <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}> 
-                        <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20 }]}> 
+                      <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2, backgroundColor: theme.surfaceSecondary }]}> 
+                        <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20, color: theme.textPrimary }]}> 
                           {(item.otherName && item.otherName.charAt(0).toUpperCase()) || '?'}
                         </Text>
                       </View>
@@ -742,11 +847,11 @@ export default function ChatListScreen() {
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
-                      <Text style={[styles.chatName, { fontSize: responsive.fontSize.large }]}>{item.otherName || 'Unknown'} {item.pinned ? '📌' : ''}</Text>
-                      <Text style={[styles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
+                      <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}>{item.otherName || 'Unknown'} {item.pinned ? '📌' : ''}</Text>
+                      <Text style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
                     <View style={styles.messageRow}>
-                      <Text style={[styles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
+                      <Text style={[styles.chatMessage, dynamicStyles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
                         {isTyping ? 'typing...' : (item.lastMessage && item.lastMessage.text) || 'No messages yet'}
                       </Text>
                       {item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
@@ -761,12 +866,12 @@ export default function ChatListScreen() {
                           }
                           size={12}
                           color={
-                            item.lastMessage.status === 'read' ? '#7C2B86' : 
-                            item.lastMessage.status === 'delivered' ? 'rgba(124,43,134,0.7)' : 
-                            item.lastMessage.status === 'sent' ? 'rgba(124,43,134,0.5)' :
-                            item.lastMessage.status === 'sending' ? 'rgba(124,43,134,0.4)' :
+                            item.lastMessage.status === 'read' ? theme.primary : 
+                            item.lastMessage.status === 'delivered' ? theme.primary + '70' : 
+                            item.lastMessage.status === 'sent' ? theme.primary + '50' :
+                            item.lastMessage.status === 'sending' ? theme.primary + '40' :
                             item.lastMessage.status === 'failed' ? '#FF4444' :
-                            'rgba(124,43,134,0.3)'
+                            theme.primary + '30'
                           }
                           style={styles.messageStatus}
                         />
@@ -791,34 +896,34 @@ export default function ChatListScreen() {
                           }
                         }}
                       >
-                        <Ionicons name="ellipsis-vertical" size={18} color="#FFFFFF" />
+                        <Ionicons name="ellipsis-vertical" size={18} color={theme.textPrimary} />
                       </TouchableOpacity>
                       {openMenuChatId === chatId && Platform.OS !== 'web' && (
                         <View style={styles.rowMenu}>
                           <TouchableOpacity style={styles.rowMenuItem} onPress={() => { setOpenMenuChatId(null); handleDeleteChat(chatId); }}>
                             <Ionicons name="trash" size={14} color="#FF4D4F" />
-                            <Text style={styles.rowMenuItemText}>Delete</Text>
+                            <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Delete</Text>
                           </TouchableOpacity>
                           {item.archived ? (
                             <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnarchiveChat(chatId)}>
                               <Ionicons name="archive" size={14} color="#FFFFFF" />
-                              <Text style={styles.rowMenuItemText}>Unarchive</Text>
+                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unarchive</Text>
                             </TouchableOpacity>
                           ) : (
                             <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleArchiveChat(chatId)}>
                               <Ionicons name="archive" size={14} color="#FFFFFF" />
-                              <Text style={styles.rowMenuItemText}>Archive</Text>
+                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Archive</Text>
                             </TouchableOpacity>
                           )}
                           {item.pinned ? (
                             <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnpinChat(chatId)}>
                               <Ionicons name="pin" size={14} color="#FFFFFF" />
-                              <Text style={styles.rowMenuItemText}>Unpin</Text>
+                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unpin</Text>
                             </TouchableOpacity>
                           ) : (
                             <TouchableOpacity style={styles.rowMenuItem} onPress={() => handlePinChat(chatId)}>
                               <Ionicons name="pin" size={14} color="#FFFFFF" />
-                              <Text style={styles.rowMenuItemText}>Pin</Text>
+                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Pin</Text>
                             </TouchableOpacity>
                           )}
                         </View>

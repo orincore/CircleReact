@@ -253,7 +253,7 @@ class PhotoGalleryService {
    */
   async deletePhoto(photoUrl, token) {
     try {
-      //console.log('🗑️ Deleting photo:', photoUrl);
+      console.log('🗑️ Deleting photo:', photoUrl);
 
       const response = await fetch(`${API_BASE_URL}/api/users/photos`, {
         method: 'DELETE',
@@ -264,12 +264,38 @@ class PhotoGalleryService {
         body: JSON.stringify({ photoUrl }),
       });
 
+      console.log('🗑️ Delete response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete photo');
+        let errorMessage = 'Failed to delete photo';
+        
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || errorMessage;
+          } else {
+            const errorText = await response.text();
+            console.error('❌ Server response (non-JSON):', errorText.substring(0, 200));
+            
+            if (response.status === 404) {
+              errorMessage = 'Photo not found. It may have already been deleted.';
+            } else if (response.status === 403) {
+              errorMessage = 'You do not have permission to delete this photo.';
+            } else if (response.status === 500) {
+              errorMessage = 'Server error. Please try again later.';
+            } else {
+              errorMessage = `Delete failed with status ${response.status}`;
+            }
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing delete response:', parseError);
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      //console.log('✅ Photo deleted successfully');
+      console.log('✅ Photo deleted successfully');
       return true;
     } catch (error) {
       console.error('❌ Error deleting photo:', error);

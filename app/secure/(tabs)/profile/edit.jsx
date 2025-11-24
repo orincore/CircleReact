@@ -1,6 +1,7 @@
 import { combinePhoneNumber, COUNTRIES, DEFAULT_COUNTRY, parsePhoneNumber } from '@/constants/countries';
-import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
+import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests, ALL_INTERESTS } from "@/constants/interests";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { ProfilePictureService } from '@/src/services/profilePictureService';
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from 'expo-image-picker';
@@ -10,16 +11,46 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
+const GENDER_OPTIONS = [
+  // Core genders
+  "female",
+  "male",
+  "non-binary",
+  "transgender woman",
+  "transgender man",
+  "genderqueer",
+  "genderfluid",
+  "agender",
+  // Sexual / romantic orientations (for users who prefer to express identity this way)
+  "gay",
+  "lesbian",
+  "bisexual",
+  "pansexual",
+  "queer",
+  "asexual",
+  "prefer not to say",
+];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { user, updateProfile, token } = useAuth();
+  const { theme, isDarkMode } = useTheme();
+
+  const normalizeInterests = (rawInterests) => {
+    if (!Array.isArray(rawInterests)) return [];
+    return rawInterests.map((val) => {
+      if (!val) return val;
+      const lower = String(val).toLowerCase();
+      const match = ALL_INTERESTS.find((i) => i.value.toLowerCase() === lower);
+      return match ? match.value : val;
+    });
+  };
 
   const initial = useMemo(() => {
     const parsed = parsePhoneNumber(user?.phoneNumber);
+    const normalizedInterests = normalizeInterests(user?.interests || []);
     return {
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
@@ -27,7 +58,7 @@ export default function EditProfileScreen() {
       gender: user?.gender || "",
       phoneNumber: user?.phoneNumber || "",
       about: user?.about || "",
-      interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
+      interests: new Set(normalizedInterests),
       needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
       profilePhotoUrl: user?.profilePhotoUrl || "",
       instagram: user?.instagramUsername || "",
@@ -59,6 +90,7 @@ export default function EditProfileScreen() {
       const parsed = parsePhoneNumber(user?.phoneNumber);
       setSelectedCountry(parsed.country);
       setPhoneNumberInput(parsed.number);
+      const normalizedInterests = normalizeInterests(user?.interests || []);
       
       setForm({
         firstName: user?.firstName || "",
@@ -67,7 +99,7 @@ export default function EditProfileScreen() {
         gender: user?.gender || "",
         phoneNumber: user?.phoneNumber || "",
         about: user?.about || "",
-        interests: new Set(Array.isArray(user?.interests) ? user.interests : []),
+        interests: new Set(normalizedInterests),
         needs: new Set(Array.isArray(user?.needs) ? user.needs : []),
         profilePhotoUrl: user?.profilePhotoUrl || "",
         instagram: user?.instagramUsername || "",
@@ -141,12 +173,41 @@ export default function EditProfileScreen() {
     setExpandedCategories(next);
   };
 
-  const renderChip = (label, selected, onPress, type = 'interest') => (
-    <TouchableOpacity key={label} onPress={onPress} style={[styles.chip, selected && styles.chipSelected]}>
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-      {selected && <Ionicons name="checkmark" size={14} color="#7C2B86" />}
-    </TouchableOpacity>
-  );
+  const renderChip = (label, selected, onPress, type = 'interest') => {
+    // Ensure good contrast for subcategory labels like "Art", "Painting" in both themes
+    const chipTextOverride = {
+      color: isDarkMode ? '#000000' : '#111827',
+    };
+    return (
+      <TouchableOpacity
+        key={label}
+        onPress={onPress}
+        style={[
+          styles.chip,
+          selected && styles.chipSelected,
+          // In light mode, make selected chips more prominent
+          selected && !isDarkMode && {
+            backgroundColor: theme.primaryLight,
+            borderColor: theme.primary,
+            shadowColor: theme.primary,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.chipText,
+            chipTextOverride,
+            selected && styles.chipTextSelected,
+            // Darker text for selected chips in light mode
+            selected && !isDarkMode && { color: theme.primaryDark || '#4B0082' },
+          ]}
+        >
+          {label}
+        </Text>
+        {selected && <Ionicons name="checkmark" size={14} color="#7C2B86" />}
+      </TouchableOpacity>
+    );
+  };
 
   const filteredAges = useMemo(() => AGE_OPTIONS.filter((a) => a.includes(ageQuery.trim())), [ageQuery]);
   const filteredGenders = useMemo(() => GENDER_OPTIONS.filter((g) => g.toLowerCase().includes(genderQuery.toLowerCase())), [genderQuery]);
@@ -341,27 +402,45 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={["#1F1147", "#2D1B69", "#1F1147"]}
-      locations={[0, 0.5, 1]}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      {/* Clean Modern Background */}
+      <LinearGradient
+        colors={[theme.background, theme.backgroundSecondary || theme.background]}
+        style={styles.background}
+      />
+      
+      {/* Subtle decorative elements */}
+      <View style={styles.decorativeShape1} />
+      <View style={styles.decorativeShape2} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={22} color="#FFE8FF" />
+          <View style={[styles.header, { backgroundColor: theme.surface }]}>
+            <TouchableOpacity
+              style={[styles.headerBtn, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="chevron-back" size={22} color={theme.textTertiary || '#64748B'} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Edit Profile</Text>
-            <View style={styles.headerSpacer} />
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Edit Profile</Text>
+            <TouchableOpacity
+              style={[styles.headerSaveBtn, { backgroundColor: theme.primary }]}
+              onPress={onSave}
+              disabled={saving || uploadingPhoto}
+            >
+              {saving || uploadingPhoto ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Save</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {/* Profile Picture Section */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Profile Picture</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                Profile Picture
+              </Text>
               <View style={styles.photoSection}>
                 <TouchableOpacity
                   style={styles.photoContainer}
@@ -397,31 +476,41 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Basic Info</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Basic Info</Text>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>First name</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>First name</Text>
                 <TextInput
                   value={form.firstName}
                   onChangeText={v => setField("firstName", v)}
                   placeholder="Alex"
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={styles.input}
+                  placeholderTextColor={theme.textMuted || "#94A3B8"}
+                  style={[styles.input, {
+                    backgroundColor: theme.surfaceSecondary,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  }]}
                 />
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Last name</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Last name</Text>
                 <TextInput
                   value={form.lastName}
                   onChangeText={v => setField("lastName", v)}
                   placeholder="Parker"
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={styles.input}
+                  placeholderTextColor={theme.textMuted || "#94A3B8"}
+                  style={[styles.input, {
+                    backgroundColor: theme.surfaceSecondary,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  }]}
                 />
               </View>
               <View style={styles.twoCol}>
                 <View style={[styles.fieldRow, styles.col]}>
-                  <Text style={styles.label}>Age</Text>
+                  <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : theme.textSecondary }]}>
+                    Age
+                  </Text>
                   <TouchableOpacity
                     style={styles.pickerButton}
                     onPress={() => setShowAgePicker(true)}
@@ -433,7 +522,9 @@ export default function EditProfileScreen() {
                   </TouchableOpacity>
                 </View>
                 <View style={[styles.fieldRow, styles.col]}>
-                  <Text style={styles.label}>Gender</Text>
+                  <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : theme.textSecondary }]}>
+                    Gender
+                  </Text>
                   <TouchableOpacity
                     style={styles.pickerButton}
                     onPress={() => setShowGenderPicker(true)}
@@ -447,10 +538,10 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Contact</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Contact</Text>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Phone Number</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Phone Number</Text>
                 <View style={styles.phoneInputContainer}>
                   <TouchableOpacity
                     style={styles.countrySelector}
@@ -458,7 +549,7 @@ export default function EditProfileScreen() {
                   >
                     <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
                     <Text style={styles.countryCode}>{selectedCountry.dialCode}</Text>
-                    <Ionicons name="chevron-down" size={16} color="rgba(255, 255, 255, 0.6)" />
+                    <Ionicons name="chevron-down" size={16} color="#94A3B8" />
                   </TouchableOpacity>
                   <TextInput
                     value={phoneNumberInput}
@@ -470,7 +561,7 @@ export default function EditProfileScreen() {
                       }
                     }}
                     placeholder="9876543210"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    placeholderTextColor="#94A3B8"
                     style={styles.phoneInput}
                     keyboardType="phone-pad"
                     maxLength={10}
@@ -497,16 +588,20 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>About you</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>About you</Text>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Bio</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Bio</Text>
                 <TextInput
                   value={form.about}
                   onChangeText={v => setField("about", v)}
                   placeholder="Tell others about yourself, your interests, and what you're looking for..."
-                  placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                  style={[styles.input, styles.textArea]}
+                  placeholderTextColor={theme.textMuted || "#94A3B8"}
+                  style={[styles.input, styles.textArea, {
+                    backgroundColor: theme.surfaceSecondary,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  }]}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
@@ -515,14 +610,14 @@ export default function EditProfileScreen() {
                 <Text style={styles.characterCount}>{form.about.length}/500</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Interests ({form.interests.size} selected)</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Interests ({form.interests.size} selected)</Text>
                 <View style={styles.searchWrapper}>
-                  <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
+                  <Ionicons name="search" size={16} color="#94A3B8" />
                   <TextInput
                     value={interestSearch}
                     onChangeText={setInterestSearch}
                     placeholder="Search interests..."
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    placeholderTextColor="#94A3B8"
                     style={styles.searchInput}
                   />
                 </View>
@@ -540,7 +635,14 @@ export default function EditProfileScreen() {
                         activeOpacity={0.7}
                       >
                         <Ionicons name={category.icon} size={16} color="#7C2B86" />
-                        <Text style={styles.categoryTitle}>{category.name}</Text>
+                        <Text
+                          style={[
+                            styles.categoryTitle,
+                            { color: isDarkMode ? '#FFFFFF' : '#000000' },
+                          ]}
+                        >
+                          {category.name}
+                        </Text>
                         <View style={styles.categoryBadge}>
                           <Text style={styles.categoryBadgeText}>
                             {selectedCount}/{category.interests.length}
@@ -549,7 +651,7 @@ export default function EditProfileScreen() {
                         <Ionicons 
                           name={isExpanded ? "chevron-up" : "chevron-down"} 
                           size={18} 
-                          color="rgba(255, 255, 255, 0.6)" 
+                          color="#94A3B8" 
                         />
                       </TouchableOpacity>
                       
@@ -565,42 +667,64 @@ export default function EditProfileScreen() {
                 })}
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>What are you looking for? ({form.needs.size} selected)</Text>
+                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>What are you looking for? ({form.needs.size} selected)</Text>
                 <View style={styles.searchWrapper}>
-                  <Ionicons name="search" size={16} color="rgba(255, 255, 255, 0.6)" />
+                  <Ionicons name="search" size={16} color="#94A3B8" />
                   <TextInput
                     value={needSearch}
                     onChangeText={setNeedSearch}
                     placeholder="Search needs..."
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    placeholderTextColor="#94A3B8"
                     style={styles.searchInput}
                   />
                 </View>
                 <View style={styles.needsWrap}>
-                  {filteredNeeds.map((need) => (
-                    <TouchableOpacity 
-                      key={need.id} 
-                      onPress={() => toggleNeed(need.label)} 
-                      style={[styles.needCard, form.needs.has(need.label) && styles.needCardSelected]}
-                    >
-                      <Ionicons name={need.icon} size={18} color={form.needs.has(need.label) ? "#7C2B86" : "rgba(255, 255, 255, 0.6)"} />
-                      <View style={styles.needCardContent}>
-                        <Text style={[styles.needCardLabel, form.needs.has(need.label) && styles.needCardLabelSelected]}>{need.label}</Text>
-                        <Text style={styles.needCardDescription}>{need.description}</Text>
+                  {filteredNeeds.map((need) => {
+                    const isSelected = form.needs.has(need.label);
+                    const isLgbtqNeed = ['queer_relationship', 'lgbtq_friends', 'same_gender_connection'].includes(need.id);
+
+                    const cardInner = (
+                      <View style={[styles.needCard, isSelected && styles.needCardSelected, isLgbtqNeed && styles.needCardLgbtq]}>
+                        <Ionicons name={need.icon} size={18} color={isSelected ? "#7C2B86" : isLgbtqNeed ? "#EC4899" : "#94A3B8"} />
+                        <View style={styles.needCardContent}>
+                          <Text style={[styles.needCardLabel, isSelected && styles.needCardLabelSelected]}>{need.label}</Text>
+                          <Text style={styles.needCardDescription}>{need.description}</Text>
+                        </View>
+                        {isSelected && <Ionicons name="checkmark-circle" size={20} color={isLgbtqNeed ? "#EC4899" : "#7C2B86"} />}
                       </View>
-                      {form.needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color="#7C2B86" />}
-                    </TouchableOpacity>
-                  ))}
+                    );
+
+                    return (
+                      <TouchableOpacity 
+                        key={need.id} 
+                        onPress={() => toggleNeed(need.label)} 
+                        activeOpacity={0.9}
+                      >
+                        {isLgbtqNeed ? (
+                          <LinearGradient
+                            colors={["#EC4899", "#F97316", "#FACC15", "#22C55E", "#3B82F6", "#8B5CF6"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.needCardLgbtqWrapper}
+                          >
+                            {cardInner}
+                          </LinearGradient>
+                        ) : (
+                          cardInner
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Social Media</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Social Media</Text>
               <View style={styles.fieldRow}>
                 <View style={styles.labelWithIcon}>
                   <Ionicons name="logo-instagram" size={16} color="#E4405F" />
-                  <Text style={styles.label}>Instagram Username</Text>
+                  <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Instagram Username</Text>
                 </View>
                 <View style={styles.instagramInputWrapper}>
                   <Text style={styles.atSymbol}>@</Text>
@@ -608,7 +732,7 @@ export default function EditProfileScreen() {
                     value={form.instagram}
                     onChangeText={v => setField("instagram", v.replace('@', ''))}
                     placeholder="yourusername"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    placeholderTextColor="#94A3B8"
                     style={styles.instagramInput}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -627,13 +751,17 @@ export default function EditProfileScreen() {
               activeOpacity={0.9}
               onPress={onSave}
               disabled={saving || uploadingPhoto}
-              style={[styles.saveBtn, (saving || uploadingPhoto) && { opacity: 0.7 }]}
+              style={[
+                styles.saveBtn,
+                { backgroundColor: theme.primary, shadowColor: theme.primary },
+                (saving || uploadingPhoto) && { opacity: 0.7 },
+              ]}
             >
               <Text style={styles.saveBtnText}>
                 {saving ? "Saving..." : uploadingPhoto ? "Uploading..." : "Save changes"}
               </Text>
               {!saving && !uploadingPhoto && (
-                <Ionicons name="checkmark-circle" size={20} color="#7C2B86" />
+                <Ionicons name="checkmark-circle" size={20} color={theme.surface} />
               )}
             </TouchableOpacity>
           </ScrollView>
@@ -769,21 +897,49 @@ export default function EditProfileScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+  // Root screen container (outer View)
+  screen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  decorativeShape1: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    top: -50,
+    right: -50,
+  },
+  decorativeShape2: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(168, 85, 247, 0.03)',
+    bottom: 100,
+    left: -30,
+  },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   headerBtn: {
     width: 44,
@@ -791,35 +947,55 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  headerSaveBtn: {
+    minWidth: 80,
+    height: 40,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: 'row',
+    gap: 4,
   },
   headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
+    color: "#1E293B",
+    fontSize: 20,
     fontWeight: "700",
   },
   headerSpacer: { width: 44 },
-  container: { padding: 24, gap: 16, paddingBottom: 40 },
+  // ScrollView content container
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 4,
+    gap: 16,
+  },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.2)",
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#FFE8FF",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 4,
+    color: "#1E293B",
+    marginBottom: 8,
   },
-  fieldRow: { gap: 8 },
-  label: { fontSize: 13, color: "rgba(255, 255, 255, 0.8)", fontWeight: "600" },
+  fieldRow: { gap: 12 },
+  label: { fontSize: 14, color: "#475569", fontWeight: "600" },
   labelWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -828,11 +1004,11 @@ const styles = StyleSheet.create({
   input: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 14,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
     height: 48,
-    color: "#FFFFFF",
+    color: "#1E293B",
     fontSize: 15,
   },
   textArea: {
@@ -842,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   characterCount: {
     fontSize: 12,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: "#64748B",
     textAlign: "right",
     marginTop: 4,
   },
@@ -855,9 +1031,9 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     overflow: "hidden",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "#F1F5F9",
     borderWidth: 3,
-    borderColor: "#FFD6F2",
+    borderColor: "#E2E8F0",
     position: "relative",
   },
   photo: {
@@ -869,7 +1045,7 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 214, 242, 0.15)",
+    backgroundColor: "#F8FAFC",
   },
   uploadingOverlay: {
     position: "absolute",
@@ -885,72 +1061,74 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: "#FFD6F2",
-    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   changePhotoText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#7C2B86",
+    fontWeight: "600",
+    color: "#475569",
   },
   instagramInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 14,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
     height: 48,
   },
   atSymbol: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFD6F2",
+    color: "#8B5CF6",
     marginRight: 4,
   },
   instagramInput: {
     flex: 1,
     fontSize: 15,
-    color: "#FFFFFF",
+    color: "#1E293B",
   },
   twoCol: { flexDirection: "row", gap: 12 },
   col: { flex: 1 },
   saveBtn: {
-    marginTop: 8,
-    backgroundColor: "#FFD6F2",
-    borderRadius: 999,
-    paddingVertical: 18,
+    marginTop: 16,
+    backgroundColor: "#8B5CF6",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#FFD6F2",
+    shadowColor: "#8B5CF6",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
-  saveBtnText: { color: "#7C2B86", fontWeight: "800", fontSize: 17 },
+  saveBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 16 },
   pickerButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 14,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
     height: 48,
   },
   pickerButtonText: {
     fontSize: 15,
-    color: "#FFFFFF",
+    color: "#1E293B",
   },
   pickerPlaceholder: {
-    color: "rgba(255, 255, 255, 0.4)",
+    color: "#94A3B8",
   },
   instagramPreview: {
     flexDirection: "row",
@@ -1019,11 +1197,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(93, 95, 239, 0.08)",
+    backgroundColor: "#F8FAFC",
   },
   optionText: {
-    fontSize: 16,
-    color: "#1F1147",
-    fontWeight: "500",
+    fontSize: 15,
+    color: "#1F2937",
   },
   searchWrapper: {
     flexDirection: "row",
@@ -1031,8 +1209,8 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
     paddingHorizontal: 14,
     height: 44,
     marginBottom: 12,
@@ -1040,7 +1218,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#FFFFFF",
+    color: "#1E293B",
   },
   chipWrap: {
     flexDirection: "row",
@@ -1056,20 +1234,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
   },
   chipSelected: {
-    backgroundColor: "rgba(255, 214, 242, 0.2)",
-    borderColor: "rgba(255, 214, 242, 0.6)",
-    shadowColor: "#FFD6F2",
+    backgroundColor: "rgba(139, 92, 246, 0.08)",
+    borderColor: "#8B5CF6",
+    shadowColor: "#8B5CF6",
     shadowOpacity: 0.3,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   chipText: {
-    color: "rgba(255, 255, 255, 0.9)",
+    color: "#E5E7EB",
     fontWeight: "600",
     fontSize: 13,
   },
@@ -1079,7 +1257,7 @@ const styles = StyleSheet.create({
   },
   selectionCount: {
     fontSize: 12,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: "#94A3B8",
     fontStyle: "italic",
     marginTop: 4,
   },
@@ -1096,8 +1274,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
   },
   countryFlag: {
     fontSize: 20,
@@ -1105,17 +1283,17 @@ const styles = StyleSheet.create({
   countryCode: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#1E293B",
   },
   phoneInput: {
     flex: 1,
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
     paddingHorizontal: 14,
-    color: "#FFFFFF",
+    color: "#1E293B",
     fontSize: 15,
   },
   phonePreview: {
@@ -1131,7 +1309,7 @@ const styles = StyleSheet.create({
   phonePreviewText: {
     flex: 1,
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: "#166534",
     fontWeight: "600",
   },
   phoneCharCount: {
@@ -1176,12 +1354,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.15)",
+    borderBottomColor: "#E2E8F0",
   },
   categoryTitle: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
     color: "#FFFFFF",
     letterSpacing: 0.3,
   },
@@ -1192,9 +1370,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   categoryBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#7C2B86",
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#0F172A",
   },
   needsWrap: {
     gap: 10,
@@ -1206,12 +1384,21 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+  },
+  // Outer gradient wrapper for LGBTQ-focused needs
+  needCardLgbtqWrapper: {
+    borderRadius: 14,
+    padding: 1.5,
+  },
+  // Inner card gets slight transparency when in rainbow wrapper
+  needCardLgbtq: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
   needCardSelected: {
     borderColor: "#7C2B86",
-    backgroundColor: "rgba(124, 43, 134, 0.2)",
+    backgroundColor: "rgba(124, 43, 134, 0.08)",
   },
   needCardContent: {
     flex: 1,
@@ -1219,7 +1406,7 @@ const styles = StyleSheet.create({
   needCardLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#000000",
     marginBottom: 2,
   },
   needCardLabelSelected: {
@@ -1227,6 +1414,6 @@ const styles = StyleSheet.create({
   },
   needCardDescription: {
     fontSize: 11,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: "#6B7280",
   },
 });

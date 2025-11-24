@@ -1,5 +1,6 @@
 import VoiceCallModal from "@/components/VoiceCallModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { chatApi } from "@/src/api/chat";
 import { API_BASE_URL } from "@/src/api/config";
 import { friendsApi } from "@/src/api/friends";
@@ -65,7 +66,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 }
 
 // Modern Empty Chat Component
-const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
+const EmptyChatAnimation = ({ conversationName, onSendHi, theme, isDarkMode }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -161,7 +162,7 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
         { transform: [{ translateY: floatTranslateY }] }
       ]}>
         <LinearGradient
-          colors={['#6366f1', '#8b5cf6']}
+          colors={[theme.primary, theme.decorative1]}
           style={styles.iconGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -179,9 +180,9 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
 
       {/* Professional heading */}
       <View style={styles.headingContainer}>
-        <Text style={styles.modernTitle}>Welcome to your conversation</Text>
-        <Text style={styles.modernSubtitle}>
-          Start connecting with <Text style={styles.nameHighlight}>{conversationName}</Text>
+        <Text style={[styles.modernTitle, { color: theme.textPrimary }]}>Welcome to your conversation</Text>
+        <Text style={[styles.modernSubtitle, { color: theme.textSecondary }]}>
+          Start connecting with <Text style={[styles.nameHighlight, { color: theme.primary }]}>{conversationName}</Text>
         </Text>
       </View>
 
@@ -189,36 +190,33 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
       <View style={styles.suggestionsContainer}>
         <View style={styles.suggestionItem}>
           <View style={styles.suggestionIcon}>
-            <Ionicons name="hand-right" size={16} color="#6366f1" />
+            <Ionicons name="hand-right" size={16} color={theme.primary} />
           </View>
-          <Text style={styles.suggestionText}>Say hello and introduce yourself</Text>
+          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Say hello and introduce yourself</Text>
         </View>
         <View style={styles.suggestionItem}>
           <View style={styles.suggestionIcon}>
-            <Ionicons name="help-circle" size={16} color="#6366f1" />
+            <Ionicons name="help-circle" size={16} color={theme.primary} />
           </View>
-          <Text style={styles.suggestionText}>Ask about their interests</Text>
+          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Ask about their interests</Text>
         </View>
         <View style={styles.suggestionItem}>
           <View style={styles.suggestionIcon}>
-            <Ionicons name="happy" size={16} color="#6366f1" />
+            <Ionicons name="happy" size={16} color={theme.primary} />
           </View>
-          <Text style={styles.suggestionText}>Share something about yourself</Text>
+          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Share something fun about yourself</Text>
         </View>
       </View>
 
       {/* Modern CTA button */}
       <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
         <TouchableOpacity style={styles.modernSendButton} onPress={onSendHi}>
-          <LinearGradient
-            colors={['#6366f1', '#8b5cf6']}
-            style={styles.modernButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <View
+            style={[styles.modernButtonGradient, { backgroundColor: theme.primary }]}
           >
             <Ionicons name="paper-plane" size={18} color="white" />
             <Text style={styles.modernButtonText}>Start Conversation</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </Animated.View>
 
@@ -233,7 +231,7 @@ const EmptyChatAnimation = ({ conversationName, onSendHi }) => {
 };
 
 // Enhanced MessageBubble component with interactions
-const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, onDelete, onReact }) => {
+const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, onDelete, onReact, theme, isDarkMode, dynamicStyles }) => {
   const [showMenu, setShowMenu] = useState(false);
   const isBrowser = Platform.OS === 'web';
   
@@ -315,21 +313,34 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
     <Pressable
       onLongPress={handleLongPress}
       onPress={handlePress}
-      style={[
-        styles.messageRow,
-        isMine ? styles.messageRowMine : styles.messageRowTheirs
-      ]}
+      style={[{
+        flexDirection: 'row',
+        marginVertical: 6,
+        paddingHorizontal: 12,
+        alignItems: 'flex-end',
+        justifyContent: isMine ? 'flex-end' : 'flex-start'
+      }]}
     >
       {!isMine && (
-        <View style={styles.avatarContainer}>
+        <View style={[styles.avatarContainer, { marginRight: 12, marginBottom: 6 }]}>
           {userAvatar && userAvatar.trim() ? (
             <Image 
               source={{ uri: userAvatar }} 
               style={styles.messageAvatarImage}
             />
           ) : (
-            <View style={styles.messageFallbackAvatar}>
-              <Text style={styles.messageFallbackAvatarText}>
+            <View style={[styles.messageFallbackAvatar, { 
+              backgroundColor: theme.surfaceSecondary,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              shadowColor: theme.shadowColor,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDarkMode ? 0.3 : 0.1,
+              shadowRadius: 4,
+              elevation: 3
+            }]}>
+              <Text style={[styles.messageFallbackAvatarText, { color: theme.textPrimary }]}>
                 {String(conversationName).charAt(0).toUpperCase()}
               </Text>
             </View>
@@ -338,23 +349,17 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
       )}
       
       <View style={[
-        styles.messageBubble,
-        isMine ? styles.myMessageBubble : styles.theirMessageBubble
+        isMine ? dynamicStyles.myMessageBubble : dynamicStyles.otherMessageBubble
       ]}>
         {isMine ? (
-          <LinearGradient
-            colors={["#FFD6F2", "#FFBEF0", "#FF9AE8"]}
-            style={styles.myBubbleGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
+          <>
             {/* 3-dot menu for browser users - inside bubble - only for own messages */}
             {isBrowser && isMine && (
               <TouchableOpacity 
                 style={[styles.messageMenuButton, styles.messageMenuButtonMine]}
                 onPress={handleMenuPress}
               >
-                <Ionicons name="ellipsis-vertical" size={16} color="#7C2B86" />
+                <Ionicons name="ellipsis-vertical" size={16} color={theme.textSecondary} />
               </TouchableOpacity>
             )}
             
@@ -389,21 +394,21 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
             )}
             
             {message.text && (
-              <Text style={styles.myMessageText}>
+              <Text style={[styles.myMessageText, dynamicStyles.myMessageText]}>
                 {message.text}
               </Text>
             )}
             {message.isEdited && (
               <Text style={styles.editedLabel}>edited</Text>
             )}
-            <View style={styles.messageFooter}>
-              <Text style={styles.myTimestamp}>
+            <View style={[styles.messageFooter, dynamicStyles.messageFooter]}>
+              <Text style={[styles.myTimestamp, dynamicStyles.myTimestamp]}>
                 {new Date(message.createdAt ?? Date.now()).toLocaleTimeString([], { 
                   hour: "2-digit", 
                   minute: "2-digit" 
                 })}
               </Text>
-              <View style={styles.messageStatus}>
+              <View style={[styles.messageStatus, dynamicStyles.messageStatus]}>
                 <Ionicons
                   name={
                     message.status === 'read' ? 'checkmark-done' : 
@@ -415,17 +420,28 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
                   }
                   size={13}
                   color={
-                    message.status === 'read' ? '#7C2B86' : 
-                    message.status === 'delivered' ? 'rgba(124,43,134,0.7)' : 
-                    message.status === 'sent' ? 'rgba(124,43,134,0.5)' :
-                    message.status === 'sending' ? 'rgba(124,43,134,0.4)' :
+                    message.status === 'read' ? '#FFFFFF' : 
+                    message.status === 'delivered' ? 'rgba(255,255,255,0.8)' : 
+                    message.status === 'sent' ? 'rgba(255,255,255,0.6)' :
+                    message.status === 'sending' ? 'rgba(255,255,255,0.5)' :
                     message.status === 'failed' ? '#FF4444' :
-                    'rgba(124,43,134,0.3)'
+                    'rgba(255,255,255,0.4)'
                   }
                 />
               </View>
             </View>
-          </LinearGradient>
+
+            {message.reactions && message.reactions.length > 0 && (
+              <View style={styles.reactionsContainer}>
+                {message.reactions.map((reaction, index) => (
+                  <View key={index} style={styles.reactionBubble}>
+                    <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
+                    <Text style={styles.reactionCount}>{reaction.count || 1}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
         ) : (
           <>
             {/* Media Content */}
@@ -459,21 +475,32 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
             )}
             
             {message.text && (
-              <Text style={styles.theirMessageText}>
+              <Text style={[styles.theirMessageText, dynamicStyles.otherMessageText]}>
                 {message.text}
               </Text>
             )}
             {message.isEdited && (
               <Text style={styles.editedLabel}>edited</Text>
             )}
-            <View style={styles.messageFooter}>
-              <Text style={styles.theirTimestamp}>
+            <View style={[styles.messageFooter, dynamicStyles.messageFooter]}>
+              <Text style={[styles.theirTimestamp, dynamicStyles.theirTimestamp]}>
                 {new Date(message.createdAt ?? Date.now()).toLocaleTimeString([], { 
                   hour: "2-digit", 
                   minute: "2-digit" 
                 })}
               </Text>
             </View>
+
+            {message.reactions && message.reactions.length > 0 && (
+              <View style={styles.reactionsContainer}>
+                {message.reactions.map((reaction, index) => (
+                  <View key={index} style={styles.reactionBubble}>
+                    <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
+                    <Text style={styles.reactionCount}>{reaction.count || 1}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
       </View>
@@ -520,17 +547,6 @@ const MessageBubble = ({ message, isMine, conversationName, userAvatar, onEdit, 
         </>
       )}
       
-      {/* Show reactions if any - WhatsApp style */}
-      {message.reactions && message.reactions.length > 0 && (
-        <View style={styles.reactionsContainer}>
-          {message.reactions.map((reaction, index) => (
-            <View key={index} style={styles.reactionBubble}>
-              <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-              <Text style={styles.reactionCount}>{reaction.count || 1}</Text>
-            </View>
-          ))}
-        </View>
-      )}
     </Pressable>
   );
 };
@@ -581,7 +597,20 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to send friend request:', error);
-      Alert.alert('Error', error.message || 'Failed to send friend request. Please try again.');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to send friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('already sent')) {
+        errorMessage = 'Friend request already sent to this user.';
+      } else if (error.message.includes('already friends')) {
+        errorMessage = 'You are already friends with this user.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setSendingRequest(false);
     }
@@ -604,7 +633,18 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to accept friend request:', error);
-      Alert.alert('Error', error.message || 'Failed to accept friend request. Please try again.');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to accept friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setSendingRequest(false);
     }
@@ -626,7 +666,18 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to decline friend request:', error);
-      Alert.alert('Error', error.message || 'Failed to decline friend request. Please try again.');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to decline friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setSendingRequest(false);
     }
@@ -717,7 +768,7 @@ const NotFriendsMessage = ({ conversationName, otherUserId, onFriendRequestSent,
   );
 };
 
-function TypingDots({ label }) {
+function TypingDots({ label, theme, isDarkMode }) {
   const d1 = useRef(new Animated.Value(0)).current;
   const d2 = useRef(new Animated.Value(0)).current;
   const d3 = useRef(new Animated.Value(0)).current;
@@ -737,21 +788,37 @@ function TypingDots({ label }) {
 
   return (
     <View style={styles.typingContainer}>
-      <View style={styles.typingBubble}>
+      <View
+        style={[
+          styles.typingBubble,
+          {
+            backgroundColor: isDarkMode
+              ? 'rgba(15, 23, 42, 0.8)'
+              : 'rgba(255, 255, 255, 0.9)',
+            borderWidth: 1,
+            borderColor: isDarkMode
+              ? 'rgba(148, 163, 184, 0.5)'
+              : 'rgba(148, 163, 184, 0.6)',
+          },
+        ]}
+      >
         <View style={styles.typingDotsContainer}>
           <Animated.View style={[styles.typingDot, { 
+            backgroundColor: isDarkMode ? theme.primary : theme.textSecondary,
             transform: [{ 
               translateY: d1.interpolate({ inputRange: [0,1], outputRange: [0, -3] }) 
             }],
             opacity: d1.interpolate({ inputRange: [0,1], outputRange: [0.4, 1] })
           }]} />
           <Animated.View style={[styles.typingDot, { 
+            backgroundColor: isDarkMode ? theme.primary : theme.textSecondary,
             transform: [{ 
               translateY: d2.interpolate({ inputRange: [0,1], outputRange: [0, -3] }) 
             }],
             opacity: d2.interpolate({ inputRange: [0,1], outputRange: [0.4, 1] })
           }]} />
           <Animated.View style={[styles.typingDot, { 
+            backgroundColor: isDarkMode ? theme.primary : theme.textSecondary,
             transform: [{ 
               translateY: d3.interpolate({ inputRange: [0,1], outputRange: [0, -3] }) 
             }],
@@ -760,7 +827,12 @@ function TypingDots({ label }) {
         </View>
       </View>
       {label && (
-        <Text style={styles.typingLabel}>
+        <Text
+          style={[
+            styles.typingLabel,
+            { color: isDarkMode ? theme.textSecondary : theme.textSecondary },
+          ]}
+        >
           {label}
         </Text>
       )}
@@ -826,8 +898,210 @@ export default function InstagramChatScreen() {
   const conversationName = typeof name === "string" ? name : conversationId.split("-")[0] ?? "Chat";
   const initialAvatar = typeof avatar === "string" && avatar.trim() ? avatar.trim() : null;
   const { token, user } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const myUserId = user?.id ?? "me";
   const responsive = useResponsiveDimensions();
+  
+  // Create dynamic styles based on theme
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      backgroundColor: theme.surface,
+      borderBottomWidth: isDarkMode ? 0 : 1,
+      borderBottomColor: isDarkMode ? 'transparent' : theme.border,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.textPrimary,
+    },
+    headerSubtitle: {
+      fontSize: 12,
+      color: theme.textTertiary,
+    },
+    myMessageBubble: {
+      backgroundColor: theme.primary,
+      borderRadius: 20,
+      borderBottomRightRadius: 4,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      marginVertical: 3,
+      marginLeft: 40,
+      maxWidth: '85%',
+      alignSelf: 'flex-end',
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.4 : 0.25,
+      shadowRadius: 8,
+      elevation: 5,
+      position: 'relative', // anchor for reactions just outside bubble
+    },
+    otherMessageBubble: {
+      backgroundColor: theme.surface,
+      borderRadius: 20,
+      borderBottomLeftRadius: 4,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      marginVertical: 3,
+      marginRight: 40,
+      maxWidth: '85%',
+      alignSelf: 'flex-start',
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.12,
+      shadowRadius: 8,
+      elevation: 4,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+      position: 'relative', // anchor for reactions just outside bubble
+    },
+    myMessageText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      lineHeight: 22,
+      fontWeight: '500',
+    },
+    otherMessageText: {
+      color: theme.textPrimary,
+      fontSize: 16,
+      lineHeight: 22,
+      fontWeight: '500',
+    },
+    inputContainer: {
+      backgroundColor: theme.surface,
+      borderTopWidth: isDarkMode ? 0 : 1,
+      borderTopColor: isDarkMode ? 'transparent' : theme.border,
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: -6 },
+      shadowOpacity: isDarkMode ? 0.5 : 0.15,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    textInput: {
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: 28,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      fontWeight: '400',
+      color: theme.textPrimary,
+      borderWidth: isDarkMode ? 0 : 1.5,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+      lineHeight: 22,
+    },
+    sendButton: {
+      backgroundColor: theme.primary,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 16,
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDarkMode ? 0.6 : 0.4,
+      shadowRadius: 12,
+      elevation: 8,
+      transform: [{ scale: 1 }],
+    },
+    textInputFocused: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+      shadowColor: theme.primary,
+      shadowOpacity: isDarkMode ? 0.4 : 0.15,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+    },
+    textInputContainer: {
+      flex: 1,
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    placeholderStyle: {
+      color: theme.textPlaceholder,
+      fontSize: 16,
+      fontWeight: '400',
+    },
+    characterCounter: {
+      position: 'absolute',
+      bottom: 8,
+      right: 12,
+      fontSize: 11,
+      color: theme.textMuted,
+      backgroundColor: theme.surface,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 8,
+      opacity: 0.8,
+    },
+    inputIndicator: {
+      position: 'absolute',
+      bottom: -2,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: theme.primary,
+      borderRadius: 1,
+      transform: [{ scaleX: 0 }],
+    },
+    mediaButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: theme.surfaceSecondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.1,
+      shadowRadius: 6,
+      elevation: 3,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+    },
+    messageFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      marginTop: 4,
+      gap: 4,
+    },
+    myTimestamp: {
+      fontSize: 11,
+      color: 'rgba(255, 255, 255, 0.8)',
+      fontWeight: '400',
+    },
+    theirTimestamp: {
+      fontSize: 11,
+      color: theme.textMuted,
+      fontWeight: '400',
+    },
+    messageStatus: {
+      marginLeft: 2,
+    },
+  };
   
   // Responsive detection
   const [screenData, setScreenData] = useState(() => {
@@ -868,6 +1142,7 @@ export default function InstagramChatScreen() {
 
   const [composer, setComposer] = useState("");
   const [messages, setMessages] = useState([]);
+  const [displayedMessages, setDisplayedMessages] = useState([]);
   const [oldestAt, setOldestAt] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const [otherUserOnline, setOtherUserOnline] = useState(false);
@@ -944,7 +1219,9 @@ export default function InstagramChatScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [displayedMessages, setDisplayedMessages] = useState([]);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [inputHeight, setInputHeight] = useState(52);
+  const inputFocusAnim = useRef(new Animated.Value(0)).current;
   const [messageLimit, setMessageLimit] = useState(50); // Start with 50 messages
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [showVoiceCall, setShowVoiceCall] = useState(false);
@@ -1356,8 +1633,22 @@ export default function InstagramChatScreen() {
     // Socket event handlers
     const handleHistory = (data) => {
       if (!data || !data.messages) return;
-      setMessages(data.messages);
-      if (data.oldestAt) setOldestAt(data.oldestAt);
+
+      // Ensure messages are in chronological order (oldest first)
+      const sorted = [...data.messages].sort((a, b) => {
+        const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt || 0).getTime();
+        const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt || 0).getTime();
+        return aTime - bTime;
+      });
+
+      setMessages(sorted);
+
+      // Oldest message timestamp is now the first item
+      if (sorted.length > 0) {
+        setOldestAt(sorted[0].createdAt);
+      } else if (data.oldestAt) {
+        setOldestAt(data.oldestAt);
+      }
     };
 
     const handleMessage = (data) => {
@@ -1382,18 +1673,23 @@ export default function InstagramChatScreen() {
     };
 
     const handleTyping = (data) => {
-      if (!data || !data.userId) return;
-      if (data.isTyping) {
-        setTypingUsers(prev => [...new Set([...prev, data.userId])]);
-      } else {
-        setTypingUsers(prev => prev.filter(id => id !== data.userId));
-      }
+      if (!data || !data.chatId) return;
+      // Backend emits `{ chatId, users: string[] }` for in-conversation typing state
+      const users = Array.isArray(data.users) ? data.users : [];
+      // Do not show self in typing indicator
+      const others = users.filter((u) => u && u !== myUserId);
+      setTypingUsers(others);
     };
 
     const handlePresence = (data) => {
-      if (!data) return;
-      // Handle user presence updates
-      setOtherUserOnline(data.isOnline || false);
+      if (!data || !data.chatId) return;
+      // Only react to presence updates for this conversation
+      if (data.chatId !== conversationId) return;
+      // Backend emits `{ chatId, online }`; we also support `isOnline` for compatibility
+      const online = typeof data.isOnline === 'boolean' ? data.isOnline : !!data.online;
+      setOtherUserOnline(online);
+      // Keep header status in sync with presence
+      setIsOnline(online);
     };
 
     const handleReactionAdded = (data) => {
@@ -1404,6 +1700,12 @@ export default function InstagramChatScreen() {
       setMessages(prev => prev.map(msg => {
         if (msg.id === messageId) {
           const reactions = msg.reactions || [];
+          // Avoid duplicates if the same reaction arrives multiple times
+          const exists = reactions.some(r => {
+            if (r.id && reaction.id) return r.id === reaction.id;
+            return r.userId === reaction.userId && r.emoji === reaction.emoji;
+          });
+          if (exists) return msg;
           return { ...msg, reactions: [...reactions, reaction] };
         }
         return msg;
@@ -1459,18 +1761,6 @@ export default function InstagramChatScreen() {
       ));
     });
     
-    // Handle toggle events
-    s.on('chat:reaction:toggle', (data) => {
-      if (!data || !data.chatId) return;
-      const { chatId, messageId, action, reaction, userId, emoji } = data;
-      if (chatId !== conversationId) return;
-      if (action === 'added' && reaction) {
-        handleReactionAdded({ chatId, messageId, reaction });
-      } else if (action === 'removed' && userId && emoji) {
-        handleReactionRemoved({ chatId, messageId, userId, emoji });
-      }
-    });
-
     s.on('chat:message:blocked', (data) => {
       let message;
       switch (data.reason) {
@@ -2092,11 +2382,13 @@ export default function InstagramChatScreen() {
   const handleTypingChange = (text) => {
     setComposer(text);
     const s = getSocket(token);
-    try { s.emit('chat:typing', { chatId: conversationId, typing: true }); } catch {}
+    // Emit both `isTyping` (new) and `typing` (legacy) so backend handlers and any older
+    // servers can understand the event shape
+    try { s.emit('chat:typing', { chatId: conversationId, isTyping: true, typing: true }); } catch {}
     
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => {
-      try { s.emit('chat:typing', { chatId: conversationId, typing: false }); } catch {}
+      try { s.emit('chat:typing', { chatId: conversationId, isTyping: false, typing: false }); } catch {}
     }, 1000);
   };
 
@@ -2145,6 +2437,10 @@ export default function InstagramChatScreen() {
       if (item && item.senderId && item.senderId !== myUserId) {
         try { s.emit('chat:delivered', { chatId: conversationId, messageId: item.id }); } catch {}
         try { s.emit('chat:read', { chatId: conversationId, messageId: item.id }); } catch {}
+        // Also emit new-style receipt events that backend uses to send
+        // chat:message:delivery_receipt and chat:message:read_receipt to sender
+        try { s.emit('chat:message:delivered', { messageId: item.id }); } catch {}
+        try { s.emit('chat:message:read', { messageId: item.id }); } catch {}
       }
     });
   }).current;
@@ -2450,6 +2746,9 @@ export default function InstagramChatScreen() {
               <MessageBubble
                 message={item}
                 isMine={item.senderId === myUserId}
+                theme={theme}
+                isDarkMode={isDarkMode}
+                dynamicStyles={dynamicStyles}
                 conversationName={conversationName}
                 userAvatar={userAvatar}
                 onEdit={startEditMessage}
@@ -2468,6 +2767,8 @@ export default function InstagramChatScreen() {
               <EmptyChatAnimation 
                 conversationName={conversationName}
                 onSendHi={handleSendHi}
+                theme={theme}
+                isDarkMode={isDarkMode}
               />
             }
             ListHeaderComponent={() => {
@@ -2500,7 +2801,11 @@ export default function InstagramChatScreen() {
             ListFooterComponent={() => (
               <View>
                 {typingUsers.length > 0 ? (
-                  <TypingDots label={`${conversationName} is typing`} />
+                  <TypingDots 
+                    label={`${conversationName} is typing`}
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                  />
                 ) : null}
                 {/* Spacer to keep last message fully visible above absolute composer */}
                 <View style={{ height: desktopComposerHeight + 24 }} />
@@ -2647,23 +2952,23 @@ export default function InstagramChatScreen() {
   // Mobile View
   return (
     <LinearGradient
-      colors={["#1F1147", "#2D1B69", "#1F1147"]}
+      colors={[theme.background, theme.backgroundSecondary, theme.background]}
       locations={[0, 0.55, 1]}
-      style={styles.container}
+      style={[styles.container, dynamicStyles.container]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Background blur effects */}
-      <View style={styles.blurCircleLarge} />
-      <View style={styles.blurCircleSmall} />
-      <View style={styles.blurCircleMedium} />
+      {/* Background decorative elements */}
+      <View style={[styles.blurCircleLarge, { backgroundColor: theme.decorative1, opacity: isDarkMode ? 0.3 : 0.1 }]} />
+      <View style={[styles.blurCircleSmall, { backgroundColor: theme.decorative2, opacity: isDarkMode ? 0.3 : 0.1 }]} />
+      <View style={[styles.blurCircleMedium, { backgroundColor: theme.decorative1, opacity: isDarkMode ? 0.3 : 0.1 }]} />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         {Platform.OS === 'web' ? (
-          <View style={[styles.header, styles.glassWeb]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+          <View style={[styles.header, styles.glassWeb, dynamicStyles.header]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
             <Pressable 
               style={({ hovered }) => [
                 styles.backButton, 
@@ -2671,7 +2976,7 @@ export default function InstagramChatScreen() {
               ]} 
               onPress={() => router.replace('/secure/chat')}
             >
-              <Ionicons name="chevron-back" size={26} color="#FFE8FF" />
+              <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
             </Pressable>
             
             <View style={styles.headerInfo}>
@@ -2698,14 +3003,25 @@ export default function InstagramChatScreen() {
                   )}
                 </Pressable>
                 <View style={styles.headerTextContainer}>
-                  <Text style={styles.headerName} numberOfLines={1}>
+                  <Text
+                    style={[
+                      styles.headerName,
+                      { color: isDarkMode ? theme.textPrimary : '#000000' },
+                    ]}
+                    numberOfLines={1}
+                  >
                     {conversationName}
                   </Text>
                   <View style={styles.statusRow}>
                     <View style={[styles.onlineIndicator, { 
                       backgroundColor: isOnline ? '#00FF94' : 'rgba(255,255,255,0.4)' 
                     }]} />
-                    <Text style={styles.headerStatus}>
+                    <Text
+                      style={[
+                        styles.headerStatus,
+                        { color: isDarkMode ? theme.textSecondary : '#555555' },
+                      ]}
+                    >
                       {isOnline ? 'Active now' : 'Offline'}
                     </Text>
                   </View>
@@ -2739,9 +3055,9 @@ export default function InstagramChatScreen() {
             </Pressable>
           </View>
         ) : (
-          <BlurView intensity={35} tint="dark" style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+          <View style={[styles.header, dynamicStyles.header]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/secure/chat')}>
-              <Ionicons name="chevron-back" size={26} color="#FFE8FF" />
+              <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
             </TouchableOpacity>
             
             <View style={styles.headerInfo}>
@@ -2768,14 +3084,32 @@ export default function InstagramChatScreen() {
                   )}
                 </Pressable>
                 <View style={styles.headerTextContainer}>
-                  <Text style={styles.headerName} numberOfLines={1}>
+                  <Text
+                    style={[
+                      styles.headerName,
+                      { color: isDarkMode ? theme.textPrimary : '#000000' },
+                    ]}
+                    numberOfLines={1}
+                  >
                     {conversationName}
                   </Text>
                   <View style={styles.statusRow}>
-                    <View style={[styles.onlineIndicator, { 
-                      backgroundColor: isOnline ? '#00FF94' : 'rgba(255,255,255,0.4)' 
-                    }]} />
-                    <Text style={styles.headerStatus}>
+                    <View
+                      style={[
+                        styles.onlineIndicator,
+                        {
+                          backgroundColor: isOnline
+                            ? '#00FF94'
+                            : 'rgba(255,255,255,0.4)',
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.headerStatus,
+                        { color: isDarkMode ? theme.textSecondary : '#555555' },
+                      ]}
+                    >
                       {isOnline ? 'Active now' : 'Offline'}
                     </Text>
                   </View>
@@ -2788,7 +3122,7 @@ export default function InstagramChatScreen() {
                 style={styles.headerAction}
                 onPress={handleStartVoiceCall}
               >
-                <Ionicons name="call" size={22} color="#FFE8FF" />
+                <Ionicons name="call" size={22} color={theme.textPrimary} />
               </TouchableOpacity>
             )}
             
@@ -2799,9 +3133,9 @@ export default function InstagramChatScreen() {
                 setShowChatMenu(true);
               }}
             >
-              <Ionicons name="ellipsis-horizontal" size={22} color="#FFE8FF" />
+              <Ionicons name="ellipsis-horizontal" size={22} color={theme.textPrimary} />
             </TouchableOpacity>
-          </BlurView>
+          </View>
         )}
 
         <KeyboardAvoidingView
@@ -2854,6 +3188,9 @@ export default function InstagramChatScreen() {
               <MessageBubble
                 message={item}
                 isMine={item.senderId === myUserId}
+                theme={theme}
+                isDarkMode={isDarkMode}
+                dynamicStyles={dynamicStyles}
                 conversationName={conversationName}
                 onEdit={startEditMessage}
                 onDelete={handleDeleteMessage}
@@ -2926,6 +3263,8 @@ export default function InstagramChatScreen() {
                 <EmptyChatAnimation 
                   conversationName={conversationName} 
                   onSendHi={handleSendHi}
+                  theme={theme}
+                  isDarkMode={isDarkMode}
                 />
               ) : null
             )}
@@ -2934,7 +3273,11 @@ export default function InstagramChatScreen() {
           {/* Typing indicator directly above the composer (mobile) */}
           {typingUsers.length ? (
             <Animated.View style={[styles.typingIndicatorWrapper, { opacity: typingFade }]}>
-              <TypingDots label={`${String(conversationName).split(" ")[0]} is typing`} />
+              <TypingDots 
+                label={`${String(conversationName).split(" ")[0]} is typing`}
+                theme={theme}
+                isDarkMode={isDarkMode}
+              />
             </Animated.View>
           ) : null}
 
@@ -3008,7 +3351,7 @@ export default function InstagramChatScreen() {
             onLayout={(e) => setComposerContainerHeight(e.nativeEvent.layout.height)}
           >
             {Platform.OS !== 'web' && (
-              <BlurView intensity={25} tint="dark" style={styles.composerBlur} />
+              <View style={[styles.composerBlur, { backgroundColor: theme.surface, opacity: 0.95 }]} />
             )}
             <View style={[
               styles.composerWrapper,
@@ -3043,53 +3386,40 @@ export default function InstagramChatScreen() {
               {/* Media Picker Button */}
               {!chatDisabled && !uploadingMedia && (
                 <TouchableOpacity 
-                  style={styles.mediaButton}
+                  style={[styles.mediaButton, dynamicStyles.mediaButton]}
                   onPress={() => {
                     //console.log('📱 Media button clicked, current state:', showMediaOptions);
                     setShowMediaOptions(!showMediaOptions);
                     //console.log('📱 Setting showMediaOptions to:', !showMediaOptions);
                   }}
                 >
-                  <Ionicons name="add-circle" size={screenData.isDesktop ? 32 : 28} color="#7C2B86" />
+                  <Ionicons name="add-circle" size={screenData.isDesktop ? 32 : 28} color={theme.primary} />
                 </TouchableOpacity>
               )}
 
               {uploadingMedia && (
-                <View style={styles.mediaButton}>
-                  <ActivityIndicator size="small" color="#7C2B86" />
+                <View style={[styles.mediaButton, dynamicStyles.mediaButton]}>
+                  <ActivityIndicator size="small" color={theme.primary} />
                 </View>
               )}
 
               <View style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: 25,
-                  paddingHorizontal: 18,
-                  paddingVertical: 12,
-                  borderWidth: 1,
-                  borderColor: 'rgba(255, 214, 242, 0.2)',
-                },
-                screenData.isDesktop && {
-                  borderRadius: 28,
-                  paddingHorizontal: 24,
-                  paddingVertical: 18,
-                  borderColor: 'rgba(255, 214, 242, 0.3)',
-                }
+                dynamicStyles.inputWrapper
               ]}>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    chatDisabled && styles.textInputDisabled,
-                    { 
-                      height: undefined, 
-                      minHeight: 40, 
-                      maxHeight: 120, // Match the style maxHeight
-                      backgroundColor: 'transparent',
-                      paddingHorizontal: 0,
-                      paddingVertical: 0,
-                    }
-                  ]}
+                <View style={[
+                  dynamicStyles.textInputContainer
+                ]}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      dynamicStyles.textInput,
+                      isInputFocused && dynamicStyles.textInputFocused,
+                      chatDisabled && styles.textInputDisabled,
+                      { 
+                        minHeight: Math.max(52, inputHeight),
+                        maxHeight: 120,
+                      }
+                    ]}
                   placeholder={
                     chatDisabled 
                       ? (blockStatus.isBlocked 
@@ -3099,21 +3429,63 @@ export default function InstagramChatScreen() {
                             : "Send a friend request to message")
                       : "Type a message..."
                   }
-                  placeholderTextColor={chatDisabled ? (friendshipStatus === 'not_friends' ? "rgba(124, 43, 134, 0.6)" : "rgba(255, 68, 68, 0.6)") : "rgba(255, 255, 255, 0.6)"}
+                  placeholderTextColor={chatDisabled ? (friendshipStatus === 'not_friends' ? theme.primary + '60' : "rgba(255, 68, 68, 0.6)") : theme.textPlaceholder}
                   value={composer}
-                  onChangeText={chatDisabled ? undefined : handleTypingChange}
-                  onKeyPress={chatDisabled ? undefined : handleKeyPress}
-                  onContentSizeChange={chatDisabled ? undefined : handleInputContentSizeChange}
-                  multiline
-                  scrollEnabled={true}
-                  maxLength={2000}
-                  editable={!chatDisabled}
-                />
+                    onChangeText={chatDisabled ? undefined : handleTypingChange}
+                    onKeyPress={chatDisabled ? undefined : handleKeyPress}
+                    onContentSizeChange={chatDisabled ? undefined : (e) => {
+                      const newHeight = Math.max(52, Math.min(120, e.nativeEvent.contentSize.height + 32));
+                      setInputHeight(newHeight);
+                      if (handleInputContentSizeChange) handleInputContentSizeChange(e);
+                    }}
+                    onFocus={() => {
+                      setIsInputFocused(true);
+                      Animated.timing(inputFocusAnim, {
+                        toValue: 1,
+                        duration: 200,
+                        easing: Easing.out(Easing.quad),
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                    onBlur={() => {
+                      setIsInputFocused(false);
+                      Animated.timing(inputFocusAnim, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.out(Easing.quad),
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                    multiline
+                    scrollEnabled={true}
+                    maxLength={2000}
+                    editable={!chatDisabled}
+                    textAlignVertical="center"
+                  />
+                  
+                  {/* Character Counter */}
+                  {composer.length > 1500 && (
+                    <Text style={dynamicStyles.characterCounter}>
+                      {composer.length}/2000
+                    </Text>
+                  )}
+                  
+                  {/* Input Focus Indicator */}
+                  <Animated.View 
+                    style={[
+                      dynamicStyles.inputIndicator,
+                      {
+                        transform: [{ scaleX: inputFocusAnim }]
+                      }
+                    ]}
+                  />
+                </View>
               </View>
 
               {composer.trim() && !chatDisabled ? (
                 <TouchableOpacity style={[
                   styles.sendButton,
+                  dynamicStyles.sendButton,
                   screenData.isDesktop && {
                     marginLeft: 16,
                     width: 56,
@@ -3121,27 +3493,25 @@ export default function InstagramChatScreen() {
                     borderRadius: 28,
                     marginBottom: 8,
                   }
-                ]} onPress={handleSend}>
-                  <LinearGradient
-                    colors={["#7C2B86", "#A16AE8"]}
-                    style={[
-                      styles.sendGradient,
-                      screenData.isDesktop && {
-                        width: 56,
-                        height: 56,
-                        borderRadius: 28,
-                      }
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
+                ]} 
+                onPress={handleSend}
+                activeOpacity={0.8}
+                >
+                  <View style={{ 
+                    backgroundColor: 'transparent', 
+                    borderRadius: 26, 
+                    width: '100%', 
+                    height: '100%', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
                     <Ionicons 
                       name={editingMessage ? "checkmark" : "paper-plane"} 
-                      size={screenData.isDesktop ? 24 : 20} 
+                      size={screenData.isDesktop ? 28 : 24} 
                       color="#FFFFFF" 
                       style={editingMessage ? {} : { transform: [{ rotate: '45deg' }] }}
                     />
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               ) : chatDisabled ? (
                 <TouchableOpacity style={[styles.sendButton, styles.sendButtonDisabled]} disabled>
@@ -3545,9 +3915,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Platform.OS === 'web' ? 40 : 16,
-    paddingTop: Platform.OS === 'web' ? 20 : 16,
-    paddingBottom: Platform.OS === 'web' ? 20 : 16,
+    paddingHorizontal: Platform.OS === 'web' ? 24 : 12,
+    paddingTop: Platform.OS === 'web' ? 16 : 12,
+    paddingBottom: Platform.OS === 'web' ? 16 : 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -3567,7 +3937,7 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 6,
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -3579,7 +3949,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 8,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 214, 242, 0.3)',
   },
@@ -3587,7 +3957,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    marginRight: 12,
+    marginRight: 8,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 214, 242, 0.3)',
   },
@@ -3630,7 +4000,7 @@ const styles = StyleSheet.create({
   
   // Messages Styles
   messagesContainer: {
-    paddingHorizontal: 20, // Use consistent padding, will be overridden by desktop styles
+    paddingHorizontal: 12, // Reduced padding for better space utilization
     paddingTop: 16,
     paddingBottom: 16,
     flexGrow: 1,
@@ -3757,8 +4127,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     position: 'absolute',
-    bottom: -6,
-    right: 8,
+    bottom: -2, // overlap bubble border a bit more while staying mostly outside
+    right: 4,   // close to right edge of bubble
     zIndex: 15,
     maxWidth: 200,
     justifyContent: 'flex-end',
@@ -3975,7 +4345,7 @@ const styles = StyleSheet.create({
   
   // Typing Indicator
   typingContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -4016,7 +4386,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   typingIndicatorWrapper: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingBottom: 6,
   },
   
@@ -4039,9 +4409,9 @@ const styles = StyleSheet.create({
   },
   composerWrapper: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20, // Default mobile padding
-    gap: 12, // Default mobile gap
+    alignItems: 'flex-end',
+    paddingHorizontal: 12, // Reduced mobile padding
+    gap: 8, // Reduced mobile gap
     zIndex: 11, // Above composer container
     position: 'relative',
   },
@@ -4069,7 +4439,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 0,
     // Ensure vertical centering on Android
-    textAlignVertical: Platform.OS === 'android' ? 'top' : 'top', // Changed to 'top' for better scrolling
+    textAlignVertical: Platform.OS === 'android' ? 'center' : 'center', // Center align for better appearance
   },
   inputPlaceholder: {
     position: 'absolute',

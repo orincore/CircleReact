@@ -620,42 +620,45 @@ export default function UserProfileModal({
   const handleSendFriendRequest = async () => {
     if (!token || !userId) return;
     
-    //console.log('Sending friend request to userId:', userId);
-    //console.log('Current user:', user?.id);
+    // Prevent multiple simultaneous requests
+    if (friendStatus === 'sending') {
+      return;
+    }
     
     try {
-      // Instantly update UI to show "Request Sent"
+      // Set loading state
+      setFriendStatus('sending');
+      
+      // Use the improved FriendRequestService
+      const result = await FriendRequestService.sendFriendRequest(userId, token);
+      
+      // Update state on success
       setFriendStatus('pending_sent');
       
-      // Use Socket.IO instead of API
-      const socket = getSocket(token);
-      socket.emit('friend:request:send', { receiverId: userId });
-      
-      // Set up listeners for response
-      const handleSent = (data) => {
-        socket.off('friend:request:sent', handleSent);
-        socket.off('friend:request:error', handleError);
-        if (data.success) {
-          //console.log('✅ Friend request sent successfully');
-          // Keep the pending_sent status
-        }
-      };
-      
-      const handleError = (error) => {
-        socket.off('friend:request:sent', handleSent);
-        socket.off('friend:request:error', handleError);
-        setFriendStatus('none'); // Revert optimistic update
-        Alert.alert('Error', error.error || 'Failed to send friend request. Please try again.');
-      };
-      
-      // Listen for responses
-      socket.on('friend:request:sent', handleSent);
-      socket.on('friend:request:error', handleError);
+      Alert.alert('Friend Request Sent', `Friend request sent to ${userName}!`);
       
     } catch (error) {
       console.error('Failed to send friend request:', error);
-      setFriendStatus('none'); // Revert optimistic update
-      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+      
+      // Revert to original state
+      setFriendStatus('none');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to send friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('already sent')) {
+        errorMessage = 'Friend request already sent to this user.';
+        setFriendStatus('pending_sent');
+      } else if (error.message.includes('already friends')) {
+        errorMessage = 'You are already friends with this user.';
+        setFriendStatus('friends');
+        setCanMessage(true);
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -665,41 +668,36 @@ export default function UserProfileModal({
       return;
     }
   
-    //console.log('Cancelling friend request to userId:', userId);
-    //console.log('Token available:', !!token);
-    //console.log('Browser environment:', Platform.OS === 'web');
+    // Prevent multiple simultaneous requests
+    if (friendStatus === 'cancelling') {
+      return;
+    }
   
     try {
-      // Add loading state
+      // Set loading state
       setFriendStatus('cancelling');
       
       const result = await FriendRequestService.cancelFriendRequest(userId, token);
-      //console.log('Cancel friend request result:', result);
       
-      if (result && result.success) {
-        setFriendStatus('none');
-        Alert.alert('Request Cancelled', `Friend request to ${userName} has been cancelled.`);
-      } else {
-        console.error('Cancel request failed - no success flag:', result);
-        setFriendStatus('pending'); // Revert to pending
-        Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
-      }
+      // Update state on success
+      setFriendStatus('none');
+      Alert.alert('Request Cancelled', `Friend request to ${userName} has been cancelled.`);
+      
     } catch (error) {
       console.error('Failed to cancel friend request:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
       
-      setFriendStatus('pending'); // Revert to pending
+      // Revert to previous state
+      setFriendStatus('pending_sent');
       
-      // More specific error messages
+      // Show specific error message
       let errorMessage = 'Failed to cancel friend request. Please try again.';
       if (error.message.includes('timeout')) {
         errorMessage = 'Request timed out. Please check your connection and try again.';
       } else if (error.message.includes('Socket connection not available')) {
         errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have already been processed.';
+        setFriendStatus('none');
       }
       
       Alert.alert('Error', errorMessage);
@@ -712,44 +710,44 @@ export default function UserProfileModal({
       return;
     }
 
-    //console.log('Accepting friend request:', friendRequestId);
+    // Prevent multiple simultaneous requests
+    if (friendStatus === 'accepting') {
+      return;
+    }
 
     try {
-      const socket = getSocket(token);
+      // Set loading state
+      setFriendStatus('accepting');
       
-      // Emit accept event
-      socket.emit('friend:request:accept', { requestId: friendRequestId });
+      // Use the improved FriendRequestService
+      const result = await FriendRequestService.acceptFriendRequest(friendRequestId, token);
       
-      // Set up listeners for response
-      const handleAccepted = (data) => {
-        socket.off('friend:request:accepted', handleAccepted);
-        socket.off('friend:request:error', handleError);
-        //console.log('Friend request accepted:', data);
-        setFriendStatus('friends');
-        setCanMessage(true);
-        setFriendRequestId(null);
-        Alert.alert('Success', `You are now friends with ${userName}!`);
-      };
-
-      const handleError = (error) => {
-        socket.off('friend:request:accepted', handleAccepted);
-        socket.off('friend:request:error', handleError);
-        console.error('Failed to accept friend request:', error);
-        Alert.alert('Error', error.error || 'Failed to accept friend request. Please try again.');
-      };
-
-      socket.on('friend:request:accepted', handleAccepted);
-      socket.on('friend:request:error', handleError);
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        socket.off('friend:request:accepted', handleAccepted);
-        socket.off('friend:request:error', handleError);
-      }, 10000);
-
+      // Update state on success
+      setFriendStatus('friends');
+      setCanMessage(true);
+      setFriendRequestId(null);
+      
+      Alert.alert('Success', `You are now friends with ${userName}!`);
+      
     } catch (error) {
       console.error('Failed to accept friend request:', error);
-      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
+      
+      // Revert to previous state
+      setFriendStatus('pending_received');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to accept friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+        setFriendStatus('none');
+        setFriendRequestId(null);
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -759,43 +757,43 @@ export default function UserProfileModal({
       return;
     }
 
-    //console.log('Declining friend request:', friendRequestId);
+    // Prevent multiple simultaneous requests
+    if (friendStatus === 'declining') {
+      return;
+    }
 
     try {
-      const socket = getSocket(token);
+      // Set loading state
+      setFriendStatus('declining');
       
-      // Emit decline event
-      socket.emit('friend:request:decline', { requestId: friendRequestId });
+      // Use the improved FriendRequestService
+      const result = await FriendRequestService.declineFriendRequest(friendRequestId, token);
       
-      // Set up listeners for response
-      const handleDeclined = (data) => {
-        socket.off('friend:request:declined', handleDeclined);
-        socket.off('friend:request:error', handleError);
-        //console.log('Friend request declined:', data);
-        setFriendStatus('none');
-        setFriendRequestId(null);
-        Alert.alert('Request Declined', `You declined the friend request from ${userName}.`);
-      };
-
-      const handleError = (error) => {
-        socket.off('friend:request:declined', handleDeclined);
-        socket.off('friend:request:error', handleError);
-        console.error('Failed to decline friend request:', error);
-        Alert.alert('Error', error.error || 'Failed to decline friend request. Please try again.');
-      };
-
-      socket.on('friend:request:declined', handleDeclined);
-      socket.on('friend:request:error', handleError);
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        socket.off('friend:request:declined', handleDeclined);
-        socket.off('friend:request:error', handleError);
-      }, 10000);
-
+      // Update state on success
+      setFriendStatus('none');
+      setFriendRequestId(null);
+      
+      Alert.alert('Request Declined', `You declined the friend request from ${userName}.`);
+      
     } catch (error) {
       console.error('Failed to decline friend request:', error);
-      Alert.alert('Error', 'Failed to decline friend request. Please try again.');
+      
+      // Revert to previous state
+      setFriendStatus('pending_received');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to decline friend request. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friend request no longer exists. It may have been cancelled.';
+        setFriendStatus('none');
+        setFriendRequestId(null);
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -917,38 +915,59 @@ export default function UserProfileModal({
       return;
     }
     
-    console.log('🔄 Attempting to unfriend user:', userId);
+    // Prevent multiple simultaneous requests
+    if (friendStatus === 'unfriending') {
+      return;
+    }
     
     try {
-      // Use centralized API client which points to the correct endpoint
-      await friendsApi.removeFriend(userId, token);
-      console.log('✅ Successfully unfriended user');
+      // Set loading state
+      setFriendStatus('unfriending');
+      
+      // Use the improved FriendRequestService
+      const result = await FriendRequestService.unfriendUser(userId, token);
+      
+      // Update state on success
       setFriendStatus('none');
       setCanMessage(false);
       setMessagePermission(null);
       setShowUnfriendConfirm(false);
+      
       Alert.alert('Friend Removed', `You are no longer friends with ${userName}. You can no longer message each other.`);
-
-      // Emit socket event for real-time updates (align payload with service convention)
-      try {
-        const socket = getSocket(token);
-        socket.emit('friend:unfriend', { userId });
-      } catch (socketError) {
-        console.warn('Socket emit failed, but API call succeeded:', socketError);
-      }
+      
     } catch (error) {
       console.error('❌ Unfriend failed:', error);
-      Alert.alert('Error', error.message || 'Failed to remove friend. Please try again.');
+      
+      // Revert to previous state
+      setFriendStatus('friends');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to remove friend. Please try again.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh the page and try again.';
+      } else if (error.message.includes('not found')) {
+        errorMessage = 'Friendship no longer exists. It may have already been removed.';
+        setFriendStatus('none');
+        setCanMessage(false);
+        setMessagePermission(null);
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
   const getAddFriendButtonText = () => {
     if (blockStatus.isBlocked) return 'Blocked';
     if (blockStatus.isBlockedBy) return 'Blocked You';
-    if (friendStatus === 'friends') return 'Friends ✓';
+    if (friendStatus === 'friends') return 'Unfriend';
     if (friendStatus === 'pending_sent') return 'Cancel Request';
     if (friendStatus === 'pending_received') return 'Accept Request';
     if (friendStatus === 'cancelling') return 'Cancelling...';
+    if (friendStatus === 'accepting') return 'Accepting...';
+    if (friendStatus === 'declining') return 'Declining...';
+    if (friendStatus === 'sending') return 'Sending...';
     if (userId === user?.id) return 'Settings';
     return 'Add Friend';
   };
@@ -1334,14 +1353,20 @@ export default function UserProfileModal({
                             >
                               <Ionicons 
                                 name={
-                                  friendStatus === 'friends' ? "checkmark-circle" : 
+                                  friendStatus === 'friends' ? "person-remove-outline" : 
                                   friendStatus === 'pending_sent' ? "close-outline" : 
+                                  friendStatus === 'accepting' ? "checkmark-outline" :
+                                  friendStatus === 'declining' ? "close-outline" :
+                                  friendStatus === 'sending' ? "paper-plane-outline" :
                                   "person-add-outline"
                                 } 
                                 size={20} 
                                 color={
-                                  friendStatus === 'friends' ? "#00AA55" : 
+                                  friendStatus === 'friends' ? "#FF6B6B" : 
                                   friendStatus === 'pending_sent' ? "#FF4444" : 
+                                  friendStatus === 'accepting' ? "#00AA55" :
+                                  friendStatus === 'declining' ? "#FF4444" :
+                                  friendStatus === 'sending' ? "#7C2B86" :
                                   "#7C2B86"
                                 } 
                               />
@@ -1877,11 +1902,11 @@ const styles = StyleSheet.create({
     color: '#7C2B86',
   },
   actionButtonFriends: {
-    backgroundColor: 'rgba(0, 170, 85, 0.1)',
-    borderColor: 'rgba(0, 170, 85, 0.3)',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderColor: 'rgba(255, 107, 107, 0.3)',
   },
   actionButtonFriendsText: {
-    color: '#00AA55',
+    color: '#FF6B6B',
   },
   actionButtonCancel: {
     backgroundColor: 'rgba(255, 68, 68, 0.1)',

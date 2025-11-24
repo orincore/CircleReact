@@ -1,6 +1,7 @@
 import UserConsentModal from "@/components/UserConsentModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { VerificationProvider } from "@/contexts/VerificationContext";
 import BrowserNotificationProvider from "@/src/components/BrowserNotificationProvider";
 import ConnectionStatus from "@/src/components/ConnectionStatus";
@@ -156,9 +157,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <VerificationProvider>
-            <SubscriptionProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <VerificationProvider>
+              <SubscriptionProvider>
               <BrowserNotificationProvider>
                 <ConnectionStatus />
                 <Stack screenOptions={{ headerShown: false }} />
@@ -171,9 +173,10 @@ export default function RootLayout() {
                   onDecline={handleConsentDecline}
                 />
               </BrowserNotificationProvider>
-            </SubscriptionProvider>
-          </VerificationProvider>
-        </AuthProvider>
+              </SubscriptionProvider>
+            </VerificationProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -51,14 +51,14 @@ export default function UserConsentModal({ visible, onAccept, onDecline }) {
 
   const openPrivacyPolicy = () => {
     const url = Platform.OS === 'web' 
-      ? 'http://localhost:8081/privacy' 
+      ? 'https://circle.orincore.com/privacy' 
       : 'https://circle.orincore.com/privacy';
     Linking.openURL(url);
   };
 
   const openTerms = () => {
     const url = Platform.OS === 'web' 
-      ? 'http://localhost:8081/terms' 
+      ? 'https://circle.orincore.com/terms' 
       : 'https://circle.orincore.com/terms';
     Linking.openURL(url);
   };

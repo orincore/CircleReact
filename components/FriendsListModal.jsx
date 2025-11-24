@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { chatApi } from '@/src/api/chat';
 import { friendsApi } from '@/src/api/friends';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
@@ -23,10 +24,13 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [creatingChat, setCreatingChat] = useState(null); // Track which friend is being processed
+  const [showOptionsFor, setShowOptionsFor] = useState(null); // Track which friend's options are shown
+  const [unfriendingUser, setUnfriendingUser] = useState(null); // Track unfriending state
 
   useEffect(() => {
     if (visible) {
       loadFriends();
+      setShowOptionsFor(null); // Reset options menu when modal opens
     }
   }, [visible]);
 
@@ -50,10 +54,9 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
     
     try {
       setCreatingChat(friend.id);
-      //console.log('Creating chat with friend:', friend);
+      setShowOptionsFor(null); // Close options menu
       
       const response = await chatApi.createChatWithUser(friend.id, token);
-      //console.log('Chat created:', response);
       
       // Close modal and navigate to chat
       onClose();
@@ -73,49 +76,126 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
     }
   };
 
+  const handleUnfriend = async (friend) => {
+    if (!token || unfriendingUser) return;
+    
+    Alert.alert(
+      'Remove Friend',
+      `Are you sure you want to remove ${friend.name} from your friends list? You will no longer be able to message each other.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUnfriendingUser(friend.id);
+              setShowOptionsFor(null); // Close options menu
+              
+              await FriendRequestService.unfriendUser(friend.id, token);
+              
+              // Remove friend from local state
+              setFriends(prevFriends => prevFriends.filter(f => f.id !== friend.id));
+              
+              Alert.alert('Friend Removed', `${friend.name} has been removed from your friends list.`);
+              
+            } catch (error) {
+              console.error('Failed to unfriend:', error);
+              
+              let errorMessage = 'Failed to remove friend. Please try again.';
+              if (error.message.includes('timeout')) {
+                errorMessage = 'Request timed out. Please check your connection and try again.';
+              } else if (error.message.includes('Socket connection not available')) {
+                errorMessage = 'Connection issue. Please refresh the page and try again.';
+              }
+              
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setUnfriendingUser(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const filteredFriends = friends.filter(friend => 
     friend.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const renderFriend = ({ item }) => {
     const isCreating = creatingChat === item.id;
+    const isUnfriending = unfriendingUser === item.id;
+    const showOptions = showOptionsFor === item.id;
     
     return (
-      <TouchableOpacity
-        style={styles.friendCard}
-        onPress={() => handleStartChat(item)}
-        disabled={isCreating}
-      >
-        <View style={styles.avatar}>
-          {item.profile_photo_url && item.profile_photo_url.trim() ? (
-            <Image 
-              source={{ uri: item.profile_photo_url }} 
-              style={styles.avatarImage}
-            />
-          ) : (
-            <View style={styles.fallbackAvatar}>
-              <Text style={styles.fallbackAvatarText}>
-                {(item.name && item.name.charAt(0).toUpperCase()) || '?'}
-              </Text>
+      <View style={styles.friendCardContainer}>
+        <TouchableOpacity
+          style={[styles.friendCard, showOptions && styles.friendCardActive]}
+          onPress={() => handleStartChat(item)}
+          disabled={isCreating || isUnfriending}
+        >
+          <View style={styles.avatar}>
+            {item.profile_photo_url && item.profile_photo_url.trim() ? (
+              <Image 
+                source={{ uri: item.profile_photo_url }} 
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.fallbackAvatar}>
+                <Text style={styles.fallbackAvatarText}>
+                  {(item.name && item.name.charAt(0).toUpperCase()) || '?'}
+                </Text>
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.friendInfo}>
+            <Text style={styles.friendName}>{item.name || 'Unknown'}</Text>
+            <Text style={styles.friendStatus}>
+              {isCreating ? 'Starting chat...' : 
+               isUnfriending ? 'Removing friend...' : 
+               'Tap to start chat'}
+            </Text>
+          </View>
+          
+          <View style={styles.actionsContainer}>
+            <View style={styles.chatIcon}>
+              {isCreating ? (
+                <ActivityIndicator size="small" color="#7C2B86" />
+              ) : isUnfriending ? (
+                <ActivityIndicator size="small" color="#FF6B6B" />
+              ) : (
+                <Ionicons name="chatbubble" size={20} color="#7C2B86" />
+              )}
             </View>
-          )}
-        </View>
+            
+            <TouchableOpacity
+              style={styles.optionsButton}
+              onPress={() => setShowOptionsFor(showOptions ? null : item.id)}
+              disabled={isCreating || isUnfriending}
+            >
+              <Ionicons 
+                name="ellipsis-vertical" 
+                size={18} 
+                color={showOptions ? "#7C2B86" : "rgba(31, 17, 71, 0.5)"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
         
-        <View style={styles.friendInfo}>
-          <Text style={styles.friendName}>{item.name || 'Unknown'}</Text>
-          <Text style={styles.friendStatus}>
-            {isCreating ? 'Starting chat...' : 'Tap to start chat'}
-          </Text>
-        </View>
-        
-        <View style={styles.chatIcon}>
-          {isCreating ? (
-            <ActivityIndicator size="small" color="#7C2B86" />
-          ) : (
-            <Ionicons name="chatbubble" size={20} color="#7C2B86" />
-          )}
-        </View>
-      </TouchableOpacity>
+        {showOptions && (
+          <View style={styles.optionsMenu}>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => handleUnfriend(item)}
+            >
+              <Ionicons name="person-remove-outline" size={18} color="#FF6B6B" />
+              <Text style={styles.optionText}>Remove Friend</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -247,6 +327,9 @@ const styles = StyleSheet.create({
   separator: {
     height: 12,
   },
+  friendCardContainer: {
+    position: 'relative',
+  },
   friendCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,6 +338,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     gap: 16,
+  },
+  friendCardActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.2)',
   },
   avatar: {
     position: 'relative',
@@ -290,11 +378,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(31, 17, 71, 0.65)',
   },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   chatIcon: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  optionsButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  optionsMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+    minWidth: 140,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderRadius: 8,
+  },
+  optionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FF6B6B',
   },
   loadingContainer: {
     flex: 1,

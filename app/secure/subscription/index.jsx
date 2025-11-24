@@ -37,11 +37,21 @@ export default function SubscriptionScreen() {
 
   const loadPlans = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/cashfree/plans`);
+      const response = await axios.get(`${API_URL}/api/cashfree/plans`, {
+        headers: token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined,
+      });
       setPlans(response.data.plans || []);
     } catch (error) {
       console.error('Error loading plans:', error);
-      Alert.alert('Error', 'Failed to load subscription plans');
+      const status = error.response?.status;
+      Alert.alert(
+        'Error',
+        status === 401
+          ? 'Session expired or unauthorized. Please log in again to view subscription plans.'
+          : 'Failed to load subscription plans'
+      );
     } finally {
       setLoading(false);
     }

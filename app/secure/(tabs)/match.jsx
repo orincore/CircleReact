@@ -5,6 +5,7 @@ import VerificationBanner from "@/components/VerificationBanner";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { CirclePointsHelper, circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
 import { nearbyUsersGql, updateLocationGql } from "@/src/api/graphql";
@@ -305,6 +306,7 @@ export default function MatchScreen() {
   // Initialize browser notifications
   const { setCurrentChatId } = useBrowserNotifications();
   const { token, user } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const { shouldShowAds } = useSubscription();
   const { showInterstitial } = useInterstitialAd('after_match'); // Auto-disabled in Expo Go
   
@@ -354,7 +356,181 @@ export default function MatchScreen() {
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
+  const [friendsList, setFriendsList] = useState([]);
+  const [actualFriendsCount, setActualFriendsCount] = useState(0);
   
+  // Create dynamic styles based on theme
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    headerTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: theme.textTertiary,
+      marginTop: 2,
+    },
+    greetingText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+    userNameText: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    sectionCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    matchCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 12,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+    },
+    matchName: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.textPrimary,
+    },
+    matchDetails: {
+      fontSize: 14,
+      color: theme.textTertiary,
+    },
+    button: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    buttonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    secondaryButton: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.surface,
+      borderRadius: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    secondaryButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.textSecondary,
+    },
+    emptyStateText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    decorativeShape1: {
+      position: 'absolute',
+      width: 200,
+      height: 200,
+      borderRadius: 100,
+      backgroundColor: theme.decorative1,
+      top: -50,
+      right: -50,
+      opacity: isDarkMode ? 1 : 0.3,
+    },
+    decorativeShape2: {
+      position: 'absolute',
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      backgroundColor: theme.decorative2,
+      bottom: 100,
+      left: -30,
+      opacity: isDarkMode ? 1 : 0.3,
+    },
+    mobileContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    sidebar: {
+      backgroundColor: isDarkMode ? theme.surface : theme.backgroundSecondary,
+      borderRightWidth: isDarkMode ? 0 : 1,
+      borderRightColor: theme.border,
+    },
+    quickStatsCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+    },
+
+    // Mobile Circle Score card
+    mobileStatsCard: {
+      backgroundColor: isDarkMode ? theme.surface : theme.surfaceSecondary,
+      borderRadius: 20,
+      padding: 20,
+      gap: 16,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : theme.border,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    mobileStatsTitle: {
+      color: theme.textPrimary,
+    },
+    mobileTierBadgeText: {
+      color: '#FFFFFF',
+    },
+    mobileStatsPoints: {
+      color: theme.textPrimary,
+    },
+    mobileStatNumber: {
+      color: theme.textPrimary,
+    },
+    mobileStatLabel: {
+      color: theme.textSecondary,
+    },
+  };
   
   const showToast = (text, type = "info") => {
     setToast({ visible: true, text, type });
@@ -1002,11 +1178,28 @@ export default function MatchScreen() {
       
       // Update user activity
       await circleStatsApi.updateActivity(token);
+      
+      // Load actual friends list to get correct count
+      await loadFriendsList();
     } catch (error) {
       console.error('❌ Error loading Circle stats:', error);
       showToast("Failed to load Circle stats", "error");
     } finally {
       setLoadingStats(false);
+    }
+  };
+
+  const loadFriendsList = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await friendsApi.getFriendsList(token);
+      setFriendsList(response.friends || []);
+      setActualFriendsCount((response.friends || []).length);
+    } catch (error) {
+      console.error('❌ Error loading friends list:', error);
+      // Fallback to Circle stats count if friends API fails
+      setActualFriendsCount(circleStats?.stats?.total_friends || 0);
     }
   };
 
@@ -1120,6 +1313,9 @@ export default function MatchScreen() {
       
       // Refresh friend requests
       await loadFriendRequests();
+      
+      // Refresh friends list
+      await loadFriendsList();
       
       // Update user activity
       if (token) {
@@ -1476,36 +1672,39 @@ export default function MatchScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, dynamicStyles.container]}>
       {/* Animated Background */}
       <LinearGradient
-        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+        colors={[theme.background, theme.backgroundSecondary, theme.background]}
         style={styles.backgroundGradient}
       >
+        {/* Decorative Elements */}
+        <View style={dynamicStyles.decorativeShape1} />
+        <View style={dynamicStyles.decorativeShape2} />
         {/* Floating orbs */}
-        <View style={[styles.floatingOrb, styles.orb1]} />
+        <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
 
       {isLargeScreen ? (
         // DESKTOP/WEB VIEW - Dashboard Style
         <View style={styles.desktopContainer}>
           {/* Left Sidebar */}
-          <View style={styles.sidebar}>
+          <View style={[styles.sidebar, dynamicStyles.sidebar]}>
             <ScrollView 
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.sidebarContent}
             >
               {/* Header */}
               <View style={styles.sidebarHeader}>
-                <Text style={styles.desktopTitle}>Circle Match</Text>
-                <Text style={styles.desktopSubtitle}>Find Your Perfect Connection</Text>
+                <Text style={[styles.desktopTitle, dynamicStyles.headerTitle]}>Circle Match</Text>
+                <Text style={[styles.desktopSubtitle, dynamicStyles.headerSubtitle]}>Find Your Perfect Connection</Text>
               </View>
 
               {/* Circle Stats - Enhanced Desktop Design */}
               {circleStats && circleStats.stats && (
-                <View style={styles.quickStatsCard}>
+                <View style={[styles.quickStatsCard, dynamicStyles.quickStatsCard]}>
                   {/* Header with Tier Badge */}
                   <View style={styles.statsCardHeader}>
-                    <Text style={styles.statsCardTitle}>Your Stats</Text>
+                    <Text style={[styles.statsCardTitle, dynamicStyles.sectionTitle]}>Your Stats</Text>
                     <View style={[styles.tierBadgeInline, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
                       <Ionicons name="trophy" size={12} color="#FFFFFF" />
                       <Text style={styles.tierBadgeInlineText}>
@@ -1522,8 +1721,8 @@ export default function MatchScreen() {
                     >
                       <Ionicons name="star" size={28} color="#FFFFFF" />
                     </LinearGradient>
-                    <Text style={styles.desktopStatsPoints}>{circleStats.stats.circle_points || 0}</Text>
-                    <Text style={styles.pointsSubLabel}>Circle Points</Text>
+                    <Text style={[styles.desktopStatsPoints, { color: theme.textPrimary }]}>{circleStats.stats.circle_points || 0}</Text>
+                    <Text style={[styles.pointsSubLabel, { color: theme.textSecondary }]}>Circle Points</Text>
                   </View>
 
                   {/* Divider */}
@@ -1533,20 +1732,20 @@ export default function MatchScreen() {
                   <View style={styles.quickStatsGrid}>
                     <View style={styles.statCompactItem}>
                       <Ionicons name="heart" size={20} color="#FF6FB5" />
-                      <Text style={styles.statCompactNumber}>{circleStats.stats.total_matches || 0}</Text>
-                      <Text style={styles.statCompactLabel}>Matches</Text>
+                      <Text style={[styles.statCompactNumber, { color: theme.textPrimary }]}>{circleStats.stats.total_matches || 0}</Text>
+                      <Text style={[styles.statCompactLabel, { color: theme.textSecondary }]}>Matches</Text>
                     </View>
                     <View style={styles.statCompactItem}>
                       <Ionicons name="people" size={20} color="#7C2B86" />
-                      <Text style={styles.statCompactNumber}>{circleStats.stats.total_friends || 0}</Text>
-                      <Text style={styles.statCompactLabel}>Friends</Text>
+                      <Text style={[styles.statCompactNumber, { color: theme.textPrimary }]}>{actualFriendsCount}</Text>
+                      <Text style={[styles.statCompactLabel, { color: theme.textSecondary }]}>Friends</Text>
                     </View>
                     <View style={styles.statCompactItem}>
                       <Ionicons name="chatbubbles" size={20} color="#5D5FEF" />
-                      <Text style={styles.statCompactNumber}>
+                      <Text style={[styles.statCompactNumber, { color: theme.textPrimary }]}>
                         {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
                       </Text>
-                      <Text style={styles.statCompactLabel}>Messages</Text>
+                      <Text style={[styles.statCompactLabel, { color: theme.textSecondary }]}>Messages</Text>
                     </View>
                   </View>
                 </View>
@@ -1678,10 +1877,10 @@ export default function MatchScreen() {
 
               {/* Best Match Today - Hero Card */}
               {nearbyUsers.length > 0 && (
-                <View style={styles.heroMatchCard}>
+                <View style={[styles.heroMatchCard, dynamicStyles.sectionCard]}>
                   <View style={styles.heroMatchBadge}>
                     <Ionicons name="star" size={16} color="#FFD700" />
-                    <Text style={styles.heroMatchBadgeText}>Best Match Today</Text>
+                    <Text style={[styles.heroMatchBadgeText, { color: '#FFFFFF' }]}>Best Match Today</Text>
                   </View>
                   <View style={styles.heroMatchContent}>
                     <View style={styles.heroAvatarContainer}>
@@ -1696,16 +1895,16 @@ export default function MatchScreen() {
                     </View>
                     <View style={styles.heroMatchInfo}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={styles.heroMatchName}>{nearbyUsers[0].name}</Text>
+                        <Text style={[styles.heroMatchName, { color: theme.textPrimary }]}>{nearbyUsers[0].name}</Text>
                         {nearbyUsers[0].verification_status === 'verified' && (
                           <VerifiedBadge size={20} />
                         )}
                       </View>
-                      <Text style={styles.heroMatchAge}>{nearbyUsers[0].age} years old</Text>
+                      <Text style={[styles.heroMatchAge, { color: theme.textSecondary }]}>{nearbyUsers[0].age} years old</Text>
                       <View style={styles.heroMatchTags}>
                         {nearbyUsers[0].interests?.slice(0, 3).map((interest, idx) => (
                           <View key={idx} style={styles.heroTag}>
-                            <Text style={styles.heroTagText}>{interest}</Text>
+                            <Text style={[styles.heroTagText, { color: theme.textSecondary }]}>{interest}</Text>
                           </View>
                         ))}
                       </View>
@@ -1715,7 +1914,7 @@ export default function MatchScreen() {
                           onPress={() => handleViewProfile(nearbyUsers[0])}
                         >
                           <Ionicons name="eye" size={22} color="#818CF8" />
-                          <Text style={[styles.heroActionText, { color: '#818CF8' }]}>View Profile</Text>
+                          <Text style={[styles.heroActionText, { color: theme.primary }]}>View Profile</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           style={styles.heroLikeButton}
@@ -1726,7 +1925,7 @@ export default function MatchScreen() {
                             style={styles.heroLikeGradient}
                           >
                             <Ionicons name="person-add" size={22} color="#FFFFFF" />
-                            <Text style={styles.heroLikeText}>Send Request</Text>
+                            <Text style={[styles.heroLikeText, { color: '#FFFFFF' }]}>Send Request</Text>
                           </LinearGradient>
                         </TouchableOpacity>
                       </View>
@@ -1737,12 +1936,12 @@ export default function MatchScreen() {
 
               {/* Matches Grid */}
               <View style={styles.matchesSection}>
-                <Text style={styles.matchesSectionTitle}>Discover Matches</Text>
+                <Text style={[styles.matchesSectionTitle, dynamicStyles.sectionTitle]}>Discover Matches</Text>
                 <View style={styles.matchesGrid}>
                   {nearbyUsers.slice(1, 7).filter(user => !passedMatchIds.has(user.id)).map((user) => (
                     <View key={user.id} style={styles.matchCardWrapper}>
                       <TouchableOpacity
-                        style={styles.matchCard}
+                        style={[styles.matchCard, dynamicStyles.matchCard]}
                         activeOpacity={0.9}
                         onPress={() => handleViewProfile(user)}
                       >
@@ -1754,21 +1953,21 @@ export default function MatchScreen() {
                               style={styles.matchAvatar}
                             />
                             <View style={styles.matchCompatibilityBadge}>
-                              <Text style={styles.matchCompatibilityText}>{user.compatibility}</Text>
+                              <Text style={[styles.matchCompatibilityText, { color: '#FFFFFF' }]}>{user.compatibility}</Text>
                             </View>
                           </View>
                           <View style={styles.matchCardInfo}>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Text style={styles.matchCardName}>{user.name}</Text>
+                              <Text style={[styles.matchCardName, { color: theme.textPrimary }]}>{user.name}</Text>
                               {user.verification_status === 'verified' && (
                                 <VerifiedBadge size={16} />
                               )}
                             </View>
-                            <Text style={styles.matchCardAge}>{user.age}</Text>
+                            <Text style={[styles.matchCardAge, { color: theme.textSecondary }]}>{user.age}</Text>
                             <View style={styles.matchCardTags}>
                               {user.interests?.slice(0, 2).map((interest, idx) => (
                                 <View key={idx} style={styles.matchTag}>
-                                  <Text style={styles.matchTagText}>{interest}</Text>
+                                  <Text style={[styles.matchTagText, { color: theme.textSecondary }]}>{interest}</Text>
                                 </View>
                               ))}
                             </View>
@@ -1794,8 +1993,8 @@ export default function MatchScreen() {
           </View>
         </View>
       ) : (
-        // MOBILE VIEW - Purple Theme
-        <View style={styles.mobileContainer}>
+        // MOBILE VIEW - Modern Theme
+        <View style={[styles.mobileContainer, dynamicStyles.mobileContainer]}>
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.mobileContent}
@@ -1803,23 +2002,23 @@ export default function MatchScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={['#7C2B86', '#FF6FB5']}
-                tintColor="#7C2B86"
+                colors={[theme.primary]}
+                tintColor={theme.primary}
               />
             }
           >
-            {/* Mobile Header - Purple Theme */}
+            {/* Mobile Header - Modern Theme */}
             <View style={styles.mobileHeader}>
               <View style={styles.mobileHeaderLeft}>
-                <Text style={styles.greetingText}>{getGreeting()}, {getUserFirstName()}!</Text>
-                <Text style={styles.mobileSubtitle}>Find your perfect match</Text>
+                <Text style={[styles.greetingText, dynamicStyles.greetingText]}>{getGreeting()}, {getUserFirstName()}!</Text>
+                <Text style={[styles.mobileSubtitle, dynamicStyles.headerSubtitle]}>Find your perfect match</Text>
               </View>
               <TouchableOpacity 
-                style={styles.settingsButton}
+                style={[styles.settingsButton, { backgroundColor: theme.surfaceSecondary }]}
                 onPress={handleSettingsPress}
                 activeOpacity={0.7}
               >
-                <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -1834,7 +2033,7 @@ export default function MatchScreen() {
             {/* Quick Action Cards - Zepto Style */}
             <View style={styles.quickActionsContainer}>
               <TouchableOpacity 
-                style={styles.quickActionCard}
+                style={[styles.quickActionCard, dynamicStyles.sectionCard]}
                 onPress={handleStartMatch}
                 activeOpacity={0.9}
               >
@@ -1843,15 +2042,15 @@ export default function MatchScreen() {
                     <Ionicons name="flash" size={24} color="#FFD6F2" />
                   </View>
                   <View style={styles.quickActionText}>
-                    <Text style={styles.quickActionTitle}>Live Match</Text>
-                    <Text style={styles.quickActionSubtitle}>Find instantly</Text>
+                    <Text style={[styles.quickActionTitle, { color: theme.textPrimary }]}>Live Match</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: theme.textSecondary }]}>Find instantly</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#999" />
+                  <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.quickActionCard, user?.invisibleMode && styles.disabledCard]}
+                style={[styles.quickActionCard, dynamicStyles.sectionCard, user?.invisibleMode && styles.disabledCard]}
                 onPress={handleLocationSearch}
                 activeOpacity={user?.invisibleMode ? 1 : 0.9}
                 disabled={user?.invisibleMode}
@@ -1861,12 +2060,12 @@ export default function MatchScreen() {
                     <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={24} color={user?.invisibleMode ? "rgba(255,255,255,0.5)" : "#FFD6F2"} />
                   </View>
                   <View style={styles.quickActionText}>
-                    <Text style={[styles.quickActionTitle, user?.invisibleMode && styles.disabledText]}>Location Search</Text>
-                    <Text style={[styles.quickActionSubtitle, user?.invisibleMode && styles.disabledText]}>
+                    <Text style={[styles.quickActionTitle, { color: user?.invisibleMode ? theme.textMuted : theme.textPrimary }]}>Location Search</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: user?.invisibleMode ? theme.textMuted : theme.textSecondary }]}>
                       {user?.invisibleMode ? 'Disabled' : 'Explore nearby'}
                     </Text>
                   </View>
-                  <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={20} color={user?.invisibleMode ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.7)"} />
+                  <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={20} color={user?.invisibleMode ? theme.textMuted : theme.textTertiary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -1875,19 +2074,19 @@ export default function MatchScreen() {
             {/* Friend Requests */}
             {friendRequests.length > 0 && (
               <View style={styles.mobileFriendRequests}>
-                <Text style={styles.mobileFriendRequestsTitle}>Friend Requests</Text>
+                <Text style={[styles.mobileFriendRequestsTitle, dynamicStyles.sectionTitle]}>Friend Requests</Text>
                 {friendRequests.slice(0, 3).map((request) => {
                   const displayName = request.sender?.first_name || 'Someone';
                   return (
-                    <View key={request.id} style={styles.mobileFriendRequestItem}>
+                    <View key={request.id} style={[styles.mobileFriendRequestItem, { backgroundColor: theme.surface }]}>
                       <View style={styles.mobileFriendRequestAvatar}>
                         <Text style={styles.mobileFriendRequestAvatarText}>
                           {displayName.charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View style={styles.mobileFriendRequestInfo}>
-                        <Text style={styles.mobileFriendRequestName}>{displayName}</Text>
-                        <Text style={styles.mobileFriendRequestMessage} numberOfLines={1}>
+                        <Text style={[styles.mobileFriendRequestName, { color: theme.textPrimary }]}>{displayName}</Text>
+                        <Text style={[styles.mobileFriendRequestMessage, { color: theme.textSecondary }]} numberOfLines={1}>
                           {request.message || 'Wants to connect'}
                         </Text>
                       </View>
@@ -1913,30 +2112,41 @@ export default function MatchScreen() {
 
             {/* Circle Stats */}
             {circleStats && circleStats.stats && (
-              <View style={styles.mobileStatsCard}>
+              <View style={[styles.mobileStatsCard, dynamicStyles.mobileStatsCard]}>
                 <View style={styles.mobileStatsHeader}>
-                  <Text style={styles.mobileStatsTitle}>Your Circle Score</Text>
-                  <View style={[styles.mobileTierBadge, { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color }]}>
-                    <Text style={styles.mobileTierBadgeText}>
+                  <Text style={[styles.mobileStatsTitle, dynamicStyles.mobileStatsTitle]}>Your Circle Score</Text>
+                  <View
+                    style={[
+                      styles.mobileTierBadge,
+                      { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color },
+                    ]}
+                  >
+                    <Text style={[styles.mobileTierBadgeText, dynamicStyles.mobileTierBadgeText]}>
                       {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.mobileStatsPoints}>{circleStats.stats.circle_points || 0} points</Text>
+                <Text style={[styles.mobileStatsPoints, dynamicStyles.mobileStatsPoints]}>
+                  {circleStats.stats.circle_points || 0} points
+                </Text>
                 <View style={styles.mobileStatsGrid}>
                   <View style={styles.mobileStatItem}>
-                    <Text style={styles.mobileStatNumber}>{circleStats.stats.total_matches || 0}</Text>
-                    <Text style={styles.mobileStatLabel}>Matches</Text>
+                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
+                      {circleStats.stats.total_matches || 0}
+                    </Text>
+                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Matches</Text>
                   </View>
                   <View style={styles.mobileStatItem}>
-                    <Text style={styles.mobileStatNumber}>{circleStats.stats.total_friends || 0}</Text>
-                    <Text style={styles.mobileStatLabel}>Friends</Text>
+                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
+                      {actualFriendsCount}
+                    </Text>
+                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Friends</Text>
                   </View>
                   <View style={styles.mobileStatItem}>
-                    <Text style={styles.mobileStatNumber}>
+                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
                       {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
                     </Text>
-                    <Text style={styles.mobileStatLabel}>Messages</Text>
+                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Messages</Text>
                   </View>
                 </View>
               </View>
@@ -2258,6 +2468,7 @@ const connectionStyles = StyleSheet.create({
 
 // Enhanced Match Found Card Component
 const MatchFoundCard = ({ matchedUser, isConnectPressed, onPass, onConnect, onClose }) => {
+  const { theme, isDarkMode } = useTheme();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const heartBeatAnim = useRef(new Animated.Value(1)).current;
@@ -2329,13 +2540,23 @@ const MatchFoundCard = ({ matchedUser, isConnectPressed, onPass, onConnect, onCl
       style={[
         matchCardStyles.container,
         {
+          backgroundColor: theme.surface,
+          shadowColor: theme.shadowColor,
+          shadowOpacity: isDarkMode ? 0.4 : 0.12,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 16,
+        },
+        {
           transform: [{ scale: scaleAnim }, { translateY: slideAnim }],
         },
       ]}
     >
       {/* Close button */}
-      <TouchableOpacity style={matchCardStyles.closeButton} onPress={onClose}>
-        <Ionicons name="close" size={24} color="#FFFFFF" />
+      <TouchableOpacity
+        style={[matchCardStyles.closeButton, { backgroundColor: theme.surfaceSecondary }]}
+        onPress={onClose}
+      >
+        <Ionicons name="close" size={24} color={theme.textPrimary} />
       </TouchableOpacity>
 
       {/* Header with animated heart */}
@@ -2363,48 +2584,60 @@ const MatchFoundCard = ({ matchedUser, isConnectPressed, onPass, onConnect, onCl
           </View>
         </View>
 
-        <Text style={matchCardStyles.name}>
+        <Text style={[matchCardStyles.name, { color: theme.textPrimary }]}>
           {`${matchedUser.firstName || matchedUser.first_name} ${(matchedUser.lastName || matchedUser.last_name)?.charAt(0)}.`}
         </Text>
 
         {/* Stats row */}
         <View style={matchCardStyles.statsRow}>
-          <View style={matchCardStyles.statChip}>
+          <View style={[matchCardStyles.statChip, { backgroundColor: theme.surfaceSecondary }] }>
             <Ionicons name="calendar-outline" size={16} color="#8B5CF6" />
-            <Text style={matchCardStyles.statText}>{matchedUser.age}</Text>
+            <Text style={[matchCardStyles.statText, { color: theme.textSecondary }]}>{matchedUser.age}</Text>
           </View>
-          <View style={matchCardStyles.statChip}>
+          <View style={[matchCardStyles.statChip, { backgroundColor: theme.surfaceSecondary }] }>
             <Ionicons name="location-outline" size={16} color="#8B5CF6" />
-            <Text style={matchCardStyles.statText}>{matchedUser.location || 'Nearby'}</Text>
+            <Text style={[matchCardStyles.statText, { color: theme.textSecondary }]}>{matchedUser.location || 'Nearby'}</Text>
           </View>
-          <View style={matchCardStyles.statChip}>
+          <View style={[matchCardStyles.statChip, { backgroundColor: theme.surfaceSecondary }] }>
             <Ionicons
               name={matchedUser.gender === 'female' ? 'female' : matchedUser.gender === 'male' ? 'male' : 'transgender'}
               size={16}
               color="#8B5CF6"
             />
-            <Text style={matchCardStyles.statText}>
+            <Text style={[matchCardStyles.statText, { color: theme.textSecondary }]}>
               {matchedUser.gender === 'non-binary' ? 'NB' : matchedUser.gender?.charAt(0).toUpperCase()}
             </Text>
           </View>
         </View>
 
         {/* About section */}
-        <View style={matchCardStyles.aboutSection}>
-          <Text style={matchCardStyles.aboutText}>{getAboutText()}</Text>
+        <View
+          style={[
+            matchCardStyles.aboutSection,
+            { backgroundColor: theme.surfaceSecondary },
+          ]}
+        >
+          <Text style={[matchCardStyles.aboutText, { color: theme.textSecondary }]}>
+            {getAboutText()}
+          </Text>
         </View>
 
         {/* Compatibility score */}
         <View style={matchCardStyles.compatibilitySection}>
-          <Text style={matchCardStyles.compatibilityLabel}>Compatibility Score</Text>
-          <View style={matchCardStyles.compatibilityBarContainer}>
+          <Text style={[matchCardStyles.compatibilityLabel, { color: theme.textSecondary }]}>Compatibility Score</Text>
+          <View
+            style={[
+              matchCardStyles.compatibilityBarContainer,
+              { backgroundColor: isDarkMode ? '#1F2933' : theme.surfaceSecondary },
+            ]}
+          >
             <Animated.View
               style={[
                 matchCardStyles.compatibilityBar,
                 { width: compatibilityWidth },
               ]}
             />
-            <Text style={matchCardStyles.compatibilityScore}>
+            <Text style={[matchCardStyles.compatibilityScore, { color: theme.textPrimary }]}>
               {matchedUser.compatibilityScore || 94}%
             </Text>
           </View>

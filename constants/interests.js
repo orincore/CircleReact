@@ -176,6 +176,25 @@ export const NEED_OPTIONS = [
     description: 'Looking for a girlfriend',
     icon: 'female'
   },
+  // LGBTQ+ inclusive options
+  {
+    id: 'queer_relationship',
+    label: 'Queer Relationship',
+    description: 'Open to relationships across the LGBTQ+ spectrum',
+    icon: 'heart'
+  },
+  {
+    id: 'lgbtq_friends',
+    label: 'LGBTQ+ Friends',
+    description: 'Looking for LGBTQ+ community and friendships',
+    icon: 'people-circle'
+  },
+  {
+    id: 'same_gender_connection',
+    label: 'Same-gender Connection',
+    description: 'Specifically looking to connect with the same gender',
+    icon: 'male-female'
+  },
   {
     id: 'casual',
     label: 'Casual',

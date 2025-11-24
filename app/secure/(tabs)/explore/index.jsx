@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { exploreApi } from '@/src/api/explore';
 import UserProfileModal from '@/src/components/UserProfileModal';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -25,6 +26,175 @@ const isBrowser = Platform.OS === 'web';
 
 export default function ExploreScreen() {
   const { token, user } = useAuth();
+  const { theme, isDarkMode } = useTheme();
+  
+  // Create dynamic styles based on theme
+  const dynamicStyles = {
+    searchContainerPro: {
+      backgroundColor: theme.surface,
+      borderColor: 'transparent',
+      borderWidth: 0,
+      borderRadius: 16,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.1,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    searchDropdown: {
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor,
+      shadowOpacity: isDarkMode ? 0.3 : 0.15,
+    },
+    searchResultName: {
+      color: theme.textPrimary,
+    },
+    searchResultUsername: {
+      color: theme.textTertiary,
+    },
+    professionalSection: {
+      backgroundColor: 'transparent',
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      borderWidth: 0,
+      marginBottom: 24,
+    },
+    sectionTitlePro: {
+      color: theme.textPrimary,
+    },
+    countLabel: {
+      color: theme.textSecondary,
+    },
+    emptyTitlePro: {
+      color: theme.textPrimary,
+    },
+    emptyDescriptionPro: {
+      color: theme.textSecondary,
+    },
+    userCard: {
+      backgroundColor: theme.surface,
+      shadowColor: theme.shadowColor,
+      shadowOpacity: isDarkMode ? 0.3 : 0.1,
+      borderRadius: 16,
+      borderWidth: 0,
+      marginHorizontal: 0,
+      marginVertical: 8,
+      overflow: 'hidden',
+    },
+    cardContainer: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 20,
+      borderWidth: 0,
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.4 : 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    userName: {
+      color: theme.textPrimary,
+    },
+    userMeta: {
+      color: theme.textTertiary,
+    },
+    interestLabel: {
+      color: theme.textSecondary,
+    },
+    interestChip: {
+      backgroundColor: theme.surfaceSecondary,
+      borderColor: 'transparent',
+      borderWidth: 0,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    professionalName: {
+      color: theme.textPrimary,
+    },
+    genderText: {
+      color: theme.textTertiary,
+    },
+    ageChip: {
+      backgroundColor: theme.surfaceSecondary,
+      borderColor: 'transparent',
+      borderWidth: 0,
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    compatibilityLabel: {
+      color: theme.textSecondary,
+    },
+    verifiedLabel: {
+      color: '#10B981',
+    },
+    friendLabel: {
+      color: '#3B82F6',
+    },
+    matchedLabel: {
+      color: '#10B981',
+    },
+    pendingLabel: {
+      color: '#F59E0B',
+    },
+    moreLabel: {
+      color: theme.textMuted,
+    },
+    searchSectionPro: {
+      backgroundColor: 'transparent',
+    },
+    searchFilterButton: {
+      backgroundColor: theme.surfaceSecondary,
+      borderColor: 'transparent',
+      borderWidth: 0,
+      borderRadius: 12,
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    authPromptContainer: {
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
+    },
+    authPromptText: {
+      color: theme.textSecondary,
+    },
+    authPromptButton: {
+      backgroundColor: theme.primary,
+    },
+    moreChip: {
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderWidth: 0,
+    },
+    compatibilityChip: {
+      backgroundColor: theme.primaryLight,
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderWidth: 0,
+    },
+    verifiedChip: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderWidth: 0,
+    },
+    friendChip: {
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderWidth: 0,
+    },
+  };
+  
   const [topUsers, setTopUsers] = useState([]);
   const [newUsers, setNewUsers] = useState([]);
   const [compatibleUsers, setCompatibleUsers] = useState([]);
@@ -38,6 +208,16 @@ export default function ExploreScreen() {
   const [passedUserIds, setPassedUserIds] = useState(new Set());
   const [matchStatuses, setMatchStatuses] = useState({}); // userId -> status
   const [processingMatch, setProcessingMatch] = useState(null); // userId being processed
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log('[ExploreScreen] Auth state:', { 
+      hasToken: !!token, 
+      tokenLength: token?.length || 0,
+      hasUser: !!user,
+      userId: user?.id 
+    });
+  }, [token, user]);
 
   useEffect(() => {
     loadPassedUsers();
@@ -121,24 +301,49 @@ export default function ExploreScreen() {
   };
 
   const handleSearch = useCallback(async (query) => {
+    console.log('[ExploreScreen] Search initiated:', { query, hasToken: !!token, tokenLength: token?.length });
+    
     if (!token) {
-      console.warn('[ExploreScreen] No token for search');
+      console.warn('[ExploreScreen] No token for search - user may not be authenticated');
       setSearchResults([]);
       return;
     }
     
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      console.log('[ExploreScreen] Query too short or invalid:', query);
       setSearchResults([]);
       return;
     }
 
     try {
       setSearching(true);
+      console.log('[ExploreScreen] Making search API call:', query.trim());
       const response = await exploreApi.searchUsers(query.trim(), 20, token);
+      console.log('[ExploreScreen] Search response:', { 
+        users: response?.users?.length || 0, 
+        query: response?.query 
+      });
       setSearchResults(response.users || []);
     } catch (error) {
-      console.error('Search failed:', error);
-      Alert.alert('Error', 'Search failed. Please try again.');
+      console.error('[ExploreScreen] Search failed:', error);
+      console.error('[ExploreScreen] Error details:', {
+        message: error.message,
+        status: error.status,
+        details: error.details
+      });
+      
+      // More specific error messages
+      if (error.status === 401) {
+        Alert.alert('Authentication Error', 'Please log in again to search users.');
+      } else if (error.status === 403) {
+        Alert.alert('Access Denied', 'You do not have permission to search users.');
+      } else if (error.status >= 500) {
+        Alert.alert('Server Error', 'Search service is temporarily unavailable. Please try again later.');
+      } else {
+        Alert.alert('Search Error', 'Search failed. Please check your connection and try again.');
+      }
+      
+      setSearchResults([]);
     } finally {
       setSearching(false);
     }
@@ -257,131 +462,166 @@ export default function ExploreScreen() {
 
   const renderUserCard = ({ item: user, showCompatibility = false }) => {
     const matchStatus = matchStatuses[user.id];
-    const isProcessing = processingMatch === user.id;
-    
+    const gender = user.gender || user.genderIdentity || user.sex || null;
+    const normalizedGender = typeof gender === 'string' ? gender.toLowerCase() : null;
+    const genderLabel = normalizedGender
+      ? normalizedGender.charAt(0).toUpperCase() + normalizedGender.slice(1)
+      : null;
+    const genderIcon = normalizedGender === 'male'
+      ? 'male'
+      : normalizedGender === 'female'
+      ? 'female'
+      : normalizedGender
+      ? 'male-female'
+      : null;
+
     return (
-      <View style={styles.userCardNew}>
-        {/* User Info Section */}
-        <TouchableOpacity
-          style={styles.userInfoSectionNew}
-          onPress={() => handleUserPress(user)}
-        >
-          <View style={styles.userAvatarNew}>
-            {user.profilePhoto ? (
-              <Image source={{ uri: user.profilePhoto }} style={styles.avatarImageNew} />
-            ) : (
-              <View style={styles.fallbackAvatarNew}>
-                <Text style={styles.fallbackAvatarTextNew}>
-                  {user.name?.charAt(0)?.toUpperCase() || '?'}
-                </Text>
-              </View>
-            )}
-            {user.isOnline && <View style={styles.onlineIndicatorNew} />}
-          </View>
+      <TouchableOpacity
+        style={[styles.professionalCard, dynamicStyles.userCard]}
+        onPress={() => handleUserPress(user)}
+        activeOpacity={0.9}
+      >
+        <View style={[styles.cardContainer, dynamicStyles.cardContainer]}>
+          <View style={styles.cardContentRow}>
+            {/* Main content (avatar, text, badges, interests, status) */}
+            <View style={styles.cardMainContent}>
+              <View style={styles.cardHeader}>
+                <View style={styles.avatarSection}>
+                  {user.profilePhoto ? (
+                    <View style={styles.avatarWrapper}>
+                      <Image
+                        source={{ uri: user.profilePhoto }}
+                        style={styles.professionalAvatar}
+                      />
+                      <LinearGradient
+                        colors={[theme.primary, theme.primary]}
+                        style={styles.avatarBorder}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.avatarWrapper}>
+                      <LinearGradient
+                        colors={[theme.primary, theme.primary]}
+                        style={styles.fallbackAvatarPro}
+                      >
+                        <Text style={[styles.fallbackTextPro, { color: '#FFFFFF' }]}>
+                          {user.name?.charAt(0)?.toUpperCase() || '?'}
+                        </Text>
+                      </LinearGradient>
+                    </View>
+                  )}
 
-          <View style={styles.userInfoNew}>
-            <Text style={styles.userNameNew} numberOfLines={1}>
-              {user.name || 'Unknown User'}
-            </Text>
-            {user.username && (
-              <Text style={styles.userUsernameNew} numberOfLines={1}>
-                @{user.username}
-              </Text>
-            )}
-            {user.age && (
-              <Text style={styles.userAgeNew}>
-                {user.age} years old
-              </Text>
-            )}
-            
-            {showCompatibility && user.compatibilityScore && (
-              <View style={styles.compatibilityBadgeNew}>
-                <Ionicons name="heart" size={12} color="#FF6B9D" />
-                <Text style={styles.compatibilityTextNew}>
-                  {user.compatibilityScore}% match
-                </Text>
-              </View>
-            )}
+                  {user.isOnline && (
+                    <View style={styles.onlineStatusPro}>
+                      <View style={styles.onlineDot} />
+                    </View>
+                  )}
+                </View>
 
-            {user.interests && user.interests.length > 0 && (
-              <View style={styles.interestsContainerNew}>
-                {user.interests.slice(0, 3).map((interest, index) => (
-                  <View key={index} style={styles.interestTagNew}>
-                    <Text style={styles.interestTextNew}>{interest}</Text>
+                <View style={styles.userBasicInfo}>
+                  {/* Name and age */}
+                  <View style={styles.nameRow}>
+                    <Text style={[styles.professionalName, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {user.name || 'Unknown User'}
+                    </Text>
+                    {user.age && (
+                      <View style={[styles.ageChip, dynamicStyles.ageChip]}>
+                        <Text style={[styles.ageText, { color: theme.textSecondary }]}>{user.age}</Text>
+                      </View>
+                    )}
                   </View>
-                ))}
-                {user.interests.length > 3 && (
-                  <Text style={styles.moreInterestsNew}>+{user.interests.length - 3}</Text>
-                )}
-              </View>
-            )}
 
-            {user.isFriend && (
-              <View style={styles.friendBadgeNew}>
-                <Ionicons name="people" size={12} color="#22C55E" />
-                <Text style={styles.friendTextNew}>Friend</Text>
-              </View>
-            )}
-            
-            {/* Match Status Badge */}
-            {matchStatus === 'matched' && (
-              <View style={styles.matchedBadgeNew}>
-                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                <Text style={styles.matchedTextNew}>Matched ✓</Text>
-              </View>
-            )}
-            {matchStatus === 'pending' && (
-              <View style={styles.pendingBadgeNew}>
-                <Ionicons name="time-outline" size={14} color="#F59E0B" />
-                <Text style={styles.pendingTextNew}>Pending ⏳</Text>
-              </View>
-            )}
-          </View>
+                  {/* Gender row */}
+                  {genderIcon && genderLabel && (
+                    <View style={styles.genderRow}>
+                      <Ionicons
+                        name={genderIcon}
+                        size={12}
+                        color={theme.primary}
+                      />
+                      <Text style={[styles.genderText, { color: theme.textTertiary }]}>{genderLabel}</Text>
+                    </View>
+                  )}
 
-          <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.4)" />
-        </TouchableOpacity>
-        
-        {/* Quick Action Buttons - Inside Same Card */}
-        {!matchStatus && (
-          <View style={styles.quickActionsContainer}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.passActionButton]}
-              onPress={() => handlePassUser(user.id, user.name)}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="#EF4444" />
-              ) : (
-                <Ionicons name="close-circle" size={32} color="#EF4444" />
+                  {/* Username */}
+                  {user.username && (
+                    <Text style={[styles.usernameText, { color: theme.textTertiary }]} numberOfLines={1}>
+                      @{user.username}
+                    </Text>
+                  )}
+
+                  {/* Status Badges */}
+                  <View style={styles.statusRow}>
+                    {showCompatibility && user.compatibilityScore && (
+                      <View style={[styles.compatibilityChip, dynamicStyles.compatibilityChip]}>
+                      {genderIcon && <Ionicons name={genderIcon} size={12} color={theme.textTertiary} />}
+                        <Text style={[styles.compatibilityLabel, { color: theme.textSecondary }]}>
+                          {user.compatibilityScore}% match
+                        </Text>
+                      </View>
+                    )}
+
+                    {user.verificationStatus === 'verified' && (
+                      <View style={[styles.verifiedChip, dynamicStyles.verifiedChip]}>
+                        <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                        <Text style={styles.verifiedLabel}>Verified</Text>
+                      </View>
+                    )}
+
+                    {user.isFriend && (
+                      <View style={[styles.friendChip, dynamicStyles.friendChip]}>
+                        <Ionicons name="people" size={12} color="#3B82F6" />
+                        <Text style={styles.friendLabel}>Friend</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* Interests Section */}
+              {user.interests && user.interests.length > 0 && (
+                <View style={styles.interestsSection}>
+                  <View style={styles.interestsList}>
+                    {user.interests.slice(0, 3).map((interest, index) => (
+                      <View key={index} style={[styles.interestChip, dynamicStyles.interestChip]}>
+                        <Text style={[styles.interestLabel, dynamicStyles.interestLabel]}>{interest}</Text>
+                      </View>
+                    ))}
+                    {user.interests.length > 3 && (
+                      <View style={[styles.moreChip, dynamicStyles.moreChip]}>
+                        <Text style={[styles.moreLabel, { color: theme.textMuted }]}>+{user.interests.length - 3}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.likeActionButton]}
-              onPress={() => handleMatchUser(user.id, user.name, 'like')}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="#10B981" />
-              ) : (
-                <Ionicons name="heart-circle" size={40} color="#10B981" />
+
+              {/* Match Status */}
+              {(matchStatus === 'matched' || matchStatus === 'pending') && (
+                <View style={styles.matchStatusSection}>
+                  {matchStatus === 'matched' && (
+                    <View style={styles.matchedIndicator}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={styles.matchedLabel}>Matched</Text>
+                    </View>
+                  )}
+                  {matchStatus === 'pending' && (
+                    <View style={styles.pendingIndicator}>
+                      <Ionicons name="clock-outline" size={16} color="#F59E0B" />
+                      <Text style={styles.pendingLabel}>Request Sent</Text>
+                    </View>
+                  )}
+                </View>
               )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.superLikeActionButton]}
-              onPress={() => handleMatchUser(user.id, user.name, 'super_like')}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="#FFD700" />
-              ) : (
-                <Ionicons name="star" size={32} color="#FFD700" />
-              )}
-            </TouchableOpacity>
+            </View>
+
+            {/* Arrow indicator - vertically centered relative to card */}
+            <View style={styles.actionIndicator}>
+              <Ionicons name="chevron-forward" size={18} color={theme.primary} />
+            </View>
           </View>
-        )}
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -390,33 +630,47 @@ export default function ExploreScreen() {
     const filteredUsers = users?.filter(user => !passedUserIds.has(user.id)) || [];
     
     return (
-      <View style={styles.sectionNew}>
-        <View style={styles.sectionHeaderNew}>
-          <View style={styles.sectionIconContainer}>
-            <Ionicons name={icon} size={18} color="#FFD6F2" />
+      <View style={[styles.professionalSection, dynamicStyles.professionalSection]}>
+        <View style={styles.sectionHeaderPro}>
+          <View style={styles.headerLeft}>
+            <View style={styles.iconContainerPro}>
+              <LinearGradient
+                colors={[theme.primary, theme.primary]}
+                style={styles.iconGradient}
+              >
+                <Ionicons name={icon} size={18} color="#FFFFFF" />
+              </LinearGradient>
+            </View>
+            <Text style={[styles.sectionTitlePro, dynamicStyles.sectionTitlePro]}>{title}</Text>
           </View>
-          <Text style={styles.sectionTitleNew}>{title}</Text>
-          <View style={styles.countBadgeNew}>
-            <Text style={styles.countTextNew}>{filteredUsers?.length || 0}</Text>
+          <View style={styles.countChip}>
+            <Text style={[styles.countLabel, dynamicStyles.countLabel]}>{filteredUsers?.length || 0}</Text>
           </View>
         </View>
         
         {filteredUsers && filteredUsers.length > 0 ? (
-          <FlatList
-            data={filteredUsers}
-            keyExtractor={(item) => item.id}
-            renderItem={(props) => renderUserCard({ ...props, showCompatibility })}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            scrollEnabled={false}
-          />
+          <View style={styles.cardsGrid}>
+            {filteredUsers.map((user, index) => (
+              <View key={user.id} style={styles.cardItem}>
+                {renderUserCard({ item: user, showCompatibility })}
+              </View>
+            ))}
+          </View>
         ) : (
-          <View style={styles.emptySection}>
-            <Ionicons name="hourglass-outline" size={32} color="rgba(255, 255, 255, 0.6)" />
-            <Text style={styles.emptySectionTitle}>
-              We're growing our community!
+          <View style={styles.emptyStatePro}>
+            <View style={styles.emptyIconContainer}>
+              <LinearGradient
+                colors={[theme.primary, theme.primary]}
+                style={styles.emptyIconGradient}
+              >
+                <Ionicons name="people-outline" size={32} color="#FFFFFF" />
+              </LinearGradient>
+            </View>
+            <Text style={[styles.emptyTitlePro, dynamicStyles.emptyTitlePro]}>
+              Discovering Amazing People
             </Text>
-            <Text style={styles.emptySectionText}>
-              We're expanding our user base to help you find your perfect match
+            <Text style={[styles.emptyDescriptionPro, dynamicStyles.emptyDescriptionPro]}>
+              New members join Circle every day. Check back soon for fresh connections!
             </Text>
           </View>
         )}
@@ -426,100 +680,147 @@ export default function ExploreScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <LinearGradient
-          colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
+          colors={[theme.background, theme.backgroundSecondary, theme.background]}
           style={styles.backgroundGradient}
         >
-          <View style={[styles.floatingOrb, styles.orb1]} />
-          <View style={[styles.floatingOrb, styles.orb2]} />
-          <View style={[styles.floatingOrb, styles.orb3]} />
+          <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
+          <View style={[styles.floatingOrb, styles.orb2, { backgroundColor: theme.decorative2 }]} />
+          <View style={[styles.floatingOrb, styles.orb3, { backgroundColor: theme.decorative1 }]} />
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFE8FF" />
-          <Text style={styles.loadingText}>Loading explore...</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textPrimary }]}>Loading explore...</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.containerPro, { backgroundColor: theme.background }]}>
       <LinearGradient
-        colors={["#1a0b2e", "#2d1b4e", "#1a0b2e"]}
-        style={styles.backgroundGradient}
+        colors={[theme.background, theme.backgroundSecondary, theme.surface]}
+        style={styles.backgroundPro}
       >
-        <View style={[styles.floatingOrb, styles.orb1]} />
-        <View style={[styles.floatingOrb, styles.orb2]} />
-        <View style={[styles.floatingOrb, styles.orb3]} />
+        {/* Decorative Elements */}
+        <View style={[styles.decorativeShape1, { backgroundColor: theme.decorative1 }]} />
+        <View style={[styles.decorativeShape2, { backgroundColor: theme.decorative2 }]} />
+        <LinearGradient
+          colors={[theme.decorative1, theme.decorative2]}
+          style={styles.topAccent}
+        />
       </LinearGradient>
 
       <ScrollView
-        style={styles.scrollViewNew}
-        contentContainerStyle={styles.contentContainerNew}
+        style={styles.scrollViewPro}
+        contentContainerStyle={styles.contentPro}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => loadExploreData(true)}
-            tintColor="#FFE8FF"
-            colors={["#FFE8FF"]}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Modern Header */}
-        <View style={styles.headerNew}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greetingText}>Explore</Text>
-            <Text style={styles.subtitle}>Find your next connection</Text>
+        {/* Professional Header */}
+        <View style={styles.headerPro}>
+          <View style={styles.headerContent}>
+            <View style={styles.titleSection}>
+              <Text style={[styles.mainTitle, { color: theme.textPrimary }]}>Explore</Text>
+              <LinearGradient
+                colors={[theme.primary, theme.primary]}
+                style={styles.titleUnderline}
+              />
+            </View>
+            <Text style={[styles.subtitlePro, { color: theme.textSecondary }]}>Discover meaningful connections</Text>
           </View>
         </View>
 
-        {/* Announcements - Edge to Edge */}
-        <View style={{ marginHorizontal: -16 }}>
-          <AnnouncementBanner placement="explore" />
-        </View>
 
-        {/* Search Bar - Modern Style */}
-        <View style={styles.searchContainerNew}>
-          <View style={styles.searchBarNew}>
-            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.6)" />
+        {/* Enhanced Search Bar with Dropdown */}
+        <View style={styles.searchSectionPro}>
+          <View style={[styles.searchContainerPro, dynamicStyles.searchContainerPro, !token && styles.searchDisabled]}>
+            <View style={styles.searchIconContainer}>
+              <Ionicons name="search" size={18} color={token ? theme.primary : theme.textMuted} />
+            </View>
             <TextInput
-              placeholder="Search by name, username, or email"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
-              style={styles.searchInputNew}
+              placeholder={!token ? "Please log in to search users" : "Search by name, username, or interests..."}
+              placeholderTextColor={theme.textMuted}
+              style={[styles.searchInputPro, { color: theme.textPrimary }, !token && styles.searchInputDisabled]}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={token ? setSearchQuery : undefined}
+              editable={!!token}
             />
             {searching && (
-              <ActivityIndicator size="small" color="#FFD6F2" />
+              <ActivityIndicator size="small" color={theme.primary} style={styles.searchLoader} />
             )}
+            {!token && (
+              <Ionicons name="lock-closed" size={16} color={theme.textMuted} />
+            )}
+            <TouchableOpacity style={[styles.searchFilterButton, dynamicStyles.searchFilterButton]}>
+              <Ionicons name="options-outline" size={18} color={theme.primary} />
+            </TouchableOpacity>
           </View>
+          
+          {/* Search Results Dropdown */}
+          {searchQuery.length >= 2 && searchResults.length > 0 && (
+            <View style={[styles.searchDropdown, dynamicStyles.searchDropdown]}>
+              {searchResults.slice(0, 5).map((user, index) => (
+                <TouchableOpacity
+                  key={user.id}
+                  style={styles.searchResultItem}
+                  onPress={() => {
+                    setSearchQuery('');
+                    handleUserPress(user);
+                  }}
+                >
+                  <View style={styles.searchResultAvatar}>
+                    {user.profilePhoto ? (
+                      <Image source={{ uri: user.profilePhoto }} style={styles.searchAvatarImage} />
+                    ) : (
+                      <View style={styles.searchFallbackAvatar}>
+                        <Text style={styles.searchFallbackText}>
+                          {user.name?.charAt(0)?.toUpperCase() || '?'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.searchResultInfo}>
+                    <Text style={[styles.searchResultName, dynamicStyles.searchResultName]}>{user.name}</Text>
+                    {user.username && (
+                      <Text style={[styles.searchResultUsername, dynamicStyles.searchResultUsername]}>@{user.username}</Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
+        {/* Authentication prompt */}
+        {!token && (
+          <View style={styles.authPromptContainer}>
+            <Ionicons name="person-outline" size={24} color="rgba(255, 255, 255, 0.6)" />
+            <Text style={styles.authPromptText}>
+              Please log in to search and connect with users
+            </Text>
+          </View>
+        )}
+
         {/* Search Results */}
-        {searchQuery.length >= 2 && (
-          <View style={styles.searchResultsContainer}>
-            {searching ? (
-              <View style={styles.searchLoadingContainer}>
-                <ActivityIndicator size="small" color="#7C2B86" />
-                <Text style={styles.searchLoadingText}>Searching...</Text>
-              </View>
-            ) : searchResults.length > 0 ? (
-              renderSection(
-                `Search Results (${searchResults.length})`,
-                searchResults,
-                'search'
-              )
-            ) : (
-              <View style={styles.noResultsContainer}>
-                <Ionicons name="search-outline" size={48} color="rgba(255, 255, 255, 0.5)" />
-                <Text style={styles.noResultsText}>No users found</Text>
-                <Text style={styles.noResultsSubtext}>
-                  Try a different search term
-                </Text>
-              </View>
-            )}
+        {searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
+          <View style={styles.noResultsContainer}>
+            <View style={styles.noResultsIcon}>
+              <Ionicons name="search-outline" size={32} color="#8B5CF6" />
+            </View>
+            <Text style={styles.noResultsText}>No users found</Text>
+            <Text style={styles.noResultsSubtext}>
+              Try a different search term or check spelling
+            </Text>
           </View>
         )}
 
@@ -671,19 +972,35 @@ const styles = StyleSheet.create({
   },
   noResultsContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 4,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  noResultsIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   noResultsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFE8FF',
-    marginTop: 16,
+    color: '#1E293B',
+    marginBottom: 8,
   },
   noResultsSubtext: {
     fontSize: 14,
-    color: 'rgba(255, 232, 255, 0.7)',
-    marginTop: 8,
+    color: '#64748B',
     textAlign: 'center',
+    lineHeight: 20,
   },
   section: {
     marginBottom: 32,
@@ -1033,6 +1350,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
   },
+  searchBarDisabled: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  searchInputDisabled: {
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  authPromptContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255, 107, 181, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 181, 0.2)',
+  },
+  authPromptText: {
+    flex: 1,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 20,
+  },
   sectionNew: {
     marginBottom: 24,
   },
@@ -1180,6 +1523,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#22C55E',
   },
+  verifiedBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  verifiedTextNew: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
   interestsContainerNew: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1241,5 +1602,843 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#F59E0B',
+  },
+  
+  // Modern UI Styles
+  modernHeader: {
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  modernHeaderContent: {
+    alignItems: 'flex-start',
+  },
+  titleGradient: {
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  modernTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
+  modernSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  
+  modernSection: {
+    marginBottom: 28,
+  },
+  modernSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  modernSectionIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernSectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  modernCountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modernCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  
+  cardsContainer: {
+    gap: 12,
+  },
+  cardWrapper: {
+    marginHorizontal: 2,
+  },
+  
+  modernUserCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  cardGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  
+  profileImageContainer: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  modernAvatarImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  modernFallbackAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  modernFallbackText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  modernOnlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#22C55E',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onlinePulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  
+  modernUserInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  nameSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modernUserName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  modernUserAge: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  modernUsername: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  modernCompatibilityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 107, 157, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.4)',
+  },
+  modernCompatibilityText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF6B9D',
+  },
+  modernVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  modernVerifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  modernFriendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+  },
+  modernFriendText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#22C55E',
+  },
+  
+  modernInterestsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  modernInterestTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  modernInterestText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  modernMoreInterests: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+  
+  modernMatchedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    marginTop: 4,
+  },
+  modernMatchedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  modernPendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    marginTop: 4,
+  },
+  modernPendingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  
+  arrowContainer: {
+    marginLeft: 12,
+    padding: 4,
+  },
+  
+  modernEmptySection: {
+    marginTop: 8,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modernEmptySectionTitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  modernEmptySectionText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Professional Purple Theme Styles
+  containerPro: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  backgroundPro: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  decorativeShape1: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    top: -50,
+    right: -50,
+  },
+  decorativeShape2: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(168, 85, 247, 0.06)',
+    bottom: 100,
+    left: -30,
+  },
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  
+  scrollViewPro: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+  },
+  contentPro: {
+    paddingBottom: 120,
+  },
+  
+  headerPro: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  headerContent: {
+    alignItems: 'flex-start',
+  },
+  titleSection: {
+    marginBottom: 8,
+  },
+  mainTitle: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#1E293B',
+    letterSpacing: -1.5,
+    marginBottom: 4,
+  },
+  titleUnderline: {
+    height: 4,
+    width: 60,
+    borderRadius: 2,
+  },
+  subtitlePro: {
+    fontSize: 16,
+    color: '#64748B',
+    fontWeight: '500',
+    marginLeft: 2,
+  },
+  
+  searchSectionPro: {
+    marginBottom: 28,
+    paddingHorizontal: 4,
+  },
+  searchContainerPro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+  },
+  searchIconContainer: {
+    marginRight: 12,
+  },
+  searchInputPro: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1E293B',
+    fontWeight: '500',
+  },
+  searchInputDisabled: {
+    color: '#94A3B8',
+  },
+  searchLoader: {
+    marginLeft: 8,
+  },
+  
+  professionalSection: {
+    marginBottom: 32,
+  },
+  sectionHeaderPro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainerPro: {
+    marginRight: 12,
+  },
+  iconGradient: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitlePro: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E293B',
+    flex: 1,
+  },
+  countChip: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 32,
+    alignItems: 'center',
+  },
+  countLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  
+  cardsGrid: {
+    gap: 16,
+  },
+  cardItem: {
+    marginHorizontal: 2,
+  },
+  
+  professionalCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  cardContainer: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+  },
+  cardContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardMainContent: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  avatarSection: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  avatarWrapper: {
+    position: 'relative',
+  },
+  professionalAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    zIndex: 2,
+  },
+  avatarBorder: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 32,
+    zIndex: 1,
+  },
+  fallbackAvatarPro: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackTextPro: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  onlineStatusPro: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  
+  userBasicInfo: {
+    flex: 1,
+    gap: 8,
+    marginRight: 8,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  professionalName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    flex: 1,
+  },
+  ageChip: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  ageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  usernameText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  compatibilityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FDF2F8',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#FBCFE8',
+  },
+  compatibilityLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EC4899',
+  },
+  verifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  verifiedLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  friendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  friendLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  
+  interestsSection: {
+    marginBottom: 16,
+  },
+  interestsList: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  interestChip: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  interestLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  moreChip: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  moreLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  genderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  genderText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  
+  matchStatusSection: {
+    marginBottom: 8,
+  },
+  matchedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  matchedLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  pendingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  pendingLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
+  
+  actionIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  
+  emptyStatePro: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyIconContainer: {
+    marginBottom: 20,
+  },
+  emptyIconGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Enhanced Search Styles
+  searchFilterButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  searchDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 1000,
+    marginTop: 4,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  searchResultAvatar: {
+    marginRight: 12,
+  },
+  searchAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  searchFallbackAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchFallbackText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  searchResultUsername: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  emptyTitlePro: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyDescriptionPro: {
+    fontSize: 15,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 280,
   },
 });
