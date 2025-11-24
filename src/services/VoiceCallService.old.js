@@ -970,12 +970,13 @@ export class VoiceCallService {
         if (Platform.OS === 'web') {
           const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
           const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-          const isDevelopmentIP = typeof window !== 'undefined' && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(window.location.href);
-          const isHTTP = typeof window !== 'undefined' && window.location.protocol === 'http:';
+          const isDevelopmentIP = typeof window !== 'undefined' && window.location && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(window.location.href);
+          const isHTTP = typeof window !== 'undefined' && window.location && window.location.protocol === 'http:';
           
           if (isIOS) {
             if (isDevelopmentIP && isHTTP) {
-              errorMsg = `Voice calls on iOS don't work with HTTP on IP addresses (${window.location.hostname}). This is a browser security restriction.\n\nSolutions:\n1. Use HTTPS instead of HTTP\n2. Use localhost instead of IP address\n3. Test on Android or desktop browsers for HTTP development`;
+              const hostname = (window.location && window.location.hostname) || 'unknown';
+              errorMsg = `Voice calls on iOS don't work with HTTP on IP addresses (${hostname}). This is a browser security restriction.\n\nSolutions:\n1. Use HTTPS instead of HTTP\n2. Use localhost instead of IP address\n3. Test on Android or desktop browsers for HTTP development`;
             } else {
               errorMsg = 'Voice calls on iOS require Safari 11+ and HTTPS. Please ensure you\'re using a supported browser with a secure connection.';
             }

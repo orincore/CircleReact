@@ -6,6 +6,8 @@ import { VerificationProvider } from "@/contexts/VerificationContext";
 import BrowserNotificationProvider from "@/src/components/BrowserNotificationProvider";
 import ConnectionStatus from "@/src/components/ConnectionStatus";
 import NotificationManager from "@/src/components/NotificationManager";
+import ErrorBoundary from "@/src/components/ErrorBoundary";
+import { setupGlobalErrorHandlers } from "@/src/utils/crashPrevention";
 import { Stack } from "expo-router";
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
@@ -21,6 +23,9 @@ export default function RootLayout() {
   const { checkConsent, hasConsent } = useUserConsent();
 
   useEffect(() => {
+    // Set up global error handlers first
+    setupGlobalErrorHandlers();
+    
     // Initialize app services
     const initializeServices = async () => {
       try {
@@ -155,29 +160,31 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <VerificationProvider>
-              <SubscriptionProvider>
-              <BrowserNotificationProvider>
-                <ConnectionStatus />
-                <Stack screenOptions={{ headerShown: false }} />
-                <NotificationManager />
-                
-                {/* User Consent Modal for GDPR Compliance */}
-                <UserConsentModal
-                  visible={showConsentModal}
-                  onAccept={handleConsentAccept}
-                  onDecline={handleConsentDecline}
-                />
-              </BrowserNotificationProvider>
-              </SubscriptionProvider>
-            </VerificationProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <VerificationProvider>
+                <SubscriptionProvider>
+                <BrowserNotificationProvider>
+                  <ConnectionStatus />
+                  <Stack screenOptions={{ headerShown: false }} />
+                  <NotificationManager />
+                  
+                  {/* User Consent Modal for GDPR Compliance */}
+                  <UserConsentModal
+                    visible={showConsentModal}
+                    onAccept={handleConsentAccept}
+                    onDecline={handleConsentDecline}
+                  />
+                </BrowserNotificationProvider>
+                </SubscriptionProvider>
+              </VerificationProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

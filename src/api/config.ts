@@ -22,7 +22,7 @@ function inferDevHost(): string | null {
       }
     }
     // Web (Expo web): use window.location.hostname
-    if (Platform.OS === "web" && typeof window !== "undefined") {
+    if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
       const host = window.location.hostname;
       if (host && host !== "localhost" && host !== "127.0.0.1") return host;
     }
@@ -61,7 +61,7 @@ export const API_BASE_URL: string = (() => {
   }
 
   // Production default (can still be overridden via env)
-  return `https://localhost:${DEV_PORT}`;
+  return `https://api.circle.orincore.com`;
 })();
 
 // Helpful at runtime to confirm which base URL the app is using
