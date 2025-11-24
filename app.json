@@ -2,7 +2,7 @@
   "expo": {
     "name": "Circle",
     "slug": "Circle",
-    "version": "1.0.2",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "circle",

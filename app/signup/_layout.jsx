@@ -30,6 +30,7 @@ export default function SignupLayout() {
         <Stack.Screen name="instagram" />
         <Stack.Screen name="interests" />
         <Stack.Screen name="summary" />
+        <Stack.Screen name="google" />
       </Stack>
     </SignupWizardContext.Provider>
   );

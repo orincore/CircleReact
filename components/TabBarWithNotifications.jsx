@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { chatApi } from '@/src/api/chat';
 import { getSocket } from '@/src/api/socket';
 import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
@@ -7,16 +8,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import NotificationPanel from './NotificationPanel';
 
-const TAB_COLORS = {
-  background: "rgba(22, 9, 45, 0.85)",
-  active: "#FF1493",
-  inactive: "rgba(255, 255, 255, 0.52)",
-};
 
 export default function TabBarWithNotifications({ state, descriptors, navigation }) {
   const { token } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const { notificationCount, resetCount: resetNotificationCount, incrementCount } = useLocalNotificationCount();
   const [showNotifications, setShowNotifications] = useState(false);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
@@ -204,7 +202,12 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   return (
     <>
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <LinearGradient
+          colors={isDarkMode ? [theme.surface, theme.backgroundSecondary] : [theme.surface, theme.backgroundSecondary]}
+          style={styles.tabBarGradient}
+        />
+        <View style={[styles.tabBar, { backgroundColor: 'transparent' }]}>
         {/* Regular tabs */}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -228,7 +231,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
           const iconName = iconMap[route.name] ?? "ellipse";
           const adjustedSize = isFocused ? 26 : 24;
-          const color = isFocused ? TAB_COLORS.active : TAB_COLORS.inactive;
+          const color = isFocused ? theme.primary : theme.textMuted;
 
           return (
             <TouchableOpacity
@@ -238,12 +241,12 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
               accessibilityLabel={options.tabBarAccessibilityLabel}
               testID={options.tabBarTestID}
               onPress={onPress}
-              style={styles.tabItem}
+              style={[styles.tabItem, isFocused && { backgroundColor: theme.primaryLight, borderRadius: 16 }]}
             >
               <View style={styles.tabIconContainer}>
                 <Ionicons name={iconName} size={adjustedSize} color={color} />
                 {route.name === 'chat' && totalUnreadMessages > 0 && (
-                  <View style={styles.chatBadge}>
+                  <View style={[styles.chatBadge, { backgroundColor: theme.error, borderColor: theme.surface }]}>
                     <Text style={styles.chatBadgeText}>
                       {totalUnreadMessages > 99 ? '99+' : totalUnreadMessages}
                     </Text>
@@ -257,17 +260,17 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
         {/* Notification button */}
         <TouchableOpacity
-          style={styles.notificationButton}
+          style={[styles.notificationButton, showNotifications && { backgroundColor: theme.primaryLight, borderRadius: 16 }]}
           onPress={() => setShowNotifications(!showNotifications)}
         >
           <View style={styles.notificationIconContainer}>
             <Ionicons 
               name="notifications" 
               size={24} 
-              color={showNotifications ? TAB_COLORS.active : TAB_COLORS.inactive} 
+              color={showNotifications ? theme.primary : theme.textMuted} 
             />
             {notificationCount > 0 && (
-              <View style={styles.notificationBadge}>
+              <View style={[styles.notificationBadge, { backgroundColor: theme.error }]}>
                 <Text style={styles.notificationBadgeText}>
                   {notificationCount > 99 ? '99+' : notificationCount}
                 </Text>
@@ -275,6 +278,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
             )}
           </View>
         </TouchableOpacity>
+        </View>
       </View>
 
       {/* Notification Panel */}
@@ -287,48 +291,72 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 }
 
 const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  tabBarGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: TAB_COLORS.background,
     minHeight: 72,
     paddingTop: 10,
-    paddingHorizontal: 8,
-    // Remove fixed paddingBottom as it's now handled dynamically with safe area
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginHorizontal: 2,
+    minHeight: 52,
   },
   tabLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     marginTop: 4,
+    textAlign: 'center',
   },
   notificationButton: {
     width: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
+    marginHorizontal: 2,
+    minHeight: 52,
   },
   notificationIconContainer: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notificationBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#FF4444',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   notificationBadgeText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
   },
@@ -341,7 +369,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#FF4444',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -349,10 +376,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: TAB_COLORS.background,
   },
   chatBadgeText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
   },

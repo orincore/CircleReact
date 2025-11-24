@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
@@ -266,6 +267,24 @@ export default function Login() {
                           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
                         
+                        <View style={styles.divider}>
+                          <View style={styles.dividerLine} />
+                          <Text style={styles.dividerText}>or</Text>
+                          <View style={styles.dividerLine} />
+                        </View>
+                        
+                        <GoogleSignInButton
+                          mode="signin"
+                          disabled={submitting}
+                          onSuccess={(result) => {
+                            // Google auth handled in the component
+                            console.log('Google sign-in successful');
+                          }}
+                          onError={(error) => {
+                            setError('Google sign-in failed. Please try again.');
+                          }}
+                        />
+                        
                         <View style={styles.signupPrompt}>
                           <Text style={styles.signupPromptText}>Don't have an account? </Text>
                           <Link href="/signup" asChild>
@@ -382,6 +401,24 @@ export default function Login() {
                         </Text>
                         <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
                       </TouchableOpacity>
+                      
+                      <View style={styles.divider}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>or</Text>
+                        <View style={styles.dividerLine} />
+                      </View>
+                      
+                      <GoogleSignInButton
+                        mode="signin"
+                        disabled={submitting}
+                        onSuccess={(result) => {
+                          // Google auth handled in the component
+                          console.log('Google sign-in successful');
+                        }}
+                        onError={(error) => {
+                          setError('Google sign-in failed. Please try again.');
+                        }}
+                      />
                     </View>
                     
                     <View style={styles.mobileSignupPrompt}>
@@ -745,5 +782,23 @@ const styles = StyleSheet.create({
   mobileLegalSeparator: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  
+  // Divider styles
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(31, 17, 71, 0.2)',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: 'rgba(31, 17, 71, 0.6)',
+    fontWeight: '500',
   },
 });

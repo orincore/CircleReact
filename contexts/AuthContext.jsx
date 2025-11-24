@@ -226,6 +226,58 @@ export function AuthProvider({ children }) {
       },
     [router]
   );
+
+  const googleAuth = useCallback(async (idToken) => {
+    const resp = await authApi.googleAuth(idToken);
+    
+    if (resp.isNewUser) {
+      // New user - return Google profile data for signup completion
+      return resp;
+    } else {
+      // Existing user - log them in
+      await applyAuth(resp, { navigate: true });
+      return resp;
+    }
+  }, [applyAuth]);
+
+  const googleCompleteSignup = useCallback(async (signupData) => {
+    const resp = await authApi.googleCompleteSignup(signupData);
+    
+    // For Google OAuth users, email is pre-verified, so complete authentication
+    setToken(resp.access_token);
+    setUser(resp.user);
+    setIsAuthenticated(true);
+    
+    // Initialize socket service for background messaging
+    socketService.initialize(resp.access_token);
+    
+    // Initialize location tracking if it was previously enabled
+    try {
+      const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
+      if (trackingEnabled) {
+        await LocationTrackingService.startTracking(resp.access_token);
+      }
+    } catch (error) {
+      console.error('Failed to start location tracking:', error);
+    }
+    
+    // Update storage to mark as authenticated
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(AUTH_STORAGE_KEY, "true"),
+        AsyncStorage.setItem(TOKEN_KEY, resp.access_token),
+        AsyncStorage.setItem(USER_KEY, JSON.stringify(resp.user)),
+      ]);
+    } catch (error) {
+      console.warn("Failed to persist auth state", error);
+    }
+    
+    // Navigate to main app
+    router.replace("/secure/(tabs)/match");
+    
+    return resp;
+  }, [router]);
+
   const completeEmailVerification = useCallback(async () => {
     // This function is called after successful email verification
     // It completes the authentication process
@@ -524,11 +576,13 @@ export function AuthProvider({ children }) {
     user,
     logIn,
     signUp,
+    googleAuth,
+    googleCompleteSignup,
     logOut,
     updateProfile,
     refreshUser,
     completeEmailVerification,
-  }), [isAuthenticated, token, user, logIn, signUp, logOut, updateProfile, refreshUser, completeEmailVerification]);
+  }), [isAuthenticated, token, user, logIn, signUp, googleAuth, googleCompleteSignup, logOut, updateProfile, refreshUser, completeEmailVerification]);
 
   if (isRestoring) {
     return null;

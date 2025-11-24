@@ -39,8 +39,37 @@ export interface SignupBody {
   instagramUsername?: string;
 }
 
+export interface GoogleAuthResponse {
+  access_token?: string;
+  user?: UserDTO;
+  isNewUser: boolean;
+  googleProfile?: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    profilePhotoUrl?: string | null;
+    emailVerified: boolean;
+  };
+}
+
+export interface GoogleCompleteSignupBody {
+  idToken: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  gender: string;
+  username: string;
+  phoneNumber?: string;
+  interests?: string[];
+  needs?: string[];
+  instagramUsername?: string;
+  about?: string;
+}
+
 export const authApi = {
   login: (body: LoginBody) => http.post<AuthResponse, LoginBody>("/api/auth/login", body),
   signup: (body: SignupBody) => http.post<AuthResponse, SignupBody>("/api/auth/signup", body),
   usernameAvailable: (username: string) => http.get<{ available: boolean }>(`/api/auth/username-available?username=${encodeURIComponent(username)}`),
+  googleAuth: (idToken: string) => http.post<GoogleAuthResponse, { idToken: string }>("/api/auth/google", { idToken }),
+  googleCompleteSignup: (body: GoogleCompleteSignupBody) => http.post<AuthResponse, GoogleCompleteSignupBody>("/api/auth/google/complete-signup", body),
 };

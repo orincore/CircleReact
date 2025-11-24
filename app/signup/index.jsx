@@ -1,4 +1,5 @@
 import ProfilePictureUpload from "@/components/ProfilePictureUpload";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
 import { authApi } from "@/src/api/auth";
@@ -382,6 +383,33 @@ export default function SignupStepOne() {
                 {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
                 <Text style={styles.trustText}>🔐 Your password stays private and secure</Text>
               </View>
+
+              {/* Google Sign-In Button */}
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              
+              <GoogleSignInButton
+                mode="signup"
+                onSuccess={(result) => {
+                  if (result.isNewUser && result.googleProfile) {
+                    // Navigate to Google signup completion
+                    router.push({
+                      pathname: '/signup/google',
+                      params: {
+                        googleProfile: JSON.stringify(result.googleProfile),
+                        idToken: result.idToken
+                      }
+                    });
+                  }
+                  // If existing user, they'll be logged in automatically
+                }}
+                onError={(error) => {
+                  console.error('Google signup error:', error);
+                }}
+              />
 
               {/* Next Button */}
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
@@ -802,5 +830,23 @@ const styles = StyleSheet.create({
     color: Platform.OS === 'web' ? '#FFD6F2' : '#A16AE8',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  
+  // Divider styles
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(31, 17, 71, 0.2)',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 17, 71, 0.6)',
+    fontWeight: '500',
   },
 });

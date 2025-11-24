@@ -305,7 +305,7 @@ export default function EditProfileScreen() {
       if (parent) {
         parent.setOptions?.({
           tabBarStyle: {
-            backgroundColor: "rgba(22, 9, 45, 0.85)",
+            backgroundColor: "transparent",
             borderTopWidth: 0,
             height: 72,
             paddingBottom: 12,
