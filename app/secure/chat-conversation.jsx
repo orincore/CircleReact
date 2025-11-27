@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { chatApi } from "@/src/api/chat";
 import { API_BASE_URL } from "@/src/api/config";
 import { friendsApi } from "@/src/api/friends";
-import { getSocket } from "@/src/api/socket";
+import { getSocket, socketService } from "@/src/api/socket";
 import CachedMediaImage from '@/src/components/CachedMediaImage';
 import ChatOptionsMenu from "@/src/components/ChatOptionsMenu";
 import ConfirmationDialog from "@/src/components/ConfirmationDialog";
@@ -14,8 +14,8 @@ import UserProfileModal from "@/src/components/UserProfileModal";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
+import { useBlindDateChat } from "@/src/hooks/useBlindDateChat";
 import MediaCacheService from '@/src/services/MediaCacheService';
-import socketService from "@/src/services/socketService";
 import { voiceCallService } from "@/src/services/VoiceCallService";
 import { pickImage, pickVideo, takePhoto, uploadMediaToS3 } from '@/src/utils/mediaUpload';
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -66,7 +66,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 }
 
 // Modern Empty Chat Component
-const EmptyChatAnimation = ({ conversationName, onSendHi, theme, isDarkMode }) => {
+const EmptyChatAnimation = ({ conversationName, onSendHi, theme, isDarkMode, isBlindDate, blindDateOtherUser }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -180,45 +180,88 @@ const EmptyChatAnimation = ({ conversationName, onSendHi, theme, isDarkMode }) =
 
       {/* Professional heading */}
       <View style={styles.headingContainer}>
-        <Text style={[styles.modernTitle, { color: theme.textPrimary }]}>Welcome to your conversation</Text>
-        <Text style={[styles.modernSubtitle, { color: theme.textSecondary }]}>
-          Start connecting with <Text style={[styles.nameHighlight, { color: theme.primary }]}>{conversationName}</Text>
-        </Text>
+        {isBlindDate ? (
+          <>
+            <Text style={[styles.modernTitle, { color: theme.textPrimary }]}>Your Mystery Match</Text>
+            <Text style={[styles.modernSubtitle, { color: theme.textSecondary }]}>
+              Start chatting with your match! Keep it anonymous until you're ready to reveal your identity.
+            </Text>
+            {blindDateOtherUser && (
+              <View style={styles.blindDateInfoContainer}>
+                {blindDateOtherUser.gender && (
+                  <View style={[styles.blindDateInfoChip, { backgroundColor: theme.primary + '15' }]}>
+                    <Ionicons name={blindDateOtherUser.gender === 'male' ? 'male' : 'female'} size={14} color={theme.primary} />
+                    <Text style={[styles.blindDateInfoText, { color: theme.primary }]}>
+                      {blindDateOtherUser.gender === 'male' ? 'Male' : 'Female'}
+                    </Text>
+                  </View>
+                )}
+                {blindDateOtherUser.age && (
+                  <View style={[styles.blindDateInfoChip, { backgroundColor: theme.primary + '15' }]}>
+                    <Ionicons name="calendar-outline" size={14} color={theme.primary} />
+                    <Text style={[styles.blindDateInfoText, { color: theme.primary }]}>
+                      {blindDateOtherUser.age} years
+                    </Text>
+                  </View>
+                )}
+                {blindDateOtherUser.needs && blindDateOtherUser.needs.length > 0 && (
+                  <View style={[styles.blindDateInfoChip, { backgroundColor: theme.primary + '15' }]}>
+                    <Ionicons name="heart-outline" size={14} color={theme.primary} />
+                    <Text style={[styles.blindDateInfoText, { color: theme.primary }]}>
+                      {blindDateOtherUser.needs[0]}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={[styles.modernTitle, { color: theme.textPrimary }]}>Welcome to your conversation</Text>
+            <Text style={[styles.modernSubtitle, { color: theme.textSecondary }]}>
+              Start connecting with <Text style={[styles.nameHighlight, { color: theme.primary }]}>{conversationName}</Text>
+            </Text>
+          </>
+        )}
       </View>
 
-      {/* Connection suggestions */}
-      <View style={styles.suggestionsContainer}>
-        <View style={styles.suggestionItem}>
-          <View style={styles.suggestionIcon}>
-            <Ionicons name="hand-right" size={16} color={theme.primary} />
+      {/* Connection suggestions - only for regular chats */}
+      {!isBlindDate && (
+        <View style={styles.suggestionsContainer}>
+          <View style={styles.suggestionItem}>
+            <View style={styles.suggestionIcon}>
+              <Ionicons name="hand-right" size={16} color={theme.primary} />
+            </View>
+            <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Say hello and introduce yourself</Text>
           </View>
-          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Say hello and introduce yourself</Text>
-        </View>
-        <View style={styles.suggestionItem}>
-          <View style={styles.suggestionIcon}>
-            <Ionicons name="help-circle" size={16} color={theme.primary} />
+          <View style={styles.suggestionItem}>
+            <View style={styles.suggestionIcon}>
+              <Ionicons name="help-circle" size={16} color={theme.primary} />
+            </View>
+            <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Ask about their interests</Text>
           </View>
-          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Ask about their interests</Text>
-        </View>
-        <View style={styles.suggestionItem}>
-          <View style={styles.suggestionIcon}>
-            <Ionicons name="happy" size={16} color={theme.primary} />
+          <View style={styles.suggestionItem}>
+            <View style={styles.suggestionIcon}>
+              <Ionicons name="happy" size={16} color={theme.primary} />
+            </View>
+            <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Share something fun about yourself</Text>
           </View>
-          <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>Share something fun about yourself</Text>
         </View>
-      </View>
+      )}
 
-      {/* Modern CTA button */}
-      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-        <TouchableOpacity style={styles.modernSendButton} onPress={onSendHi}>
-          <View
-            style={[styles.modernButtonGradient, { backgroundColor: theme.primary }]}
-          >
-            <Ionicons name="paper-plane" size={18} color="white" />
-            <Text style={styles.modernButtonText}>Start Conversation</Text>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
+      {/* Modern CTA button - only for regular chats */}
+      {!isBlindDate && (
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity style={styles.modernSendButton} onPress={onSendHi}>
+            <View
+              style={[styles.modernButtonGradient, { backgroundColor: theme.primary }]}
+            >
+              <Ionicons name="paper-plane" size={18} color="white" />
+              <Text style={styles.modernButtonText}>Start Conversation</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Subtle background elements */}
       <View style={styles.backgroundElements}>
@@ -1198,6 +1241,7 @@ export default function InstagramChatScreen() {
   const listRef = useRef(null);
   const typingTimer = useRef(null);
   const composerHeight = useRef(new Animated.Value(50)).current;
+  const processedMessageIdsRef = useRef(new Set());
   const typingFade = useRef(new Animated.Value(0)).current;
   const invisibleMarginRef = useRef(null);
   const [composerMarginHeight, setComposerMarginHeight] = useState(screenData.isDesktop ? 60 : 40);
@@ -1241,6 +1285,15 @@ export default function InstagramChatScreen() {
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [retryCount, setRetryCount] = useState(0);
   const [retryTimer, setRetryTimer] = useState(null);
+  
+  // Blind date chat hook - check if this is a blind date chat
+  const {
+    isBlindDate,
+    blindDateStatus,
+    loading: blindDateLoading,
+    match: blindDateMatch,
+    otherUserProfile: blindDateOtherUser
+  } = useBlindDateChat(conversationId);
   
   // Fetch chat members to get the other user ID
   const fetchChatMembers = async () => {
@@ -1489,8 +1542,6 @@ export default function InstagramChatScreen() {
   useEffect(() => {
     if (!token) return;
 
-    const { socketService: apiSocketService } = require('@/src/api/socket');
-    
     // Connection state listener
     const handleConnectionState = (state) => {
       setConnectionStatus(state);
@@ -1530,14 +1581,14 @@ export default function InstagramChatScreen() {
     };
 
     // Add connection listener
-    apiSocketService.addConnectionListener(handleConnectionState);
+    socketService.addConnectionListener(handleConnectionState);
     
     // Initial connection state
-    const initialState = apiSocketService.getConnectionState();
+    const initialState = socketService.getConnectionState();
     setConnectionStatus(initialState);
 
     return () => {
-      apiSocketService.removeConnectionListener(handleConnectionState);
+      socketService.removeConnectionListener(handleConnectionState);
       if (retryTimer) {
         clearInterval(retryTimer);
         setRetryTimer(null);
@@ -1569,6 +1620,12 @@ export default function InstagramChatScreen() {
       }
       
       if (data.message.chatId === conversationId) {
+        const msgId = data.message.id || `${data.message.senderId}-${data.message.createdAt}`;
+        // Skip if already processed
+        if (processedMessageIdsRef.current.has(msgId)) {
+          return;
+        }
+        processedMessageIdsRef.current.add(msgId);
         // Handle background message for this chat - pass the full data object
         handleMessage(data);
       }
@@ -1585,14 +1642,37 @@ export default function InstagramChatScreen() {
         const sendingIndex = prev.findIndex(msg => msg.status === 'sending');
         if (sendingIndex !== -1) {
           const updated = [...prev];
+          const tempId = updated[sendingIndex].id;
+          
+          // Clear retry timer and pending message
+          if (retryTimersRef.current.has(tempId)) {
+            clearTimeout(retryTimersRef.current.get(tempId));
+            retryTimersRef.current.delete(tempId);
+          }
+          pendingMessagesRef.current.delete(tempId);
+          
           updated[sendingIndex] = { ...updated[sendingIndex], id: messageId, status: 'sent' };
           return updated;
         }
         
         // If no sending message found, update by messageId
-        return prev.map(msg => 
-          msg.id === messageId ? { ...msg, status: 'sent' } : msg
-        );
+        return prev.map(msg => {
+          if (msg.id === messageId) {
+            // Clear any pending retry for this message
+            const tempId = Array.from(pendingMessagesRef.current.keys()).find(
+              key => pendingMessagesRef.current.get(key)?.text === msg.text
+            );
+            if (tempId) {
+              if (retryTimersRef.current.has(tempId)) {
+                clearTimeout(retryTimersRef.current.get(tempId));
+                retryTimersRef.current.delete(tempId);
+              }
+              pendingMessagesRef.current.delete(tempId);
+            }
+            return { ...msg, status: 'sent' };
+          }
+          return msg;
+        });
       });
     };
 
@@ -1641,7 +1721,16 @@ export default function InstagramChatScreen() {
         return aTime - bTime;
       });
 
-      setMessages(sorted);
+      // Deduplicate messages from history
+      const deduplicated = deduplicateMessages(sorted);
+      setMessages(deduplicated);
+      
+      // Add message IDs to processed set to prevent duplicates from socket events
+      deduplicated.forEach(msg => {
+        if (msg.id) {
+          processedMessageIdsRef.current.add(msg.id);
+        }
+      });
 
       // Oldest message timestamp is now the first item
       if (sorted.length > 0) {
@@ -1655,7 +1744,18 @@ export default function InstagramChatScreen() {
       if (!data || !data.message) return;
       const msg = data.message;
       if (msg.chatId !== conversationId) return;
-      setMessages(prev => [...prev, msg]);
+      
+      // Check if message already exists to prevent duplicates
+      setMessages(prev => {
+        // Check if message with this ID already exists
+        const exists = prev.some(m => m.id === msg.id || (m.id === msg.id && m.text === msg.text && m.createdAt === msg.createdAt));
+        if (exists) {
+          // eslint-disable-next-line no-console
+          console.warn('Duplicate message prevented:', msg.id);
+          return prev;
+        }
+        return [...prev, msg];
+      });
     };
 
     const handleDelivered = (data) => {
@@ -1728,8 +1828,23 @@ export default function InstagramChatScreen() {
       }));
     };
     
+    // Wrapper for handleMessage to prevent duplicates from socket events
+    const handleSocketMessage = (data) => {
+      if (!data || !data.message) return;
+      const msg = data.message;
+      if (msg.chatId !== conversationId) return;
+      
+      const msgId = msg.id || `${msg.senderId}-${msg.createdAt}`;
+      // Skip if already processed by background handler
+      if (processedMessageIdsRef.current.has(msgId)) {
+        return;
+      }
+      processedMessageIdsRef.current.add(msgId);
+      handleMessage(data);
+    };
+    
     s.on('chat:history', handleHistory);
-    s.on('chat:message', handleMessage);
+    s.on('chat:message', handleSocketMessage);
     s.on('chat:delivered', handleDelivered);
     s.on('chat:read', handleRead);
     s.on('chat:typing', handleTyping);
@@ -1763,6 +1878,8 @@ export default function InstagramChatScreen() {
     
     s.on('chat:message:blocked', (data) => {
       let message;
+      let title = 'Message blocked';
+      
       switch (data.reason) {
         case 'user_blocked':
           message = 'You cannot send messages because you have blocked this user.';
@@ -1773,11 +1890,24 @@ export default function InstagramChatScreen() {
         case 'not_friends':
           message = 'You can only send messages to friends. Send a friend request first.';
           break;
+        case 'personal_info_detected':
+          // Use custom message from backend for blind date chats
+          title = 'Personal Information Detected';
+          message = data.message || 'Focus on conversation! Once your vibe matches, we will allow you to share personal information.';
+          break;
         default:
-          message = 'You cannot send messages to this user.';
+          message = data.message || 'You cannot send messages to this user.';
       }
       
-      Alert.alert('Message blocked', message);
+      // Remove the failed message from UI (remove any sending messages)
+      setMessages(prev => prev.filter(msg => msg.status !== 'sending'));
+      
+      // Clear composer if it was a personal info detection
+      if (data.reason === 'personal_info_detected') {
+        setComposer('');
+      }
+      
+      Alert.alert(title, message);
     });
 
     // Real-time friend request events
@@ -1921,14 +2051,54 @@ export default function InstagramChatScreen() {
       }
     });
 
+    // Retry failed messages when socket reconnects
+    const handleReconnect = () => {
+      // Retry all pending failed messages
+      pendingMessagesRef.current.forEach((pending, tempId) => {
+        if (pending.retries < 3) {
+          const s = getSocket(token);
+          if (s && s.connected) {
+            setTimeout(() => {
+              try {
+                s.emit('chat:message', { chatId: pending.chatId, text: pending.text });
+                pending.retries++;
+                pendingMessagesRef.current.set(tempId, pending);
+              } catch (error) {
+                console.error('Retry send failed:', error);
+              }
+            }, 1000);
+          }
+        }
+      });
+    };
+
+    // Listen for socket reconnection
+    socketService.addConnectionListener((state) => {
+      if (state === 'connected') {
+        handleReconnect();
+      }
+    });
+
     return () => {
       // Clear the mark as read timeout
       clearTimeout(markReadTimeout);
       
+      // Clear processed message IDs when leaving chat
+      processedMessageIdsRef.current.clear();
+      
+      // Clear all retry timers
+      retryTimersRef.current.forEach(timer => clearTimeout(timer));
+      retryTimersRef.current.clear();
+      pendingMessagesRef.current.clear();
+      
+      // Clear typing timers
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      if (typingDebounceTimer.current) clearTimeout(typingDebounceTimer.current);
+      
       try { s.emit('chat:leave', { chatId: conversationId }); } catch {}
       try {
         s.off('chat:history', handleHistory);
-        s.off('chat:message', handleMessage);
+        s.off('chat:message', handleSocketMessage);
         s.off('chat:delivered', handleDelivered);
         s.off('chat:read', handleRead);
         s.off('chat:typing', handleTyping);
@@ -2045,15 +2215,28 @@ export default function InstagramChatScreen() {
   };
 
   // Update chat disabled status based on block and friendship status
+  // For blind date chats, bypass friendship requirement
   useEffect(() => {
     const isBlocked = blockStatus.isBlocked || blockStatus.isBlockedBy;
+    
+    // If it's a blind date chat, only check for blocks (no friendship required)
+    if (isBlindDate) {
+      setChatDisabled(isBlocked);
+      return;
+    }
+    
+    // For regular chats, check both block and friendship
     const isNotFriends = friendshipStatus === 'not_friends' || friendshipStatus === 'none';
     const isUnknownStatus = friendshipStatus === 'unknown';
     // Disable chat if blocked, not friends, or status is still unknown
     const shouldDisable = isBlocked || isNotFriends || isUnknownStatus;
     
     setChatDisabled(shouldDisable);
-  }, [blockStatus, friendshipStatus]);
+  }, [blockStatus, friendshipStatus, isBlindDate]);
+
+  // Message retry queue for failed messages
+  const pendingMessagesRef = useRef(new Map()); // tempId -> { text, retries, timestamp }
+  const retryTimersRef = useRef(new Map()); // tempId -> timer
 
   const handleSend = () => {
     if (chatDisabled) {
@@ -2077,8 +2260,22 @@ export default function InstagramChatScreen() {
       const trimmed = composer.trim();
       if (!trimmed) return;
       
-      // Create temporary message with 'sending' status
-      const tempId = `temp-${Date.now()}`;
+      // Stop typing indicator when sending
+      if (typingTimer.current) {
+        clearTimeout(typingTimer.current);
+        typingTimer.current = null;
+      }
+      if (typingDebounceTimer.current) {
+        clearTimeout(typingDebounceTimer.current);
+        typingDebounceTimer.current = null;
+      }
+      try {
+        const s = getSocket(token);
+        s.emit('chat:typing', { chatId: conversationId, isTyping: false, typing: false });
+      } catch {}
+      
+      // Create temporary message with 'sending' status (optimistic UI)
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
       const tempMessage = {
         id: tempId,
         senderId: myUserId,
@@ -2088,20 +2285,88 @@ export default function InstagramChatScreen() {
         isDeleted: false,
         reactions: [],
         status: 'sending',
+        chatId: conversationId,
       };
       
-      // Add temporary message to UI
-      setMessages(prev => [...prev, tempMessage]);
+      // Add temporary message to UI (check for duplicates)
+      setMessages(prev => {
+        // Check if a similar temp message already exists
+        const similarExists = prev.some(m => 
+          m.id === tempId || 
+          (m.status === 'sending' && m.text === trimmed && m.senderId === myUserId && Math.abs((m.createdAt || 0) - Date.now()) < 1000)
+        );
+        if (similarExists) {
+          return prev;
+        }
+        return [...prev, tempMessage];
+      });
       
-      const s = getSocket(token);
-      try { 
-        s.emit('chat:message', { chatId: conversationId, text: trimmed });
-      } catch (error) {
-        // If sending fails, update status to 'failed'
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempId ? { ...msg, status: 'failed' } : msg
-        ));
-      }
+      // Store in pending messages for retry
+      pendingMessagesRef.current.set(tempId, {
+        text: trimmed,
+        retries: 0,
+        timestamp: Date.now(),
+        chatId: conversationId
+      });
+      
+      // Send message with retry mechanism
+      const sendMessage = (retryCount = 0) => {
+        const s = getSocket(token);
+        const isConnected = s && s.connected;
+        
+        if (!isConnected) {
+          // Socket not connected - mark as failed and retry when reconnected
+          setMessages(prev => prev.map(msg => 
+            msg.id === tempId ? { ...msg, status: 'failed' } : msg
+          ));
+          
+          // Retry when socket reconnects (max 3 retries)
+          if (retryCount < 3) {
+            const retryTimer = setTimeout(() => {
+              if (getSocket(token)?.connected) {
+                sendMessage(retryCount + 1);
+              }
+            }, 2000 * (retryCount + 1)); // Exponential backoff
+            retryTimersRef.current.set(tempId, retryTimer);
+          }
+          return;
+        }
+        
+        try { 
+          s.emit('chat:message', { chatId: conversationId, text: trimmed });
+          
+          // Set timeout to mark as failed if no response in 10 seconds
+          const timeoutTimer = setTimeout(() => {
+            const pending = pendingMessagesRef.current.get(tempId);
+            if (pending && pending.retries < 3) {
+              // Retry sending
+              pending.retries++;
+              pendingMessagesRef.current.set(tempId, pending);
+              sendMessage(pending.retries);
+            } else {
+              // Mark as failed after max retries
+              setMessages(prev => prev.map(msg => 
+                msg.id === tempId ? { ...msg, status: 'failed' } : msg
+              ));
+              pendingMessagesRef.current.delete(tempId);
+            }
+          }, 10000);
+          
+          retryTimersRef.current.set(tempId, timeoutTimer);
+        } catch (error) {
+          // If sending fails, update status to 'failed' and retry
+          if (retryCount < 3) {
+            setTimeout(() => sendMessage(retryCount + 1), 2000 * (retryCount + 1));
+          } else {
+            setMessages(prev => prev.map(msg => 
+              msg.id === tempId ? { ...msg, status: 'failed' } : msg
+            ));
+            pendingMessagesRef.current.delete(tempId);
+          }
+        }
+      };
+      
+      sendMessage();
       setComposer("");
     }
     
@@ -2379,17 +2644,44 @@ export default function InstagramChatScreen() {
     }
   };
 
+  // Optimized typing indicator with debouncing and auto-stop
+  const lastTypingEmit = useRef(0);
+  const typingDebounceTimer = useRef(null);
+  
   const handleTypingChange = (text) => {
     setComposer(text);
     const s = getSocket(token);
-    // Emit both `isTyping` (new) and `typing` (legacy) so backend handlers and any older
-    // servers can understand the event shape
-    try { s.emit('chat:typing', { chatId: conversationId, isTyping: true, typing: true }); } catch {}
     
+    // Debounce typing events - only emit every 300ms to reduce server load
+    const now = Date.now();
+    if (now - lastTypingEmit.current < 300) {
+      // Clear existing stop timer
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      
+      // Schedule typing start if not already emitted recently
+      if (typingDebounceTimer.current) clearTimeout(typingDebounceTimer.current);
+      typingDebounceTimer.current = setTimeout(() => {
+        try {
+          s.emit('chat:typing', { chatId: conversationId, isTyping: true, typing: true });
+          lastTypingEmit.current = Date.now();
+        } catch {}
+      }, 300);
+    } else {
+      // Emit immediately if enough time has passed
+      try {
+        s.emit('chat:typing', { chatId: conversationId, isTyping: true, typing: true });
+        lastTypingEmit.current = now;
+      } catch {}
+    }
+    
+    // Auto-stop typing after 2 seconds of inactivity (increased from 1s for better UX)
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => {
-      try { s.emit('chat:typing', { chatId: conversationId, isTyping: false, typing: false }); } catch {}
-    }, 1000);
+      try {
+        s.emit('chat:typing', { chatId: conversationId, isTyping: false, typing: false });
+        lastTypingEmit.current = 0; // Reset
+      } catch {}
+    }, 2000);
   };
 
   const handleInputContentSizeChange = (e) => {
@@ -2693,24 +2985,64 @@ export default function InstagramChatScreen() {
               style={styles.desktopUserInfo}
               onPress={handleAvatarClick}
             >
-              {userAvatar ? (
+              {isBlindDate && blindDateOtherUser?.profile_photo_url ? (
+                <View style={styles.blurryAvatarContainer}>
+                  <Image 
+                    source={{ uri: blindDateOtherUser.profile_photo_url }} 
+                    style={[styles.desktopAvatar, styles.blurryAvatar]}
+                    blurRadius={15}
+                  />
+                  <View style={styles.blurOverlay} />
+                </View>
+              ) : userAvatar ? (
                 <Image source={{ uri: userAvatar }} style={styles.desktopAvatar} />
               ) : (
                 <View style={styles.desktopAvatarFallback}>
                   <Text style={styles.desktopAvatarText}>
-                    {String(conversationName).charAt(0).toUpperCase()}
+                    {isBlindDate && blindDateOtherUser?.first_name
+                      ? String(blindDateOtherUser.first_name).charAt(0).toUpperCase()
+                      : String(conversationName).charAt(0).toUpperCase()}
                   </Text>
                 </View>
               )}
               <View style={styles.desktopUserText}>
-                <Text style={styles.desktopUserName}>{conversationName}</Text>
+                <Text style={styles.desktopUserName}>
+                  {isBlindDate && blindDateOtherUser 
+                    ? `${blindDateOtherUser.first_name || '***'} ${blindDateOtherUser.last_name || '***'}`.trim()
+                    : conversationName}
+                </Text>
                 <View style={styles.desktopStatusRow}>
-                  <View style={[styles.desktopStatusDot, { 
-                    backgroundColor: isOnline ? '#10B981' : '#9CA3AF' 
-                  }]} />
-                  <Text style={styles.desktopStatusText}>
-                    {isOnline ? 'Active now' : 'Offline'}
-                  </Text>
+                  {isBlindDate && blindDateOtherUser ? (
+                    <>
+                      {blindDateOtherUser.gender && (
+                        <Text style={[styles.desktopStatusText, { marginRight: 8 }]}>
+                          {blindDateOtherUser.gender === 'male' ? 'Male' : blindDateOtherUser.gender === 'female' ? 'Female' : blindDateOtherUser.gender}
+                        </Text>
+                      )}
+                      {blindDateOtherUser.age && (
+                        <Text style={[styles.desktopStatusText, { marginRight: 8 }]}>
+                          {blindDateOtherUser.age} years
+                        </Text>
+                      )}
+                      {blindDateOtherUser.needs && blindDateOtherUser.needs.length > 0 && (
+                        <View style={[styles.headerStatusChip, { backgroundColor: 'rgba(124, 43, 134, 0.2)' }]}>
+                          <Ionicons name="heart" size={10} color="#7C2B86" />
+                          <Text style={[styles.desktopStatusText, { color: '#7C2B86', marginLeft: 4 }]}>
+                            {blindDateOtherUser.needs[0]}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <View style={[styles.desktopStatusDot, { 
+                        backgroundColor: isOnline ? '#10B981' : '#9CA3AF' 
+                      }]} />
+                      <Text style={styles.desktopStatusText}>
+                        {isOnline ? 'Active now' : 'Offline'}
+                      </Text>
+                    </>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>
@@ -2769,6 +3101,8 @@ export default function InstagramChatScreen() {
                 onSendHi={handleSendHi}
                 theme={theme}
                 isDarkMode={isDarkMode}
+                isBlindDate={isBlindDate}
+                blindDateOtherUser={blindDateOtherUser}
               />
             }
             ListHeaderComponent={() => {
@@ -2813,20 +3147,24 @@ export default function InstagramChatScreen() {
             )}
           />
           
-          {/* Blocked/Not Friends Messages */}
-          {blockStatus.isBlocked || blockStatus.isBlockedBy ? (
-            <BlockedMessage blockStatus={blockStatus} conversationName={conversationName} />
-          ) : friendshipStatus === 'not_friends' ? (
-            <NotFriendsMessage 
-              conversationName={conversationName}
-              otherUserId={otherUserId}
-              onFriendRequestSent={() => setFriendshipStatus('pending')}
-              requestStatus={friendRequestStatus}
-            />
-          ) : null}
+          {/* Blocked/Not Friends Messages - Only show for regular chats, not blind date chats */}
+          {!isBlindDate && (
+            <>
+              {blockStatus.isBlocked || blockStatus.isBlockedBy ? (
+                <BlockedMessage blockStatus={blockStatus} conversationName={conversationName} />
+              ) : friendshipStatus === 'not_friends' ? (
+                <NotFriendsMessage 
+                  conversationName={conversationName}
+                  otherUserId={otherUserId}
+                  onFriendRequestSent={() => setFriendshipStatus('pending')}
+                  requestStatus={requestStatus}
+                />
+              ) : null}
+            </>
+          )}
           
           {/* Desktop Input */}
-          {friendshipStatus === 'friends' && !blockStatus.isBlocked && !blockStatus.isBlockedBy && (
+          {((isBlindDate && !blockStatus.isBlocked && !blockStatus.isBlockedBy) || (friendshipStatus === 'friends' && !blockStatus.isBlocked && !blockStatus.isBlockedBy)) && (
             <View style={styles.desktopInputContainer} onLayout={(e) => setDesktopComposerHeight(e.nativeEvent.layout.height)}>
               <View style={styles.desktopInputWrapper}>
                 {/* Media Picker Button for Desktop */}
@@ -2854,11 +3192,25 @@ export default function InstagramChatScreen() {
                   style={styles.desktopInput}
                   value={composer}
                   onChangeText={handleTypingChange}
-                  placeholder={`Message ${conversationName}...`}
+                  placeholder={
+                    isBlindDate 
+                      ? "Type a message..." 
+                      : `Message ${conversationName}...`
+                  }
                   placeholderTextColor="rgba(255, 255, 255, 0.6)"
                   multiline
                   scrollEnabled={true}
                   maxLength={2000}
+                  onContentSizeChange={(e) => {
+                    const contentHeight = e.nativeEvent.contentSize.height;
+                    const minHeight = 52;
+                    const maxHeight = 200;
+                    const newHeight = Math.max(minHeight, Math.min(maxHeight, contentHeight + 16));
+                    // Update desktop composer height for proper spacing
+                    if (newHeight !== desktopComposerHeight) {
+                      setDesktopComposerHeight(newHeight);
+                    }
+                  }}
                   onKeyPress={(e) => {
                     if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
                       e.preventDefault();
@@ -2965,7 +3317,7 @@ export default function InstagramChatScreen() {
       <View style={[styles.blurCircleSmall, { backgroundColor: theme.decorative2, opacity: isDarkMode ? 0.3 : 0.1 }]} />
       <View style={[styles.blurCircleMedium, { backgroundColor: theme.decorative1, opacity: isDarkMode ? 0.3 : 0.1 }]} />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? ['top', 'bottom'] : ['top']}>
         {/* Header */}
         {Platform.OS === 'web' ? (
           <View style={[styles.header, styles.glassWeb, dynamicStyles.header]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
@@ -2987,7 +3339,16 @@ export default function InstagramChatScreen() {
                     { opacity: pressed ? 0.8 : hovered ? 0.9 : 1 }
                   ]}
                 >
-                  {userAvatar ? (
+                  {isBlindDate && blindDateOtherUser?.profile_photo_url ? (
+                    <View style={styles.blurryAvatarContainer}>
+                      <Image 
+                        source={{ uri: blindDateOtherUser.profile_photo_url }} 
+                        style={[styles.headerAvatarImage, styles.blurryAvatar]}
+                        blurRadius={15}
+                      />
+                      <View style={styles.blurOverlay} />
+                    </View>
+                  ) : userAvatar ? (
                     <Image source={{ uri: userAvatar }} style={styles.headerAvatarImage} />
                   ) : (
                     <LinearGradient
@@ -2997,7 +3358,9 @@ export default function InstagramChatScreen() {
                       end={{ x: 1, y: 1 }}
                     >
                       <Text style={styles.headerAvatarText}>
-                        {String(conversationName).charAt(0).toUpperCase()}
+                        {isBlindDate && blindDateOtherUser?.first_name
+                          ? String(blindDateOtherUser.first_name).charAt(0).toUpperCase()
+                          : String(conversationName).charAt(0).toUpperCase()}
                       </Text>
                     </LinearGradient>
                   )}
@@ -3010,20 +3373,47 @@ export default function InstagramChatScreen() {
                     ]}
                     numberOfLines={1}
                   >
-                    {conversationName}
+                    {isBlindDate && blindDateOtherUser 
+                      ? `${blindDateOtherUser.first_name || '***'} ${blindDateOtherUser.last_name || '***'}`.trim()
+                      : conversationName}
                   </Text>
                   <View style={styles.statusRow}>
-                    <View style={[styles.onlineIndicator, { 
-                      backgroundColor: isOnline ? '#00FF94' : 'rgba(255,255,255,0.4)' 
-                    }]} />
-                    <Text
-                      style={[
-                        styles.headerStatus,
-                        { color: isDarkMode ? theme.textSecondary : '#555555' },
-                      ]}
-                    >
-                      {isOnline ? 'Active now' : 'Offline'}
-                    </Text>
+                    {isBlindDate && blindDateOtherUser ? (
+                      <>
+                        {blindDateOtherUser.gender && (
+                          <Text style={[styles.headerStatus, { color: isDarkMode ? theme.textSecondary : '#555555', marginRight: 8 }]}>
+                            {blindDateOtherUser.gender === 'male' ? 'Male' : blindDateOtherUser.gender === 'female' ? 'Female' : blindDateOtherUser.gender}
+                          </Text>
+                        )}
+                        {blindDateOtherUser.age && (
+                          <Text style={[styles.headerStatus, { color: isDarkMode ? theme.textSecondary : '#555555', marginRight: 8 }]}>
+                            {blindDateOtherUser.age} years
+                          </Text>
+                        )}
+                        {blindDateOtherUser.needs && blindDateOtherUser.needs.length > 0 && (
+                          <View style={[styles.headerStatusChip, { backgroundColor: theme.primary + '20' }]}>
+                            <Ionicons name="heart" size={10} color={theme.primary} />
+                            <Text style={[styles.headerStatus, { color: theme.primary, marginLeft: 4 }]}>
+                              {blindDateOtherUser.needs[0]}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <View style={[styles.onlineIndicator, { 
+                          backgroundColor: isOnline ? '#00FF94' : 'rgba(255,255,255,0.4)' 
+                        }]} />
+                        <Text
+                          style={[
+                            styles.headerStatus,
+                            { color: isDarkMode ? theme.textSecondary : '#555555' },
+                          ]}
+                        >
+                          {isOnline ? 'Active now' : 'Offline'}
+                        </Text>
+                      </>
+                    )}
                   </View>
                 </View>
               </View>
@@ -3139,9 +3529,20 @@ export default function InstagramChatScreen() {
         )}
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.flex}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
+          style={[
+            styles.flex,
+            Platform.OS === 'web' && {
+              // Use viewport height for web to account for browser controls
+              minHeight: '100vh',
+              maxHeight: '100vh',
+              height: '100vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }
+          ]}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : Platform.OS === 'web' ? 0 : 0}
           enabled={Platform.OS !== 'web'}
         >
           {/* Blocked Message */}
@@ -3205,10 +3606,17 @@ export default function InstagramChatScreen() {
               {
                 // Inverted FlatList means paddingTop becomes visual bottom padding
                 paddingTop: Platform.OS === 'web' ? 16 : 8,
-                paddingBottom: 16, // Visual top padding (inverted)
+                paddingBottom: Platform.OS === 'web' && !screenData.isDesktop
+                  ? (composerContainerHeight + 80) // Extra padding for mobile browser controls
+                  : 16, // Visual top padding (inverted)
               },
               screenData.isDesktop && {
                 paddingHorizontal: 40,
+              },
+              // For mobile web, ensure messages are above browser controls
+              Platform.OS === 'web' && !screenData.isDesktop && {
+                paddingBottom: composerContainerHeight + 80, // Extra space for browser controls
+                marginBottom: 0,
               }
             ]}
             showsVerticalScrollIndicator={false}
@@ -3265,6 +3673,8 @@ export default function InstagramChatScreen() {
                   onSendHi={handleSendHi}
                   theme={theme}
                   isDarkMode={isDarkMode}
+                  isBlindDate={isBlindDate}
+                  blindDateOtherUser={blindDateOtherUser}
                 />
               ) : null
             )}
@@ -3344,8 +3754,16 @@ export default function InstagramChatScreen() {
                   ? 12 // Keep default for web
                   : (isKeyboardVisible ? 8 : 12), // Reduce top padding when keyboard is visible
                 paddingBottom: Platform.OS === 'web' 
-                  ? (screenData.isDesktop ? 24 : 20) // More padding for web browsers
-                  : (isKeyboardVisible ? 0 : Math.max((insets?.bottom || 0), 20))
+                  ? (screenData.isDesktop ? 24 : Math.max(insets?.bottom || 0, 60)) // Extra padding for mobile browser controls
+                  : (isKeyboardVisible ? 0 : Math.max((insets?.bottom || 0), 20)),
+                // For mobile web, ensure composer is positioned above browser controls
+                ...(Platform.OS === 'web' && !screenData.isDesktop && {
+                  position: 'fixed',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100%',
+                })
               }
             ]}
             onLayout={(e) => setComposerContainerHeight(e.nativeEvent.layout.height)}
@@ -3416,8 +3834,11 @@ export default function InstagramChatScreen() {
                       isInputFocused && dynamicStyles.textInputFocused,
                       chatDisabled && styles.textInputDisabled,
                       { 
-                        minHeight: Math.max(52, inputHeight),
-                        maxHeight: 120,
+                        height: inputHeight,
+                        minHeight: 52,
+                        maxHeight: screenData.isDesktop ? 300 : 150,
+                        paddingTop: 14,
+                        paddingBottom: 14,
                       }
                     ]}
                   placeholder={
@@ -3426,7 +3847,9 @@ export default function InstagramChatScreen() {
                           ? "You have blocked this user" 
                           : blockStatus.isBlockedBy 
                             ? "This user has blocked you"
-                            : "Send a friend request to message")
+                            : isBlindDate
+                              ? "Type a message..." // Blind date chats don't need friend request
+                              : "Send a friend request to message")
                       : "Type a message..."
                   }
                   placeholderTextColor={chatDisabled ? (friendshipStatus === 'not_friends' ? theme.primary + '60' : "rgba(255, 68, 68, 0.6)") : theme.textPlaceholder}
@@ -3434,9 +3857,12 @@ export default function InstagramChatScreen() {
                     onChangeText={chatDisabled ? undefined : handleTypingChange}
                     onKeyPress={chatDisabled ? undefined : handleKeyPress}
                     onContentSizeChange={chatDisabled ? undefined : (e) => {
-                      const newHeight = Math.max(52, Math.min(120, e.nativeEvent.contentSize.height + 32));
+                      const contentHeight = e.nativeEvent.contentSize.height;
+                      const minHeight = 52;
+                      const maxHeight = screenData.isDesktop ? 300 : 150;
+                      const newHeight = Math.max(minHeight, Math.min(maxHeight, contentHeight + 16));
                       setInputHeight(newHeight);
-                      if (handleInputContentSizeChange) handleInputContentSizeChange(e);
+                      handleInputContentSizeChange(e);
                     }}
                     onFocus={() => {
                       setIsInputFocused(true);
@@ -4398,7 +4824,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12, // Default mobile padding
     backgroundColor: 'transparent', // Transparent by default
     zIndex: 10, // Ensure composer is above other elements
-    position: 'relative',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute', // Use fixed on web for better browser control handling
+    bottom: 0,
+    left: 0,
+    right: 0,
+    ...(Platform.OS === 'web' && {
+      // Add safe area padding for mobile browsers to account for browser controls
+      paddingBottom: 'max(12px, calc(12px + env(safe-area-inset-bottom, 0px) + 50px))', // Extra 50px for browser controls
+    }),
   },
   composerBlur: {
     position: 'absolute',
@@ -4809,6 +5242,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   
+  // Blind Date Info
+  blindDateInfoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  blindDateInfoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  blindDateInfoText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  
   // Suggestions
   suggestionsContainer: {
     width: '100%',
@@ -4951,6 +5406,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#7C2B86',
   },
+  headerStatusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
   desktopAvatarFallback: {
     width: 44,
     height: 44,
@@ -5041,9 +5504,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: '#FFFFFF',
-    minHeight: 44, // Increased minimum height
-    maxHeight: 300, // Large enough for about 13-14 lines
-    padding: 8, // Add some padding for better text visibility
+    minHeight: 52,
+    maxHeight: 200, // Limit max height for better UX
+    paddingTop: 14,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
     margin: 0,
     outlineStyle: 'none',
     backgroundColor: 'transparent',

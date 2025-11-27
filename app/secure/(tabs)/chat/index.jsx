@@ -1,5 +1,6 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
+import BlindDatingTestPanel from "@/components/BlindDatingTestPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -12,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
-import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions, Modal } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { BannerAd } = getAdComponents();
@@ -301,6 +302,7 @@ export default function ChatListScreen() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showTestPanel, setShowTestPanel] = useState(false); // TODO: Remove after testing
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
   const buttonRefs = React.useRef({});
 
@@ -1000,6 +1002,32 @@ export default function ChatListScreen() {
           </View>
         </View>
       )}
+
+      {/* TODO: Remove this test button after testing blind dating feature */}
+      <TouchableOpacity 
+        style={styles.floatingTestButton}
+        onPress={() => setShowTestPanel(true)}
+      >
+        <LinearGradient
+          colors={['#FF6B6B', '#FF8E53']}
+          style={styles.floatingTestButtonGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Ionicons name="flask" size={24} color="#FFFFFF" />
+          <Text style={styles.floatingTestButtonText}>Test</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Blind Dating Test Panel Modal - TODO: Remove after testing */}
+      <Modal
+        visible={showTestPanel}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTestPanel(false)}
+      >
+        <BlindDatingTestPanel onClose={() => setShowTestPanel(false)} />
+      </Modal>
     </View>
   );
  }
@@ -1303,5 +1331,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  // TODO: Remove these styles after testing
+  floatingTestButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    zIndex: 9999,
+    borderRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  floatingTestButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  floatingTestButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

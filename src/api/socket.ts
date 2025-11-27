@@ -165,10 +165,11 @@ function createSocket(token?: string | null) {
 
     // Connection successful
     socket.on('connect', () => {
-      const transport = socket.io.engine.transport.name;      
+      const transport = socket.io.engine.transport.name;
+      isInitialized = true;
+      
       // Production-specific connection validation
       if (isProduction) {
-        
         // Test production connection immediately
         setTimeout(() => {
           if (socket && socket.connected) {
@@ -205,6 +206,10 @@ function createSocket(token?: string | null) {
       if (currentChatId) {
         socket.emit('chat:join', { chatId: currentChatId });
       }
+      
+      // Notify all connection listeners that we're connected
+      // This allows components to retry failed operations
+      socketService.notifyConnectionState('connected');
     });
 
     // Connection error

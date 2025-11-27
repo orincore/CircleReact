@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#1e293b',
-    outline: 'none',
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
   },
   webSendButton: {
     backgroundColor: '#7C2B86',

@@ -69,12 +69,14 @@ class BrowserNotificationService {
 
   // Check if notifications can be shown
   canShowNotifications() {
+    // Allow notifications when:
+    // 1. Page is hidden (tab in background or closed)
+    // 2. OR page is visible but user might not be looking (for important notifications)
     const isPageHidden = document.visibilityState === 'hidden';
     const hasPermission = this.isSupported && this.isEnabled;
     
-    
-    
-    return hasPermission && isPageHidden;
+    // Always allow if permission granted (push notifications work even when tab is closed)
+    return hasPermission;
   }
 
   // Force show notification (for testing)

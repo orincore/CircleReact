@@ -246,7 +246,8 @@ const styles = StyleSheet.create({
   headerInner: {
     ...(Platform.OS === 'web' && {
       maxWidth: 900,
-      margin: '0 auto',
+      marginVertical: 0,
+      marginHorizontal: 'auto',
       textAlign: 'center',
     }),
   },

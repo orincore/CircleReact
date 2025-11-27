@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
-    outline: 'none',
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
   },
   webOtpInputFilled: {
     borderColor: '#7C2B86',

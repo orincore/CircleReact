@@ -234,14 +234,16 @@ export default function useBrowserNotifications() {
   const handleMessageReceived = ({ message }) => {
     //console.log('🔔 Message received for browser notification:', { message });
     
-    // Don't show notification if user is in the same chat
-    if (currentChatIdRef.current === message.chatId) {
-      //console.log('🔕 Skipping message notification - user in active chat');
+    // Don't show notification if user is in the same chat AND page is visible
+    const isPageVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
+    if (currentChatIdRef.current === message.chatId && isPageVisible) {
+      //console.log('🔕 Skipping message notification - user in active chat and page visible');
       return;
     }
 
     const senderName = message.senderName || 'Someone';
 
+    // Always try to show notification (will work even when tab is closed via service worker)
     browserNotificationService.showMessageNotification({
       senderName,
       message: message.text || 'New message',
