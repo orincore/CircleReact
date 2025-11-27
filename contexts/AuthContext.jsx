@@ -336,8 +336,30 @@ export function AuthProvider({ children }) {
         AsyncStorage.removeItem(USER_KEY),
       ]);
     } catch (error) {
+      // Ignore storage cleanup errors
     }
-    router.replace("/");
+
+    // On web, also clear any direct localStorage copies and do a hard redirect
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        window.localStorage?.removeItem?.(AUTH_STORAGE_KEY);
+        window.localStorage?.removeItem?.(TOKEN_KEY);
+        window.localStorage?.removeItem?.(USER_KEY);
+      } catch {
+        // Best-effort only
+      }
+
+      // Use both router and location to avoid stale bundles/routes
+      router.replace("/");
+      try {
+        window.location.href = "/";
+      } catch {
+        // Fallback to router-only navigation if direct redirect fails
+      }
+    } else {
+      // Native: normal router navigation is enough
+      router.replace("/");
+    }
   }, [router]);
 
   useEffect(() => {

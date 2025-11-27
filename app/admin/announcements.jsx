@@ -47,11 +47,12 @@ export default function AdminAnnouncements() {
     Object.entries(placements).filter(([, v]) => v).map(([k]) => k),
   [placements]);
 
-  const load = async () => {
-    if (!token) return;
+  const load = async (overrideToken) => {
+    const useToken = overrideToken ?? token;
+    if (!useToken) return;
     try {
       setLoading(true);
-      const resp = await announcementsAdminApi.list(token, { limit: 100 });
+      const resp = await announcementsAdminApi.list(useToken, { limit: 100 });
       setAnnouncements(Array.isArray(resp.announcements) ? resp.announcements : []);
     } catch (e) {
       // show inline error text via state if needed
@@ -96,10 +97,12 @@ export default function AdminAnnouncements() {
       try {
         const t = await AsyncStorage.getItem('authToken');
         setToken(t);
-      } catch {}
-      load();
+        await load(t);
+      } catch {
+        // If we cannot read the token, leave announcements empty
+      }
     })();
-  }, [/* run once on mount; load() internally checks token */]);
+  }, []);
 
   const resetForm = () => {
     setTitle('');

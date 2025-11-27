@@ -402,6 +402,14 @@ export default function ProfileScreen() {
             <TouchableOpacity 
               style={[styles.actionButton, styles.logoutButton]}
               onPress={() => {
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                  const ok = window.confirm('Are you sure you want to sign out?');
+                  if (ok) {
+                    logOut();
+                  }
+                  return;
+                }
+
                 Alert.alert(
                   'Sign Out',
                   'Are you sure you want to sign out?',
