@@ -1292,7 +1292,8 @@ export default function InstagramChatScreen() {
     blindDateStatus,
     loading: blindDateLoading,
     match: blindDateMatch,
-    otherUserProfile: blindDateOtherUser
+    otherUserProfile: blindDateOtherUser,
+    filterMessage,
   } = useBlindDateChat(conversationId);
   
   // Fetch chat members to get the other user ID
@@ -2238,7 +2239,7 @@ export default function InstagramChatScreen() {
   const pendingMessagesRef = useRef(new Map()); // tempId -> { text, retries, timestamp }
   const retryTimersRef = useRef(new Map()); // tempId -> timer
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (chatDisabled) {
       const message = blockStatus.isBlocked 
         ? 'You cannot send messages because you have blocked this user.'
@@ -2259,6 +2260,45 @@ export default function InstagramChatScreen() {
       // Handle new message
       const trimmed = composer.trim();
       if (!trimmed) return;
+      
+      // DEBUG: Log blind date state to diagnose why filter may be bypassed
+      console.log('🔍 BLIND DATE DEBUG:', {
+        isBlindDate,
+        blindDateStatus,
+        matchStatus: blindDateStatus?.match?.status,
+        hasFilterMessage: typeof filterMessage === 'function',
+        messageText: trimmed.substring(0, 30) + '...',
+      });
+      
+      // For blind/mystery chats, run personal info filter before sending
+      if (isBlindDate && typeof filterMessage === 'function') {
+        try {
+          console.log('🔍 Running filterMessage...');
+          const result = await filterMessage(trimmed);
+          console.log('🔍 filterMessage result:', result);
+          
+          if (result && result.allowed === false) {
+            // Show a dedicated popup and cancel sending
+            const detectedTypes = result.analysis?.detectedTypes || [];
+            const hasDetected = detectedTypes.length > 0;
+            const details = hasDetected ? `\n\nDetected: ${detectedTypes.join(', ')}` : '';
+            const alertMessage = (result.blockedReason || result.message || 'Focus on conversation! Once your vibe matches, we will allow you to share personal information.') + details;
+            
+            if (Platform.OS === 'web') {
+              window.alert('Personal Information Detected\n\n' + alertMessage);
+            } else {
+              Alert.alert('Personal Information Detected', alertMessage);
+            }
+            return;
+          }
+        } catch (err) {
+          // On filter error, fall back to backend-side filtering (no extra client block)
+          // eslint-disable-next-line no-console
+          console.error('Blind date filter error:', err);
+        }
+      } else {
+        console.log('🔍 Skipping filter - isBlindDate:', isBlindDate, 'hasFilterMessage:', typeof filterMessage === 'function');
+      }
       
       // Stop typing indicator when sending
       if (typingTimer.current) {

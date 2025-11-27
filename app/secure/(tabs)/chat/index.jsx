@@ -1,6 +1,5 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
-import BlindDatingTestPanel from "@/components/BlindDatingTestPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -13,7 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
-import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions, Modal } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions, Modal } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { BannerAd } = getAdComponents();
@@ -172,7 +171,10 @@ export default function ChatListScreen() {
       if (!token) return;
       await chatApi.setArchived(chatId, false, token);
       setOpenMenuChatId(null);
-      await loadInbox(true);
+      // Update locally instead of full refresh
+      setConversations(prev => prev.map(conv => 
+        conv.chat.id === chatId ? { ...conv, archived: false } : conv
+      ));
     } catch (e) {
       console.error('[ChatList] Failed to unarchive chat:', e);
       if (Platform.OS === 'web') {
@@ -188,7 +190,10 @@ export default function ChatListScreen() {
       if (!token) return;
       await chatApi.setArchived(chatId, true, token);
       setOpenMenuChatId(null);
-      await loadInbox(true);
+      // Update locally instead of full refresh
+      setConversations(prev => prev.map(conv => 
+        conv.chat.id === chatId ? { ...conv, archived: true } : conv
+      ));
     } catch (e) {
       console.error('[ChatList] Failed to archive chat:', e);
       if (Platform.OS === 'web') {
@@ -204,7 +209,19 @@ export default function ChatListScreen() {
       if (!token) return;
       await chatApi.setPinned(chatId, true, token);
       setOpenMenuChatId(null);
-      await loadInbox(true);
+      // Update locally and re-sort instead of full refresh
+      setConversations(prev => {
+        const updated = prev.map(conv => 
+          conv.chat.id === chatId ? { ...conv, pinned: true } : conv
+        );
+        // Re-sort: pinned first, then by recent
+        return [...updated].sort((a, b) => {
+          if (a?.pinned !== b?.pinned) return a?.pinned ? -1 : 1;
+          const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
+          const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
+          return bTime - aTime;
+        });
+      });
     } catch (e) {
       console.error('[ChatList] Failed to pin chat:', e);
       if (Platform.OS === 'web') {
@@ -220,7 +237,19 @@ export default function ChatListScreen() {
       if (!token) return;
       await chatApi.setPinned(chatId, false, token);
       setOpenMenuChatId(null);
-      await loadInbox(true);
+      // Update locally and re-sort instead of full refresh
+      setConversations(prev => {
+        const updated = prev.map(conv => 
+          conv.chat.id === chatId ? { ...conv, pinned: false } : conv
+        );
+        // Re-sort: pinned first, then by recent
+        return [...updated].sort((a, b) => {
+          if (a?.pinned !== b?.pinned) return a?.pinned ? -1 : 1;
+          const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
+          const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
+          return bTime - aTime;
+        });
+      });
     } catch (e) {
       console.error('[ChatList] Failed to unpin chat:', e);
       if (Platform.OS === 'web') {
@@ -302,13 +331,12 @@ export default function ChatListScreen() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [showTestPanel, setShowTestPanel] = useState(false); // TODO: Remove after testing
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
   const buttonRefs = React.useRef({});
 
   const loadInbox = async (isRefresh = false) => {
     if (!token) {
-      console.warn('No token available for loading inbox');
+      console.warn('[ChatList] No token available for loading inbox');
       setLoading(false);
       setRefreshing(false);
       return;
@@ -317,6 +345,8 @@ export default function ChatListScreen() {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
+      
+      console.log('📥 [ChatList] Loading inbox...', { isRefresh });
       
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 
@@ -328,9 +358,14 @@ export default function ChatListScreen() {
         timeoutPromise
       ]);
       
+      console.log('📦 [ChatList] Inbox response:', { 
+        hasInbox: !!response?.inbox, 
+        count: response?.inbox?.length 
+      });
+      
       // Validate response
       if (!response || !Array.isArray(response.inbox)) {
-        console.error('Invalid inbox response:', response);
+        console.error('[ChatList] Invalid inbox response:', response);
         setConversations([]);
         return;
       }
@@ -343,11 +378,12 @@ export default function ChatListScreen() {
           const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
           return bTime - aTime;
         } catch (err) {
-          console.error('Error sorting conversations:', err);
+          console.error('[ChatList] Error sorting conversations:', err);
           return 0;
         }
       });
       
+      console.log('✅ [ChatList] Conversations loaded and sorted:', sortedConversations.length);
       setConversations(sortedConversations);
       
       // Initialize unread counts from server data
@@ -358,13 +394,13 @@ export default function ChatListScreen() {
             initialUnreadCounts[conv.chat.id] = conv.unreadCount;
           }
         } catch (err) {
-          console.error('Error processing conversation unread count:', err);
+          console.error('[ChatList] Error processing conversation unread count:', err);
         }
       });
       setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
-      //console.log('📊 Initialized unread counts:', initialUnreadCounts);
+      console.log('📊 [ChatList] Initialized unread counts:', initialUnreadCounts);
     } catch (error) {
-      console.error('Failed to load inbox:', error);
+      console.error('[ChatList] Failed to load inbox:', error);
       // Set empty conversations on error to stop loading state
       setConversations([]);
     } finally {
@@ -384,6 +420,8 @@ export default function ChatListScreen() {
       return;
     }
 
+    console.log('🔌 [ChatList] Initializing socket connection...', { hasToken: !!token, userId: user?.id });
+
     let socket;
     try {
       socket = getSocket(token);
@@ -391,6 +429,24 @@ export default function ChatListScreen() {
         console.error('[ChatList] Failed to get socket instance');
         return;
       }
+      console.log('✅ [ChatList] Socket instance obtained:', { connected: socket.connected, id: socket.id });
+      
+      // Monitor connection status
+      const handleConnect = () => {
+        console.log('🟢 [ChatList] Socket connected');
+      };
+      
+      const handleDisconnect = (reason) => {
+        console.log('🔴 [ChatList] Socket disconnected:', reason);
+      };
+      
+      const handleConnectError = (error) => {
+        console.error('❌ [ChatList] Socket connection error:', error);
+      };
+      
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+      socket.on('connect_error', handleConnectError);
     } catch (error) {
       console.error('[ChatList] Error getting socket:', error);
       return;
@@ -399,7 +455,7 @@ export default function ChatListScreen() {
     // Handle new messages in chat list
     const handleNewMessage = ({ message }) => {
       try {
-        //console.log('📨 New message received in chat list:', message);
+        console.log('📨 [ChatList] New message received:', message);
         
         if (!message || !message.chatId) {
           console.error('[ChatList] Invalid message received:', message);
@@ -413,6 +469,7 @@ export default function ChatListScreen() {
               return [];
             }
         
+            // Create a new array to ensure React detects the change
             const updatedConversations = prev.map(conv => {
               try {
                 if (!conv || !conv.chat) {
@@ -421,6 +478,8 @@ export default function ChatListScreen() {
                 }
                 
                 if (conv.chat.id === message.chatId) {
+                  console.log('✏️ [ChatList] Updating conversation:', conv.chat.id);
+                  // Create completely new object to trigger re-render
                   return {
                     ...conv,
                     lastMessage: {
@@ -443,9 +502,13 @@ export default function ChatListScreen() {
               }
             });
 
-            // Sort conversations by most recent message (descending order)
-            const sortedConversations = updatedConversations.sort((a, b) => {
+            // Sort: pinned first, then by most recent message (descending order)
+            // Use slice() to create a new array reference for React to detect change
+            const sortedConversations = [...updatedConversations].sort((a, b) => {
               try {
+                // Pinned chats always stay at top
+                if (a?.pinned !== b?.pinned) return a?.pinned ? -1 : 1;
+                
                 const aTime = new Date(a?.chat?.last_message_at || a?.chat?.created_at || 0).getTime();
                 const bTime = new Date(b?.chat?.last_message_at || b?.chat?.created_at || 0).getTime();
                 return bTime - aTime; // Most recent first
@@ -455,6 +518,7 @@ export default function ChatListScreen() {
               }
             });
             
+            console.log('🔄 [ChatList] State updated, new order:', sortedConversations.map(c => c.chat.id));
             return sortedConversations;
           } catch (stateError) {
             console.error('[ChatList] Error updating conversations state:', stateError);
@@ -469,7 +533,7 @@ export default function ChatListScreen() {
       if (message.senderId !== user.id) {
         setUnreadCounts(prev => {
           const newCount = (prev[message.chatId] || 0) + 1;
-          //console.log(`📊 Updated unread count for chat ${message.chatId}: ${newCount}`);
+          console.log(`📊 [ChatList] Updated unread count for chat ${message.chatId}: ${newCount}`);
           return {
             ...prev,
             [message.chatId]: newCount
@@ -485,13 +549,16 @@ export default function ChatListScreen() {
 
     // Handle typing indicators
     const handleTyping = ({ chatId, users }) => {
-      setTypingIndicators(prev => ({
-        ...prev,
-        [chatId]: users.filter(userId => userId !== user.id)
-      }));
+      console.log('⌨️ [ChatList] Typing indicator:', { chatId, users });
+      setTypingIndicators(prev => {
+        const filtered = users.filter(userId => userId !== user.id);
+        // Create new object to ensure React detects change
+        return { ...prev, [chatId]: filtered };
+      });
     };
 
     const handleListTyping = ({ chatId, by, isTyping }) => {
+      console.log('⌨️ [ChatList] List typing:', { chatId, by, isTyping });
       setTypingIndicators(prev => {
         const existing = prev[chatId] || [];
         const others = existing.filter(u => u !== by);
@@ -502,9 +569,9 @@ export default function ChatListScreen() {
 
     // Handle read receipts to clear unread counts
     const handleRead = ({ chatId, messageId, by }) => {
-      //console.log('👁️ Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
+      console.log('👁️ [ChatList] Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
       if (by === user.id) {
-        //console.log(`📊 Clearing unread count for chat ${chatId}`);
+        console.log(`📊 [ChatList] Clearing unread count for chat ${chatId}`);
         setUnreadCounts(prev => ({
           ...prev,
           [chatId]: 0
@@ -514,7 +581,7 @@ export default function ChatListScreen() {
     
     // Handle unread count updates from server
     const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
-      //console.log(`📊 Unread count update from server for chat ${chatId}: ${unreadCount}`);
+      console.log(`📊 [ChatList] Unread count update from server for chat ${chatId}: ${unreadCount}`);
       setUnreadCounts(prev => ({
         ...prev,
         [chatId]: unreadCount
@@ -523,18 +590,22 @@ export default function ChatListScreen() {
 
     // Handle message status updates for chat list
     const handleMessageStatusUpdate = ({ messageId, chatId, status }) => {
-      setConversations(prev => prev.map(conv => {
-        if (conv.chat.id === chatId && conv.lastMessage?.id === messageId) {
-          return {
-            ...conv,
-            lastMessage: {
-              ...conv.lastMessage,
-              status: status
-            }
-          };
-        }
-        return conv;
-      }));
+      setConversations(prev => {
+        // Create new array to ensure React detects change
+        return prev.map(conv => {
+          if (conv.chat.id === chatId && conv.lastMessage?.id === messageId) {
+            console.log('📝 [ChatList] Updating message status:', { chatId, messageId, status });
+            return {
+              ...conv,
+              lastMessage: {
+                ...conv.lastMessage,
+                status: status
+              }
+            };
+          }
+          return conv;
+        });
+      });
     };
 
     // Handle delivery receipts
@@ -561,13 +632,19 @@ export default function ChatListScreen() {
       }
     };
 
-    // Stable list change refresher for on/off
-    const handleListChanged = () => loadInbox(true);
+    // Handle list changes without full refresh - rely on real-time updates
+    const handleListChanged = () => {
+      console.log('📋 [ChatList] List changed event received (no refresh needed - using real-time updates)');
+      // Don't reload inbox - let real-time socket events handle updates
+    };
 
     try {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
         socketService.addMessageHandler('chat-list', handleBackgroundMessage);
+        console.log('✅ [ChatList] Registered global message handler');
+      } else {
+        console.warn('⚠️ [ChatList] socketService.addMessageHandler not available');
       }
       
       // Listen to socket events
@@ -581,22 +658,40 @@ export default function ChatListScreen() {
         socket.on('chat:unread_count', handleUnreadCountUpdate);
         socket.on('friend:unfriended', handleUnfriended);
         socket.on('chat:list:changed', handleListChanged);
+        
+        console.log('✅ [ChatList] Socket listeners registered:', [
+          'chat:message',
+          'chat:typing',
+          'chat:list:typing',
+          'chat:read',
+          'chat:message:delivery_receipt',
+          'chat:message:read_receipt',
+          'chat:unread_count',
+          'friend:unfriended',
+          'chat:list:changed'
+        ]);
+      } else {
+        console.error('❌ [ChatList] Socket.on not available');
       }
-
-      //console.log('🔌 Socket listeners registered for chat list');
     } catch (error) {
       console.error('[ChatList] Error registering socket listeners:', error);
     }
 
     return () => {
       try {
-        //console.log('🔌 Cleaning up socket listeners for chat list');
+        console.log('🔌 [ChatList] Cleaning up socket listeners');
         
         if (socketService && typeof socketService.removeMessageHandler === 'function') {
           socketService.removeMessageHandler('chat-list');
         }
         
         if (socket && typeof socket.off === 'function') {
+          // Remove connection monitoring
+          socket.off('connect');
+          socket.off('disconnect');
+          socket.off('connect_error');
+          
+          // Remove chat event listeners
           socket.off('chat:message', handleNewMessage);
           socket.off('chat:typing', handleTyping);
           socket.off('chat:list:typing', handleListTyping);
@@ -782,6 +877,7 @@ export default function ChatListScreen() {
         ) : (
           <FlatList
             data={visibleConversations}
+            extraData={[visibleConversations, typingIndicators, unreadCounts]}
             keyExtractor={(item) => {
               try {
                 return item?.chat?.id || `fallback-${Math.random()}`;
@@ -802,6 +898,11 @@ export default function ChatListScreen() {
                 colors={[theme.primary]}
               />
             }
+            // Enable smooth animations for list updates
+            windowSize={10}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="chatbubbles-outline" size={64} color={theme.textMuted} />
@@ -1002,32 +1103,6 @@ export default function ChatListScreen() {
           </View>
         </View>
       )}
-
-      {/* TODO: Remove this test button after testing blind dating feature */}
-      <TouchableOpacity 
-        style={styles.floatingTestButton}
-        onPress={() => setShowTestPanel(true)}
-      >
-        <LinearGradient
-          colors={['#FF6B6B', '#FF8E53']}
-          style={styles.floatingTestButtonGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Ionicons name="flask" size={24} color="#FFFFFF" />
-          <Text style={styles.floatingTestButtonText}>Test</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Blind Dating Test Panel Modal - TODO: Remove after testing */}
-      <Modal
-        visible={showTestPanel}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowTestPanel(false)}
-      >
-        <BlindDatingTestPanel onClose={() => setShowTestPanel(false)} />
-      </Modal>
     </View>
   );
  }
@@ -1331,31 +1406,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  // TODO: Remove these styles after testing
-  floatingTestButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-    zIndex: 9999,
-    borderRadius: 30,
-    overflow: 'hidden',
-    shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  floatingTestButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  floatingTestButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });
