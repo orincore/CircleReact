@@ -59,7 +59,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro",
+      "name": "Circle",
+      "shortName": "Circle",
+      "description": "No Swiping Dating & Friendship App with AI-Powered Smart Matching",
+      "themeColor": "#7C2B86",
+      "backgroundColor": "#7C2B86",
+      "lang": "en"
     },
     "plugins": [
       "expo-router",

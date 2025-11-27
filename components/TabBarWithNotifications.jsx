@@ -6,10 +6,13 @@ import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount
 import socketService from '@/src/services/socketService';
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from 'react';
-import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import NotificationPanel from './NotificationPanel';
+
+// Web-specific bottom padding to account for mobile browser chrome
+const WEB_BOTTOM_PADDING = 20;
 
 
 export default function TabBarWithNotifications({ state, descriptors, navigation }) {
@@ -200,9 +203,19 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     profile: "person",
   };
 
+  // Calculate bottom padding - add extra for web mobile browsers
+  const getBottomPadding = () => {
+    const basePadding = Math.max(insets.bottom, 12);
+    if (Platform.OS === 'web') {
+      // Add extra padding for mobile browser chrome (address bar, navigation)
+      return basePadding + WEB_BOTTOM_PADDING;
+    }
+    return basePadding;
+  };
+
   return (
     <>
-      <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.tabBarContainer, { paddingBottom: getBottomPadding() }]}>
         <LinearGradient
           colors={isDarkMode ? [theme.surface, theme.backgroundSecondary] : [theme.surface, theme.backgroundSecondary]}
           style={styles.tabBarGradient}

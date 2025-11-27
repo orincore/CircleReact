@@ -1,0 +1,43 @@
+{
+  "name": "Circle - No Swiping Dating & Friendship App",
+  "short_name": "Circle",
+  "description": "Stop swiping! Circle uses AI-powered smart matching to find your perfect partner or friends automatically. No endless swiping - just real, meaningful connections.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#7C2B86",
+  "theme_color": "#7C2B86",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["social", "dating", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "prefer_related_applications": true,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.orincore.Circle",
+      "id": "com.orincore.Circle"
+    }
+  ]
+}

@@ -3,11 +3,23 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm ci
+        # Install Node.js 18 (required for Expo SDK 54)
+        - nvm install 18
+        - nvm use 18
+        # Clean install dependencies
+        - npm ci --legacy-peer-deps
+        # Fix any Expo dependency issues
         - npx expo install --fix
     build:
       commands:
-        - npx expo export --platform web
+        # Set production environment
+        - export NODE_ENV=production
+        # Build the web app
+        - npm run build:web
+        # Copy static files to dist
+        - cp -r public/* dist/ 2>/dev/null || true
+        - cp web/robots.txt dist/ 2>/dev/null || true
+        - cp web/sitemap.xml dist/ 2>/dev/null || true
   artifacts:
     baseDirectory: dist
     files:
@@ -16,3 +28,17 @@ frontend:
     paths:
       - node_modules/**/*
       - .expo/**/*
+      - ~/.npm/**/*
+  customHeaders:
+    - pattern: '**/*'
+      headers:
+        - key: 'Cache-Control'
+          value: 'public, max-age=31536000, immutable'
+    - pattern: 'index.html'
+      headers:
+        - key: 'Cache-Control'
+          value: 'no-cache, no-store, must-revalidate'
+    - pattern: '*.html'
+      headers:
+        - key: 'Cache-Control'
+          value: 'no-cache, no-store, must-revalidate'

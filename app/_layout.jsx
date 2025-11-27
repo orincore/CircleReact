@@ -151,11 +151,67 @@ export default function RootLayout() {
       appleTouchIcon.href = '/icon.png?' + Date.now();
       document.head.appendChild(appleTouchIcon);
 
-      // Fix body height for mobile browsers
-      document.body.style.height = '100vh';
+      // Fix body height for mobile browsers - use dvh for dynamic viewport height
+      // This accounts for mobile browser chrome (address bar, bottom nav)
+      document.body.style.height = '100dvh';
+      document.body.style.minHeight = '100dvh';
+      document.body.style.maxHeight = '100dvh';
       document.body.style.overflow = 'hidden';
-      document.documentElement.style.height = '100vh';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = '0';
+      document.body.style.left = '0';
+      document.documentElement.style.height = '100dvh';
       document.documentElement.style.overflow = 'hidden';
+      
+      // Add CSS custom properties for safe areas
+      const style = document.createElement('style');
+      style.id = 'circle-mobile-safe-areas';
+      style.textContent = `
+        :root {
+          --safe-area-inset-top: env(safe-area-inset-top, 0px);
+          --safe-area-inset-right: env(safe-area-inset-right, 0px);
+          --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+          --safe-area-inset-left: env(safe-area-inset-left, 0px);
+          --browser-chrome-height: 56px;
+        }
+        
+        /* Ensure the app container uses dynamic viewport height */
+        #root {
+          height: 100dvh !important;
+          max-height: 100dvh !important;
+          overflow: hidden !important;
+          display: flex !important;
+          flex-direction: column !important;
+        }
+        
+        /* Mobile browser bottom padding for tab bars */
+        .mobile-bottom-safe-area {
+          padding-bottom: max(env(safe-area-inset-bottom, 12px), 12px) !important;
+        }
+        
+        /* Fallback for browsers that don't support dvh */
+        @supports not (height: 100dvh) {
+          body, html, #root {
+            height: 100vh !important;
+            height: -webkit-fill-available !important;
+          }
+        }
+        
+        /* Additional mobile browser fixes */
+        @media screen and (max-width: 768px) {
+          body {
+            -webkit-overflow-scrolling: touch;
+          }
+        }
+      `;
+      
+      // Remove existing style if present
+      const existingStyle = document.getElementById('circle-mobile-safe-areas');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+      document.head.appendChild(style);
     }
   }, []);
 

@@ -9,6 +9,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
+    "build:web": "EXPO_PUBLIC_PLATFORM=web expo export --platform web --output-dir dist",
+    "build:amplify": "npm run build:web && npm run postbuild",
+    "postbuild": "node scripts/postbuild.js",
     "vercel-build": "expo export --platform web --output-dir dist",
     "lint": "expo lint"
   },
