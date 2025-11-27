@@ -391,6 +391,13 @@ export default function Login() {
                         </View>
                       </View>
                       
+                      <TouchableOpacity 
+                        style={styles.forgotPasswordMobile}
+                        onPress={() => router.push('/auth/forgot-password')}
+                      >
+                        <Text style={styles.forgotPasswordTextMobile}>Forgot password?</Text>
+                      </TouchableOpacity>
+                      
                       <TouchableOpacity
                         style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
                         onPress={handleLogin}
@@ -691,6 +698,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#A16AE8',
+  },
+  forgotPasswordMobile: {
+    alignSelf: 'flex-end',
+    marginTop: 4,
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  forgotPasswordTextMobile: {
     fontSize: 14,
     fontWeight: '600',
     color: '#A16AE8',

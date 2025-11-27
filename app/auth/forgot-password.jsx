@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,8 @@ export default function ForgotPassword() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -17,21 +19,15 @@ export default function ForgotPassword() {
   };
 
   const handleSendResetCode = async () => {
+    setError('');
+    
     if (!email.trim()) {
-      if (Platform.OS === 'web') {
-        console.error('Please enter your email address');
-      } else {
-        Alert.alert('Error', 'Please enter your email address');
-      }
+      setError('Please enter your email address');
       return;
     }
 
     if (!validateEmail(email)) {
-      if (Platform.OS === 'web') {
-        console.error('Please enter a valid email address');
-      } else {
-        Alert.alert('Error', 'Please enter a valid email address');
-      }
+      setError('Please enter a valid email address');
       return;
     }
 
@@ -41,23 +37,22 @@ export default function ForgotPassword() {
         email: email.toLowerCase().trim(),
       });
 
-      // Navigate to OTP verification page
-      router.push({
-        pathname: '/auth/reset-password-otp',
-        params: {
-          email: email.toLowerCase().trim(),
-        }
-      });
+      setSuccess(true);
+      
+      // Navigate to OTP verification page after a short delay
+      setTimeout(() => {
+        router.push({
+          pathname: '/auth/reset-password-otp',
+          params: {
+            email: email.toLowerCase().trim(),
+          }
+        });
+      }, 1500);
 
     } catch (error) {
       console.error('Forgot password error:', error);
       const errorMessage = error.message || 'Failed to send reset code. Please try again.';
-      
-      if (Platform.OS === 'web') {
-        console.error(errorMessage);
-      } else {
-        Alert.alert('Error', errorMessage);
-      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -89,19 +84,43 @@ export default function ForgotPassword() {
             No worries! Enter your email address and we'll send you a verification code to reset your password.
           </Text>
 
+          {/* Success Message */}
+          {success && (
+            <View style={styles.webSuccessContainer}>
+              <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+              <View style={styles.webSuccessTextContainer}>
+                <Text style={styles.webSuccessTitle}>Reset Code Sent! 📧</Text>
+                <Text style={styles.webSuccessText}>
+                  Check your email for the 6-digit code. Redirecting...
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Error Message */}
+          {error && !success && (
+            <View style={styles.webErrorContainer}>
+              <Ionicons name="alert-circle" size={20} color="#ef4444" />
+              <Text style={styles.webErrorText}>{error}</Text>
+            </View>
+          )}
+
           {/* Email Input */}
           <View style={styles.webInputContainer}>
             <Text style={styles.webInputLabel}>Email Address</Text>
             <TextInput
-              style={styles.webInput}
+              style={[styles.webInput, error && styles.webInputError]}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError('');
+              }}
               placeholder="Enter your email address"
               placeholderTextColor="#94a3b8"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!loading}
+              editable={!loading && !success}
               autoComplete="email"
             />
           </View>
@@ -110,14 +129,24 @@ export default function ForgotPassword() {
           <TouchableOpacity
             style={[
               styles.webSendButton,
-              loading && styles.webSendButtonDisabled
+              (loading || success) && styles.webSendButtonDisabled
             ]}
             onPress={handleSendResetCode}
-            disabled={loading}
+            disabled={loading || success}
           >
-            <Text style={styles.webSendButtonText}>
-              {loading ? 'Sending Code...' : 'Send Reset Code'}
-            </Text>
+            {loading ? (
+              <View style={styles.webButtonContent}>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.webSendButtonText}>Sending Code...</Text>
+              </View>
+            ) : success ? (
+              <View style={styles.webButtonContent}>
+                <Ionicons name="checkmark" size={20} color="#ffffff" />
+                <Text style={styles.webSendButtonText}>Code Sent!</Text>
+              </View>
+            ) : (
+              <Text style={styles.webSendButtonText}>Send Reset Code</Text>
+            )}
           </TouchableOpacity>
 
           {/* Back to Login */}
@@ -147,63 +176,103 @@ export default function ForgotPassword() {
           <View style={styles.placeholder} />
         </View>
 
-        <View style={styles.content}>
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            <Ionicons name="lock-closed" size={64} color="#7C2B86" />
-          </View>
-
-          {/* Title and Description */}
-          <Text style={styles.title}>Forgot Your Password? 🔒</Text>
-          <Text style={styles.description}>
-            No worries! Enter your email address and we'll send you a verification code to reset your password.
-          </Text>
-
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email address"
-              placeholderTextColor="#A0A0A0"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-
-          {/* Send Code Button */}
-          <TouchableOpacity
-            style={[styles.sendButton, loading && styles.sendButtonDisabled]}
-            onPress={handleSendResetCode}
-            disabled={loading}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {loading ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.sendButtonText}>Sending Code...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.sendButtonText}>Send Reset Code</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
+            <View style={styles.content}>
+              {/* Icon */}
+              <View style={styles.iconContainer}>
+                <Ionicons name="lock-closed" size={64} color="#7C2B86" />
+              </View>
 
-          {/* Back to Login */}
-          <TouchableOpacity
-            style={styles.backToLoginButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backToLoginText}>
-              Remember your password? <Text style={styles.backToLoginLink}>Sign In</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
+              {/* Title and Description */}
+              <Text style={styles.title}>Forgot Your Password? 🔒</Text>
+              <Text style={styles.description}>
+                No worries! Enter your email address and we'll send you a verification code to reset your password.
+              </Text>
+
+              {/* Success Message */}
+              {success && (
+                <View style={styles.successBanner}>
+                  <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                  <View style={styles.successTextContainer}>
+                    <Text style={styles.successTitle}>Reset Code Sent! 📧</Text>
+                    <Text style={styles.successText}>
+                      Check your email for the 6-digit code. Redirecting...
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Error Message */}
+              {error && !success && (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={20} color="#ef4444" />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              {/* Email Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <TextInput
+                  style={[styles.input, error && styles.inputError]}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setError('');
+                  }}
+                  placeholder="Enter your email address"
+                  placeholderTextColor="#A0A0A0"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading && !success}
+                />
+              </View>
+
+              {/* Send Code Button */}
+              <TouchableOpacity
+                style={[styles.sendButton, (loading || success) && styles.sendButtonDisabled]}
+                onPress={handleSendResetCode}
+                disabled={loading || success}
+              >
+                {loading ? (
+                  <>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.sendButtonText}>Sending Code...</Text>
+                  </>
+                ) : success ? (
+                  <>
+                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                    <Text style={styles.sendButtonText}>Code Sent!</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.sendButtonText}>Send Reset Code</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Back to Login */}
+              <TouchableOpacity
+                style={styles.backToLoginButton}
+                onPress={() => router.back()}
+              >
+                <Text style={styles.backToLoginText}>
+                  Remember your password? <Text style={styles.backToLoginLink}>Sign In</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -320,6 +389,56 @@ const styles = StyleSheet.create({
     color: '#7C2B86',
     fontWeight: '600',
   },
+  webSuccessContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#d1fae5',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  webSuccessTextContainer: {
+    flex: 1,
+  },
+  webSuccessTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#065f46',
+    marginBottom: 4,
+  },
+  webSuccessText: {
+    fontSize: 14,
+    color: '#047857',
+    lineHeight: 20,
+  },
+  webErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    gap: 8,
+  },
+  webErrorText: {
+    fontSize: 14,
+    color: '#dc2626',
+    flex: 1,
+  },
+  webInputError: {
+    borderColor: '#ef4444',
+  },
+  webButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
 
   // Mobile styles (existing)
   container: {
@@ -435,5 +554,56 @@ const styles = StyleSheet.create({
   backToLoginLink: {
     color: '#7C2B86',
     fontWeight: '600',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 2,
+    borderColor: '#10b981',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  successTextContainer: {
+    flex: 1,
+  },
+  successTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  successText: {
+    fontSize: 14,
+    color: '#6ee7b7',
+    lineHeight: 20,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 2,
+    borderColor: '#ef4444',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 24,
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#fca5a5',
+    flex: 1,
+    fontWeight: '500',
+  },
+  inputError: {
+    borderColor: '#ef4444',
   },
 });

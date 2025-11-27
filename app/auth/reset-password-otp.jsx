@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordOTP() {
@@ -16,6 +16,8 @@ export default function ResetPasswordOTP() {
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   
   const inputRefs = useRef([]);
 
@@ -95,13 +97,10 @@ export default function ResetPasswordOTP() {
   };
 
   const verifyOTP = async (otpCode = otp.join('')) => {
+    setError('');
+    
     if (otpCode.length !== 6) {
-      const message = 'Please enter all 6 digits';
-      if (Platform.OS === 'web') {
-        console.error(message);
-      } else {
-        Alert.alert('Invalid OTP', message);
-      }
+      setError('Please enter all 6 digits');
       return;
     }
 
@@ -112,24 +111,23 @@ export default function ResetPasswordOTP() {
         otp: otpCode,
       });
       
-      // Navigate to new password page
-      router.push({
-        pathname: '/auth/new-password',
-        params: {
-          email: email,
-          resetToken: otpCode, // Use OTP as temporary reset token
-        }
-      });
+      setSuccess(true);
+      
+      // Navigate to new password page after a short delay
+      setTimeout(() => {
+        router.push({
+          pathname: '/auth/new-password',
+          params: {
+            email: email,
+            resetToken: otpCode, // Use OTP as temporary reset token
+          }
+        });
+      }, 1000);
 
     } catch (error) {
       console.error('Verify reset OTP error:', error);
       const errorMessage = error.message || 'Invalid reset code. Please try again.';
-      
-      if (Platform.OS === 'web') {
-        console.error(errorMessage);
-      } else {
-        Alert.alert('Verification Failed', errorMessage);
-      }
+      setError(errorMessage);
       
       // Clear OTP on error
       setOtp(['', '', '', '', '', '']);
@@ -169,6 +167,27 @@ export default function ResetPasswordOTP() {
           <Text style={styles.webSubtitle}>
             We've sent a 6-digit reset code to <Text style={styles.webEmail}>{email}</Text>
           </Text>
+
+          {/* Success Message */}
+          {success && (
+            <View style={styles.webSuccessContainer}>
+              <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+              <View style={styles.webSuccessTextContainer}>
+                <Text style={styles.webSuccessTitle}>Code Verified! ✅</Text>
+                <Text style={styles.webSuccessText}>
+                  Redirecting to set your new password...
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Error Message */}
+          {error && !success && (
+            <View style={styles.webErrorContainer}>
+              <Ionicons name="alert-circle" size={20} color="#ef4444" />
+              <Text style={styles.webErrorText}>{error}</Text>
+            </View>
+          )}
 
           {/* OTP Input */}
           <View style={styles.webOtpContainer}>
@@ -490,6 +509,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8B4000',
     lineHeight: 16,
+  },
+  webSuccessContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#d1fae5',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  webSuccessTextContainer: {
+    flex: 1,
+  },
+  webSuccessTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#065f46',
+    marginBottom: 4,
+  },
+  webSuccessText: {
+    fontSize: 14,
+    color: '#047857',
+    lineHeight: 20,
+  },
+  webErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    gap: 8,
+  },
+  webErrorText: {
+    fontSize: 14,
+    color: '#dc2626',
+    flex: 1,
   },
 
   // Mobile styles (existing)
