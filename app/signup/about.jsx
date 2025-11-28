@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
+import { useTheme } from "@/contexts/ThemeContext";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
 
@@ -24,6 +25,7 @@ export default function SignupAbout() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
+  const { theme, isDarkMode } = useTheme();
   const [about, setAbout] = useState(data.about || "");
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState("");
@@ -139,16 +141,20 @@ export default function SignupAbout() {
                 styles.glassCard,
                 {
                   opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
+                  transform: [{ translateY: slideAnim }],
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
+                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
+                  borderWidth: 1,
                 }
               ]}
             >
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>📝 About Me</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📝 About Me</Text>
                 <View style={[
                   styles.textAreaWrapper,
-                  isFocused && styles.textAreaWrapperFocused,
-                  about.trim().length >= 10 && styles.textAreaWrapperFilled
+                  { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
+                  isFocused && { borderColor: theme.primary },
+                  about.trim().length >= 10 && { borderColor: theme.primary }
                 ]}>
                   <TextInput
                     value={about}
@@ -162,8 +168,8 @@ export default function SignupAbout() {
                       validateAbout();
                     }}
                     placeholder="I'm passionate about technology and love exploring new places. When I'm not coding, you can find me hiking or trying out new coffee shops. I believe in making meaningful connections and always up for a good conversation about life, dreams, and everything in between..."
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)"
-                    style={styles.textArea}
+                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
+                    style={[styles.textArea, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
                     multiline
                     numberOfLines={8}
                     textAlignVertical="top"
@@ -184,23 +190,23 @@ export default function SignupAbout() {
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
                 
                 {/* Tips */}
-                <View style={styles.tipsContainer}>
-                  <Text style={styles.tipsTitle}>💡 Tips for a great profile:</Text>
+                <View style={[styles.tipsContainer, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 214, 242, 0.3)' }]}>
+                  <Text style={[styles.tipsTitle, { color: isDarkMode ? '#FFFFFF' : '#7C2B86' }]}>💡 Tips for a great profile:</Text>
                   <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={Platform.OS === 'web' ? "#10B981" : "#10B981"} />
-                    <Text style={styles.tipText}>Share your interests and hobbies</Text>
+                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Share your interests and hobbies</Text>
                   </View>
                   <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={Platform.OS === 'web' ? "#10B981" : "#10B981"} />
-                    <Text style={styles.tipText}>Mention what you're looking for</Text>
+                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Mention what you're looking for</Text>
                   </View>
                   <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={Platform.OS === 'web' ? "#10B981" : "#10B981"} />
-                    <Text style={styles.tipText}>Be authentic and genuine</Text>
+                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Be authentic and genuine</Text>
                   </View>
                   <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={Platform.OS === 'web' ? "#10B981" : "#10B981"} />
-                    <Text style={styles.tipText}>Keep it positive and engaging</Text>
+                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Keep it positive and engaging</Text>
                   </View>
                 </View>
               </View>

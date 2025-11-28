@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
+    // Show and sound for all notification types in all app states
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: true,
@@ -27,6 +28,30 @@ class AndroidNotificationService {
     }
   }
 
+  async setupNotificationCategories() {
+    try {
+      await Notifications.setNotificationCategoryAsync('incoming_call', [
+        {
+          identifier: 'ACCEPT_CALL',
+          buttonTitle: 'Accept',
+          options: {
+            opensAppToForeground: true,
+          },
+        },
+        {
+          identifier: 'DECLINE_CALL',
+          buttonTitle: 'Decline',
+          options: {
+            opensAppToForeground: false,
+            isDestructive: true,
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error('❌ Failed to set up notification categories:', error);
+    }
+  }
+
   async initialize() {
     try {
       //console.log('🔔 Initializing Android notification service...');
@@ -36,6 +61,9 @@ class AndroidNotificationService {
       
       // Set up notification channels
       await this.setupNotificationChannels();
+
+      // Set up notification categories (for actions like Accept/Decline on calls)
+      await this.setupNotificationCategories();
       
       // Set up listeners
       this.setupNotificationListeners();
@@ -259,8 +287,13 @@ class AndroidNotificationService {
           //console.log('📱 Opening profile visits');
           break;
         case 'voice_call':
-          // Handle voice call
-          //console.log('📱 Handling voice call');
+          if (response.actionIdentifier === 'ACCEPT_CALL') {
+            //console.log('📱 Accept voice call');
+          } else if (response.actionIdentifier === 'DECLINE_CALL') {
+            //console.log('📱 Decline voice call');
+          } else {
+            //console.log('📱 Handling voice call');
+          }
           break;
         case 'marketing_campaign':
           // Handle marketing campaign notification
@@ -274,7 +307,7 @@ class AndroidNotificationService {
   }
 
   // Show local notification
-  async showLocalNotification({ title, body, data = {}, channelId = 'default' }) {
+  async showLocalNotification({ title, body, data = {}, channelId = 'default', categoryId = null }) {
     if (Platform.OS === 'web') {
       //console.log('🌐 Skipping local notification on web platform');
       return;
@@ -288,7 +321,8 @@ class AndroidNotificationService {
           data,
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
-          categoryIdentifier: channelId,
+          // Use explicit category for things like incoming calls, otherwise fall back to channel
+          categoryIdentifier: categoryId || channelId,
         },
         trigger: null, // Show immediately
       });
@@ -375,7 +409,8 @@ class AndroidNotificationService {
         callId,
         action: 'answer_call'
       },
-      channelId: 'voice_calls'
+      channelId: 'voice_calls',
+      categoryId: 'incoming_call'
     });
   }
 

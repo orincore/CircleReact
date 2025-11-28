@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
@@ -24,6 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function Login() {
   const router = useRouter();
   const { logIn } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   
@@ -113,7 +114,7 @@ export default function Login() {
         keyboardShouldPersistTaps="handled"
       >
         <LinearGradient
-          colors={['#7C2B86', '#A16AE8', '#5D5FEF']}
+          colors={isDarkMode ? ['#1F1147', '#7C2B86', '#5D5FEF'] : ['#7C2B86', '#A16AE8', '#5D5FEF']}
           locations={[0, 0.5, 1]}
           style={[styles.loginSection, isLargeScreen && styles.loginSectionLarge]}
           start={{ x: 0, y: 0 }}
@@ -198,9 +199,9 @@ export default function Login() {
                     
                     {/* Right Side - Login Form */}
                     <View style={styles.desktopRight}>
-                      <View style={styles.formCard}>
-                        <Text style={styles.formTitle}>Log In</Text>
-                        <Text style={styles.formSubtitle}>
+                      <View style={[styles.formCard, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#FFFFFF' }]}>
+                        <Text style={[styles.formTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>Log In</Text>
+                        <Text style={[styles.formSubtitle, { color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'rgba(31, 17, 71, 0.7)' }]}>
                           Enter your credentials to continue
                         </Text>
                         
@@ -212,38 +213,38 @@ export default function Login() {
                         ) : null}
                         
                         <View style={styles.inputGroup}>
-                          <Text style={styles.inputLabel}>Email or Username</Text>
-                          <View style={styles.inputWrapper}>
-                            <Ionicons name="mail-outline" size={20} color="#A16AE8" />
+                          <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Email or Username</Text>
+                          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
+                            <Ionicons name="mail-outline" size={20} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
                             <TextInput
                               value={email}
                               onChangeText={setEmail}
                               placeholder="you@example.com"
-                              placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                              placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
                               keyboardType="email-address"
                               autoCapitalize="none"
-                              style={styles.input}
+                              style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
                             />
                           </View>
                         </View>
                         
                         <View style={styles.inputGroup}>
-                          <Text style={styles.inputLabel}>Password</Text>
-                          <View style={styles.inputWrapper}>
-                            <Ionicons name="lock-closed-outline" size={20} color="#A16AE8" />
+                          <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Password</Text>
+                          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
+                            <Ionicons name="lock-closed-outline" size={20} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
                             <TextInput
                               value={password}
                               onChangeText={setPassword}
                               placeholder="Enter your password"
-                              placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                              placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
                               secureTextEntry={!showPassword}
-                              style={styles.input}
+                              style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
                             />
                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                               <Ionicons 
                                 name={showPassword ? "eye-off-outline" : "eye-outline"} 
                                 size={20} 
-                                color="#A16AE8" 
+                                color={isDarkMode ? '#FFD6F2' : '#A16AE8'}
                               />
                             </TouchableOpacity>
                           </View>
@@ -266,24 +267,6 @@ export default function Login() {
                           </Text>
                           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
-                        
-                        <View style={styles.divider}>
-                          <View style={styles.dividerLine} />
-                          <Text style={styles.dividerText}>or</Text>
-                          <View style={styles.dividerLine} />
-                        </View>
-                        
-                        <GoogleSignInButton
-                          mode="signin"
-                          disabled={submitting}
-                          onSuccess={(result) => {
-                            // Google auth handled in the component
-                            console.log('Google sign-in successful');
-                          }}
-                          onError={(error) => {
-                            setError('Google sign-in failed. Please try again.');
-                          }}
-                        />
                         
                         <View style={styles.signupPrompt}>
                           <Text style={styles.signupPromptText}>Don't have an account? </Text>
@@ -341,7 +324,7 @@ export default function Login() {
                       </Text>
                     </View>
                     
-                    <View style={styles.mobileFormCard}>
+                    <View style={[styles.mobileFormCard, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255, 255, 255, 0.95)', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(255, 255, 255, 0.3)' }]}>
                       {error ? (
                         <View style={styles.errorBox}>
                           <Ionicons name="alert-circle" size={18} color="#EF4444" />
@@ -350,42 +333,42 @@ export default function Login() {
                       ) : null}
                       
                       <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Email or Username</Text>
-                        <View style={styles.inputWrapper}>
-                          <Ionicons name="mail-outline" size={18} color="#A16AE8" />
+                        <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Email or Username</Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
+                          <Ionicons name="mail-outline" size={18} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
                           <TextInput
                             value={email}
                             onChangeText={setEmail}
                             placeholder="you@example.com"
-                            placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                            placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             autoCorrect={false}
-                            style={styles.input}
+                            style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
                             removeClippedSubviews={true}
                           />
                         </View>
                       </View>
                       
                       <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Password</Text>
-                        <View style={styles.inputWrapper}>
-                          <Ionicons name="lock-closed-outline" size={18} color="#A16AE8" />
+                        <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Password</Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
+                          <Ionicons name="lock-closed-outline" size={18} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
                           <TextInput
                             value={password}
                             onChangeText={setPassword}
                             placeholder="Enter your password"
-                            placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                            placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
                             secureTextEntry={!showPassword}
                             autoCorrect={false}
-                            style={styles.input}
+                            style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
                             removeClippedSubviews={true}
                           />
                           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                             <Ionicons 
                               name={showPassword ? "eye-off-outline" : "eye-outline"} 
                               size={18} 
-                              color="#A16AE8" 
+                              color={isDarkMode ? '#FFD6F2' : '#A16AE8'}
                             />
                           </TouchableOpacity>
                         </View>
@@ -409,23 +392,6 @@ export default function Login() {
                         <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
                       </TouchableOpacity>
                       
-                      <View style={styles.divider}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>or</Text>
-                        <View style={styles.dividerLine} />
-                      </View>
-                      
-                      <GoogleSignInButton
-                        mode="signin"
-                        disabled={submitting}
-                        onSuccess={(result) => {
-                          // Google auth handled in the component
-                          console.log('Google sign-in successful');
-                        }}
-                        onError={(error) => {
-                          setError('Google sign-in failed. Please try again.');
-                        }}
-                      />
                     </View>
                     
                     <View style={styles.mobileSignupPrompt}>

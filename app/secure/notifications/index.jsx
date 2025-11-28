@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getSocket } from '@/src/api/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,10 +17,12 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
 
 export default function NotificationsPage() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -167,15 +170,18 @@ export default function NotificationsPage() {
     socket.off('notification:new');
   };
 
-  const handleAcceptRequest = (notification) => {
-    const socket = getSocket(token);
-    
+  const handleAcceptRequest = async (notification) => {
     if (notification.type === 'friend_request') {
-      socket.emit('friend:request:accept', { requestId: notification.id });
+      try {
+        await FriendRequestService.acceptFriendRequest(notification.id, token);
+        setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
+      } catch (error) {
+        console.error('Failed to accept friend request from notifications:', error);
+        Alert.alert('Error', error.message || 'Failed to accept friend request. Please try again.');
+      }
     } else if (notification.type === 'message_request') {
-      // Accept matchmaking proposal
+      const socket = getSocket(token);
       socket.emit('matchmaking:decide', { decision: 'accept' });
-      // Remove the notification immediately
       setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
     }
   };
@@ -193,14 +199,19 @@ export default function NotificationsPage() {
           text: 'Decline',
           style: 'destructive',
           onPress: () => {
-            const socket = getSocket(token);
-            
             if (notification.type === 'friend_request') {
-              socket.emit('friend:request:decline', { requestId: notification.id });
+              (async () => {
+                try {
+                  await FriendRequestService.declineFriendRequest(notification.id, token);
+                  setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
+                } catch (error) {
+                  console.error('Failed to decline friend request from notifications:', error);
+                  Alert.alert('Error', error.message || 'Failed to decline friend request. Please try again.');
+                }
+              })();
             } else if (notification.type === 'message_request') {
-              // Decline matchmaking proposal
+              const socket = getSocket(token);
               socket.emit('matchmaking:decide', { decision: 'pass' });
-              // Remove the notification immediately
               setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
             }
           },
@@ -213,10 +224,15 @@ export default function NotificationsPage() {
     if (item.type === 'friend_request' || item.type === 'message_request') {
       const iconName = item.type === 'friend_request' ? 'person-add' : 'chatbubble-ellipses';
       const iconColor = item.type === 'friend_request' ? '#7C2B86' : '#FF6B9D';
-      const cardStyle = item.type === 'message_request' ? styles.messageRequestCard : styles.notificationCard;
+      const cardBaseStyle = item.type === 'message_request' ? styles.messageRequestCard : styles.notificationCard;
       
       return (
-        <View style={cardStyle}>
+        <View
+          style={[
+            cardBaseStyle,
+            { backgroundColor: theme.surface },
+          ]}
+        >
           <View style={styles.notificationContent}>
             <View style={styles.avatarContainer}>
               {item.avatar ? (
@@ -229,9 +245,9 @@ export default function NotificationsPage() {
             </View>
             
             <View style={styles.textContent}>
-              <Text style={styles.notificationTitle}>{item.title}</Text>
-              <Text style={styles.notificationMessage}>{item.message}</Text>
-              <Text style={styles.timestamp}>
+              <Text style={[styles.notificationTitle, { color: theme.textPrimary }]}>{item.title}</Text>
+              <Text style={[styles.notificationMessage, { color: theme.textSecondary }]}>{item.message}</Text>
+              <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
                 {item.timestamp.toLocaleDateString()} at {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
@@ -249,11 +265,15 @@ export default function NotificationsPage() {
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.actionButton, styles.declineButton]}
+              style={[
+                styles.actionButton,
+                styles.declineButton,
+                { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#f0f0f0' },
+              ]}
               onPress={() => handleDeclineRequest(item)}
             >
               <Ionicons name="close" size={18} color="#666" />
-              <Text style={styles.declineButtonText}>
+              <Text style={[styles.declineButtonText, { color: theme.textSecondary }]}>
                 {item.type === 'message_request' ? 'Pass' : 'Decline'}
               </Text>
             </TouchableOpacity>
@@ -266,10 +286,10 @@ export default function NotificationsPage() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <LinearGradient
-        colors={['#1F1147', '#7C2B86']}
+        colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]}
         style={styles.header}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -279,17 +299,17 @@ export default function NotificationsPage() {
         <View style={styles.headerRight} />
       </LinearGradient>
       
-      <View style={styles.content}>
+      <View style={[styles.content, { backgroundColor: theme.background }] }>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#7C2B86" />
-            <Text style={styles.loadingText}>Loading notifications...</Text>
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
           </View>
         ) : notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="notifications-outline" size={64} color="rgba(124, 43, 134, 0.3)" />
-            <Text style={styles.emptyTitle}>No notifications</Text>
-            <Text style={styles.emptySubtext}>You're all caught up!</Text>
+            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No notifications</Text>
+            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>You're all caught up!</Text>
           </View>
         ) : (
           <FlatList

@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { socialAccountsApi } from "@/src/api/social-accounts";
 import { ProfilePictureService } from "@/src/services/profilePictureService";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -13,8 +14,19 @@ export default function SignupSummary() {
   const router = useRouter();
   const { data } = useContext(SignupWizardContext);
   const { updateProfile, token, user, refreshUser } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const formatTitleCase = useMemo(() => (s) => (s ? s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1)).join(' ') : s), []);
   
+  // Check for missing information
+  const missingInfo = useMemo(() => {
+    const missing = [];
+    if (!data.about || data.about.trim().length < 10) missing.push({ field: 'About Me', icon: 'document-text', message: 'Tell us about yourself (at least 10 characters)' });
+    if (!data.instagramUsername || !data.instagramUsername.trim()) missing.push({ field: 'Instagram', icon: 'logo-instagram', message: 'Connect your Instagram account' });
+    if (!Array.isArray(data.interests) || data.interests.length === 0) missing.push({ field: 'Interests', icon: 'heart', message: 'Select at least one interest' });
+    if (!Array.isArray(data.needs) || data.needs.length === 0) missing.push({ field: 'Looking For', icon: 'search', message: 'Tell us what you\'re looking for' });
+    if (!data.profileImage) missing.push({ field: 'Profile Picture', icon: 'camera', message: 'Upload a profile picture' });
+    return missing;
+  }, [data]);
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateCompleted, setUpdateCompleted] = useState(false);
@@ -148,32 +160,28 @@ export default function SignupSummary() {
   }, [confettiAnim, confetti]);
 
   return (
-    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
+    <LinearGradient colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Account Summary</Text>
-          <View style={styles.placeholder} />
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Account Summary</Text>
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
             {/* Success Card */}
-            <View style={styles.successCard}>
+            <View style={[styles.successCard, { backgroundColor: theme.surface }]}>
               <View style={styles.successIcon}>
                 <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
               </View>
-              <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
-              <Text style={styles.successSubtitle}>
-                Your Circle account has been created. Please verify your email to start connecting with people.
+              <Text style={[styles.successTitle, { color: theme.textPrimary }]}>Account Created Successfully! 🎉</Text>
+              <Text style={[styles.successSubtitle, { color: theme.textSecondary }]}>
+                Your Circle account has been created. {missingInfo.length > 0 ? 'Complete your profile below, then verify your email.' : 'Please verify your email to start connecting with people.'}
               </Text>
             </View>
 
             {/* Profile Summary Card */}
-            <View style={styles.profileCard}>
+            <View style={[styles.profileCard, { backgroundColor: theme.surface }]}>
 
               {/* Profile Picture */}
               {data.profileImage && (
@@ -189,51 +197,51 @@ export default function SignupSummary() {
 
               {/* Basic Info */}
               <View style={styles.infoSection}>
-                <Text style={styles.sectionTitle}>Personal Information</Text>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Personal Information</Text>
                 
                 <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Ionicons name="person" size={20} color="#7C2B86" />
+                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
+                    <Ionicons name="person" size={20} color={theme.primary} />
                     <View style={styles.infoText}>
-                      <Text style={styles.infoLabel}>Full Name</Text>
-                      <Text style={styles.infoValue}>{displayData.firstName} {displayData.lastName}</Text>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Full Name</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.firstName} {displayData.lastName}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Ionicons name="mail" size={20} color="#7C2B86" />
+                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
+                    <Ionicons name="mail" size={20} color={theme.primary} />
                     <View style={styles.infoText}>
-                      <Text style={styles.infoLabel}>Email</Text>
-                      <Text style={styles.infoValue}>{displayData.email}</Text>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Email</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.email}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Ionicons name="at" size={20} color="#7C2B86" />
+                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
+                    <Ionicons name="at" size={20} color={theme.primary} />
                     <View style={styles.infoText}>
-                      <Text style={styles.infoLabel}>Username</Text>
-                      <Text style={styles.infoValue}>@{displayData.username}</Text>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Username</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>@{displayData.username}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.infoRowDouble}>
-                  <View style={styles.infoItemHalf}>
-                    <Ionicons name="calendar" size={20} color="#7C2B86" />
+                  <View style={[styles.infoItemHalf, { backgroundColor: theme.surfaceSecondary }]}>
+                    <Ionicons name="calendar" size={20} color={theme.primary} />
                     <View style={styles.infoText}>
-                      <Text style={styles.infoLabel}>Age</Text>
-                      <Text style={styles.infoValue}>{displayData.age}</Text>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Age</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.age}</Text>
                     </View>
                   </View>
-                  <View style={styles.infoItemHalf}>
-                    <Ionicons name="transgender" size={20} color="#7C2B86" />
+                  <View style={[styles.infoItemHalf, { backgroundColor: theme.surfaceSecondary }]}>
+                    <Ionicons name="transgender" size={20} color={theme.primary} />
                     <View style={styles.infoText}>
-                      <Text style={styles.infoLabel}>Gender</Text>
-                      <Text style={styles.infoValue}>{formatTitleCase(displayData.gender)}</Text>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Gender</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{formatTitleCase(displayData.gender)}</Text>
                     </View>
                   </View>
                 </View>
@@ -254,9 +262,23 @@ export default function SignupSummary() {
               {/* About Section */}
               {displayData.about && (
                 <View style={styles.infoSection}>
-                  <Text style={styles.sectionTitle}>About Me</Text>
-                  <View style={styles.aboutCard}>
-                    <Text style={styles.aboutText}>{displayData.about}</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>About Me</Text>
+                  <View
+                    style={[
+                      styles.aboutCard,
+                      {
+                        backgroundColor: isDarkMode
+                          ? 'rgba(255,255,255,0.06)'
+                          : theme.surfaceSecondary,
+                        borderColor: isDarkMode
+                          ? 'rgba(255,255,255,0.12)'
+                          : 'rgba(0,0,0,0.04)',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.aboutText, { color: theme.textSecondary }]}>
+                      {displayData.about}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -264,13 +286,24 @@ export default function SignupSummary() {
               {/* Social Media */}
               {displayData.instagramUsername && (
                 <View style={styles.infoSection}>
-                  <Text style={styles.sectionTitle}>Social Media</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Social Media</Text>
                   <View style={styles.infoRow}>
-                    <View style={styles.infoItem}>
+                    <View
+                      style={[
+                        styles.infoItem,
+                        {
+                          backgroundColor: isDarkMode
+                            ? 'rgba(255,255,255,0.06)'
+                            : theme.surfaceSecondary,
+                        },
+                      ]}
+                    >
                       <Ionicons name="logo-instagram" size={20} color="#E4405F" />
                       <View style={styles.infoText}>
-                        <Text style={styles.infoLabel}>Instagram</Text>
-                        <Text style={styles.infoValue}>@{displayData.instagramUsername}</Text>
+                        <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Instagram</Text>
+                        <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
+                          @{displayData.instagramUsername}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -312,7 +345,13 @@ export default function SignupSummary() {
             </View>
 
             <TouchableOpacity 
-              style={styles.cta} 
+              style={[
+                styles.cta,
+                {
+                  backgroundColor: isDarkMode ? '#000000' : '#FFFFFF',
+                  borderColor: isDarkMode ? '#FFFFFF' : '#7C2B86',
+                },
+              ]}
               onPress={() => {
                 // Navigate directly to email verification
                 //console.log('📧 Redirecting to email verification...');
@@ -325,8 +364,19 @@ export default function SignupSummary() {
                 });
               }}
             >
-              <Text style={styles.ctaText}>Verify Email Address 📧</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+              <Text
+                style={[
+                  styles.ctaText,
+                  { color: isDarkMode ? '#FFFFFF' : '#000000' },
+                ]}
+              >
+                Verify Email Address 📧
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={isDarkMode ? '#FFFFFF' : '#000000'}
+              />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -399,6 +449,77 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  warningCard: {
+    backgroundColor: '#FFF3E0',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#FF9800',
+    shadowColor: '#FF9800',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  warningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  warningTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#E65100',
+  },
+  warningSubtitle: {
+    fontSize: 14,
+    color: '#E65100',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  missingList: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  missingItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+  },
+  missingText: {
+    flex: 1,
+  },
+  missingField: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E65100',
+    marginBottom: 2,
+  },
+  missingMessage: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
+  },
+  completeButton: {
+    backgroundColor: '#FF9800',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  completeButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   profileCard: {
     backgroundColor: '#FFFFFF',
@@ -528,18 +649,21 @@ const styles = StyleSheet.create({
   },
   cta: { 
     backgroundColor: '#7C2B86',
-    borderRadius: 16, 
-    paddingVertical: 18, 
-    alignItems: 'center', 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+    borderRadius: 18,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
     gap: 10,
-    marginTop: 8,
-    shadowColor: '#7C2B86',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: '#FFD54F',
+    shadowColor: '#FFD54F',
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
   ctaText: { 
     fontSize: 18, 

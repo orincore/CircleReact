@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { friendsApi } from '@/src/api/friends';
 import { notificationApi } from '@/src/api/notifications';
 import { getSocket } from '@/src/api/socket';
@@ -22,12 +23,14 @@ import {
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import Avatar from './Avatar';
+import { FriendRequestService } from '@/src/services/FriendRequestService';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 const isBrowser = Platform.OS === 'web';
 
 export default function NotificationPanel({ visible, onClose }) {
   const { user, token } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const { resetCount: resetNotificationCount } = useLocalNotificationCount();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -319,7 +322,11 @@ export default function NotificationPanel({ visible, onClose }) {
             ]}
           >
             <TouchableOpacity 
-              style={[styles.notificationItem, !item.read && styles.unreadNotification]}
+              style={[
+                styles.notificationItem,
+                !item.read && styles.unreadNotification,
+                { backgroundColor: isDarkMode ? '#111111' : '#FFFFFF' },
+              ]}
               onPress={() => handleNotificationPress(item)}
               activeOpacity={1}
             >
@@ -349,18 +356,18 @@ export default function NotificationPanel({ visible, onClose }) {
                       </>
                     ) : (
                       <>
-                        <Text style={styles.usernameText}>
+                        <Text style={[styles.usernameText, { color: theme.textPrimary }] }>
                           {item.sender?.name || item.data?.userName || 'Someone'}
                         </Text>
-                        <Text style={styles.actionText}> {getNotificationActionText(item.type, item)}</Text>
-                        <Text style={styles.timeText}> {formatTimeAgo(item.timestamp)}</Text>
+                        <Text style={[styles.actionText, { color: theme.textSecondary }]}> {getNotificationActionText(item.type, item)}</Text>
+                        <Text style={[styles.timeText, { color: theme.textTertiary }]}> {formatTimeAgo(item.timestamp)}</Text>
                       </>
                     )}
                   </Text>
                   
                   {/* Message preview for message notifications */}
                   {item.type === 'message' && item.message && (
-                    <Text style={styles.messageText} numberOfLines={2}>{item.message}</Text>
+                    <Text style={[styles.messageText, { color: theme.textSecondary }]} numberOfLines={2}>{item.message}</Text>
                   )}
                   
                   {/* Match description */}
@@ -380,7 +387,10 @@ export default function NotificationPanel({ visible, onClose }) {
               {item.type === 'friend_request' && (
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
-                    style={styles.acceptButton}
+                    style={[
+                      styles.acceptButton,
+                      isDarkMode && { backgroundColor: '#00B894' },
+                    ]}
                     onPress={(e) => {
                       e.stopPropagation();
                       handleAcceptRequest(item);
@@ -390,13 +400,26 @@ export default function NotificationPanel({ visible, onClose }) {
                   </TouchableOpacity>
                   
                   <TouchableOpacity
-                    style={styles.declineButton}
+                    style={[
+                      styles.declineButton,
+                      isDarkMode && {
+                        backgroundColor: 'transparent',
+                        borderColor: 'rgba(255,255,255,0.4)',
+                      },
+                    ]}
                     onPress={(e) => {
                       e.stopPropagation();
                       handleDeclineRequest(item);
                     }}
                   >
-                    <Text style={styles.declineButtonText}>Decline</Text>
+                    <Text
+                      style={[
+                        styles.declineButtonText,
+                        { color: isDarkMode ? theme.textSecondary : '#000000' },
+                      ]}
+                    >
+                      Decline
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -414,107 +437,87 @@ export default function NotificationPanel({ visible, onClose }) {
 
   const handleAcceptRequest = async (item) => {
     try {
-      //console.log('Accepting friend request:', item);
-      
-      // Extract request ID from the notification
       const requestId = item.data?.requestId || item.id?.replace('friend_request_', '');
-      
+
       if (!requestId) {
         console.error('No request ID found in notification:', item);
         Alert.alert('Error', 'Unable to process friend request');
         return;
       }
 
-      // Accept the friend request
-      const response = await friendsApi.acceptFriendRequest(requestId, token);
-      
-      if (response.success) {
-        // Remove the friend request notification from local state
-        setNotifications(prev => prev.filter(n => n.id !== item.id));
-        
-        // Delete the notification from the server if it has a server ID
-        if (item.id && !item.id.startsWith('friend_request_')) {
-          try {
-            await notificationApi.deleteNotification(item.id, token);
-            //console.log('✅ Friend request notification deleted from server');
-          } catch (deleteError) {
-            console.error('❌ Failed to delete notification from server:', deleteError);
-            // Don't show error to user, this is not critical
-          }
+      const result = await FriendRequestService.acceptFriendRequest(requestId, token);
+
+      setNotifications(prev => prev.filter(n => n.id !== item.id));
+
+      if (item.id && !item.id.startsWith('friend_request_')) {
+        try {
+          await notificationApi.deleteNotification(item.id, token);
+        } catch (deleteError) {
+          console.error('Failed to delete notification from server:', deleteError);
         }
-        
-        // Add a success notification
-        const successNotification = {
-          id: `friend_accepted_${Date.now()}`,
-          type: 'friend_accepted',
-          sender: item.sender,
-          data: {
-            userName: item.sender?.name || item.data?.userName,
-            userId: item.sender?.id || item.data?.userId
-          },
-          timestamp: new Date().toISOString(),
-          read: false,
-          message: `You are now friends with ${item.sender?.name || item.data?.userName}!`,
-          autoRemove: true // Mark for auto-removal
-        };
-        
-        setNotifications(prev => [successNotification, ...prev]);
-        
-        // Auto-remove the success notification after 5 seconds
-        setTimeout(() => {
-          setNotifications(prev => prev.filter(n => n.id !== successNotification.id));
-        }, 5000);
-        
-        //console.log('✅ Friend request accepted successfully');
-      } else {
-        console.error('Failed to accept friend request:', response.error);
-        Alert.alert('Error', 'Failed to accept friend request');
       }
+
+      const successNotification = {
+        id: `friend_accepted_${Date.now()}`,
+        type: 'friend_accepted',
+        sender: item.sender,
+        data: {
+          userName: item.sender?.name || item.data?.userName,
+          userId: item.sender?.id || item.data?.userId
+        },
+        timestamp: new Date().toISOString(),
+        read: false,
+        message: `You are now friends with ${item.sender?.name || item.data?.userName}!`,
+        autoRemove: true,
+      };
+
+      setNotifications(prev => [successNotification, ...prev]);
+
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== successNotification.id));
+      }, 5000);
     } catch (error) {
       console.error('Error accepting friend request:', error);
-      Alert.alert('Error', 'Failed to accept friend request');
+      let errorMessage = 'Failed to accept friend request. Please try again.';
+      if (error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message?.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh and try again.';
+      }
+      Alert.alert('Error', errorMessage);
     }
   };
 
   const handleDeclineRequest = async (item) => {
     try {
-      //console.log('Declining friend request:', item);
-      
-      // Extract request ID from the notification
       const requestId = item.data?.requestId || item.id?.replace('friend_request_', '');
-      
+
       if (!requestId) {
         console.error('No request ID found in notification:', item);
         Alert.alert('Error', 'Unable to process friend request');
         return;
       }
 
-      // Decline the friend request
-      const response = await friendsApi.rejectFriendRequest(requestId, token);
-      
-      if (response.success) {
-        // Remove the friend request notification from local state
-        setNotifications(prev => prev.filter(n => n.id !== item.id));
-        
-        // Delete the notification from the server if it has a server ID
-        if (item.id && !item.id.startsWith('friend_request_')) {
-          try {
-            await notificationApi.deleteNotification(item.id, token);
-            //console.log('✅ Friend request notification deleted from server');
-          } catch (deleteError) {
-            console.error('❌ Failed to delete notification from server:', deleteError);
-            // Don't show error to user, this is not critical
-          }
+      const result = await FriendRequestService.declineFriendRequest(requestId, token);
+
+      setNotifications(prev => prev.filter(n => n.id !== item.id));
+
+      if (item.id && !item.id.startsWith('friend_request_')) {
+        try {
+          await notificationApi.deleteNotification(item.id, token);
+        } catch (deleteError) {
+          console.error('Failed to delete notification from server:', deleteError);
         }
-        
-        //console.log('✅ Friend request declined successfully');
-      } else {
-        console.error('Failed to decline friend request:', response.error);
-        Alert.alert('Error', 'Failed to decline friend request');
       }
     } catch (error) {
       console.error('Error declining friend request:', error);
-      Alert.alert('Error', 'Failed to decline friend request');
+      let errorMessage = 'Failed to decline friend request. Please try again.';
+      if (error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (error.message?.includes('Socket connection not available')) {
+        errorMessage = 'Connection issue. Please refresh and try again.';
+      }
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -607,14 +610,31 @@ export default function NotificationPanel({ visible, onClose }) {
           onPress={onClose}
         />
       )}
-      <View style={isBrowser ? styles.browserContainer : styles.fullScreenContainer}>
+      <View
+        style={[
+          isBrowser ? styles.browserContainer : styles.fullScreenContainer,
+          { backgroundColor: theme.background },
+        ]}
+      >
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.surface,
+              borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#DBDBDB',
+            },
+          ]}
+        >
           <TouchableOpacity style={styles.backButton} onPress={onClose}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={theme.textPrimary}
+            />
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Notifications</Text>
           
           <View style={styles.headerRight}>
             {unreadCount > 0 && (
@@ -635,7 +655,12 @@ export default function NotificationPanel({ visible, onClose }) {
         </View>
 
         {/* Filter Tabs */}
-        <View style={styles.filterContainer}>
+        <View
+          style={[
+            styles.filterContainer,
+            { backgroundColor: theme.surface },
+          ]}
+        >
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
@@ -648,10 +673,19 @@ export default function NotificationPanel({ visible, onClose }) {
               return (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                  style={[
+                    styles.filterTab,
+                    isSelected && styles.filterTabActive,
+                    !isSelected && { backgroundColor: isDarkMode ? '#1C1C1E' : '#F8F9FA' },
+                  ]}
                   onPress={() => setSelectedTab(tab)}
                 >
-                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      { color: isSelected ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
                     {tab}
                   </Text>
                   {count > 0 && (
@@ -668,21 +702,21 @@ export default function NotificationPanel({ visible, onClose }) {
         </View>
 
         {/* Content */}
-        <View style={styles.content}>
+        <View style={[styles.content, { backgroundColor: theme.background }] }>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#7C2B86" />
-              <Text style={styles.loadingText}>Loading notifications...</Text>
+              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
             </View>
           ) : getFilteredNotifications().length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconContainer}>
                 <Ionicons name="notifications-outline" size={64} color="#C7C7CC" />
               </View>
-              <Text style={styles.emptyTitle}>
+              <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
                 {selectedTab === 'All' ? 'No Notifications Yet' : `No ${selectedTab}`}
               </Text>
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                 {selectedTab === 'All' 
                   ? 'When someone interacts with you, you\'ll see it here.'
                   : `No ${selectedTab.toLowerCase()} notifications to show.`

@@ -9,7 +9,9 @@ export default function ChatOptionsMenu({
   onMuteToggle,
   onClearChat,
   isMuted = false,
-  position = { x: 0, y: 0 }
+  position = { x: 0, y: 0 },
+  showRevealOption = false,
+  onRevealPress,
 }) {
   const insets = useSafeAreaInsets();
   const options = [
@@ -19,6 +21,14 @@ export default function ChatOptionsMenu({
       icon: isMuted ? 'notifications' : 'notifications-off',
       onPress: onMuteToggle,
     },
+    ...(showRevealOption && typeof onRevealPress === 'function'
+      ? [{
+          id: 'reveal',
+          label: 'Reveal identities',
+          icon: 'eye-outline',
+          onPress: onRevealPress,
+        }]
+      : []),
     {
       id: 'clear',
       label: 'Clear Chat History',

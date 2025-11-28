@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { http } from '@/src/api/http';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +13,7 @@ export default function VerifyEmailPostSignup() {
   const params = useLocalSearchParams();
   const { email, name } = params;
   const { user, token, completeEmailVerification } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -106,17 +108,33 @@ export default function VerifyEmailPostSignup() {
         name: targetName,
       });
       
+      // Clear existing OTP inputs when resending
+      setOtp(['', '', '', '', '', '']);
+      
       // If we reach here, the request was successful
-      Alert.alert(
-        'OTP Sent! 📧',
-        `We've sent a 6-digit verification code to ${targetEmail}`,
-        [{ text: 'OK' }]
-      );
+      if (Platform.OS === 'web') {
+        window.alert(`OTP Sent! 📧\n\nWe've sent a 6-digit verification code to ${targetEmail}`);
+      } else {
+        Alert.alert(
+          'OTP Sent! 📧',
+          `We've sent a 6-digit verification code to ${targetEmail}`,
+          [{ text: 'OK' }]
+        );
+      }
       setCountdown(60);
       setCanResend(false);
+      
+      // Focus first input after resend
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
     } catch (error) {
       console.error('Send OTP error:', error);
-      Alert.alert('Error', 'Failed to send OTP. Please check your connection.');
+      if (Platform.OS === 'web') {
+        window.alert('Error: Failed to send OTP. Please check your connection.');
+      } else {
+        Alert.alert('Error', 'Failed to send OTP. Please check your connection.');
+      }
     } finally {
       setResending(false);
     }
@@ -148,7 +166,11 @@ export default function VerifyEmailPostSignup() {
 
   const verifyOTP = async (otpCode = otp.join('')) => {
     if (otpCode.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter all 6 digits');
+      if (Platform.OS === 'web') {
+        window.alert('Invalid OTP\n\nPlease enter all 6 digits');
+      } else {
+        Alert.alert('Invalid OTP', 'Please enter all 6 digits');
+      }
       return;
     }
 
@@ -173,8 +195,18 @@ export default function VerifyEmailPostSignup() {
         return;
       }
       
+      // Clear OTP on error
+      setOtp(['', '', '', '', '', '']);
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+      
       // Handle other errors
-      Alert.alert('Error', 'Failed to verify OTP. Please check your connection and try again.');
+      if (Platform.OS === 'web') {
+        window.alert('Error: Invalid OTP. Please try again.');
+      } else {
+        Alert.alert('Error', 'Invalid OTP. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -186,26 +218,29 @@ export default function VerifyEmailPostSignup() {
   };
 
   return (
-    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
+    <LinearGradient 
+      colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]} 
+      style={styles.container}
+    >
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verify Email</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Verify Email</Text>
           <View style={styles.placeholder} />
         </View>
 
         <View style={styles.content}>
           {/* Success Card */}
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <View style={styles.iconContainer}>
               <Ionicons name="mail" size={64} color="#7C2B86" />
             </View>
 
-            <Text style={styles.title}>Check Your Email 📧</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Check Your Email 📧</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               We've sent a 6-digit verification code to{'\n'}
               <Text style={styles.emailText}>{email || user?.email}</Text>
             </Text>
@@ -218,7 +253,11 @@ export default function VerifyEmailPostSignup() {
                   ref={(ref) => (inputRefs.current[index] = ref)}
                   style={[
                     styles.otpInput,
-                    digit ? styles.otpInputFilled : null,
+                    { 
+                      borderColor: digit ? theme.primary : theme.border,
+                      backgroundColor: digit ? theme.surface : theme.surfaceSecondary,
+                      color: theme.textPrimary
+                    },
                     loading && styles.otpInputDisabled
                   ]}
                   value={digit}
@@ -253,15 +292,15 @@ export default function VerifyEmailPostSignup() {
 
             {/* Resend Section */}
             <View style={styles.resendSection}>
-              <Text style={styles.resendText}>Didn't receive the code?</Text>
+              <Text style={[styles.resendText, { color: theme.textSecondary }]}>Didn't receive the code?</Text>
               {canResend ? (
                 <TouchableOpacity onPress={resendOTP} disabled={resending}>
-                  <Text style={styles.resendLink}>
+                  <Text style={[styles.resendLink, { color: theme.primary }]}>
                     {resending ? 'Sending...' : 'Resend Code'}
                   </Text>
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.countdownText}>
+                <Text style={[styles.countdownText, { color: theme.textTertiary }]}>
                   Resend in {countdown}s
                 </Text>
               )}

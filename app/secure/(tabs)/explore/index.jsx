@@ -740,7 +740,7 @@ export default function ExploreScreen() {
         </View>
 
 
-        {/* Enhanced Search Bar with Dropdown */}
+        {/* Enhanced Search Bar */}
         <View style={styles.searchSectionPro}>
           <View style={[styles.searchContainerPro, dynamicStyles.searchContainerPro, !token && styles.searchDisabled]}>
             <View style={styles.searchIconContainer}>
@@ -760,11 +760,8 @@ export default function ExploreScreen() {
             {!token && (
               <Ionicons name="lock-closed" size={16} color={theme.textMuted} />
             )}
-            <TouchableOpacity style={[styles.searchFilterButton, dynamicStyles.searchFilterButton]}>
-              <Ionicons name="options-outline" size={18} color={theme.primary} />
-            </TouchableOpacity>
           </View>
-          
+
           {/* Search Results Dropdown */}
           {searchQuery.length >= 2 && searchResults.length > 0 && (
             <View style={[styles.searchDropdown, dynamicStyles.searchDropdown]}>
@@ -891,6 +888,23 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: 100,
+  },
+  filterPanel: {
+    marginTop: 8,
+    marginHorizontal: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  filterPanelTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  filterPanelSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   header: {
     flexDirection: 'row',

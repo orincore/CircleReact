@@ -12,6 +12,7 @@ class AppVersionService {
     this.currentVersion = Constants.expoConfig?.version || '1.0.0';
     this.buildNumber = Constants.expoConfig?.android?.versionCode || Constants.expoConfig?.ios?.buildNumber || 1;
     this.platform = Platform.OS;
+    this.updateListeners = [];
   }
 
   /**
@@ -131,8 +132,37 @@ class AppVersionService {
       });
 
       //console.log('📱 Update downloaded, will apply on next restart');
+
+      // Notify listeners that an update is available/downloaded
+      try {
+        if (Array.isArray(this.updateListeners)) {
+          this.updateListeners.forEach((listener) => {
+            if (typeof listener === 'function') {
+              try {
+                listener({ update, currentVersion: this.currentVersion });
+              } catch (cbErr) {
+                console.error('Error in update listener callback:', cbErr);
+              }
+            }
+          });
+        }
+      } catch (notifyErr) {
+        console.error('Error notifying update listeners:', notifyErr);
+      }
     } catch (error) {
       console.error('Error handling update:', error);
+    }
+  }
+
+  /**
+   * Register a callback to be invoked when an update is available
+   */
+  onUpdateAvailable(listener) {
+    if (typeof listener === 'function') {
+      if (!Array.isArray(this.updateListeners)) {
+        this.updateListeners = [];
+      }
+      this.updateListeners.push(listener);
     }
   }
 

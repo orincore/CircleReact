@@ -42,6 +42,7 @@ export interface ChatInboxItem {
   otherProfilePhoto: string;
   pinned?: boolean;
   archived?: boolean;
+  isBlindDateOngoing?: boolean;
 }
 
 export const chatApi = {
@@ -75,6 +76,7 @@ export const chatApi = {
       otherProfilePhoto: it.otherUser?.profilePhoto || '',
       pinned: !!it.pinned,
       archived: !!it.archived,
+      isBlindDateOngoing: !!it.isBlindDateOngoing,
     }))
     return { inbox }
   },

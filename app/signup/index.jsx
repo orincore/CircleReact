@@ -1,7 +1,7 @@
 import ProfilePictureUpload from "@/components/ProfilePictureUpload";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
+import { useTheme } from "@/contexts/ThemeContext";
 import { authApi } from "@/src/api/auth";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
@@ -25,7 +25,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupWizardContext } from "./_layout";
 
-const GENDER_OPTIONS = ["female", "male", "non-binary", "prefer not to say"];
+const GENDER_OPTIONS = [
+  "female", 
+  "male", 
+  "non-binary", 
+  "transgender female",
+  "transgender male",
+  "genderqueer",
+  "genderfluid",
+  "agender",
+  "two-spirit",
+  "other",
+  "prefer not to say"
+];
 const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
 
 export default function SignupStepOne() {
@@ -33,6 +45,7 @@ export default function SignupStepOne() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
+  const { theme, isDarkMode } = useTheme();
   const [firstName, setFirstName] = useState(data.firstName);
   const [lastName, setLastName] = useState(data.lastName);
   const [age, setAge] = useState(String(data.age || ""));
@@ -247,7 +260,10 @@ export default function SignupStepOne() {
                 styles.glassCard,
                 {
                   opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
+                  transform: [{ translateY: slideAnim }],
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
+                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
+                  borderWidth: 1,
                 }
               ]}
             >
@@ -261,29 +277,29 @@ export default function SignupStepOne() {
               {/* Name inputs */}
               <View style={styles.row2}>
                 <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={styles.inputLabel}>👤 First Name</Text>
-                  <View style={[styles.inputWrapper, firstName.trim() && styles.inputWrapperFilled]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>👤 First Name</Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, firstName.trim() && { borderColor: theme.primary }]}>
                     <TextInput 
                       value={firstName} 
                       onChangeText={setFirstName} 
                       onBlur={() => validateField('firstName')} 
                       placeholder="Alex" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      style={styles.input} 
+                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} 
+                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
                     />
                   </View>
                   {!!errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
                 </View>
                 <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={styles.inputLabel}>👤 Last Name</Text>
-                  <View style={[styles.inputWrapper, lastName.trim() && styles.inputWrapperFilled]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>👤 Last Name</Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, lastName.trim() && { borderColor: theme.primary }]}>
                     <TextInput 
                       value={lastName} 
                       onChangeText={setLastName} 
                       onBlur={() => validateField('lastName')} 
                       placeholder="Parker" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      style={styles.input} 
+                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} 
+                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
                     />
                   </View>
                   {!!errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
@@ -293,22 +309,22 @@ export default function SignupStepOne() {
               {/* Age and Gender */}
               <View style={styles.row2}>
                 <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={styles.inputLabel}>🎂 Age</Text>
-                  <TouchableOpacity style={[styles.inputWrapper, age && styles.inputWrapperFilled]} onPress={() => setShowAgePicker(true)}>
-                    <Text style={[styles.input, { paddingVertical: 14 }, !age && styles.placeholderText]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>🎂 Age</Text>
+                  <TouchableOpacity style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, age && { borderColor: theme.primary }]} onPress={() => setShowAgePicker(true)}>
+                    <Text style={[styles.input, { paddingVertical: 14, color: age ? (isDarkMode ? '#FFFFFF' : theme.textPrimary) : (isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary) }]}>
                       {age || "Select age"}
                     </Text>
-                    <Ionicons name="chevron-down" size={18} color="#8880B6" />
+                    <Ionicons name="chevron-down" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
                   </TouchableOpacity>
                   {!!errors.age && <Text style={styles.errorText}>{errors.age}</Text>}
                 </View>
                 <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={styles.inputLabel}>💫 Gender</Text>
-                  <TouchableOpacity style={[styles.inputWrapper, gender && styles.inputWrapperFilled]} onPress={() => setShowGenderPicker(true)}>
-                    <Text style={[styles.input, { paddingVertical: 14 }, !gender && styles.placeholderText]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>💫 Gender</Text>
+                  <TouchableOpacity style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, gender && { borderColor: theme.primary }]} onPress={() => setShowGenderPicker(true)}>
+                    <Text style={[styles.input, { paddingVertical: 14, color: gender ? (isDarkMode ? '#FFFFFF' : theme.textPrimary) : (isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary) }]}>
                       {gender ? formatTitleCase(gender) : "Select gender"}
                     </Text>
-                    <Ionicons name="chevron-down" size={18} color="#8880B6" />
+                    <Ionicons name="chevron-down" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
                   </TouchableOpacity>
                   {!!errors.gender && <Text style={styles.errorText}>{errors.gender}</Text>}
                 </View>
@@ -316,17 +332,17 @@ export default function SignupStepOne() {
 
               {/* Username */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>✨ Pick your unique handle</Text>
-                <View style={[styles.inputWrapper, username.trim() && styles.inputWrapperFilled]}>
-                  <Ionicons name="at" size={18} color="#8880B6" />
+                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>✨ Pick your unique handle</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, username.trim() && { borderColor: theme.primary }]}>
+                  <Ionicons name="at" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
                   <TextInput 
                     value={username} 
                     onChangeText={(t) => { setUsername(t); setUsernameAvail(null); setSuggestedUsernames([]); }} 
                     onBlur={onUsernameBlur} 
                     placeholder="alex.parker" 
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
+                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
                     autoCapitalize="none" 
-                    style={styles.input} 
+                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
                   />
                   {checkingUsername && <Ionicons name="hourglass" size={18} color="#8880B6" />}
                   {!checkingUsername && usernameAvail === true && (
@@ -365,51 +381,103 @@ export default function SignupStepOne() {
 
               {/* Password */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>🔒 Password</Text>
-                <View style={[styles.inputWrapper, password && styles.inputWrapperFilled]}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>🔒 Password</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, password && { borderColor: theme.primary }]}>
                   <TextInput 
                     value={password} 
                     onChangeText={setPassword} 
                     onBlur={() => validateField('password')} 
                     placeholder="Create a strong password" 
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
+                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
                     secureTextEntry={!showPassword}
-                    style={styles.input} 
+                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#8880B6" />
+                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={isDarkMode ? '#FFD6F2' : theme.primary} />
                   </TouchableOpacity>
                 </View>
                 {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-                <Text style={styles.trustText}>🔐 Your password stays private and secure</Text>
+                <Text style={[styles.trustText, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>🔐 Your password stays private and secure</Text>
               </View>
 
-              {/* Google Sign-In Button */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-              
-              <GoogleSignInButton
-                mode="signup"
-                onSuccess={(result) => {
-                  if (result.isNewUser && result.googleProfile) {
-                    // Navigate to Google signup completion
-                    router.push({
-                      pathname: '/signup/google',
-                      params: {
-                        googleProfile: JSON.stringify(result.googleProfile),
-                        idToken: result.idToken
-                      }
-                    });
-                  }
-                  // If existing user, they'll be logged in automatically
-                }}
-                onError={(error) => {
-                  console.error('Google signup error:', error);
-                }}
-              />
+              {/* Requirements Checklist */}
+              {!canContinue && (
+                <View style={[styles.requirementsCard, { backgroundColor: isDarkMode ? 'rgba(255, 214, 242, 0.1)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(255, 214, 242, 0.2)' : 'rgba(255, 214, 242, 0.4)' }]}>
+                  <Text style={[styles.requirementsTitle, { color: isDarkMode ? '#FFFFFF' : theme.primary }]}>✓ Complete these to continue:</Text>
+                  <View style={styles.requirementsList}>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={firstName.trim() ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={firstName.trim() ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, firstName.trim() && styles.requirementTextComplete]}>
+                        First name
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={lastName.trim() ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={lastName.trim() ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, lastName.trim() && styles.requirementTextComplete]}>
+                        Last name
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={age && Number(age) >= 13 ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={age && Number(age) >= 13 ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, age && Number(age) >= 13 && styles.requirementTextComplete]}>
+                        Age (13+)
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={gender ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={gender ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, gender && styles.requirementTextComplete]}>
+                        Gender
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={username.trim().length >= 3 && usernameAvail === true ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={username.trim().length >= 3 && usernameAvail === true ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, username.trim().length >= 3 && usernameAvail === true && styles.requirementTextComplete]}>
+                        Available username
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={password.length >= 6 ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={password.length >= 6 ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, password.length >= 6 && styles.requirementTextComplete]}>
+                        Password (6+ characters)
+                      </Text>
+                    </View>
+                    <View style={styles.requirementItem}>
+                      <Ionicons 
+                        name={profileImage ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={profileImage ? "#10B981" : "#9CA3AF"} 
+                      />
+                      <Text style={[styles.requirementText, profileImage && styles.requirementTextComplete]}>
+                        Profile picture
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               {/* Next Button */}
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
@@ -457,21 +525,21 @@ export default function SignupStepOne() {
       {/* Age Picker Modal */}
       <Modal transparent visible={showAgePicker} animationType="slide" onRequestClose={() => setShowAgePicker(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowAgePicker(false)}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#2D2D44' : '#FFFFFF' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select your age 🎂</Text>
+              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>How old are you? 🎂</Text>
               <TouchableOpacity onPress={() => setShowAgePicker(false)}>
-                <Ionicons name="close" size={24} color="#1F1147" />
+                <Ionicons name="close" size={24} color={isDarkMode ? '#FFFFFF' : '#1F1147'} />
               </TouchableOpacity>
             </View>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#8880B6" />
+            <View style={[styles.searchWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F5F5F5' }]}>
+              <Ionicons name="search" size={16} color={isDarkMode ? '#FFD6F2' : '#8880B6'} />
               <TextInput 
                 value={ageQuery} 
                 onChangeText={setAgeQuery} 
                 placeholder="Search age" 
-                style={styles.searchInput} 
-                placeholderTextColor="#8880B6" 
+                style={[styles.searchInput, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]} 
+                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : '#8880B6'}
                 keyboardType="numeric"
               />
             </View>
@@ -481,15 +549,14 @@ export default function SignupStepOne() {
               style={{ maxHeight: 300 }} 
               renderItem={({ item }) => (
                 <TouchableOpacity 
-                  style={styles.optionRow} 
+                  style={[styles.optionRow, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F0F0F0' }]} 
                   onPress={() => { 
                     setAge(item); 
                     setShowAgePicker(false);
-                    // Clear any existing error when selecting
                     setErrors(prev => ({ ...prev, age: '' }));
                   }}
                 >
-                  <Text style={styles.optionText}>{item}</Text>
+                  <Text style={[styles.optionText, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>{item}</Text>
                   {age === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
                 </TouchableOpacity>
               )} 
@@ -501,29 +568,34 @@ export default function SignupStepOne() {
       {/* Gender Picker Modal */}
       <Modal transparent visible={showGenderPicker} animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowGenderPicker(false)}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#2D2D44' : '#FFFFFF' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>How do you identify? 💫</Text>
+              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>How do you identify? 💫</Text>
               <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                <Ionicons name="close" size={24} color="#1F1147" />
+                <Ionicons name="close" size={24} color={isDarkMode ? '#FFFFFF' : '#1F1147'} />
               </TouchableOpacity>
             </View>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#8880B6" />
+            <Text style={[styles.modalSubtitle, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>
+              We celebrate all identities. Choose what feels right for you.
+            </Text>
+            <View style={[styles.searchWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F5F5F5' }]}>
+              <Ionicons name="search" size={16} color={isDarkMode ? '#FFD6F2' : '#8880B6'} />
               <TextInput 
                 value={genderQuery} 
                 onChangeText={setGenderQuery} 
-                placeholder="Search gender" 
-                style={styles.searchInput} 
-                placeholderTextColor="#8880B6" 
+                placeholder="Search gender identity" 
+                style={[styles.searchInput, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]} 
+                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : '#8880B6'}
               />
             </View>
             <FlatList 
               data={filteredGenders} 
               keyExtractor={(i) => i} 
+              style={{ maxHeight: 350 }}
+              showsVerticalScrollIndicator={true}
               renderItem={({ item }) => (
                 <TouchableOpacity 
-                  style={styles.optionRow} 
+                  style={[styles.optionRow, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F0F0F0' }]} 
                   onPress={() => { 
                     setGender(item); 
                     setShowGenderPicker(false);
@@ -531,7 +603,7 @@ export default function SignupStepOne() {
                     setErrors(prev => ({ ...prev, gender: '' }));
                   }}
                 >
-                  <Text style={styles.optionText}>{formatTitleCase(item)}</Text>
+                  <Text style={[styles.optionText, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>{formatTitleCase(item)}</Text>
                   {gender === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
                 </TouchableOpacity>
               )} 
@@ -779,6 +851,12 @@ const styles = StyleSheet.create({
     fontWeight: "800", 
     color: "#1F1147" 
   },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -848,5 +926,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 17, 71, 0.6)',
     fontWeight: '500',
+  },
+  
+  // Requirements checklist
+  requirementsCard: {
+    backgroundColor: Platform.OS === 'web' ? 'rgba(255, 214, 242, 0.15)' : 'rgba(255, 214, 242, 0.2)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Platform.OS === 'web' ? 'rgba(255, 214, 242, 0.3)' : 'rgba(255, 214, 242, 0.4)',
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Platform.OS === 'web' ? '#FFFFFF' : '#7C2B86',
+    marginBottom: 12,
+  },
+  requirementsList: {
+    gap: 10,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  requirementText: {
+    fontSize: 14,
+    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(31, 17, 71, 0.6)',
+    fontWeight: '500',
+  },
+  requirementTextComplete: {
+    color: Platform.OS === 'web' ? '#FFFFFF' : '#10B981',
+    fontWeight: '600',
   },
 });

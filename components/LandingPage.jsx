@@ -14,10 +14,12 @@ import {
   Linking,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LandingPage({ onSignUp, onLogIn }) {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
+  const { theme, isDarkMode } = useTheme();
   const [scrollY, setScrollY] = useState(0);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   
@@ -242,7 +244,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
 
         {/* Hero Section */}
         <LinearGradient
-          colors={['#7C2B86', '#A16AE8', '#5D5FEF']}
+          colors={isDarkMode ? ['#1F1147', '#7C2B86', '#5D5FEF'] : ['#7C2B86', '#A16AE8', '#5D5FEF']}
           locations={[0, 0.5, 1]}
           style={[styles.heroSection, isLargeScreen && styles.heroSectionLarge]}
           start={{ x: 0, y: 0 }}
@@ -262,13 +264,28 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               <View style={styles.heroGrid}>
                 <View style={styles.heroLeft}>
                   <Text style={styles.heroTitle}>
-                    Find Your Circle.{"\n"}
-                    <Text style={styles.heroTitleAccent}>Build Real Connections.</Text>
+                    Where Meaningful{"\n"}
+                    <Text style={styles.heroTitleAccent}>Connections Begin</Text>
                   </Text>
                   
                   <Text style={styles.heroSubtitle}>
-                    Stop endless swiping! Our AI finds your perfect match automatically based on compatibility, interests, and location. Join thousands making meaningful friendships and finding love through intelligent matching.
+                    Tired of endless swiping? Circle uses intelligent AI matching to find people who truly complement you — based on your personality, interests, and what you're looking for. No games, no gimmicks, just real connections.
                   </Text>
+                  
+                  <View style={styles.heroHighlights}>
+                    <View style={styles.highlightItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                      <Text style={styles.highlightText}>AI-Powered Matching</Text>
+                    </View>
+                    <View style={styles.highlightItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                      <Text style={styles.highlightText}>No Swiping Required</Text>
+                    </View>
+                    <View style={styles.highlightItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                      <Text style={styles.highlightText}>100% Free to Start</Text>
+                    </View>
+                  </View>
                   
                   {/* Stats removed for browser */}
                 </View>
@@ -300,14 +317,19 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               <>
                 {/* Mobile: Logo and Tagline */}
                 <View style={styles.mobileLogoSection}>
-                  <Image 
-                    source={require('@/assets/logo/circle-logo.png')} 
-                    style={styles.mobileLogoImage}
-                    resizeMode="contain"
-                  />
+                  <View style={styles.mobileLogoGlow}>
+                    <Image 
+                      source={require('@/assets/logo/circle-logo.png')} 
+                      style={styles.mobileLogoImage}
+                      resizeMode="contain"
+                    />
+                  </View>
                   <Text style={styles.mobileAppName}>Circle</Text>
-                  <Text style={styles.mobileTagline}>
-                    Find friends. Build connections. Discover love.
+                  <Text style={styles.mobileTaglineMain}>
+                    Where Real Connections Begin
+                  </Text>
+                  <Text style={styles.mobileTaglineSub}>
+                    No endless swiping. Our AI finds your perfect match based on who you really are.
                   </Text>
                 </View>
 
@@ -897,7 +919,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255, 255, 255, 0.9)',
     lineHeight: 28,
+    marginBottom: 24,
+  },
+  heroHighlights: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
     marginBottom: 32,
+  },
+  highlightItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  highlightText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   heroSubtitleMobile: {
     fontSize: 16,
@@ -1070,16 +1114,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
+  mobileLogoGlow: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 111, 181, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 214, 242, 0.3)',
+    shadowColor: '#FF6FB5',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    marginBottom: 20,
+  },
   mobileLogoImage: {
-    width: 80,
-    height: 80,
-    marginBottom: 16,
+    width: 70,
+    height: 70,
   },
   mobileAppName: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 42,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 12,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(255, 111, 181, 0.4)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 12,
+  },
+  mobileTaglineMain: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFD6F2',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  mobileTaglineSub: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 10,
   },
   mobileTagline: {
     fontSize: 16,

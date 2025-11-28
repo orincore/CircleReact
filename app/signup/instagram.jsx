@@ -1,5 +1,6 @@
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
+import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useContext, useEffect, useRef, useState } from "react";
@@ -24,6 +25,7 @@ export default function SignupInstagram() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
+  const { theme, isDarkMode } = useTheme();
   const [instagramUsername, setInstagramUsername] = useState(data.instagramUsername || '');
   const [error, setError] = useState("");
 
@@ -123,22 +125,25 @@ export default function SignupInstagram() {
                   styles.glassCard,
                   {
                     opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }]
+                    transform: [{ translateY: slideAnim }],
+                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
+                    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
+                    borderWidth: 1,
                   }
                 ]}
               >
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>📷 Instagram Username</Text>
-                  <View style={styles.inputWrapper}>
-                    <Text style={styles.atSymbol}>@</Text>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📷 Instagram Username</Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, instagramUsername && { borderColor: theme.primary }]}>
+                    <Text style={[styles.atSymbol, { color: isDarkMode ? '#FFD6F2' : theme.primary }]}>@</Text>
                     <TextInput
                       value={instagramUsername}
                       onChangeText={setInstagramUsername}
                       placeholder="yourusername"
-                      placeholderTextColor="rgba(31, 17, 71, 0.4)"
+                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
                       autoCapitalize="none"
                       autoCorrect={false}
-                      style={styles.input}
+                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
                     />
                   </View>
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}

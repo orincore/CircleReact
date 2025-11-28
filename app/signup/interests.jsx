@@ -2,6 +2,7 @@ import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
 import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +14,7 @@ export default function SignupInterests() {
   const router = useRouter();
   const { data, setData } = useContext(SignupWizardContext);
   const { signUp } = useAuth();
+  const { theme, isDarkMode } = useTheme();
 
   const [query, setQuery] = useState("");
   const [interests, setInterests] = useState(new Set(data.interests || []));
@@ -189,9 +191,17 @@ export default function SignupInterests() {
   };
 
   const renderChip = (label, selected, onPress) => (
-    <TouchableOpacity key={label} onPress={onPress} style={[styles.chip, selected && styles.chipSelected]}>
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-      {selected && <Ionicons name="checkmark" size={14} color="#7C2B86" />}
+    <TouchableOpacity 
+      key={label} 
+      onPress={onPress} 
+      style={[
+        styles.chip, 
+        { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
+        selected && { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)', borderColor: theme.primary }
+      ]}
+    >
+      <Text style={[styles.chipText, { color: isDarkMode ? 'rgba(255,255,255,0.8)' : theme.textSecondary }, selected && { color: isDarkMode ? '#FFFFFF' : theme.primary }]}>{label}</Text>
+      {selected && <Ionicons name="checkmark" size={14} color={theme.primary} />}
     </TouchableOpacity>
   );
 
@@ -234,19 +244,22 @@ export default function SignupInterests() {
                 styles.glassCard,
                 {
                   opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
+                  transform: [{ translateY: slideAnim }],
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
+                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
+                  borderWidth: 1,
                 }
               ]}
             >
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Search</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="search" size={18} color="#8880B6" />
-                  <TextInput value={query} onChangeText={setQuery} placeholder="type to filter" placeholderTextColor="rgba(31, 17, 71, 0.35)" style={styles.input} />
+                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>Search</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }]}>
+                  <Ionicons name="search" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
+                  <TextInput value={query} onChangeText={setQuery} placeholder="type to filter" placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} />
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Interests ({interests.size} selected)</Text>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>Interests ({interests.size} selected)</Text>
               
               {/* Show all categories vertically - collapsible */}
               {filteredCategories.map((category) => {
@@ -254,23 +267,23 @@ export default function SignupInterests() {
                 const selectedCount = category.interests.filter(i => interests.has(i)).length;
                 
                 return (
-                  <View key={category.id} style={styles.categorySection}>
+                  <View key={category.id} style={[styles.categorySection, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.border }]}>
                     <TouchableOpacity 
                       style={styles.categoryHeader}
                       onPress={() => toggleCategory(category.id)}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name={category.icon} size={18} color="#7C2B86" />
-                      <Text style={styles.categoryTitle}>{category.name}</Text>
-                      <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryBadgeText}>
+                      <Ionicons name={category.icon} size={18} color={theme.primary} />
+                      <Text style={[styles.categoryTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>{category.name}</Text>
+                      <View style={[styles.categoryBadge, { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)' }]}>
+                        <Text style={[styles.categoryBadgeText, { color: theme.primary }]}>
                           {selectedCount}/{category.interests.length}
                         </Text>
                       </View>
                       <Ionicons 
                         name={isExpanded ? "chevron-up" : "chevron-down"} 
                         size={20} 
-                        color={Platform.OS === 'web' ? "rgba(255, 255, 255, 0.6)" : "#8880B6"} 
+                        color={isDarkMode ? "rgba(255, 255, 255, 0.6)" : theme.textSecondary} 
                       />
                     </TouchableOpacity>
                     
@@ -285,20 +298,24 @@ export default function SignupInterests() {
                 );
               })}
 
-              <Text style={styles.sectionTitle}>What are you looking for? ({needs.size} selected)</Text>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>What are you looking for? ({needs.size} selected)</Text>
               <View style={styles.chipWrap}>
                 {filteredNeeds.map((need) => (
                   <TouchableOpacity 
                     key={need.id} 
                     onPress={() => toggle(setNeeds, needs, need.label)} 
-                    style={[styles.needChip, needs.has(need.label) && styles.needChipSelected]}
+                    style={[
+                      styles.needChip, 
+                      { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
+                      needs.has(need.label) && { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)', borderColor: theme.primary }
+                    ]}
                   >
-                    <Ionicons name={need.icon} size={18} color={needs.has(need.label) ? "#7C2B86" : "#8880B6"} />
+                    <Ionicons name={need.icon} size={18} color={needs.has(need.label) ? theme.primary : (isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textSecondary)} />
                     <View style={styles.needChipContent}>
-                      <Text style={[styles.needChipLabel, needs.has(need.label) && styles.needChipLabelSelected]}>{need.label}</Text>
-                      <Text style={styles.needChipDescription}>{need.description}</Text>
+                      <Text style={[styles.needChipLabel, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }, needs.has(need.label) && { color: theme.primary }]}>{need.label}</Text>
+                      <Text style={[styles.needChipDescription, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>{need.description}</Text>
                     </View>
-                    {needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color="#7C2B86" />}
+                    {needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color={theme.primary} />}
                   </TouchableOpacity>
                 ))}
               </View>

@@ -1293,6 +1293,11 @@ export default function InstagramChatScreen() {
     loading: blindDateLoading,
     match: blindDateMatch,
     otherUserProfile: blindDateOtherUser,
+    canReveal,
+    messagesUntilReveal,
+    hasRevealedSelf,
+    otherHasRevealed,
+    requestReveal,
     filterMessage,
   } = useBlindDateChat(conversationId);
   
@@ -2816,6 +2821,15 @@ export default function InstagramChatScreen() {
     console.log('conversationName:', conversationName);
     console.log('myUserId:', myUserId);
 
+    // If this is an unrevealed blind date chat, restrict profile access
+    if (isBlindDate && blindDateStatus?.match?.status !== 'revealed') {
+      Alert.alert(
+        'Profile Restricted',
+        'Profile information is restricted until your blind date is successful and identities are revealed. Keep chatting to unlock their profile.'
+      );
+      return;
+    }
+
     // If otherUserId is not known yet, try to derive from messages
     if (!otherUserId) {
       const candidate = [...messages].find(m => m.senderId && m.senderId !== myUserId);
@@ -3644,19 +3658,15 @@ export default function InstagramChatScreen() {
             contentContainerStyle={[
               styles.messagesContainer,
               {
-                // Inverted FlatList means paddingTop becomes visual bottom padding
-                paddingTop: Platform.OS === 'web' ? 16 : 8,
-                paddingBottom: Platform.OS === 'web' && !screenData.isDesktop
-                  ? (composerContainerHeight + 80) // Extra padding for mobile browser controls
-                  : 16, // Visual top padding (inverted)
+                // FlatList is NOT inverted, so paddingBottom is actual bottom padding
+                // Need extra space because composer is position: absolute/fixed
+                paddingTop: 16,
+                paddingBottom: Platform.OS === 'web' 
+                  ? (screenData.isDesktop ? 16 : Math.max(composerContainerHeight + 140, 220))
+                  : Math.max(composerContainerHeight + 60, 160),
               },
               screenData.isDesktop && {
                 paddingHorizontal: 40,
-              },
-              // For mobile web, ensure messages are above browser controls
-              Platform.OS === 'web' && !screenData.isDesktop && {
-                paddingBottom: composerContainerHeight + 80, // Extra space for browser controls
-                marginBottom: 0,
               }
             ]}
             showsVerticalScrollIndicator={false}
@@ -4084,6 +4094,35 @@ export default function InstagramChatScreen() {
         onMuteToggle={handleMuteToggle}
         onClearChat={handleClearChat}
         isMuted={isChatMuted}
+        showRevealOption={
+          isBlindDate &&
+          !!blindDateMatch &&
+          blindDateMatch.status === 'active' &&
+          canReveal &&
+          !hasRevealedSelf
+        }
+        onRevealPress={async () => {
+          try {
+            const result = await requestReveal();
+            if (result.success) {
+              if (result.bothRevealed) {
+                Alert.alert(
+                  'Congratulations!',
+                  "Your blind date was successful! Identities are now revealed and all restrictions have been removed."
+                );
+              } else {
+                Alert.alert(
+                  'Reveal Requested',
+                  'Reveal request sent. Waiting for your match to accept.'
+                );
+              }
+            } else if (result.message) {
+              Alert.alert('Reveal Unavailable', result.message);
+            }
+          } catch (e) {
+            Alert.alert('Error', 'Failed to request reveal. Please try again.');
+          }
+        }}
       />
 
       <UserProfileModal

@@ -26,11 +26,13 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
   const [creatingChat, setCreatingChat] = useState(null); // Track which friend is being processed
   const [showOptionsFor, setShowOptionsFor] = useState(null); // Track which friend's options are shown
   const [unfriendingUser, setUnfriendingUser] = useState(null); // Track unfriending state
+  const [visibleCount, setVisibleCount] = useState(20);
 
   useEffect(() => {
     if (visible) {
       loadFriends();
       setShowOptionsFor(null); // Reset options menu when modal opens
+      setVisibleCount(20);
     }
   }, [visible]);
 
@@ -122,6 +124,7 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
   const filteredFriends = friends.filter(friend => 
     friend.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const visibleFriends = filteredFriends.slice(0, visibleCount);
 
   const renderFriend = ({ item }) => {
     const isCreating = creatingChat === item.id;
@@ -246,7 +249,7 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
             </View>
           ) : (
             <FlatList
-              data={filteredFriends}
+              data={visibleFriends}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -266,6 +269,12 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
               }
               renderItem={renderFriend}
               showsVerticalScrollIndicator={false}
+              onEndReached={() => {
+                if (visibleCount < filteredFriends.length) {
+                  setVisibleCount(prev => Math.min(prev + 20, filteredFriends.length));
+                }
+              }}
+              onEndReachedThreshold={0.3}
             />
           )}
         </View>

@@ -18,40 +18,20 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
+import { useTheme } from "@/contexts/ThemeContext";
 import AnimatedBackground from "@/components/signup/AnimatedBackground";
 import CircularProgress from "@/components/signup/CircularProgress";
 
-const COUNTRY_CODES = [
-  { code: "+1", country: "US/Canada" },
-  { code: "+44", country: "UK" },
-  { code: "+91", country: "India" },
-  { code: "+86", country: "China" },
-  { code: "+81", country: "Japan" },
-  { code: "+82", country: "South Korea" },
-  { code: "+61", country: "Australia" },
-  { code: "+33", country: "France" },
-  { code: "+49", country: "Germany" },
-  { code: "+39", country: "Italy" },
-  { code: "+34", country: "Spain" },
-  { code: "+7", country: "Russia" },
-  { code: "+55", country: "Brazil" },
-  { code: "+52", country: "Mexico" },
-  { code: "+27", country: "South Africa" },
-];
+// Removed country codes - phone number field removed
 
 export default function SignupContact() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
+  const { theme, isDarkMode } = useTheme();
   const [email, setEmail] = useState(data.email);
-  const [countryCode, setCountryCode] = useState(data.countryCode || "+1");
-  const [phoneNumber, setPhoneNumber] = useState(data.phoneNumber);
-  const [showCodePicker, setShowCodePicker] = useState(false);
   const [errors, setErrors] = useState({});
-  const [codeQuery, setCodeQuery] = useState("");
-  const [referralCode, setReferralCode] = useState(data.referralCode || "");
-  const [referralValid, setReferralValid] = useState(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -75,19 +55,10 @@ export default function SignupContact() {
     ]).start();
   }, []);
 
-  const filteredCodes = useMemo(() => 
-    COUNTRY_CODES.filter(item => 
-      item.code.includes(codeQuery) || 
-      item.country.toLowerCase().includes(codeQuery.toLowerCase())
-    ), 
-    [codeQuery]
-  );
-
   const canContinue = useMemo(() => {
     const okEmail = /[^@\s]+@[^@\s]+\.[^@\s]+/.test((email || '').trim());
-    const phoneOk = !phoneNumber || String(phoneNumber).trim().length >= 5;
-    return okEmail && phoneOk;
-  }, [email, phoneNumber]);
+    return okEmail;
+  }, [email]);
 
   const validateEmail = () => {
     const next = { ...errors };
@@ -97,17 +68,8 @@ export default function SignupContact() {
     setErrors(next);
   };
 
-  const validatePhone = () => {
-    const next = { ...errors };
-    next.phoneNumber = !phoneNumber || String(phoneNumber).trim().length >= 5 
-      ? '' 
-      : 'Phone should be at least 5 digits';
-    setErrors(next);
-  };
-
   const onNext = () => {
     validateEmail();
-    validatePhone();
     if (!canContinue) return;
 
     // Button press animation
@@ -126,10 +88,7 @@ export default function SignupContact() {
 
     setData((prev) => ({ 
       ...prev, 
-      email: email.trim(), 
-      countryCode, 
-      phoneNumber: (phoneNumber || '').trim(),
-      referralCode: referralCode.trim().toUpperCase()
+      email: email.trim()
     }));
     router.push("/signup/about");
   };
@@ -177,88 +136,42 @@ export default function SignupContact() {
                 styles.glassCard,
                 {
                   opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
+                  transform: [{ translateY: slideAnim }],
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
+                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
+                  borderWidth: 1,
                 }
               ]}
             >
               {/* Email */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>📧 Email Address</Text>
-                <View style={[styles.inputWrapper, email.trim() && styles.inputWrapperFilled]}>
-                  <Ionicons name="mail" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
+                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📧 Email Address</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, email.trim() && { borderColor: theme.primary }]}>
+                  <Ionicons name="mail" size={18} color={isDarkMode ? "#FFD6F2" : theme.primary} />
                   <TextInput 
                     value={email} 
                     onChangeText={setEmail} 
                     onBlur={validateEmail}
                     placeholder="you@example.com" 
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
+                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
                     keyboardType="email-address" 
                     autoCapitalize="none" 
-                    style={styles.input} 
+                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
                   />
                   {email.trim() && /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email.trim()) && (
                     <Ionicons name="checkmark-circle" size={20} color="#10B981" />
                   )}
                 </View>
                 {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-                <Text style={styles.helperText}>We'll never share your email with anyone</Text>
-              </View>
-
-              {/* Phone (optional) */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>📱 Phone Number (Optional)</Text>
-                <View style={styles.row2}>
-                  <TouchableOpacity 
-                    style={[styles.inputWrapper, styles.ccCol]} 
-                    onPress={() => setShowCodePicker(true)}
-                  >
-                    <Ionicons name="flag" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
-                    <Text style={[styles.input, { paddingVertical: 14 }]}>{countryCode}</Text>
-                    <Ionicons name="chevron-down" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
-                  </TouchableOpacity>
-                  <View style={[styles.inputWrapper, styles.col, phoneNumber && styles.inputWrapperFilled]}>
-                    <Ionicons name="call" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
-                    <TextInput 
-                      value={phoneNumber} 
-                      onChangeText={setPhoneNumber} 
-                      onBlur={validatePhone}
-                      placeholder="555-0100" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      keyboardType="phone-pad" 
-                      style={styles.input} 
-                    />
-                  </View>
-                </View>
-                {!!errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
-                <Text style={styles.helperText}>Optional, but helps with account recovery</Text>
-              </View>
-
-              {/* Referral Code (optional) */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>🎁 Referral Code (Optional)</Text>
-                <View style={[styles.inputWrapper, referralCode && styles.inputWrapperFilled]}>
-                  <Ionicons name="gift" size={18} color={Platform.OS === 'web' ? "#FFD6F2" : "#8880B6"} />
-                  <TextInput 
-                    value={referralCode} 
-                    onChangeText={(text) => setReferralCode(text.toUpperCase())} 
-                    placeholder="Enter referral code" 
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                    autoCapitalize="characters"
-                    style={styles.input} 
-                  />
-                  {referralCode && referralValid && (
-                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                  )}
-                </View>
-                <Text style={styles.helperText}>Have a referral code? Enter it to get rewards! 🎉</Text>
+                <Text style={[styles.helperText, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>We'll never share your email with anyone</Text>
               </View>
 
               {/* Trust badge */}
-              <View style={styles.trustBadge}>
+              <View style={[styles.trustBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)' }]}>
                 <Ionicons name="shield-checkmark" size={24} color="#10B981" />
                 <View style={styles.trustTextContainer}>
-                  <Text style={styles.trustTitle}>Your privacy matters</Text>
-                  <Text style={styles.trustText}>We use industry-standard encryption to protect your data</Text>
+                  <Text style={[styles.trustTitle, { color: isDarkMode ? '#FFFFFF' : '#10B981' }]}>Your privacy matters</Text>
+                  <Text style={[styles.trustText, { color: isDarkMode ? 'rgba(255,255,255,0.8)' : theme.textSecondary }]}>We use industry-standard encryption to protect your data</Text>
                 </View>
               </View>
 
@@ -280,47 +193,6 @@ export default function SignupContact() {
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* Country code picker modal */}
-      <Modal transparent visible={showCodePicker} animationType="slide" onRequestClose={() => setShowCodePicker(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowCodePicker(false)}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select country code 🌍</Text>
-              <TouchableOpacity onPress={() => setShowCodePicker(false)}>
-                <Ionicons name="close" size={24} color="#1F1147" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#8880B6" />
-              <TextInput 
-                value={codeQuery} 
-                onChangeText={setCodeQuery} 
-                placeholder="Search country or code" 
-                style={styles.searchInput} 
-                placeholderTextColor="#8880B6" 
-              />
-            </View>
-            <FlatList 
-              data={filteredCodes} 
-              keyExtractor={(item) => item.code} 
-              style={{ maxHeight: 400 }} 
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.optionRow} 
-                  onPress={() => { 
-                    setCountryCode(item.code); 
-                    setShowCodePicker(false); 
-                    setCodeQuery("");
-                  }}
-                >
-                  <Text style={styles.optionText}>{item.code} - {item.country}</Text>
-                  {countryCode === item.code && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
-                </TouchableOpacity>
-              )} 
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </AnimatedBackground>
   );
 }
@@ -405,9 +277,6 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   
-  row2: { flexDirection: "row", gap: 12 },
-  col: { flex: 1 },
-  ccCol: { width: 120 },
   inputGroup: { gap: 8 },
   inputLabel: { 
     fontSize: 13, 

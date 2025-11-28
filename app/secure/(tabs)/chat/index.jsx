@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { chatApi } from "@/src/api/chat";
+import { blindDatingApi } from "@/src/api/blindDating";
 import { getSocket } from "@/src/api/socket";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 import socketService from "@/src/services/socketService";
@@ -13,6 +14,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions, Modal } from "react-native";
+import { BlurView } from 'expo-blur';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { BannerAd } = getAdComponents();
@@ -126,6 +128,44 @@ export default function ChatListScreen() {
       left: -30,
       opacity: isDarkMode ? 1 : 0.3,
     },
+  };
+
+  const loadBlindDateStatus = async () => {
+    if (!token) {
+      setBlindDateStatus({ loading: false, enabled: false, foundToday: false });
+      return;
+    }
+
+    try {
+      setBlindDateStatus(prev => ({ ...prev, loading: true }));
+
+      const [settingsRes, matchesRes] = await Promise.all([
+        blindDatingApi.getSettings(token),
+        blindDatingApi.getMatches(token),
+      ]);
+
+      const enabled = !!settingsRes?.settings?.is_enabled;
+      let foundToday = false;
+
+      if (enabled && Array.isArray(matchesRes?.matches) && matchesRes.matches.length > 0) {
+        const today = new Date();
+        const isSameDay = (d) => {
+          const dt = new Date(d);
+          return (
+            dt.getFullYear() === today.getFullYear() &&
+            dt.getMonth() === today.getMonth() &&
+            dt.getDate() === today.getDate()
+          );
+        };
+
+        foundToday = matchesRes.matches.some(m => m.matched_at && isSameDay(m.matched_at));
+      }
+
+      setBlindDateStatus({ loading: false, enabled, foundToday });
+    } catch (error) {
+      console.error('[ChatList] Failed to load blind date status:', error);
+      setBlindDateStatus({ loading: false, enabled: false, foundToday: false });
+    }
   };
   
   // Get time-based greeting
@@ -332,6 +372,7 @@ export default function ChatListScreen() {
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
+  const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
   const buttonRefs = React.useRef({});
 
   const loadInbox = async (isRefresh = false) => {
@@ -411,6 +452,10 @@ export default function ChatListScreen() {
 
   useEffect(() => {
     loadInbox();
+  }, [token]);
+
+  useEffect(() => {
+    loadBlindDateStatus();
   }, [token]);
 
   // Socket event handlers for real-time updates
@@ -869,6 +914,42 @@ export default function ChatListScreen() {
           />
         </View>
 
+        {/* Daily Blind Date status banner */}
+        {blindDateStatus.enabled && !blindDateStatus.loading && (
+          <View
+            style={[
+              styles.blindDateDailyBanner,
+              blindDateStatus.foundToday
+                ? styles.blindDateDailyBannerSuccess
+                : styles.blindDateDailyBannerSearching,
+            ]}
+          >
+            <Ionicons
+              name={blindDateStatus.foundToday ? 'heart' : 'hourglass'}
+              size={16}
+              color={blindDateStatus.foundToday ? '#22C55E' : theme.textSecondary}
+              style={{ marginRight: 8 }}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.blindDateDailyTitle} numberOfLines={1}>
+                {blindDateStatus.foundToday
+                  ? 'Blind date found today!'
+                  : 'No blind date found today yet'}
+              </Text>
+              {!blindDateStatus.foundToday && (
+                <Text style={styles.blindDateDailySubtitle} numberOfLines={2}>
+                  We are still searching. Come back soon – we will also email you once we find your match.
+                </Text>
+              )}
+              {blindDateStatus.foundToday && (
+                <Text style={styles.blindDateDailySubtitle} numberOfLines={2}>
+                  Check your messages to chat with your mystery match.
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
@@ -893,7 +974,12 @@ export default function ChatListScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => loadInbox(true)}
+                onRefresh={async () => {
+                  await Promise.all([
+                    loadInbox(true),
+                    loadBlindDateStatus(),
+                  ]);
+                }}
                 tintColor={theme.primary}
                 colors={[theme.primary]}
               />
@@ -918,6 +1004,9 @@ export default function ChatListScreen() {
                 }
                 
                 const chatId = item.chat.id;
+                const isBlindDateOngoing = !!item.isBlindDateOngoing;
+                const displayName = isBlindDateOngoing ? '***' : (item.otherName || 'Unknown');
+                const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
               
@@ -929,18 +1018,23 @@ export default function ChatListScreen() {
                     { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
                     openMenuChatId === chatId && styles.chatRowElevated,
                   ]}
-                  onPress={() => handleChatPress(chatId, item.otherName, item.otherProfilePhoto, item.otherId)}
+                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId)}
                 >
                   <View style={styles.avatarContainer}>
-                    {item.otherProfilePhoto && item.otherProfilePhoto.trim() ? (
-                      <Image 
-                        source={{ uri: item.otherProfilePhoto }} 
-                        style={[styles.avatarImage, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}
-                      />
+                    {displayAvatar ? (
+                      <View style={{ overflow: 'hidden', borderRadius: responsive.avatarSize / 2 }}>
+                        <Image 
+                          source={{ uri: displayAvatar }} 
+                          style={[styles.avatarImage, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}
+                        />
+                        {isBlindDateOngoing && (
+                          <BlurView intensity={50} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                        )}
+                      </View>
                     ) : (
                       <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2, backgroundColor: theme.surfaceSecondary }]}> 
                         <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20, color: theme.textPrimary }]}> 
-                          {(item.otherName && item.otherName.charAt(0).toUpperCase()) || '?'}
+                          {(displayName && displayName.charAt(0).toUpperCase()) || '?'}
                         </Text>
                       </View>
                     )}
@@ -950,9 +1044,12 @@ export default function ChatListScreen() {
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
-                      <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}>{item.otherName || 'Unknown'} {item.pinned ? '📌' : ''}</Text>
+                      <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}>{displayName} {item.pinned ? '📌' : ''}</Text>
                       <Text style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
+                    {isBlindDateOngoing && (
+                      <Text style={styles.blindDateTag}>Blind date ongoing</Text>
+                    )}
                     <View style={styles.messageRow}>
                       <Text style={[styles.chatMessage, dynamicStyles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
                         {isTyping ? 'typing...' : (item.lastMessage && item.lastMessage.text) || 'No messages yet'}
@@ -1256,6 +1353,35 @@ const styles = StyleSheet.create({
   fallbackAvatarText: {
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  blindDateDailyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  blindDateDailyBannerSuccess: {
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.35)',
+  },
+  blindDateDailyBannerSearching: {
+    backgroundColor: 'rgba(148, 163, 184, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+  },
+  blindDateDailyTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  blindDateDailySubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    color: 'rgba(226, 232, 240, 0.85)',
   },
   typingIndicator: {
     position: 'absolute',

@@ -2,6 +2,7 @@ import CustomDropdown from "@/components/CustomDropdown";
 import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
 import { loadPreferencesFromUser, syncPreferencesWithBackend } from "@/utils/preferences";
 import { accountDeletionApi } from "@/src/api/account-deletion";
@@ -37,6 +38,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, updateProfile, token } = useAuth();
   const subscriptionContext = useSubscription();
+  const { theme, isDarkMode } = useTheme();
   
   // Safely extract subscription values
   const isPremium = subscriptionContext?.isPremium || false;
@@ -652,9 +654,142 @@ export default function SettingsScreen() {
     setShowCustomerSupport(true);
   };
 
+  const dynamicStyles = {
+    loadingText: {
+      color: theme.textSecondary,
+    },
+    title: {
+      color: theme.textPrimary,
+    },
+    subtitle: {
+      color: theme.textSecondary,
+    },
+    suggestionsTitle: {
+      color: theme.textPrimary,
+    },
+    suggestionsSubtitle: {
+      color: theme.textSecondary,
+    },
+    suggestionText: {
+      color: theme.textSecondary,
+    },
+    sectionTitle: {
+      color: theme.textPrimary,
+    },
+    sectionDescription: {
+      color: theme.textSecondary,
+    },
+    switchLabel: {
+      color: theme.textPrimary,
+    },
+    switchDescription: {
+      color: theme.textSecondary,
+    },
+    summaryTitle: {
+      color: theme.textSecondary,
+    },
+    summaryLabel: {
+      color: theme.textSecondary,
+    },
+    summaryValue: {
+      color: theme.textPrimary,
+    },
+    subscriptionLabel: {
+      color: theme.textSecondary,
+    },
+    subscriptionValue: {
+      color: theme.textPrimary,
+    },
+    settingItemTitle: {
+      color: theme.textPrimary,
+    },
+    settingItemDescription: {
+      color: theme.textSecondary,
+    },
+    dangerTitle: {
+      color: theme.error,
+    },
+    dangerDescription: {
+      color: theme.textSecondary,
+    },
+    dangerWarning: {
+      color: theme.warning,
+    },
+    locationStatusText: {
+      color: theme.textSecondary,
+    },
+    versionText: {
+      color: theme.textSecondary,
+    },
+    versionSubtext: {
+      color: theme.textMuted,
+    },
+    // Light-mode specific surface overrides (use stronger purple cards instead of pale pink)
+    sectionCard: !isDarkMode
+      ? {
+          backgroundColor: '#C4B5FD', // mid purple card
+          borderColor: '#A855F7',
+        }
+      : {},
+    summaryCard: !isDarkMode
+      ? {
+          backgroundColor: '#D8B4FE', // slightly lighter purple for summary
+          borderColor: '#A855F7',
+        }
+      : {},
+    advancedItem: !isDarkMode
+      ? {
+          backgroundColor: '#D8B4FE',
+          borderColor: '#A855F7',
+        }
+      : {},
+    suggestionsCard: !isDarkMode
+      ? {
+          backgroundColor: '#C4B5FD',
+          borderColor: '#A855F7',
+        }
+      : {},
+    searchContainer: !isDarkMode
+      ? {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+        }
+      : {},
+    searchInput: !isDarkMode
+      ? {
+          color: theme.textPrimary,
+        }
+      : {},
+    chipText: !isDarkMode
+      ? {
+          color: theme.textSecondary,
+        }
+      : {},
+    chipTextSelected: !isDarkMode
+      ? {
+          color: theme.textPrimary,
+        }
+      : {},
+    categoryTitle: !isDarkMode
+      ? {
+          color: theme.textPrimary,
+        }
+      : {},
+    needCardLabel: !isDarkMode
+      ? {
+          color: theme.textPrimary,
+        }
+      : {},
+    needCardDescription: !isDarkMode
+      ? {
+          color: theme.textSecondary,
+        }
+      : {},
+  };
+
   return (
     <LinearGradient
-      colors={["#1F1147", "#2D1B69", "#1F1147"]}
+      colors={[theme.background, theme.backgroundSecondary, theme.background]}
       locations={[0, 0.5, 1]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
@@ -671,18 +806,18 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-back" size={24} color="#FFE8FF" />
             </TouchableOpacity>
             <View style={styles.headerContent}>
-              <Text style={styles.title}>Matching Settings</Text>
-              <Text style={styles.subtitle}>Customize your matching preferences</Text>
+              <Text style={[styles.title, dynamicStyles.title]}>Matching Settings</Text>
+              <Text style={[styles.subtitle, dynamicStyles.subtitle]}>Customize your matching preferences</Text>
             </View>
           </View>
 
           {/* Score Improvement Suggestions */}
-          <View style={styles.suggestionsCard}>
+          <View style={[styles.suggestionsCard, dynamicStyles.suggestionsCard]}>
             <View style={styles.suggestionsHeader}>
               <Ionicons name="bulb" size={24} color="#FFD700" />
-              <Text style={styles.suggestionsTitle}>Improve Your Match Score</Text>
+              <Text style={[styles.suggestionsTitle, dynamicStyles.suggestionsTitle]}>Improve Your Match Score</Text>
             </View>
-            <Text style={styles.suggestionsSubtitle}>
+            <Text style={[styles.suggestionsSubtitle, dynamicStyles.suggestionsSubtitle]}>
               Follow these tips to get better matches and increase your visibility
             </Text>
             
@@ -692,7 +827,7 @@ export default function SettingsScreen() {
                   <Ionicons name="heart" size={18} color="#FF6FB5" />
                 </View>
                 <View style={styles.suggestionContent}>
-                  <Text style={styles.suggestionText}>
+                  <Text style={[styles.suggestionText, dynamicStyles.suggestionText]}>
                     <Text style={styles.suggestionBold}>Add more interests</Text> - Users with 5+ interests get 3x more matches
                   </Text>
                 </View>
@@ -703,7 +838,7 @@ export default function SettingsScreen() {
                   <Ionicons name="location" size={18} color="#5D5FEF" />
                 </View>
                 <View style={styles.suggestionContent}>
-                  <Text style={styles.suggestionText}>
+                  <Text style={[styles.suggestionText, dynamicStyles.suggestionText]}>
                     <Text style={styles.suggestionBold}>Enable location tracking</Text> - Get matched with nearby users automatically
                   </Text>
                 </View>
@@ -714,7 +849,7 @@ export default function SettingsScreen() {
                   <Ionicons name="chatbubbles" size={18} color="#7C2B86" />
                 </View>
                 <View style={styles.suggestionContent}>
-                  <Text style={styles.suggestionText}>
+                  <Text style={[styles.suggestionText, dynamicStyles.suggestionText]}>
                     <Text style={styles.suggestionBold}>Be active</Text> - Regular activity boosts your profile visibility by 50%
                   </Text>
                 </View>
@@ -725,7 +860,7 @@ export default function SettingsScreen() {
                   <Ionicons name="image" size={18} color="#FF6FB5" />
                 </View>
                 <View style={styles.suggestionContent}>
-                  <Text style={styles.suggestionText}>
+                  <Text style={[styles.suggestionText, dynamicStyles.suggestionText]}>
                     <Text style={styles.suggestionBold}>Update your profile photo</Text> - Profiles with photos get 10x more views
                   </Text>
                 </View>
@@ -736,7 +871,7 @@ export default function SettingsScreen() {
                   <Ionicons name="people" size={18} color="#5D5FEF" />
                 </View>
                 <View style={styles.suggestionContent}>
-                  <Text style={styles.suggestionText}>
+                  <Text style={[styles.suggestionText, dynamicStyles.suggestionText]}>
                     <Text style={styles.suggestionBold}>Specify what you're looking for</Text> - Clear needs help find compatible matches
                   </Text>
                 </View>
@@ -745,12 +880,12 @@ export default function SettingsScreen() {
           </View>
 
           {/* Location Preferences */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="location" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Location Preferences</Text>
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Location Preferences</Text>
             </View>
-            <Text style={styles.sectionDescription}>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
               Choose how far you're willing to match with other users
             </Text>
             
@@ -764,12 +899,12 @@ export default function SettingsScreen() {
           </View>
 
           {/* Age Preferences */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="calendar" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Age Preferences</Text>
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Age Preferences</Text>
             </View>
-            <Text style={styles.sectionDescription}>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
               Set your preferred age range for matches
             </Text>
             
@@ -783,7 +918,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* Location Preferences */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="location" size={20} color="#FFD6F2" />
               <Text style={styles.sectionTitle}>Location Preferences</Text>
@@ -791,8 +926,8 @@ export default function SettingsScreen() {
             
             <View style={styles.switchOption}>
               <View style={styles.switchContent}>
-                <Text style={styles.switchLabel}>Prioritize Location for Friendship</Text>
-                <Text style={styles.switchDescription}>
+                <Text style={[styles.switchLabel, dynamicStyles.switchLabel]}>Prioritize Location for Friendship</Text>
+                <Text style={[styles.switchDescription, dynamicStyles.switchDescription]}>
                   Focus on finding friends nearby rather than far away
                 </Text>
               </View>
@@ -806,8 +941,8 @@ export default function SettingsScreen() {
 
             <View style={styles.switchOption}>
               <View style={styles.switchContent}>
-                <Text style={styles.switchLabel}>Flexible Distance for Relationships</Text>
-                <Text style={styles.switchDescription}>
+                <Text style={[styles.switchLabel, dynamicStyles.switchLabel]}>Flexible Distance for Relationships</Text>
+                <Text style={[styles.switchDescription, dynamicStyles.switchDescription]}>
                   Allow longer distances when looking for romantic relationships
                 </Text>
               </View>
@@ -823,19 +958,19 @@ export default function SettingsScreen() {
           {/* Social Accounts section removed - moved to edit profile */}
 
           {/* Invisible Mode */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="eye-off" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Invisible Mode</Text>
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Invisible Mode</Text>
             </View>
-            <Text style={styles.sectionDescription}>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
               Hide yourself from maps, explore, and suggestions. Most features will be disabled while active.
             </Text>
             
             <View style={styles.switchOption}>
               <View style={styles.switchContent}>
-                <Text style={styles.switchLabel}>Enable Invisible Mode</Text>
-                <Text style={styles.switchDescription}>
+                <Text style={[styles.switchLabel, dynamicStyles.switchLabel]}>Enable Invisible Mode</Text>
+                <Text style={[styles.switchDescription, dynamicStyles.switchDescription]}>
                   {invisibleMode ? 
                     "You are currently hidden from discovery. Most features are disabled." :
                     "Hide from all discovery features. You can only chat with existing friends."
@@ -853,7 +988,7 @@ export default function SettingsScreen() {
             {invisibleMode && (
               <View style={[styles.locationStatus, { backgroundColor: 'rgba(220, 38, 38, 0.1)' }]}>
                 <Ionicons name="warning" size={16} color="#FF6B6B" />
-                <Text style={[styles.locationStatusText, { color: '#FF6B6B' }]}>
+                <Text style={[styles.locationStatusText, dynamicStyles.locationStatusText]}>
                   Invisible mode is active. Matching, explore, and location features are disabled.
                 </Text>
               </View>
@@ -861,19 +996,19 @@ export default function SettingsScreen() {
           </View>
 
           {/* Location Tracking */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="navigate" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Location Tracking</Text>
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Location Tracking</Text>
             </View>
-            <Text style={styles.sectionDescription}>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
               Automatically update your location every 5 minutes for better matches, even when the app is closed
             </Text>
             
             <View style={styles.switchOption}>
               <View style={styles.switchContent}>
-                <Text style={styles.switchLabel}>Enable Background Tracking</Text>
-                <Text style={styles.switchDescription}>
+                <Text style={[styles.switchLabel, dynamicStyles.switchLabel]}>Enable Background Tracking</Text>
+                <Text style={[styles.switchDescription, dynamicStyles.switchDescription]}>
                   Updates your location every 5 minutes for improved matching accuracy
                 </Text>
               </View>
@@ -888,7 +1023,7 @@ export default function SettingsScreen() {
             {lastLocationUpdate && (
               <View style={styles.locationStatus}>
                 <Ionicons name="time" size={16} color="#FFD6F2" />
-                <Text style={styles.locationStatusText}>
+                <Text style={[styles.locationStatusText, dynamicStyles.locationStatusText]}>
                   Last updated: {lastLocationUpdate.toLocaleString()}
                 </Text>
               </View>
@@ -904,41 +1039,41 @@ export default function SettingsScreen() {
           </View>
 
           {/* Current Settings Summary */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Current Settings</Text>
+          <View style={[styles.summaryCard, dynamicStyles.summaryCard]}>
+            <Text style={[styles.summaryTitle, dynamicStyles.summaryTitle]}>Current Settings</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Location:</Text>
-              <Text style={styles.summaryValue}>{getSelectedLocationPreference()?.label}</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Location:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{getSelectedLocationPreference()?.label}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Age Range:</Text>
-              <Text style={styles.summaryValue}>{getSelectedAgePreference()?.label}</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Age Range:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{getSelectedAgePreference()?.label}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Friendship Priority:</Text>
-              <Text style={styles.summaryValue}>{friendshipLocationPriority ? 'Location First' : 'Balanced'}</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Friendship Priority:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{friendshipLocationPriority ? 'Location First' : 'Balanced'}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Relationship Distance:</Text>
-              <Text style={styles.summaryValue}>{relationshipDistanceFlexible ? 'Flexible' : 'Strict'}</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Relationship Distance:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{relationshipDistanceFlexible ? 'Flexible' : 'Strict'}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Interests:</Text>
-              <Text style={styles.summaryValue}>{interests.size} selected</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Interests:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{interests.size} selected</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Looking For:</Text>
-              <Text style={styles.summaryValue}>{needs.size} selected</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Looking For:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{needs.size} selected</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Invisible Mode:</Text>
-              <Text style={[styles.summaryValue, invisibleMode && { color: '#FF6B6B' }]}>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Invisible Mode:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue, invisibleMode && { color: '#FF6B6B' }]}>
                 {invisibleMode ? 'Active (Hidden)' : 'Disabled'}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Location Tracking:</Text>
-              <Text style={styles.summaryValue}>{locationTrackingEnabled ? 'Enabled' : 'Disabled'}</Text>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Location Tracking:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{locationTrackingEnabled ? 'Enabled' : 'Disabled'}</Text>
             </View>
           </View>
 
@@ -957,40 +1092,40 @@ export default function SettingsScreen() {
 
           {/* Subscription Management */}
           {isPremium && plan !== 'free' && (
-            <View style={styles.sectionCard}>
+            <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="diamond" size={20} color="#FFD6F2" />
-                <Text style={styles.sectionTitle}>Subscription Management</Text>
+                <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Subscription Management</Text>
               </View>
               
               <View style={styles.subscriptionInfo}>
                 <View style={styles.subscriptionRow}>
-                  <Text style={styles.subscriptionLabel}>Current Plan:</Text>
-                  <Text style={styles.subscriptionValue}>
+                  <Text style={[styles.subscriptionLabel, dynamicStyles.subscriptionLabel]}>Current Plan:</Text>
+                  <Text style={[styles.subscriptionValue, dynamicStyles.subscriptionValue]}>
                     {plan === 'premium_plus' ? 'Premium+' : 'Premium'}
                   </Text>
                 </View>
                 
                 {subscription?.subscription?.expires_at && (
                   <View style={styles.subscriptionRow}>
-                    <Text style={styles.subscriptionLabel}>Expires:</Text>
-                    <Text style={styles.subscriptionValue}>
+                    <Text style={[styles.subscriptionLabel, dynamicStyles.subscriptionLabel]}>Expires:</Text>
+                    <Text style={[styles.subscriptionValue, dynamicStyles.subscriptionValue]}>
                       {new Date(subscription.subscription.expires_at).toLocaleDateString()}
                     </Text>
                   </View>
                 )}
                 
                 <View style={styles.subscriptionRow}>
-                  <Text style={styles.subscriptionLabel}>Status:</Text>
-                  <Text style={[styles.subscriptionValue, { color: '#10B981' }]}>
+                  <Text style={[styles.subscriptionLabel, dynamicStyles.subscriptionLabel]}>Status:</Text>
+                  <Text style={[styles.subscriptionValue, dynamicStyles.subscriptionValue, { color: '#10B981' }]}>
                     {subscription?.subscription?.status === 'active' ? 'Active' : subscription?.subscription?.status || 'Active'}
                   </Text>
                 </View>
                 
                 {subscription?.subscription?.auto_renew && (
                   <View style={styles.subscriptionRow}>
-                    <Text style={styles.subscriptionLabel}>Auto-Renew:</Text>
-                    <Text style={styles.subscriptionValue}>
+                    <Text style={[styles.subscriptionLabel, dynamicStyles.subscriptionLabel]}>Auto-Renew:</Text>
+                    <Text style={[styles.subscriptionValue, dynamicStyles.subscriptionValue]}>
                       {subscription.subscription.auto_renew ? 'Enabled' : 'Disabled'}
                     </Text>
                   </View>
@@ -1010,22 +1145,22 @@ export default function SettingsScreen() {
           )}
 
           {/* Company & Legal */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="information-circle" size={20} color="#FFD6F2" />
-              <Text style={styles.sectionTitle}>Company & Legal</Text>
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Company & Legal</Text>
             </View>
-            <Text style={styles.sectionDescription}>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
               Quick links open in your browser
             </Text>
 
-            <View style={styles.advancedSettingItem}>
+            <View style={[styles.advancedSettingItem, dynamicStyles.advancedItem]}>
               <TouchableOpacity style={styles.settingItemContent} onPress={() => openWebPath('/features')}>
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="sparkles" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Features</Text>
-                    <Text style={styles.settingItemDescription}>Explore Circle features</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Features</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Explore Circle features</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1037,8 +1172,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="rocket" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>How It Works</Text>
-                    <Text style={styles.settingItemDescription}>Learn our matching flow</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>How It Works</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Learn our matching flow</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1050,8 +1185,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="briefcase" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Careers</Text>
-                    <Text style={styles.settingItemDescription}>Join our team</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Careers</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Join our team</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1063,8 +1198,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="business" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>About</Text>
-                    <Text style={styles.settingItemDescription}>Learn about ORINCORE</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>About</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Learn about ORINCORE</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1076,8 +1211,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="shield-checkmark" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Privacy Policy</Text>
-                    <Text style={styles.settingItemDescription}>How we protect your data</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Privacy Policy</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>How we protect your data</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1089,8 +1224,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="document-text" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Terms of Service</Text>
-                    <Text style={styles.settingItemDescription}>Read our terms</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Terms of Service</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Read our terms</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1102,8 +1237,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="mail" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Contact</Text>
-                    <Text style={styles.settingItemDescription}>Get in touch with us</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Contact</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Get in touch with us</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1117,8 +1252,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="logo-twitter" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>X (Twitter)</Text>
-                    <Text style={styles.settingItemDescription}>Follow our updates</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>X (Twitter)</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Follow our updates</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1130,8 +1265,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="logo-instagram" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Instagram</Text>
-                    <Text style={styles.settingItemDescription}>See behind the scenes</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Instagram</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>See behind the scenes</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1143,8 +1278,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingItemLeft}>
                   <View style={styles.settingIconContainer}><Ionicons name="logo-facebook" size={18} color="#FFE8FF" /></View>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Facebook</Text>
-                    <Text style={styles.settingItemDescription}>Join our community</Text>
+                    <Text style={[styles.settingItemTitle, dynamicStyles.settingItemTitle]}>Facebook</Text>
+                    <Text style={[styles.settingItemDescription, dynamicStyles.settingItemDescription]}>Join our community</Text>
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={18} color="#FFE8FF" />
@@ -1156,12 +1291,12 @@ export default function SettingsScreen() {
           <View style={styles.dangerZone}>
             <View style={styles.dangerHeader}>
               <Ionicons name="warning" size={24} color="#FF4D67" />
-              <Text style={styles.dangerTitle}>Danger Zone</Text>
+              <Text style={[styles.dangerTitle, dynamicStyles.dangerTitle]}>Danger Zone</Text>
             </View>
-            <Text style={styles.dangerDescription}>
+            <Text style={[styles.dangerDescription, dynamicStyles.dangerDescription]}>
               Permanently delete your account and all associated data. This action cannot be undone.
             </Text>
-            <Text style={styles.dangerWarning}>
+            <Text style={[styles.dangerWarning, dynamicStyles.dangerWarning]}>
               ⚠️ This will delete all your messages, chats, friendships, photos, and activity permanently.
             </Text>
             <TouchableOpacity 
@@ -1185,10 +1320,10 @@ export default function SettingsScreen() {
 
           {/* App Version */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>
+            <Text style={[styles.versionText, dynamicStyles.versionText]}>
               Circle v{Constants.expoConfig?.version || '1.0.1'}
             </Text>
-            <Text style={styles.versionSubtext}>
+            <Text style={[styles.versionSubtext, dynamicStyles.versionSubtext]}>
               © 2025 ORINCORE Technologies
             </Text>
           </View>

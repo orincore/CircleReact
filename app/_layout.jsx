@@ -10,11 +10,11 @@ import ErrorBoundary from "@/src/components/ErrorBoundary";
 import { setupGlobalErrorHandlers } from "@/src/utils/crashPrevention";
 import { Stack } from "expo-router";
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import analyticsService from '@/src/services/analyticsService';
-// import appVersionService from '@/src/services/appVersionService';
+import appVersionService from '@/src/services/appVersionService';
 // import crashReportingService from '@/src/services/crashReportingService';
 import { useUserConsent } from '@/components/UserConsentModal';
 
@@ -55,10 +55,39 @@ export default function RootLayout() {
       // await crashReportingService.initialize();
       // crashReportingService.setEnabled(consent.crashReporting);
 
-      // // Initialize app version tracking
-      // await appVersionService.initialize();
-      // await appVersionService.trackInstallation();
-      // await appVersionService.trackUpgrade();
+      // Initialize app version tracking and update checks
+      try {
+        // Register update listener once to show popup and redirect to store
+        appVersionService.onUpdateAvailable(() => {
+          if (Platform.OS === 'android') {
+            const url = appVersionService.getPlayStoreUrl();
+            Alert.alert(
+              'Update available',
+              'A new version of Circle is available. Please update to get the latest features and fixes.',
+              [
+                { text: 'Later', style: 'cancel' },
+                {
+                  text: 'Update',
+                  onPress: () => {
+                    try {
+                      Linking.openURL(url);
+                    } catch (err) {
+                      console.error('Failed to open Play Store URL:', err);
+                    }
+                  },
+                },
+              ],
+              { cancelable: true },
+            );
+          }
+        });
+
+        await appVersionService.initialize();
+        await appVersionService.trackInstallation();
+        await appVersionService.trackUpgrade();
+      } catch (versionErr) {
+        console.error('Error initializing app version service:', versionErr);
+      }
 
       // // Initialize analytics only if user consented
       // if (consent.analytics) {

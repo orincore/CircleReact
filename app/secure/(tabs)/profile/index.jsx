@@ -829,7 +829,7 @@ export default function ProfileScreen() {
               {user?.username && (
                 <Text style={dynamicStyles.username}>@{user.username}</Text>
               )}
-              
+
               {(displayAge || displayGender) && (
                 <View style={styles.metaRow}>
                   {displayAge && <Text style={dynamicStyles.metaText}>{displayAge} years old</Text>}
@@ -841,20 +841,24 @@ export default function ProfileScreen() {
                   )}
                 </View>
               )}
-              
+
               {user?.about && (
                 <Text style={dynamicStyles.bio}>{user.about}</Text>
               )}
             </View>
           </View>
 
-          {/* Stats Row - Instagram Style */}
+          {/* Stats Row */}
           <View style={dynamicStyles.statsCard}>
             <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{stats?.total_friends || 0}</Text>
+              <TouchableOpacity
+                style={styles.statItem}
+                activeOpacity={0.8}
+                onPress={() => router.push("/secure/(tabs)/profile/friends")}
+              >
+                <Text style={dynamicStyles.statNumber}>{stats?.total_friends || friends.length || 0}</Text>
                 <Text style={dynamicStyles.statLabel}>Friends</Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={dynamicStyles.statNumber}>{stats?.total_matches || 0}</Text>

@@ -207,6 +207,17 @@ class VoiceCallService {
         this.onCallEnded(data);
       }
     });
+
+    // Generic voice errors (busy, permission issues, backend failures, etc.)
+    this.socket.on('voice:error', (data) => {
+      const message = data?.error || 'Call error occurred';
+      //console.error('❌ Voice call error from backend:', data);
+      this.setCallState('ended');
+      this.cleanup();
+      if (this.onError) {
+        this.onError(message);
+      }
+    });
   }
 
   // Start a new call

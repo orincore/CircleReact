@@ -10,6 +10,7 @@ import { CirclePointsHelper, circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
 import { nearbyUsersGql, updateLocationGql } from "@/src/api/graphql";
 import { matchmakingApi } from "@/src/api/matchmaking";
+import { blindDatingApi } from "@/src/api/blindDating";
 import { getSocket } from "@/src/api/socket";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
@@ -358,6 +359,9 @@ export default function MatchScreen() {
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
   const [actualFriendsCount, setActualFriendsCount] = useState(0);
+  const [blindDateEnabled, setBlindDateEnabled] = useState(false);
+  const [blindDateLoading, setBlindDateLoading] = useState(false);
+  const newBadgePulse = useRef(new Animated.Value(1)).current;
   
   // Create dynamic styles based on theme
   const dynamicStyles = {
@@ -1207,8 +1211,47 @@ export default function MatchScreen() {
   useEffect(() => {
     if (token && user) {
       loadCircleStats();
+      loadBlindDateSettings();
     }
   }, [token, user]);
+
+  // Load blind date settings
+  const loadBlindDateSettings = async () => {
+    if (!token) return;
+    try {
+      const response = await blindDatingApi.getSettings(token);
+      setBlindDateEnabled(response.settings?.is_enabled || false);
+    } catch (error) {
+      console.error('Error loading blind date settings:', error);
+      setBlindDateEnabled(false);
+    }
+  };
+
+  // Toggle blind date feature
+  const handleToggleBlindDate = async () => {
+    if (!token || blindDateLoading) return;
+    
+    try {
+      setBlindDateLoading(true);
+      
+      if (blindDateEnabled) {
+        // Disable blind dating
+        await blindDatingApi.disable(token);
+        setBlindDateEnabled(false);
+        showToast('Blind Date mode disabled', 'info');
+      } else {
+        // Enable blind dating
+        await blindDatingApi.enable(token);
+        setBlindDateEnabled(true);
+        showToast('Blind Date mode enabled! 🎭', 'success');
+      }
+    } catch (error) {
+      console.error('Error toggling blind date:', error);
+      showToast('Failed to update Blind Date settings', 'error');
+    } finally {
+      setBlindDateLoading(false);
+    }
+  };
 
   const handleLocationSearch = () => {
     // Check if invisible mode is enabled
@@ -1816,6 +1859,52 @@ export default function MatchScreen() {
                 <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
 
+              {/* Blind Date Toggle - Desktop */}
+              <TouchableOpacity 
+                style={[
+                  styles.sidebarButton,
+                  blindDateEnabled && styles.sidebarButtonActive
+                ]}
+                onPress={handleToggleBlindDate}
+                activeOpacity={0.8}
+                disabled={blindDateLoading}
+              >
+                <View style={[
+                  styles.sidebarButtonIcon,
+                  blindDateEnabled && { backgroundColor: 'rgba(0, 212, 170, 0.2)' }
+                ]}>
+                  <Ionicons 
+                    name="eye-off" 
+                    size={20} 
+                    color={blindDateEnabled ? "#00D4AA" : "#7C2B86"} 
+                  />
+                </View>
+                <View style={styles.sidebarButtonContent}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.sidebarButtonTitle}>Blind Date</Text>
+                    <View style={styles.sidebarNewBadge}>
+                      <Text style={styles.sidebarNewBadgeText}>NEW</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sidebarButtonSubtitle}>
+                    {blindDateEnabled ? 'Enabled' : 'Anonymous matching'}
+                  </Text>
+                </View>
+                {blindDateLoading ? (
+                  <ActivityIndicator size="small" color="#7C2B86" />
+                ) : (
+                  <View style={[
+                    styles.sidebarToggle,
+                    blindDateEnabled && styles.sidebarToggleActive
+                  ]}>
+                    <View style={[
+                      styles.sidebarToggleKnob,
+                      blindDateEnabled && styles.sidebarToggleKnobActive
+                    ]} />
+                  </View>
+                )}
+              </TouchableOpacity>
+
               {/* Friend Requests */}
               {friendRequests.length > 0 && (
                 <View style={styles.sidebarFriendRequests}>
@@ -2070,6 +2159,96 @@ export default function MatchScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Blind Date Feature Card - NEW */}
+            <TouchableOpacity 
+              style={[
+                styles.blindDateCard, 
+                dynamicStyles.sectionCard,
+                blindDateEnabled && styles.blindDateCardActive
+              ]}
+              onPress={handleToggleBlindDate}
+              activeOpacity={0.9}
+              disabled={blindDateLoading}
+            >
+              <LinearGradient
+                colors={
+                  blindDateEnabled
+                    ? ['#7C2B86', '#FF6FB5']
+                    : isDarkMode
+                      ? [theme.surface, theme.surface]
+                      : ['#C4B5FD', '#D8B4FE']
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.blindDateGradient}
+              >
+                {/* NEW Badge */}
+                <Animated.View
+                  style={[
+                    styles.newFeatureBadge,
+                    {
+                      transform: [{ scale: newBadgePulse }],
+                    },
+                  ]}
+                >
+                  <Text style={styles.newFeatureBadgeText}>NEW</Text>
+                </Animated.View>
+                
+                <View style={styles.blindDateContent}>
+                  <View style={[styles.blindDateIconContainer, blindDateEnabled && styles.blindDateIconActive]}>
+                    <Ionicons 
+                      name="eye-off" 
+                      size={28} 
+                      color={blindDateEnabled ? "#FFFFFF" : "#7C2B86"} 
+                    />
+                  </View>
+                  
+                  <View style={styles.blindDateTextContainer}>
+                    <View style={styles.blindDateTitleRow}>
+                      <Text style={[
+                        styles.blindDateTitle, 
+                        { color: blindDateEnabled ? '#FFFFFF' : theme.textPrimary }
+                      ]}>
+                        Blind Date
+                      </Text>
+                      <View style={[
+                        styles.blindDateStatusBadge,
+                        blindDateEnabled ? styles.blindDateStatusOn : styles.blindDateStatusOff
+                      ]}>
+                        <Text style={[
+                          styles.blindDateStatusText,
+                          { color: blindDateEnabled ? '#00D4AA' : theme.textMuted }
+                        ]}>
+                          {blindDateEnabled ? 'ON' : 'OFF'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[
+                      styles.blindDateSubtitle, 
+                      { color: blindDateEnabled ? 'rgba(255,255,255,0.8)' : theme.textSecondary }
+                    ]}>
+                      {blindDateEnabled 
+                        ? 'Chat anonymously until you reveal!' 
+                        : 'Match & chat without seeing profiles'}
+                    </Text>
+                  </View>
+                  
+                  {blindDateLoading ? (
+                    <ActivityIndicator size="small" color={blindDateEnabled ? "#FFFFFF" : theme.primary} />
+                  ) : (
+                    <View style={[
+                      styles.blindDateToggle,
+                      blindDateEnabled && styles.blindDateToggleActive
+                    ]}>
+                      <View style={[
+                        styles.blindDateToggleKnob,
+                        blindDateEnabled && styles.blindDateToggleKnobActive
+                      ]} />
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
 
             {/* Friend Requests */}
             {friendRequests.length > 0 && (
@@ -5396,5 +5575,155 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: '#999',
+  },
+  
+  // Blind Date Feature Card Styles
+  blindDateCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  blindDateCardActive: {
+    shadowColor: '#7C2B86',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  blindDateGradient: {
+    padding: 20,
+    borderRadius: 20,
+    position: 'relative',
+  },
+  newFeatureBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#FF6FB5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#FF6FB5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  newFeatureBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  blindDateContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  blindDateIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(124, 43, 134, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(124, 43, 134, 0.3)',
+  },
+  blindDateIconActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  blindDateTextContainer: {
+    flex: 1,
+  },
+  blindDateTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  blindDateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  blindDateStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  blindDateStatusOn: {
+    backgroundColor: 'rgba(0, 212, 170, 0.2)',
+  },
+  blindDateStatusOff: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  blindDateStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  blindDateSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  blindDateToggle: {
+    width: 52,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  blindDateToggleActive: {
+    backgroundColor: 'rgba(0, 212, 170, 0.3)',
+  },
+  blindDateToggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  blindDateToggleKnobActive: {
+    backgroundColor: '#00D4AA',
+    alignSelf: 'flex-end',
+  },
+  
+  // Desktop Sidebar Blind Date Styles
+  sidebarButtonActive: {
+    borderColor: 'rgba(0, 212, 170, 0.4)',
+    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+  },
+  sidebarNewBadge: {
+    backgroundColor: '#FF6FB5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  sidebarNewBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  sidebarToggle: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  sidebarToggleActive: {
+    backgroundColor: 'rgba(0, 212, 170, 0.3)',
+  },
+  sidebarToggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  sidebarToggleKnobActive: {
+    backgroundColor: '#00D4AA',
+    alignSelf: 'flex-end',
   },
 });
