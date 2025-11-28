@@ -38,6 +38,8 @@ export default function AdminCampaigns() {
     content: '',
     htmlContent: '',
     useHtmlTemplate: false,
+    pushTitle: '',
+    pushBody: '',
   });
 
   useEffect(() => {
@@ -116,6 +118,17 @@ export default function AdminCampaigns() {
         return;
       }
 
+      if (newCampaign.type === 'push_notification') {
+        if (!newCampaign.pushTitle || !newCampaign.pushBody) {
+          Alert.alert('Error', 'For push notifications, Message title and Message body are required');
+          return;
+        }
+        if (newCampaign.pushTitle.trim() === newCampaign.pushBody.trim()) {
+          Alert.alert('Error', 'Message title and Message body must be different for push notifications');
+          return;
+        }
+      }
+
       const token = await AsyncStorage.getItem('authToken');
       
       // Prepare campaign data
@@ -124,6 +137,13 @@ export default function AdminCampaigns() {
         type: newCampaign.type,
         subject: newCampaign.subject,
         content: content,
+        // For push campaigns, send explicit push title/body fields
+        ...(newCampaign.type === 'push_notification'
+          ? {
+              push_title: newCampaign.pushTitle,
+              push_body: newCampaign.pushBody,
+            }
+          : {}),
       };
       
       const response = await fetch(`${API_BASE_URL}/api/admin/campaigns`, {
@@ -144,6 +164,8 @@ export default function AdminCampaigns() {
           content: '',
           htmlContent: '',
           useHtmlTemplate: false,
+          pushTitle: '',
+          pushBody: '',
         });
         loadCampaigns();
         Alert.alert('Success', 'Campaign created successfully');
@@ -660,6 +682,32 @@ export default function AdminCampaigns() {
                 multiline
                 numberOfLines={newCampaign.useHtmlTemplate ? 10 : 4}
               />
+
+              {newCampaign.type === 'push_notification' && (
+                <>
+                  <Text style={styles.inputLabel}>Message title *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newCampaign.pushTitle}
+                    onChangeText={(text) =>
+                      setNewCampaign({ ...newCampaign, pushTitle: text })
+                    }
+                    placeholder="Short title shown in notification, e.g., Weekend offer"
+                  />
+
+                  <Text style={styles.inputLabel}>Message body *</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={newCampaign.pushBody}
+                    onChangeText={(text) =>
+                      setNewCampaign({ ...newCampaign, pushBody: text })
+                    }
+                    placeholder="Detailed message shown in notification body"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </>
+              )}
 
               {newCampaign.type === 'email' && newCampaign.useHtmlTemplate && (
                 <TouchableOpacity
