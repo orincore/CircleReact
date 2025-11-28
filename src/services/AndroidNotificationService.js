@@ -547,6 +547,36 @@ class AndroidNotificationService {
     return this.expoPushToken;
   }
 
+  // Unregister push token for current user
+  async unregisterPushTokenForCurrentUser(authTokenOverride = null) {
+    try {
+      const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+      const { API_BASE_URL } = await import('../api/config');
+
+      const authToken = authTokenOverride || await AsyncStorage.getItem('token');
+      if (!authToken) {
+        return;
+      }
+
+      const token = this.expoPushToken;
+
+      const body = token && token !== 'undefined'
+        ? { token }
+        : {};
+
+      await fetch(`${API_BASE_URL}/api/notifications/unregister-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      console.error('❌ Error unregistering push token:', error);
+    }
+  }
+
   // Cleanup
   cleanup() {
     if (this.notificationListener) {

@@ -93,23 +93,12 @@ export const pickImage = async () => {
           if (file) {
             const reader = new FileReader();
             reader.onload = (event) => {
-              // Crop to 1:1 center square on web to prevent stretching
-              try {
-                const cropped = cropSquareWeb(event.target.result);
-                resolve({
-                  uri: cropped,
-                  type: 'image',
-                  fileName: file.name,
-                  fileSize: file.size,
-                });
-              } catch {
-                resolve({
-                  uri: event.target.result,
-                  type: 'image',
-                  fileName: file.name,
-                  fileSize: file.size,
-                });
-              }
+              resolve({
+                uri: event.target.result,
+                type: 'image',
+                fileName: file.name,
+                fileSize: file.size,
+              });
             };
             reader.onerror = reject;
             reader.readAsDataURL(file);
@@ -130,9 +119,7 @@ export const pickImage = async () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
     });
 
@@ -190,8 +177,7 @@ export const pickVideo = async () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
-      allowsEditing: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       quality: 0.5, // Medium quality
       videoMaxDuration: 60, // 60 seconds max
     });
@@ -203,6 +189,67 @@ export const pickVideo = async () => {
     return result.assets[0];
   } catch (error) {
     console.error('❌ Video picker error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Pick any media (image or video) from library (with browser support)
+ */
+export const pickMedia = async () => {
+  try {
+    // Browser support
+    if (Platform.OS === 'web') {
+      return new Promise((resolve, reject) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*,video/*';
+        
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const isVideo = file.type && file.type.startsWith('video/');
+              resolve({
+                uri: event.target.result,
+                type: isVideo ? 'video' : 'image',
+                fileName: file.name,
+                fileSize: file.size,
+              });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          } else {
+            resolve(null);
+          }
+        };
+        
+        input.oncancel = () => resolve(null);
+        input.click();
+      });
+    }
+
+    // Mobile support
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      throw new Error('Permission to access media library was denied');
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 1,
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    // expo-image-picker sets asset.type to 'image' | 'video'
+    return asset;
+  } catch (error) {
+    console.error('❌ Media picker error:', error);
     throw error;
   }
 };
@@ -251,8 +298,6 @@ export const takePhoto = async () => {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
       quality: 1,
     });
 
@@ -365,6 +410,7 @@ export const uploadMediaToS3 = async (uri, type, token) => {
     // Upload to backend with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    let data;
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/upload/media`, {
@@ -397,7 +443,6 @@ export const uploadMediaToS3 = async (uri, type, token) => {
         throw new Error(errorMessage);
       }
       
-      let data;
       try {
         data = await response.json();
       } catch (jsonError) {

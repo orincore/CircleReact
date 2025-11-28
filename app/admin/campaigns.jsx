@@ -42,6 +42,14 @@ export default function AdminCampaigns() {
     pushBody: '',
   });
 
+  const showError = (message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(message);
+    } else {
+      Alert.alert('Error', message);
+    }
+  };
+
   useEffect(() => {
     //console.log('🌐 API_BASE_URL:', API_BASE_URL);
     //console.log('📍 Campaigns endpoint:', `${API_BASE_URL}/api/admin/campaigns`);
@@ -103,28 +111,42 @@ export default function AdminCampaigns() {
 
   const handleCreateCampaign = async () => {
     try {
-      // Validate required fields
-      const content = newCampaign.type === 'email' && newCampaign.useHtmlTemplate
-        ? newCampaign.htmlContent
-        : newCampaign.content;
+      // Determine content based on type
+      let content;
+      if (newCampaign.type === 'email') {
+        content = newCampaign.useHtmlTemplate ? newCampaign.htmlContent : newCampaign.content;
+      } else {
+        // For push/in_app, allow using Message body as the stored content fallback
+        content = newCampaign.content || newCampaign.pushBody;
+      }
 
-      if (!newCampaign.name || !content) {
-        Alert.alert('Error', 'Please fill in all required fields');
+      if (!newCampaign.name) {
+        showError('Campaign name is required');
         return;
       }
 
-      if (newCampaign.type === 'email' && !newCampaign.subject) {
-        Alert.alert('Error', 'Email subject is required');
-        return;
+      if (newCampaign.type === 'email') {
+        if (!newCampaign.subject) {
+          showError('Email subject is required');
+          return;
+        }
+        if (!content) {
+          showError('Email content is required');
+          return;
+        }
       }
 
       if (newCampaign.type === 'push_notification') {
         if (!newCampaign.pushTitle || !newCampaign.pushBody) {
-          Alert.alert('Error', 'For push notifications, Message title and Message body are required');
+          showError('For push notifications, Message title and Message body are required');
           return;
         }
         if (newCampaign.pushTitle.trim() === newCampaign.pushBody.trim()) {
-          Alert.alert('Error', 'Message title and Message body must be different for push notifications');
+          showError('Message title and Message body must be different for push notifications');
+          return;
+        }
+        if (!content) {
+          showError('Message body is required for push notifications');
           return;
         }
       }
@@ -168,14 +190,26 @@ export default function AdminCampaigns() {
           pushBody: '',
         });
         loadCampaigns();
-        Alert.alert('Success', 'Campaign created successfully');
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.alert('Campaign created successfully');
+        } else {
+          Alert.alert('Success', 'Campaign created successfully');
+        }
       } else {
-        const error = await response.json();
-        Alert.alert('Error', error.error || 'Failed to create campaign');
+        const errorText = await response.text();
+        let message = 'Failed to create campaign';
+        try {
+          const errorJson = JSON.parse(errorText);
+          message = errorJson.error || message;
+        } catch (e) {
+          if (errorText) message = errorText;
+        }
+        console.error('Create campaign failed:', response.status, errorText);
+        showError(message);
       }
     } catch (error) {
       console.error('Error creating campaign:', error);
-      Alert.alert('Error', 'Failed to create campaign');
+      showError('Failed to create campaign');
     }
   };
 

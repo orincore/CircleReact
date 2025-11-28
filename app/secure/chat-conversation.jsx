@@ -17,7 +17,7 @@ import { useVoiceCall } from "@/src/hooks/useVoiceCall";
 import { useBlindDateChat } from "@/src/hooks/useBlindDateChat";
 import MediaCacheService from '@/src/services/MediaCacheService';
 import { voiceCallService } from "@/src/services/VoiceCallService";
-import { pickImage, pickVideo, takePhoto, uploadMediaToS3 } from '@/src/utils/mediaUpload';
+import { pickMedia, uploadMediaToS3 } from '@/src/utils/mediaUpload';
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1031,20 +1031,20 @@ export default function InstagramChatScreen() {
       elevation: 12,
     },
     textInput: {
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: 'transparent', // fully transparent background
       borderRadius: 28,
       paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 8,
       fontSize: 16,
       fontWeight: '400',
       color: theme.textPrimary,
-      borderWidth: isDarkMode ? 0 : 1.5,
-      borderColor: isDarkMode ? 'transparent' : theme.border,
-      shadowColor: theme.shadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.08,
-      shadowRadius: 8,
-      elevation: 4,
+      borderWidth: 0,
+      borderColor: 'transparent',
+      shadowColor: 'transparent',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
       lineHeight: 22,
     },
     sendButton: {
@@ -2423,14 +2423,8 @@ export default function InstagramChatScreen() {
     }).start();
   };
 
-  // Handle media selection and upload
-  const handleMediaPick = async (type) => {
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setUploadingMedia(false);
-      Alert.alert('Timeout', 'Media selection took too long. Please try again.');
-    }, 30000); // 30 second timeout
-    
+  // Handle media selection and upload (image or video)
+  const handleMediaPick = async () => {
     try {
       setShowMediaOptions(false);
       setUploadingMedia(true);
@@ -2438,24 +2432,16 @@ export default function InstagramChatScreen() {
       let media = null;
       
       try {
-        if (type === 'image') {
-          media = await pickImage();
-        } else if (type === 'video') {
-          media = await pickVideo();
-        } else if (type === 'camera') {
-          media = await takePhoto();
-        }
+        media = await pickMedia();
       } catch (pickerError) {
         // eslint-disable-next-line no-console
         console.error('Picker error:', pickerError);
-        clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Picker Error', pickerError.message || 'Failed to open media picker');
         return;
       }
 
       if (!media) {
-        clearTimeout(timeoutId);
         setUploadingMedia(false);
         return;
       }
@@ -2464,7 +2450,6 @@ export default function InstagramChatScreen() {
       if (!media.uri) {
         // eslint-disable-next-line no-console
         console.error('Invalid media object - no URI:', media);
-        clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Error', 'Invalid media selected');
         return;
@@ -2520,18 +2505,15 @@ export default function InstagramChatScreen() {
       } catch (uploadError) {
         // eslint-disable-next-line no-console
         console.error('Upload error:', uploadError);
-        clearTimeout(timeoutId);
         setUploadingMedia(false);
         Alert.alert('Upload Failed', uploadError.message || 'Failed to upload media to server');
         return;
       }
 
-      clearTimeout(timeoutId);
       setUploadingMedia(false);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Media upload error:', error);
-      clearTimeout(timeoutId);
       setUploadingMedia(false);
       Alert.alert('Upload Failed', error.message || 'Failed to upload media');
     }
@@ -3225,12 +3207,7 @@ export default function InstagramChatScreen() {
                 {!uploadingMedia && (
                   <TouchableOpacity 
                     style={styles.desktopMediaButton}
-                    onPress={() => {
-                      //console.log('🖥️ Desktop + button clicked, current state:', showMediaOptions);
-                      //console.log('🖥️ Platform.OS:', Platform.OS);
-                      setShowMediaOptions(!showMediaOptions);
-                      //console.log('🖥️ Setting showMediaOptions to:', !showMediaOptions);
-                    }}
+                    onPress={handleMediaPick}
                   >
                     <Ionicons name="add-circle" size={32} color="#7C2B86" />
                   </TouchableOpacity>
@@ -3819,7 +3796,8 @@ export default function InstagramChatScreen() {
             onLayout={(e) => setComposerContainerHeight(e.nativeEvent.layout.height)}
           >
             {Platform.OS !== 'web' && (
-              <View style={[styles.composerBlur, { backgroundColor: theme.surface, opacity: 0.95 }]} />
+              // Transparent overlay only, no grey background
+              <View style={styles.composerBlur} />
             )}
             <View style={[
               styles.composerWrapper,
@@ -3855,13 +3833,9 @@ export default function InstagramChatScreen() {
               {!chatDisabled && !uploadingMedia && (
                 <TouchableOpacity 
                   style={[styles.mediaButton, dynamicStyles.mediaButton]}
-                  onPress={() => {
-                    //console.log('📱 Media button clicked, current state:', showMediaOptions);
-                    setShowMediaOptions(!showMediaOptions);
-                    //console.log('📱 Setting showMediaOptions to:', !showMediaOptions);
-                  }}
+                  onPress={handleMediaPick}
                 >
-                  <Ionicons name="add-circle" size={screenData.isDesktop ? 32 : 28} color={theme.primary} />
+                  <Ionicons name="add-circle" size={screenData.isDesktop ? 28 : 22} color={theme.primary} />
                 </TouchableOpacity>
               )}
 
@@ -4899,18 +4873,25 @@ const styles = StyleSheet.create({
   composerContainer: {
     borderTopWidth: 0, // No default border
     borderTopColor: 'rgba(255, 214, 242, 0.2)',
-    paddingTop: 12, // Default mobile padding
-    paddingBottom: 12, // Default mobile padding
-    backgroundColor: 'transparent', // Transparent by default
+    paddingTop: 8, // Slightly reduced mobile padding
+    paddingBottom: 8, // Slightly reduced mobile padding
+    backgroundColor: 'transparent', // No background for composer
     zIndex: 10, // Ensure composer is above other elements
-    position: Platform.OS === 'web' ? 'fixed' : 'absolute', // Use fixed on web for better browser control handling
-    bottom: 0,
-    left: 0,
-    right: 0,
-    ...(Platform.OS === 'web' && {
-      // Add safe area padding for mobile browsers to account for browser controls
-      paddingBottom: 'max(12px, calc(12px + env(safe-area-inset-bottom, 0px) + 50px))', // Extra 50px for browser controls
-    }),
+    // On native, keep composer in normal flow so KeyboardAvoidingView can move it with the keyboard.
+    // On web, pin it to the bottom for browser control handling.
+    ...(Platform.OS === 'web'
+      ? {
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          // Add safe area padding for mobile browsers to account for browser controls
+          paddingBottom:
+            'max(12px, calc(12px + env(safe-area-inset-bottom, 0px) + 50px))', // Extra 50px for browser controls
+        }
+      : {
+          position: 'relative',
+        }),
   },
   composerBlur: {
     position: 'absolute',
@@ -4918,25 +4899,27 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    // For mobile we now rely on the gradient background; keep this fully transparent.
+    backgroundColor: 'transparent',
   },
   composerWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 12, // Reduced mobile padding
-    gap: 8, // Reduced mobile gap
+    gap: 2, // Very small gap between + and input
     zIndex: 11, // Above composer container
     position: 'relative',
   },
   inputContainer: {
     flex: 1,
-    backgroundColor: 'transparent', // Now transparent by default
+    backgroundColor: 'transparent', // No filled background behind input
     borderRadius: 0, // No default radius
     paddingHorizontal: 0, // No default padding
     paddingVertical: 0, // No default padding
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 50, // Default mobile height
-    maxHeight: 120, // Default mobile max height
+    minHeight: 30, // Compact mobile height
+    maxHeight: 70, // Compact max height
     borderWidth: 0, // No default border
     borderColor: 'transparent', // Transparent border
     position: 'relative',
@@ -4944,10 +4927,10 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 16, // Default mobile font size
-    lineHeight: 22, // Default mobile line height
+    fontSize: 13, // Compact font size
+    lineHeight: 16, // Match reduced font size
     fontWeight: '400',
-    maxHeight: 120, // Increased for better scrolling
+    maxHeight: 70, // Keep in sync with inputContainer
     paddingTop: 0,
     paddingBottom: 0,
     // Ensure vertical centering on Android
@@ -5664,11 +5647,11 @@ const styles = StyleSheet.create({
   },
   // Media Styles
   mediaButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 4,
     zIndex: 12, // Ensure button is clickable
     position: 'relative',
     ...(Platform.OS === 'web' && {

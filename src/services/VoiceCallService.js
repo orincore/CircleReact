@@ -2,6 +2,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getSocket } from '../api/socket';
+import { callAudioManager } from './CallAudioManager';
 
 // Import WebRTC for React Native (development build)
 let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
@@ -38,6 +39,7 @@ class VoiceCallService {
     this.currentCallId = null;
     this.callState = 'idle'; // idle, incoming, calling, connecting, connected, ended
     this.isInitiator = false;
+    this.isSpeakerOn = false;
     
     // WebRTC
     this.peerConnection = null;
@@ -647,6 +649,8 @@ class VoiceCallService {
         //console.log('✅ WebRTC connection established!');
         this.setCallState('connected');
         this.startCallTimer();
+        callAudioManager.start();
+        this.isSpeakerOn = false;
       } else if (this.peerConnection.connectionState === 'failed') {
         console.error('❌ Connection failed');
         this.endCall();
@@ -862,6 +866,7 @@ class VoiceCallService {
       //console.log('✅ Peer connection closed');
     }
     
+    callAudioManager.stop();
     // Reset state
     const previousCallId = this.currentCallId;
     this.currentCallId = null;
@@ -881,6 +886,17 @@ class VoiceCallService {
   // Get current state
   getCallState() {
     return this.callState;
+  }
+
+  setSpeakerEnabled(enabled) {
+    if (Platform.OS === 'web') return;
+    this.isSpeakerOn = !!enabled;
+    callAudioManager.setSpeakerEnabled(this.isSpeakerOn);
+  }
+
+  toggleSpeaker() {
+    this.setSpeakerEnabled(!this.isSpeakerOn);
+    return this.isSpeakerOn;
   }
 }
 

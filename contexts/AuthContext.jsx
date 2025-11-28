@@ -328,6 +328,17 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Failed to stop location tracking on logout:', error);
     }
+
+    // Unregister push token for this user on logout
+    try {
+      const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+      const notificationService = AndroidNotificationService.default;
+      if (notificationService && typeof notificationService.unregisterPushTokenForCurrentUser === 'function') {
+        await notificationService.unregisterPushTokenForCurrentUser();
+      }
+    } catch (error) {
+      console.error('Failed to unregister push token on logout:', error);
+    }
     
     try {
       await Promise.all([

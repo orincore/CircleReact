@@ -31,6 +31,7 @@ export default function VoiceCallScreen() {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -251,6 +252,14 @@ export default function VoiceCallScreen() {
       console.error('❌ No audio tracks found');
     }
   };
+
+  const handleToggleSpeaker = () => {
+    const next = !isSpeakerOn;
+    setIsSpeakerOn(next);
+    if (voiceCallService.setSpeakerEnabled) {
+      voiceCallService.setSpeakerEnabled(next);
+    }
+  };
   
   // Format duration
   const formatDuration = (seconds) => {
@@ -301,7 +310,7 @@ export default function VoiceCallScreen() {
     }
     
     if (callState === 'connected') {
-      // Connected - show mute and end
+      // Connected - show mute, speaker, and end
       return (
         <View style={styles.connectedActions}>
           <TouchableOpacity
@@ -312,6 +321,16 @@ export default function VoiceCallScreen() {
               name={isMuted ? "mic-off" : "mic"} 
               size={24} 
               color={isMuted ? "#FF6B6B" : "white"} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
+            onPress={handleToggleSpeaker}
+          >
+            <Ionicons 
+              name={isSpeakerOn ? "volume-high" : "volume-medium"}
+              size={24}
+              color={isSpeakerOn ? "#4CAF50" : "white"}
             />
           </TouchableOpacity>
           
