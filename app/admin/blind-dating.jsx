@@ -29,6 +29,8 @@ export default function BlindDatingAdmin() {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchFilter, setMatchFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
+  const [matchingResults, setMatchingResults] = useState(null);
+  const [showMatchingModal, setShowMatchingModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -207,6 +209,36 @@ export default function BlindDatingAdmin() {
     }
   };
 
+  const handleRunDetailedMatching = async () => {
+    const confirmMessage = 'This will run detailed matching for ALL users and show why each user was matched or not. Continue?';
+    
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) return;
+    }
+
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/run-detailed-matching`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setMatchingResults(data);
+        setShowMatchingModal(true);
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to run matching');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to run detailed matching');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleEndMatch = async (matchId) => {
     const confirmMessage = 'Are you sure you want to end this match?';
     
@@ -343,6 +375,21 @@ export default function BlindDatingAdmin() {
               <>
                 <Ionicons name="refresh" size={20} color="#FFF" />
                 <Text style={styles.actionButtonText}>Process Daily</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#9C27B0', marginTop: 8, flex: 1 }]}
+            onPress={handleRunDetailedMatching}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="analytics" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Run Detailed Matching (with Reasons)</Text>
               </>
             )}
           </TouchableOpacity>
@@ -668,9 +715,133 @@ export default function BlindDatingAdmin() {
           </View>
         </View>
       </Modal>
+
+      {/* Detailed Matching Results Modal */}
+      <Modal visible={showMatchingModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', width: '95%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🔍 Matching Results</Text>
+              <TouchableOpacity onPress={() => setShowMatchingModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            {matchingResults && (
+              <ScrollView>
+                {/* Summary */}
+                <View style={styles.matchingSummary}>
+                  <Text style={styles.matchingSummaryTitle}>Summary</Text>
+                  <View style={styles.matchingSummaryGrid}>
+                    <View style={styles.matchingSummaryItem}>
+                      <Text style={styles.matchingSummaryValue}>{matchingResults.summary?.totalUsers || 0}</Text>
+                      <Text style={styles.matchingSummaryLabel}>Total Users</Text>
+                    </View>
+                    <View style={[styles.matchingSummaryItem, { backgroundColor: '#E8F5E9' }]}>
+                      <Text style={[styles.matchingSummaryValue, { color: '#4CAF50' }]}>{matchingResults.summary?.matched || 0}</Text>
+                      <Text style={styles.matchingSummaryLabel}>Matched</Text>
+                    </View>
+                    <View style={[styles.matchingSummaryItem, { backgroundColor: '#FFF3E0' }]}>
+                      <Text style={[styles.matchingSummaryValue, { color: '#FF9800' }]}>{matchingResults.summary?.skipped || 0}</Text>
+                      <Text style={styles.matchingSummaryLabel}>Skipped</Text>
+                    </View>
+                    <View style={[styles.matchingSummaryItem, { backgroundColor: '#FFEBEE' }]}>
+                      <Text style={[styles.matchingSummaryValue, { color: '#F44336' }]}>{matchingResults.summary?.noMatch || 0}</Text>
+                      <Text style={styles.matchingSummaryLabel}>No Match</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Results List */}
+                <Text style={styles.matchingResultsTitle}>Detailed Results</Text>
+                {(matchingResults.results || []).map((result, index) => (
+                  <View 
+                    key={result.userId || index} 
+                    style={[
+                      styles.matchingResultCard,
+                      result.status === 'matched' && styles.matchingResultMatched,
+                      result.status === 'disabled' && styles.matchingResultDisabled,
+                      result.status === 'skipped' && styles.matchingResultSkipped,
+                      result.status === 'no_match' && styles.matchingResultNoMatch,
+                      result.status === 'error' && styles.matchingResultError,
+                    ]}
+                  >
+                    <View style={styles.matchingResultHeader}>
+                      <View>
+                        <Text style={styles.matchingResultName}>{result.userName}</Text>
+                        <Text style={styles.matchingResultEmail}>{result.userEmail}</Text>
+                      </View>
+                      <View style={[styles.matchingResultBadge, getMatchingStatusStyle(result.status)]}>
+                        <Text style={styles.matchingResultBadgeText}>{result.status?.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.matchingResultReason}>
+                      <Ionicons 
+                        name={result.status === 'matched' ? 'checkmark-circle' : 'information-circle'} 
+                        size={14} 
+                        color={result.status === 'matched' ? '#4CAF50' : '#666'} 
+                      /> {result.reason}
+                    </Text>
+                    
+                    {result.details && (
+                      <View style={styles.matchingResultDetails}>
+                        {result.details.blindDatingEnabled !== undefined && (
+                          <Text style={styles.matchingResultDetail}>
+                            Enabled: {result.details.blindDatingEnabled ? '✅ Yes' : '❌ No'}
+                          </Text>
+                        )}
+                        {result.details.activeMatchesCount !== undefined && (
+                          <Text style={styles.matchingResultDetail}>
+                            Active Matches: {result.details.activeMatchesCount}/{result.details.maxActiveMatches}
+                          </Text>
+                        )}
+                        {result.details.eligibleCandidatesCount !== undefined && (
+                          <Text style={styles.matchingResultDetail}>
+                            Eligible Candidates: {result.details.eligibleCandidatesCount}
+                          </Text>
+                        )}
+                        {result.details.matchedWithUserName && (
+                          <Text style={[styles.matchingResultDetail, { color: '#4CAF50', fontWeight: '600' }]}>
+                            ❤️ Matched with: {result.details.matchedWithUserName}
+                          </Text>
+                        )}
+                        {result.details.compatibilityScore !== undefined && (
+                          <Text style={styles.matchingResultDetail}>
+                            Compatibility Score: {result.details.compatibilityScore?.toFixed(1)}
+                          </Text>
+                        )}
+                        {result.details.candidatesExcludedReasons?.length > 0 && (
+                          <View style={styles.excludedReasons}>
+                            <Text style={styles.excludedReasonsTitle}>Why others were excluded:</Text>
+                            {result.details.candidatesExcludedReasons.map((reason, i) => (
+                              <Text key={i} style={styles.excludedReason}>• {reason}</Text>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const getMatchingStatusStyle = (status) => {
+  switch (status) {
+    case 'matched': return { backgroundColor: '#4CAF50' };
+    case 'disabled': return { backgroundColor: '#9E9E9E' };
+    case 'skipped': return { backgroundColor: '#FF9800' };
+    case 'no_match': return { backgroundColor: '#F44336' };
+    case 'error': return { backgroundColor: '#E91E63' };
+    default: return { backgroundColor: '#9E9E9E' };
+  }
+};
 
 // Stat Card Component
 function StatCard({ icon, label, value, total, color }) {
@@ -1090,5 +1261,134 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Matching Results Styles
+  matchingSummary: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  matchingSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 12,
+  },
+  matchingSummaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  matchingSummaryItem: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  matchingSummaryValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1F1147',
+  },
+  matchingSummaryLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 4,
+  },
+  matchingResultsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F1147',
+    marginBottom: 12,
+  },
+  matchingResultCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#9E9E9E',
+  },
+  matchingResultMatched: {
+    borderLeftColor: '#4CAF50',
+    backgroundColor: '#F1F8E9',
+  },
+  matchingResultDisabled: {
+    borderLeftColor: '#9E9E9E',
+    backgroundColor: '#FAFAFA',
+  },
+  matchingResultSkipped: {
+    borderLeftColor: '#FF9800',
+    backgroundColor: '#FFF8E1',
+  },
+  matchingResultNoMatch: {
+    borderLeftColor: '#F44336',
+    backgroundColor: '#FFEBEE',
+  },
+  matchingResultError: {
+    borderLeftColor: '#E91E63',
+    backgroundColor: '#FCE4EC',
+  },
+  matchingResultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  matchingResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  matchingResultEmail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  matchingResultBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  matchingResultBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  matchingResultReason: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  matchingResultDetails: {
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  matchingResultDetail: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  excludedReasons: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  excludedReasonsTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#999',
+    marginBottom: 4,
+  },
+  excludedReason: {
+    fontSize: 11,
+    color: '#999',
+    marginLeft: 8,
   },
 });
