@@ -128,36 +128,22 @@ function createSocket(token?: string | null) {
     const wsUrl = getWebSocketUrl();
     const isProduction = wsUrl.includes('api.circle.orincore.com');
     
+    // In production we want true realtime over WebSocket, with polling as a fallback.
+    // NGINX and the backend are already configured to support WebSockets on /ws.
     const socketConfig = {
       path: "/ws",
-      // Production-optimized transport order
-      transports: isProduction 
-        ? ["polling", "websocket"] // Production: polling first for reliability
-        : Platform.OS === 'web' 
-          ? ["websocket", "polling"] // Local: websocket first
-          : ["websocket"],
+      transports:
+        Platform.OS === 'web'
+          ? ["websocket", "polling"] // Web: prefer WebSocket, fall back to polling
+          : ["websocket"],             // Native: WebSocket only
       auth: token ? { token } : undefined,
       reconnection: false, // We handle reconnection manually
       autoConnect: true,
       // Platform and environment-specific timeouts
       timeout: Platform.OS === 'ios' ? 45000 : (isProduction ? 30000 : 15000), // Longer timeout for iOS
       forceNew: true,
-      upgrade: isProduction ? false : true, // Disable upgrade in production initially
-      rememberUpgrade: isProduction ? false : true, // Don't remember upgrade in production
-      // Production-specific configuration
+      // Allow engine.io to manage upgrades normally so WebSocket can be used in production
       withCredentials: false,
-      // Additional production resilience
-      ...(isProduction && {
-        // Force polling initially in production
-        forceBase64: false,
-        enablesXDR: false,
-        timestampRequests: true,
-        timestampParam: 't',
-        // Polling-specific options for production
-        pollingTimeout: 30000,
-        // Disable WebSocket upgrade attempts initially
-        upgrade: false,
-      }),
     };
     
 
