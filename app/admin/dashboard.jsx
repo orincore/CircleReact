@@ -31,6 +31,7 @@ function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview');
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiMetrics, setAiMetrics] = useState(null);
+  const [blindDatingStats, setBlindDatingStats] = useState(null);
 
   useEffect(() => {
     checkAdminAccess();
@@ -57,10 +58,11 @@ function AdminDashboard() {
         return;
       }
 
-      // Load both regular stats and AI metrics
+      // Load all stats
       await Promise.all([
         loadRegularStats(token),
-        loadAIMetrics(token)
+        loadAIMetrics(token),
+        loadBlindDatingStats(token)
       ]);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -112,6 +114,21 @@ function AdminDashboard() {
     } catch (error) {
       console.error('Error loading AI metrics:', error);
       // Don't show error for AI metrics as it's optional
+    }
+  };
+
+  const loadBlindDatingStats = async (token) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setBlindDatingStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Error loading blind dating stats:', error);
     }
   };
 
@@ -194,6 +211,22 @@ function AdminDashboard() {
             />
           </>
         )}
+        {blindDatingStats && (
+          <>
+            <StatCard
+              icon="heart-half"
+              label="Blind Dating Users"
+              value={blindDatingStats.usersWithBlindDatingEnabled || 0}
+              color="#E91E63"
+            />
+            <StatCard
+              icon="heart"
+              label="Active Matches"
+              value={blindDatingStats.activeMatches || 0}
+              color="#9C27B0"
+            />
+          </>
+        )}
       </View>
 
       {/* Quick Actions */}
@@ -205,6 +238,12 @@ function AdminDashboard() {
             label="AI Dashboard"
             onPress={() => setActiveSection('ai')}
             color="#7C2B86"
+          />
+          <ActionButton
+            icon="heart-half"
+            label="Blind Dating"
+            onPress={() => router.push('/admin/blind-dating')}
+            color="#E91E63"
           />
           <ActionButton
             icon="people"
