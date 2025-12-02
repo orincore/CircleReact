@@ -270,6 +270,96 @@ export default function BlindDatingAdmin() {
     }
   };
 
+  const handleEndAllActiveMatches = async () => {
+    const confirmMessage = 'Are you sure you want to END ALL ACTIVE MATCHES? This will end all current blind dates but keep the history.';
+    
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) return;
+    }
+
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/end-all-active-matches`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: 'admin_bulk_end' }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        Alert.alert('Success', data.message);
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to end matches');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to end all active matches');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleResetAllMatches = async () => {
+    const confirmMessage = 'DANGER: This will DELETE ALL BLIND DATE DATA including matches, messages, and history. This cannot be undone. Type "RESET_ALL_BLIND_DATES" to confirm.';
+    
+    let userInput = '';
+    if (Platform.OS === 'web') {
+      userInput = window.prompt(confirmMessage);
+      if (userInput !== 'RESET_ALL_BLIND_DATES') {
+        Alert.alert('Cancelled', 'Reset cancelled - confirmation text did not match');
+        return;
+      }
+    } else {
+      // For mobile, show a simpler confirmation
+      Alert.alert(
+        'DANGER: Reset All Blind Dates',
+        'This will DELETE ALL blind date data permanently. Are you absolutely sure?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'DELETE ALL', 
+            style: 'destructive',
+            onPress: () => performResetAllMatches()
+          }
+        ]
+      );
+      return;
+    }
+
+    performResetAllMatches();
+  };
+
+  const performResetAllMatches = async () => {
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/reset-all-matches`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ confirm: 'RESET_ALL_BLIND_DATES' }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        Alert.alert('Success', `Reset completed: ${data.deletedCounts.matches} matches, ${data.deletedCounts.messages} messages deleted`);
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to reset matches');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to reset all matches');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
@@ -390,6 +480,40 @@ export default function BlindDatingAdmin() {
               <>
                 <Ionicons name="analytics" size={20} color="#FFF" />
                 <Text style={styles.actionButtonText}>Run Detailed Matching (with Reasons)</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+        
+        {/* Dangerous Actions */}
+        <Text style={[styles.sectionTitle, { marginTop: 16, color: '#FF5722' }]}>⚠️ Dangerous Actions</Text>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#FF9800', flex: 1 }]}
+            onPress={handleEndAllActiveMatches}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="pause-circle" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>End All Active Matches</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#F44336', flex: 1, marginLeft: 8 }]}
+            onPress={handleResetAllMatches}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="trash" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Reset All Data</Text>
               </>
             )}
           </TouchableOpacity>
