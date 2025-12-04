@@ -562,6 +562,7 @@ export default function ChatConversationScreen() {
     
     // When other user reveals their identity
     const handleRevealRequested = (data) => {
+      console.log('[BlindDate] Received reveal_requested:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
         setOtherHasRevealed(true);
         // Show prompt immediately when other user reveals
@@ -571,20 +572,44 @@ export default function ChatConversationScreen() {
       }
     };
     
-    // When both users have revealed
+    // When both users have revealed - LIVE UPDATE UI
     const handleBothRevealed = (data) => {
+      console.log('[BlindDate] Received both_revealed:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
+        // Update all reveal states
         setBothRevealed(true);
         setHasRevealedSelf(true);
         setOtherHasRevealed(true);
         setShowRevealPrompt(false);
+        
+        // Update other user's profile with revealed data
         if (data.otherUser) {
           setOtherUserProfile(data.otherUser);
+          // Update conversation name and avatar if we have the data
+          if (data.otherUser.first_name) {
+            // The header will automatically use otherUserProfile if available
+          }
         }
+        
+        // Friendship was created - update canMessage state
+        if (data.friendshipCreated) {
+          setFriendStatus('friends');
+          setCanMessage(true);
+        }
+        
+        // Show success alert
         Alert.alert(
           '🎉 Profiles Revealed!',
-          'Both of you have revealed! You can now see each other\'s full profiles.',
-          [{ text: 'Awesome!' }]
+          'Both of you have revealed! You are now friends and can see each other\'s full profiles.',
+          [{ 
+            text: 'View Profile', 
+            onPress: () => {
+              if (data.otherUserId) {
+                router.push(`/secure/user-profile/${data.otherUserId}`);
+              }
+            }
+          },
+          { text: 'Continue Chatting' }]
         );
       }
     };
@@ -596,7 +621,7 @@ export default function ChatConversationScreen() {
       socket.off('blind_date:reveal_requested', handleRevealRequested);
       socket.off('blind_date:revealed', handleBothRevealed);
     };
-  }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf]);
+  }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf, router]);
 
   const handleSend = () => {
     const trimmed = (composer || "").trim();
@@ -1257,39 +1282,60 @@ export default function ChatConversationScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => !isBlindDate && paramOtherUserId && router.push(`/secure/user-profile/${paramOtherUserId}`)}
-            disabled={!paramOtherUserId || isBlindDate}
+            onPress={() => {
+              // Allow profile view if not blind date OR if both revealed
+              const canViewProfile = !isBlindDate || bothRevealed;
+              const profileId = otherUserProfile?.id || paramOtherUserId;
+              if (canViewProfile && profileId) {
+                router.push(`/secure/user-profile/${profileId}`);
+              }
+            }}
+            disabled={!paramOtherUserId && !otherUserProfile?.id}
           >
-            {avatarUrl ? (
-              <View style={{ overflow: 'hidden', borderRadius: 16 }}>
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={styles.headerAvatarImage}
-                  blurRadius={isBlindDate ? 50 : 0}
-                />
-                {isBlindDate && (
-                  <BlurView
-                    intensity={40}
-                    tint={isDarkMode ? 'dark' : 'light'}
-                    style={StyleSheet.absoluteFill}
-                  />
-                )}
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.headerAvatarFallback,
-                  { backgroundColor: isBlindDate ? theme.primary + '80' : theme.primary },
-                ]}
-              >
-                <Text style={styles.headerAvatarFallbackText}>
-                  {conversationName.charAt(0).toUpperCase()}
-                </Text>
-                {isBlindDate && (
-                  <BlurView intensity={30} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                )}
-              </View>
-            )}
+            {(() => {
+              // Use revealed profile photo if available, otherwise use avatarUrl
+              const displayAvatarUrl = bothRevealed && otherUserProfile?.profile_photo_url 
+                ? otherUserProfile.profile_photo_url 
+                : avatarUrl;
+              const shouldBlur = isBlindDate && !bothRevealed;
+              
+              if (displayAvatarUrl) {
+                return (
+                  <View style={{ overflow: 'hidden', borderRadius: 16 }}>
+                    <Image
+                      source={{ uri: displayAvatarUrl }}
+                      style={styles.headerAvatarImage}
+                      blurRadius={shouldBlur ? 50 : 0}
+                    />
+                    {shouldBlur && (
+                      <BlurView
+                        intensity={40}
+                        tint={isDarkMode ? 'dark' : 'light'}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
+                  </View>
+                );
+              }
+              return (
+                <View
+                  style={[
+                    styles.headerAvatarFallback,
+                    { backgroundColor: shouldBlur ? theme.primary + '80' : theme.primary },
+                  ]}
+                >
+                  <Text style={styles.headerAvatarFallbackText}>
+                    {(bothRevealed && otherUserProfile?.first_name 
+                      ? otherUserProfile.first_name 
+                      : conversationName
+                    ).charAt(0).toUpperCase()}
+                  </Text>
+                  {shouldBlur && (
+                    <BlurView intensity={30} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  )}
+                </View>
+              );
+            })()}
           </TouchableOpacity>
 
           <View style={styles.headerInfo}>
@@ -1298,13 +1344,22 @@ export default function ChatConversationScreen() {
                 style={[styles.headerTitle, { color: theme.textPrimary }]}
                 numberOfLines={1}
               >
-                {conversationName}
+                {bothRevealed && otherUserProfile?.first_name 
+                  ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
+                  : conversationName
+                }
               </Text>
-              {otherUserVerified && !isBlindDate && (
+              {(otherUserVerified || (bothRevealed && otherUserProfile?.is_verified)) && (
                 <VerifiedBadge size={18} style={{ marginLeft: 4 }} />
               )}
+              {bothRevealed && (
+                <View style={styles.friendBadge}>
+                  <Ionicons name="people" size={12} color="#4CAF50" />
+                  <Text style={styles.friendBadgeText}>Friends</Text>
+                </View>
+              )}
             </View>
-            {isBlindDate && blindDateInfo ? (
+            {isBlindDate && !bothRevealed && blindDateInfo ? (
               <Text
                 style={[styles.headerSubtitle, { color: theme.primary }]}
                 numberOfLines={1}
@@ -1314,6 +1369,17 @@ export default function ChatConversationScreen() {
                   blindDateInfo.gender ? blindDateInfo.gender.charAt(0).toUpperCase() + blindDateInfo.gender.slice(1) : null,
                   blindDateInfo.age ? `${blindDateInfo.age} yrs` : null,
                 ].filter(Boolean).join(' • ')}
+              </Text>
+            ) : bothRevealed && otherUserProfile ? (
+              <Text
+                style={[styles.headerSubtitle, { color: '#4CAF50' }]}
+                numberOfLines={1}
+              >
+                {[
+                  otherUserProfile.gender ? otherUserProfile.gender.charAt(0).toUpperCase() + otherUserProfile.gender.slice(1) : null,
+                  otherUserProfile.age ? `${otherUserProfile.age} yrs` : null,
+                  '• Tap to view profile'
+                ].filter(Boolean).join(' ')}
               </Text>
             ) : (
               <Text
@@ -2280,6 +2346,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  friendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  friendBadgeText: {
+    color: '#4CAF50',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 3,
   },
   blockedModalOverlay: {
     flex: 1,
