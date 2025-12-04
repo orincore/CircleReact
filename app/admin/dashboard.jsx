@@ -359,6 +359,50 @@ function AdminDashboard() {
     </View>
   );
 
+  const renderInfraSection = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Infrastructure Monitoring</Text>
+      <View style={styles.actionsGrid}>
+        <ActionButton
+          icon="server"
+          label="Docker Containers"
+          onPress={() => router.push('/admin/infrastructure')}
+          color="#3B82F6"
+        />
+        <ActionButton
+          icon="hardware-chip"
+          label="Server Resources"
+          onPress={() => router.push('/admin/infrastructure')}
+          color="#10B981"
+        />
+        <ActionButton
+          icon="git-branch"
+          label="Deployment Status"
+          onPress={() => router.push('/admin/infrastructure')}
+          color="#8B5CF6"
+        />
+        <ActionButton
+          icon="pulse"
+          label="Health Checks"
+          onPress={() => router.push('/admin/infrastructure')}
+          color="#F59E0B"
+        />
+      </View>
+      <TouchableOpacity 
+        style={styles.fullWidthButton}
+        onPress={() => router.push('/admin/infrastructure')}
+      >
+        <LinearGradient
+          colors={['#3B82F6', '#1D4ED8']}
+          style={styles.fullWidthButtonGradient}
+        >
+          <Ionicons name="open-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.fullWidthButtonText}>Open Full Infrastructure Dashboard</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderSettingsSection = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>System Settings</Text>
@@ -368,6 +412,12 @@ function AdminDashboard() {
           label="General Settings"
           onPress={() => router.push('/admin/settings')}
           color="#6B7280"
+        />
+        <ActionButton
+          icon="server"
+          label="Infrastructure"
+          onPress={() => router.push('/admin/infrastructure')}
+          color="#3B82F6"
         />
         <ActionButton
           icon="shield-checkmark"
@@ -427,6 +477,7 @@ function AdminDashboard() {
           { id: 'ai', title: 'AI Dashboard', icon: 'sparkles' },
           { id: 'users', title: 'Users', icon: 'people' },
           { id: 'analytics', title: 'Analytics', icon: 'stats-chart' },
+          { id: 'infra', title: 'Infrastructure', icon: 'server' },
           { id: 'settings', title: 'Settings', icon: 'settings' }
         ].map((tab) => (
           <TouchableOpacity
@@ -457,6 +508,7 @@ function AdminDashboard() {
         {activeSection === 'ai' && renderAISection()}
         {activeSection === 'users' && renderUsersSection()}
         {activeSection === 'analytics' && renderAnalyticsSection()}
+        {activeSection === 'infra' && renderInfraSection()}
         {activeSection === 'settings' && renderSettingsSection()}
       </ScrollView>
 
@@ -731,6 +783,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
+  },
+  fullWidthButton: {
+    marginTop: 16,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  fullWidthButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  fullWidthButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    padding: 24,
   },
 });
 
