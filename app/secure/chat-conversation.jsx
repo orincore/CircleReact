@@ -222,10 +222,16 @@ export default function ChatConversationScreen() {
   const [showRevealPrompt, setShowRevealPrompt] = useState(false);
   const [blindDateMessageCount, setBlindDateMessageCount] = useState(0);
   const [isRevealSubmitting, setIsRevealSubmitting] = useState(false);
-  const [hasRequestedReveal, setHasRequestedReveal] = useState(false);
+  const [hasRevealedSelf, setHasRevealedSelf] = useState(false);
+  const [otherHasRevealed, setOtherHasRevealed] = useState(false);
+  const [bothRevealed, setBothRevealed] = useState(false);
+  const [blindDateMatch, setBlindDateMatch] = useState(null);
+  const [lastPromptDismissedAt, setLastPromptDismissedAt] = useState(0);
   const [showBlockedInfoModal, setShowBlockedInfoModal] = useState(false);
   const [blockedInfoMessage, setBlockedInfoMessage] = useState(null);
+  const [otherUserProfile, setOtherUserProfile] = useState(null);
   const REVEAL_THRESHOLD = 30;
+  const REVEAL_INTERVAL = 10; // Show prompt every 10 messages after dismissal
   const [reportAdditionalDetails, setReportAdditionalDetails] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [canMessage, setCanMessage] = useState(() => {
@@ -501,19 +507,96 @@ export default function ChatConversationScreen() {
     };
   }, [token, conversationId]);
 
+  // Fetch blind date status and track message count
+  useEffect(() => {
+    if (!isBlindDate || !conversationId || !token) return;
+    
+    const fetchBlindDateStatus = async () => {
+      try {
+        const status = await blindDatingApi.getChatStatus(conversationId, token);
+        const data = status?.data || status;
+        
+        if (data?.match) {
+          setBlindDateMatch(data.match);
+          setHasRevealedSelf(data.hasRevealedSelf || false);
+          setOtherHasRevealed(data.otherHasRevealed || false);
+          setBothRevealed(data.match.status === 'revealed');
+          setBlindDateMessageCount(data.match.message_count || 0);
+          if (data.otherUserProfile) {
+            setOtherUserProfile(data.otherUserProfile);
+          }
+        }
+      } catch (error) {
+        console.log('[BlindDate] Error fetching status:', error);
+      }
+    };
+    
+    fetchBlindDateStatus();
+  }, [isBlindDate, conversationId, token]);
+
   // Track message count for blind date reveal prompt
   useEffect(() => {
     if (!isBlindDate) return;
     
-    // Count total messages in the conversation
     const totalMessages = messages.length;
     setBlindDateMessageCount(totalMessages);
     
-    // Show reveal prompt when threshold is reached (and not already shown)
-    if (totalMessages >= REVEAL_THRESHOLD && !showRevealPrompt) {
+    // Don't show prompt if already revealed or both revealed
+    if (hasRevealedSelf || bothRevealed) return;
+    
+    // Show reveal prompt when threshold is reached
+    const shouldShowPrompt = totalMessages >= REVEAL_THRESHOLD && 
+      (lastPromptDismissedAt === 0 || totalMessages >= lastPromptDismissedAt + REVEAL_INTERVAL);
+    
+    if (shouldShowPrompt && !showRevealPrompt) {
       setShowRevealPrompt(true);
     }
-  }, [messages, isBlindDate, showRevealPrompt]);
+  }, [messages, isBlindDate, hasRevealedSelf, bothRevealed, lastPromptDismissedAt, showRevealPrompt]);
+
+  // Listen for blind date socket events
+  useEffect(() => {
+    if (!isBlindDate || !token) return;
+    
+    const socket = getSocket(token);
+    if (!socket) return;
+    
+    // When other user reveals their identity
+    const handleRevealRequested = (data) => {
+      if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
+        setOtherHasRevealed(true);
+        // Show prompt immediately when other user reveals
+        if (!hasRevealedSelf) {
+          setShowRevealPrompt(true);
+        }
+      }
+    };
+    
+    // When both users have revealed
+    const handleBothRevealed = (data) => {
+      if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
+        setBothRevealed(true);
+        setHasRevealedSelf(true);
+        setOtherHasRevealed(true);
+        setShowRevealPrompt(false);
+        if (data.otherUser) {
+          setOtherUserProfile(data.otherUser);
+        }
+        Alert.alert(
+          '🎉 Profiles Revealed!',
+          'Both of you have revealed! You can now see each other\'s full profiles.',
+          [{ text: 'Awesome!' }]
+        );
+      }
+    };
+    
+    socket.on('blind_date:reveal_requested', handleRevealRequested);
+    socket.on('blind_date:revealed', handleBothRevealed);
+    
+    return () => {
+      socket.off('blind_date:reveal_requested', handleRevealRequested);
+      socket.off('blind_date:revealed', handleBothRevealed);
+    };
+  }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf]);
 
   const handleSend = () => {
     const trimmed = (composer || "").trim();
@@ -728,40 +811,46 @@ export default function ChatConversationScreen() {
 
   // Blind date reveal handlers
   const handleRevealProfile = async () => {
-    if (!conversationId || isRevealSubmitting || hasRequestedReveal) return;
+    if (!conversationId || isRevealSubmitting || hasRevealedSelf) return;
     
     setIsRevealSubmitting(true);
     try {
-      // Get the match ID from the chat status
-      const statusResult = await blindDatingApi.getChatStatus(conversationId, token);
-      if (!statusResult?.data?.match?.id) {
+      // Use cached match ID or fetch it
+      let matchId = blindDateMatch?.id;
+      if (!matchId) {
+        const statusResult = await blindDatingApi.getChatStatus(conversationId, token);
+        const data = statusResult?.data || statusResult;
+        matchId = data?.match?.id;
+      }
+      
+      if (!matchId) {
         Alert.alert('Error', 'Could not find blind date match information.');
         setIsRevealSubmitting(false);
         return;
       }
       
-      const matchId = statusResult.data.match.id;
       const result = await blindDatingApi.requestReveal(matchId, token);
+      const resultData = result?.data || result;
       
-      if (result?.data?.success) {
-        setHasRequestedReveal(true);
+      if (resultData?.success) {
+        setHasRevealedSelf(true);
         setShowRevealPrompt(false);
         
-        if (result.data.bothRevealed) {
+        if (resultData.bothRevealed) {
+          setBothRevealed(true);
+          setOtherHasRevealed(true);
+          if (resultData.otherUser) {
+            setOtherUserProfile(resultData.otherUser);
+          }
           Alert.alert(
             '🎉 Profiles Revealed!',
             'Both of you have agreed to reveal! You can now see each other\'s full profiles and continue chatting as friends.',
             [{ text: 'Awesome!' }]
           );
-        } else {
-          Alert.alert(
-            '✨ Reveal Requested',
-            'You\'ve requested to reveal your profile. Once your match also agrees, you\'ll both be able to see each other\'s full profiles!',
-            [{ text: 'Got it!' }]
-          );
         }
+        // No alert for single reveal - the banner will show the status
       } else {
-        Alert.alert('Error', result?.data?.message || 'Failed to request reveal.');
+        Alert.alert('Error', resultData?.message || 'Failed to request reveal.');
       }
     } catch (error) {
       console.error('Error requesting reveal:', error);
@@ -773,6 +862,8 @@ export default function ChatConversationScreen() {
 
   const handleSkipReveal = () => {
     setShowRevealPrompt(false);
+    // Record when we dismissed so we can show again after REVEAL_INTERVAL more messages
+    setLastPromptDismissedAt(blindDateMessageCount);
   };
 
   const handleKeyPress = (e) => {
@@ -1234,6 +1325,58 @@ export default function ChatConversationScreen() {
             )}
           </View>
         </View>
+        
+        {/* Blind Date Reveal Status Banner */}
+        {isBlindDate && !bothRevealed && (hasRevealedSelf || otherHasRevealed) && (
+          <View style={[
+            styles.revealStatusBanner,
+            { 
+              backgroundColor: hasRevealedSelf && otherHasRevealed 
+                ? '#4CAF50' 
+                : otherHasRevealed 
+                  ? theme.primary 
+                  : '#FF9800'
+            }
+          ]}>
+            <Ionicons 
+              name={hasRevealedSelf ? "eye" : "eye-outline"} 
+              size={16} 
+              color="#fff" 
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.revealStatusText}>
+              {hasRevealedSelf && !otherHasRevealed 
+                ? "✨ You revealed your identity. Waiting for them..."
+                : !hasRevealedSelf && otherHasRevealed
+                  ? "🎭 They revealed their identity! Tap to reveal yours"
+                  : "🎉 Both revealed!"
+              }
+            </Text>
+            {!hasRevealedSelf && otherHasRevealed && (
+              <TouchableOpacity 
+                style={styles.revealStatusButton}
+                onPress={handleRevealProfile}
+                disabled={isRevealSubmitting}
+              >
+                {isRevealSubmitting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.revealStatusButtonText}>Reveal</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        
+        {/* Both Revealed Success Banner */}
+        {isBlindDate && bothRevealed && (
+          <View style={[styles.revealStatusBanner, { backgroundColor: '#4CAF50' }]}>
+            <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.revealStatusText}>
+              🎉 Profiles revealed! You can now see each other's full profiles.
+            </Text>
+          </View>
+        )}
       </SafeAreaView>
 
       {/* Bottom area for messages + composer */}
@@ -1596,7 +1739,7 @@ export default function ChatConversationScreen() {
 
       {/* Blind Date Reveal Prompt Modal */}
       <Modal
-        visible={showRevealPrompt && isBlindDate && !hasRequestedReveal}
+        visible={showRevealPrompt && isBlindDate && !hasRevealedSelf && !bothRevealed}
         transparent={true}
         animationType="fade"
         onRequestClose={handleSkipReveal}
@@ -1604,30 +1747,44 @@ export default function ChatConversationScreen() {
         <View style={styles.revealModalOverlay}>
           <View style={[styles.revealModalContainer, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}>
             <View style={styles.revealModalIcon}>
-              <Text style={{ fontSize: 48 }}>🎭</Text>
+              <Text style={{ fontSize: 48 }}>{otherHasRevealed ? '🎉' : '🎭'}</Text>
             </View>
             
             <Text style={[styles.revealModalTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-              Time to Reveal?
+              {otherHasRevealed ? 'They Revealed!' : 'Time to Reveal?'}
             </Text>
             
             <Text style={[styles.revealModalSubtitle, { color: isDarkMode ? '#aaa' : '#666' }]}>
-              You've exchanged {blindDateMessageCount} messages! Would you like to reveal your profile to your match?
+              {otherHasRevealed 
+                ? 'Your match has revealed their identity! Would you like to reveal yours too?'
+                : `You've exchanged ${blindDateMessageCount} messages! Would you like to reveal your profile to your match?`
+              }
             </Text>
             
             <Text style={[styles.revealModalNote, { color: isDarkMode ? '#888' : '#999' }]}>
-              Both of you need to agree to reveal. Once revealed, you'll see each other's full profiles and can continue as friends!
+              {otherHasRevealed
+                ? 'Once you reveal, you\'ll both see each other\'s full profiles and can continue as friends!'
+                : 'Both of you need to agree to reveal. Once revealed, you\'ll see each other\'s full profiles and can continue as friends!'
+              }
             </Text>
             
             <TouchableOpacity
-              style={[styles.revealBtn, { opacity: isRevealSubmitting ? 0.7 : 1 }]}
+              style={[
+                styles.revealBtn, 
+                { 
+                  opacity: isRevealSubmitting ? 0.7 : 1,
+                  backgroundColor: otherHasRevealed ? '#4CAF50' : '#007AFF'
+                }
+              ]}
               onPress={handleRevealProfile}
               disabled={isRevealSubmitting}
             >
               {isRevealSubmitting ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.revealBtnText}>✨ Reveal My Profile</Text>
+                <Text style={styles.revealBtnText}>
+                  {otherHasRevealed ? '🎉 Reveal & Connect!' : '✨ Reveal My Profile'}
+                </Text>
               )}
             </TouchableOpacity>
             
@@ -1639,6 +1796,12 @@ export default function ChatConversationScreen() {
                 Maybe Later
               </Text>
             </TouchableOpacity>
+            
+            {!otherHasRevealed && (
+              <Text style={[styles.revealModalHint, { color: isDarkMode ? '#666' : '#999' }]}>
+                We'll ask again after {REVEAL_INTERVAL} more messages
+              </Text>
+            )}
           </View>
         </View>
       </Modal>
@@ -2087,6 +2250,36 @@ const styles = StyleSheet.create({
   },
   skipRevealBtnText: {
     fontSize: 14,
+  },
+  revealModalHint: {
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  revealStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  revealStatusText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
+  revealStatusButton: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    marginLeft: 10,
+  },
+  revealStatusButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   blockedModalOverlay: {
     flex: 1,

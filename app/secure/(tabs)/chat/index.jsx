@@ -601,7 +601,6 @@ export default function ChatListScreen() {
     };
 
     const handleListTyping = ({ chatId, by, isTyping }) => {
-      console.log('⌨️ [ChatList] List typing:', { chatId, by, isTyping });
       setTypingIndicators(prev => {
         const existing = prev[chatId] || [];
         const others = existing.filter(u => u !== by);
@@ -634,7 +633,6 @@ export default function ChatListScreen() {
         // Create new array to ensure React detects change
         return prev.map(conv => {
           if (conv.chat.id === chatId && conv.lastMessage?.id === messageId) {
-            console.log('📝 [ChatList] Updating message status:', { chatId, messageId, status });
             return {
               ...conv,
               lastMessage: {

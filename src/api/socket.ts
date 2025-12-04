@@ -340,21 +340,17 @@ function createSocket(token?: string | null) {
       }
 
       appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
-        console.log('📱 App state changed:', nextAppState);
         
         if (nextAppState === 'background' || nextAppState === 'inactive') {
           // App going to background
           isAppInBackground = true;
-          console.log('📱 App going to background - socket will pause');
         } else if (nextAppState === 'active') {
           // App coming to foreground
           const wasInBackground = isAppInBackground;
           isAppInBackground = false;
-          console.log('📱 App coming to foreground');
           
           // Reconnect if we were disconnected while in background
           if (wasInBackground && socket && !socket.connected && token) {
-            console.log('🔄 Reconnecting after returning from background...');
             setTimeout(() => {
               createSocket(token);
             }, 500);
