@@ -1,5 +1,6 @@
 import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -388,7 +389,6 @@ export default function ChatListScreen() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       
-      console.log('📥 [ChatList] Loading inbox...', { isRefresh });
       
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 
@@ -400,10 +400,6 @@ export default function ChatListScreen() {
         timeoutPromise
       ]);
       
-      console.log('📦 [ChatList] Inbox response:', { 
-        hasInbox: !!response?.inbox, 
-        count: response?.inbox?.length 
-      });
       
       // Validate response
       if (!response || !Array.isArray(response.inbox)) {
@@ -425,7 +421,6 @@ export default function ChatListScreen() {
         }
       });
       
-      console.log('✅ [ChatList] Conversations loaded and sorted:', sortedConversations.length);
       setConversations(sortedConversations);
       
       // Initialize unread counts from server data
@@ -440,7 +435,6 @@ export default function ChatListScreen() {
         }
       });
       setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
-      console.log('📊 [ChatList] Initialized unread counts:', initialUnreadCounts);
     } catch (error) {
       console.error('[ChatList] Failed to load inbox:', error);
       // Set empty conversations on error to stop loading state
@@ -466,7 +460,6 @@ export default function ChatListScreen() {
       return;
     }
 
-    console.log('🔌 [ChatList] Initializing socket connection...', { hasToken: !!token, userId: user?.id });
 
     let socket;
     try {
@@ -475,19 +468,18 @@ export default function ChatListScreen() {
         console.error('[ChatList] Failed to get socket instance');
         return;
       }
-      console.log('✅ [ChatList] Socket instance obtained:', { connected: socket.connected, id: socket.id });
       
       // Monitor connection status
       const handleConnect = () => {
-        console.log('🟢 [ChatList] Socket connected');
+        //console.log('🟢 [ChatList] Socket connected');
       };
       
       const handleDisconnect = (reason) => {
-        console.log('🔴 [ChatList] Socket disconnected:', reason);
+        //console.log('🔴 [ChatList] Socket disconnected:', reason);
       };
       
       const handleConnectError = (error) => {
-        console.error('❌ [ChatList] Socket connection error:', error);
+        //console.error('❌ [ChatList] Socket connection error:', error);
       };
       
       socket.on('connect', handleConnect);
@@ -501,10 +493,10 @@ export default function ChatListScreen() {
     // Handle new messages in chat list
     const handleNewMessage = ({ message }) => {
       try {
-        console.log('📨 [ChatList] New message received:', message);
+        //console.log('📨 [ChatList] New message received:', message);
         
         if (!message || !message.chatId) {
-          console.error('[ChatList] Invalid message received:', message);
+          //console.error('[ChatList] Invalid message received:', message);
           return;
         }
         
@@ -524,7 +516,7 @@ export default function ChatListScreen() {
                 }
                 
                 if (conv.chat.id === message.chatId) {
-                  console.log('✏️ [ChatList] Updating conversation:', conv.chat.id);
+                  //console.log('✏️ [ChatList] Updating conversation:', conv.chat.id);
                   // Create completely new object to trigger re-render
                   return {
                     ...conv,
@@ -564,7 +556,7 @@ export default function ChatListScreen() {
               }
             });
             
-            console.log('🔄 [ChatList] State updated, new order:', sortedConversations.map(c => c.chat.id));
+            //console.log('🔄 [ChatList] State updated, new order:', sortedConversations.map(c => c.chat.id));
             return sortedConversations;
           } catch (stateError) {
             console.error('[ChatList] Error updating conversations state:', stateError);
@@ -579,7 +571,7 @@ export default function ChatListScreen() {
       if (message.senderId !== user.id) {
         setUnreadCounts(prev => {
           const newCount = (prev[message.chatId] || 0) + 1;
-          console.log(`📊 [ChatList] Updated unread count for chat ${message.chatId}: ${newCount}`);
+          //console.log(`📊 [ChatList] Updated unread count for chat ${message.chatId}: ${newCount}`);
           return {
             ...prev,
             [message.chatId]: newCount
@@ -590,7 +582,7 @@ export default function ChatListScreen() {
 
     // Handle background messages (received when user is not in the specific chat)
     const handleBackgroundMessage = (data) => {
-      console.log('📬 [ChatList] Background message received:', data);
+      //console.log('📬 [ChatList] Background message received:', data);
       // Handle both { message: {...} } and direct message object
       const message = data?.message || data;
       if (message) {
@@ -600,7 +592,7 @@ export default function ChatListScreen() {
 
     // Handle typing indicators
     const handleTyping = ({ chatId, users }) => {
-      console.log('⌨️ [ChatList] Typing indicator:', { chatId, users });
+      //console.log('⌨️ [ChatList] Typing indicator:', { chatId, users });
       setTypingIndicators(prev => {
         const filtered = users.filter(userId => userId !== user.id);
         // Create new object to ensure React detects change
@@ -620,9 +612,7 @@ export default function ChatListScreen() {
 
     // Handle read receipts to clear unread counts
     const handleRead = ({ chatId, messageId, by }) => {
-      console.log('👁️ [ChatList] Read receipt received:', { chatId, messageId, by, currentUserId: user.id });
       if (by === user.id) {
-        console.log(`📊 [ChatList] Clearing unread count for chat ${chatId}`);
         setUnreadCounts(prev => ({
           ...prev,
           [chatId]: 0
@@ -632,7 +622,6 @@ export default function ChatListScreen() {
     
     // Handle unread count updates from server
     const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
-      console.log(`📊 [ChatList] Unread count update from server for chat ${chatId}: ${unreadCount}`);
       setUnreadCounts(prev => ({
         ...prev,
         [chatId]: unreadCount
@@ -693,7 +682,6 @@ export default function ChatListScreen() {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
         socketService.addMessageHandler('chat-list', handleBackgroundMessage);
-        console.log('✅ [ChatList] Registered global message handler');
       } else {
         console.warn('⚠️ [ChatList] socketService.addMessageHandler not available');
       }
@@ -711,18 +699,7 @@ export default function ChatListScreen() {
         socket.on('friend:unfriended', handleUnfriended);
         socket.on('chat:list:changed', handleListChanged);
         
-        console.log('✅ [ChatList] Socket listeners registered:', [
-          'chat:message',
-          'chat:message:background',
-          'chat:typing',
-          'chat:list:typing',
-          'chat:read',
-          'chat:message:delivery_receipt',
-          'chat:message:read_receipt',
-          'chat:unread_count',
-          'friend:unfriended',
-          'chat:list:changed'
-        ]);
+      
       } else {
         console.error('❌ [ChatList] Socket.on not available');
       }
@@ -732,7 +709,6 @@ export default function ChatListScreen() {
 
     return () => {
       try {
-        console.log('🔌 [ChatList] Cleaning up socket listeners');
         
         if (socketService && typeof socketService.removeMessageHandler === 'function') {
           socketService.removeMessageHandler('chat-list');
@@ -757,7 +733,6 @@ export default function ChatListScreen() {
           socket.off('chat:list:changed', handleListChanged);
         }
       } catch (error) {
-        console.error('[ChatList] Error cleaning up socket listeners:', error);
       }
     };
   }, [token, user?.id]);
@@ -1009,18 +984,36 @@ export default function ChatListScreen() {
               style={{ marginRight: 8 }}
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.blindDateDailyTitle} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.blindDateDailyTitle,
+                  { color: isDarkMode ? '#FFFFFF' : theme.textPrimary },
+                ]}
+                numberOfLines={1}
+              >
                 {blindDateStatus.foundToday
                   ? 'Blind date found today!'
                   : 'No blind date found today yet'}
               </Text>
               {!blindDateStatus.foundToday && (
-                <Text style={styles.blindDateDailySubtitle} numberOfLines={2}>
+                <Text
+                  style={[
+                    styles.blindDateDailySubtitle,
+                    { color: isDarkMode ? 'rgba(226, 232, 240, 0.85)' : theme.textSecondary },
+                  ]}
+                  numberOfLines={2}
+                >
                   We are still searching. Come back soon – we will also email you once we find your match.
                 </Text>
               )}
               {blindDateStatus.foundToday && (
-                <Text style={styles.blindDateDailySubtitle} numberOfLines={2}>
+                <Text
+                  style={[
+                    styles.blindDateDailySubtitle,
+                    { color: isDarkMode ? 'rgba(226, 232, 240, 0.85)' : theme.textSecondary },
+                  ]}
+                  numberOfLines={2}
+                >
                   Check your messages to chat with your mystery match.
                 </Text>
               )}
@@ -1091,6 +1084,10 @@ export default function ChatListScreen() {
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
+                const isOtherUserVerified =
+                  item.otherVerificationStatus === 'verified' ||
+                  item.otherVerificationStatus === true ||
+                  item.other_verification_status === 'verified';
                 
                 // Build blind date subtitle: "Looking for Friendship • Female • 25"
                 const blindDateSubtitle = isBlindDateOngoing && blindDateInfo ? [
@@ -1108,16 +1105,34 @@ export default function ChatListScreen() {
                     openMenuChatId === chatId && styles.chatRowElevated,
                   ]}
                   onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null)}
+                  onLongPress={() => {
+                    if (Platform.OS !== 'web') {
+                      setOpenMenuChatId(chatId);
+                    }
+                  }}
+                  delayLongPress={500}
                 >
                   <View style={styles.avatarContainer}>
                     {displayAvatar ? (
                       <View style={{ overflow: 'hidden', borderRadius: responsive.avatarSize / 2 }}>
-                        <Image 
-                          source={{ uri: displayAvatar }} 
-                          style={[styles.avatarImage, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2 }]}
+                        <Image
+                          source={{ uri: displayAvatar }}
+                          style={[
+                            styles.avatarImage,
+                            {
+                              width: responsive.avatarSize,
+                              height: responsive.avatarSize,
+                              borderRadius: responsive.avatarSize / 2,
+                            },
+                          ]}
+                          blurRadius={isBlindDateOngoing && Platform.OS === 'android' ? 50 : 0}
                         />
                         {isBlindDateOngoing && (
-                          <BlurView intensity={50} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                          <BlurView
+                            intensity={40}
+                            tint={isDarkMode ? 'dark' : 'light'}
+                            style={StyleSheet.absoluteFill}
+                          />
                         )}
                       </View>
                     ) : (
@@ -1133,7 +1148,13 @@ export default function ChatListScreen() {
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
-                      <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}>{displayName} {item.pinned ? '📌' : ''}</Text>
+                      <View style={styles.chatNameRow}>
+                        <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]} numberOfLines={1}>{displayName}</Text>
+                        {isOtherUserVerified && !isBlindDateOngoing && (
+                          <VerifiedBadge size={16} style={{ marginLeft: 4 }} />
+                        )}
+                        {item.pinned && <Text style={styles.pinnedIcon}>📌</Text>}
+                      </View>
                       <Text style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
                     {isBlindDateOngoing && blindDateSubtitle && (
@@ -1289,6 +1310,92 @@ export default function ChatListScreen() {
           </View>
         </View>
       )}
+
+      {/* Mobile long-press menu modal */}
+      {Platform.OS !== 'web' && (
+        <Modal
+          visible={!!openMenuChatId}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOpenMenuChatId(null)}
+        >
+          <TouchableOpacity 
+            style={styles.mobileMenuOverlay} 
+            activeOpacity={1} 
+            onPress={() => setOpenMenuChatId(null)}
+          >
+            <View style={[styles.mobileMenuContainer, { backgroundColor: theme.surface }]}>
+              <View style={styles.mobileMenuHandle} />
+              <Text style={[styles.mobileMenuTitle, { color: theme.textPrimary }]}>Chat Options</Text>
+              
+              {/* Pin/Unpin option */}
+              {visibleConversations.find(c => c.chat.id === openMenuChatId)?.pinned ? (
+                <TouchableOpacity 
+                  style={styles.mobileMenuItem} 
+                  onPress={() => handleUnpinChat(openMenuChatId)}
+                >
+                  <View style={[styles.mobileMenuIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                    <Ionicons name="pin-outline" size={22} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Unpin Chat</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.mobileMenuItem} 
+                  onPress={() => handlePinChat(openMenuChatId)}
+                >
+                  <View style={[styles.mobileMenuIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                    <Ionicons name="pin" size={22} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Pin Chat</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Archive/Unarchive option */}
+              {visibleConversations.find(c => c.chat.id === openMenuChatId)?.archived ? (
+                <TouchableOpacity 
+                  style={styles.mobileMenuItem} 
+                  onPress={() => handleUnarchiveChat(openMenuChatId)}
+                >
+                  <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#22C55E20' }]}>
+                    <Ionicons name="archive-outline" size={22} color="#22C55E" />
+                  </View>
+                  <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Unarchive Chat</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.mobileMenuItem} 
+                  onPress={() => handleArchiveChat(openMenuChatId)}
+                >
+                  <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#F59E0B20' }]}>
+                    <Ionicons name="archive" size={22} color="#F59E0B" />
+                  </View>
+                  <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Archive Chat</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Delete option */}
+              <TouchableOpacity 
+                style={styles.mobileMenuItem} 
+                onPress={() => { setOpenMenuChatId(null); handleDeleteChat(openMenuChatId); }}
+              >
+                <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#EF444420' }]}>
+                  <Ionicons name="trash" size={22} color="#EF4444" />
+                </View>
+                <Text style={[styles.mobileMenuItemText, { color: '#EF4444' }]}>Delete Chat</Text>
+              </TouchableOpacity>
+
+              {/* Cancel button */}
+              <TouchableOpacity 
+                style={[styles.mobileMenuCancelButton, { backgroundColor: theme.surfaceSecondary }]} 
+                onPress={() => setOpenMenuChatId(null)}
+              >
+                <Text style={[styles.mobileMenuCancelText, { color: theme.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
  }
@@ -1409,16 +1516,16 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 4,
     borderRadius: 999,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    padding: 3,
+    padding: 2,
     zIndex: 10,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1427,7 +1534,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(124, 43, 134, 0.9)',
   },
   tabLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: 'rgba(248, 250, 252, 0.8)',
   },
@@ -1658,5 +1765,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  // Chat name row with verified badge
+  chatNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  pinnedIcon: {
+    marginLeft: 4,
+    fontSize: 12,
+  },
+  // Mobile long-press menu styles
+  mobileMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  mobileMenuContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 34,
+  },
+  mobileMenuHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(128, 128, 128, 0.4)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  mobileMenuTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  mobileMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  mobileMenuIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  mobileMenuItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  mobileMenuCancelButton: {
+    marginTop: 16,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  mobileMenuCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,12 +1,12 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { exploreApi } from '@/src/api/explore';
-import UserProfileModal from '@/src/components/UserProfileModal';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnnouncementBanner from '@/components/AnnouncementBanner';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +25,7 @@ import {
 const isBrowser = Platform.OS === 'web';
 
 export default function ExploreScreen() {
+  const router = useRouter();
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
   
@@ -203,8 +204,6 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [showUserModal, setShowUserModal] = useState(false);
   const [passedUserIds, setPassedUserIds] = useState(new Set());
   const [matchStatuses, setMatchStatuses] = useState({}); // userId -> status
   const [processingMatch, setProcessingMatch] = useState(null); // userId being processed
@@ -359,8 +358,8 @@ export default function ExploreScreen() {
   }, [searchQuery, handleSearch]);
 
   const handleUserPress = (user) => {
-    setSelectedUser(user);
-    setShowUserModal(true);
+    // Navigate to user profile page
+    router.push(`/secure/user-profile/${user.id}`);
   };
 
   const handlePassUser = async (userId, userName) => {
@@ -830,15 +829,6 @@ export default function ExploreScreen() {
           </>
         )}
       </ScrollView>
-
-      {/* User Profile Modal */}
-      <UserProfileModal
-        visible={showUserModal}
-        onClose={() => setShowUserModal(false)}
-        userId={selectedUser?.id}
-        userName={selectedUser?.name}
-        userAvatar={selectedUser?.profilePhoto}
-      />
     </View>
   );
 }

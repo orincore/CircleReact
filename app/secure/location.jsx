@@ -1,7 +1,6 @@
 import LocationMap from '@/components/LocationMap';
 import { useAuth } from '@/contexts/AuthContext';
 import { nearbyUsersGql } from '@/src/api/graphql';
-import UserProfileModal from '@/src/components/UserProfileModal';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
@@ -40,7 +39,6 @@ export default function LocationPage() {
   const [highlightedPin, setHighlightedPin] = useState(null);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showUserProfile, setShowUserProfile] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [currentLocationName, setCurrentLocationName] = useState('');
@@ -777,7 +775,8 @@ export default function LocationPage() {
     setSelectedUserId(user.id);
     setHighlightedPin(user.id);
     setSelectedUser(user);
-    setShowUserProfile(true);
+    // Navigate to user profile page
+    router.push(`/secure/user-profile/${user.id}`);
   };
 
   const renderUserItem = (user, index) => {
@@ -1501,19 +1500,6 @@ export default function LocationPage() {
           </View>
         )}
 
-        {/* User Profile Modal */}
-        <UserProfileModal
-          visible={showUserProfile}
-          onClose={() => {
-            setShowUserProfile(false);
-            setSelectedUser(null);  // Clear state to prevent stale data
-            setSelectedUserId(null);
-            setHighlightedPin(null);
-          }}
-          userId={selectedUser?.id}
-          userName={selectedUser?.name}
-          userAvatar={selectedUser?.photoUrl || selectedUser?.avatar}
-        />
         </>
         )}
       </SafeAreaView>

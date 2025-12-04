@@ -15,6 +15,7 @@ export interface ExploreUser {
   isFriend?: boolean;
   compatibilityScore?: number;
   joinedDate?: string;
+  verification_status?: string;
 }
 
 export interface ExploreResponse {
@@ -56,9 +57,7 @@ export const exploreApi = {
   // Get user profile by ID
   getUserProfile: async (userId: string, token?: string | null) => {
     try {
-      // Log where this request is coming from
-      console.log('📍 Fetching user profile for:', userId);
-      console.trace('Called from:'); // This will show the call stack
+       
       return await http.get<UserProfileResponse>(`/api/explore/user/${userId}`, token);
     } catch (error: any) {
       // Gracefully handle 404 - user might have been deleted

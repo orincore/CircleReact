@@ -218,7 +218,6 @@ export default function ProfileScreen() {
     try {
       setLoadingPhotos(true);
       const userPhotos = await PhotoGalleryService.getPhotos(token);
-      console.log('📸 Loaded photos:', userPhotos?.length || 0, userPhotos);
       
       // Filter out photos without valid URLs
       const validPhotos = (userPhotos || []).filter(photo => {

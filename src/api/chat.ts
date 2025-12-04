@@ -47,6 +47,7 @@ export interface ChatInboxItem {
   otherId?: string;
   otherName?: string;
   otherProfilePhoto: string;
+  otherVerificationStatus?: string | boolean;
   pinned?: boolean;
   archived?: boolean;
   isBlindDateOngoing?: boolean;
@@ -82,6 +83,13 @@ export const chatApi = {
       otherId: it.otherUser?.id,
       otherName: it.otherUser?.name,
       otherProfilePhoto: it.otherUser?.profilePhoto || '',
+      // Normalise verification flag from backend (string or boolean)
+      otherVerificationStatus:
+        it.otherUser?.verification_status ??
+        it.otherUser?.verificationStatus ??
+        (typeof it.otherUser?.isVerified === 'boolean'
+          ? (it.otherUser.isVerified ? 'verified' : 'unverified')
+          : ''),
       pinned: !!it.pinned,
       archived: !!it.archived,
       isBlindDateOngoing: !!it.isBlindDateOngoing,

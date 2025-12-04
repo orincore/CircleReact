@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TouchableOpacity, Image, View, Text, StyleSheet } from 'react-native';
-import UserProfileModal from '../src/components/UserProfileModal';
+import { useRouter } from 'expo-router';
 
 const Avatar = ({ 
   user, 
@@ -10,7 +10,7 @@ const Avatar = ({
   style = {},
   disabled = false 
 }) => {
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const router = useRouter();
 
   const handlePress = () => {
     if (disabled) return;
@@ -18,8 +18,8 @@ const Avatar = ({
     if (onPress) {
       onPress(user);
     } else if (user?.id) {
-      // Default behavior: show user profile modal
-      setShowProfileModal(true);
+      // Default behavior: navigate to user profile page
+      router.push(`/secure/user-profile/${user.id}`);
     }
   };
 
@@ -88,17 +88,6 @@ const Avatar = ({
           )}
         </View>
       </TouchableOpacity>
-      
-      {/* User Profile Modal */}
-      {user?.id && (
-        <UserProfileModal
-          visible={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          userId={user.id}
-          userName={user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()}
-          userAvatar={avatarUrl}
-        />
-      )}
     </>
   );
 };

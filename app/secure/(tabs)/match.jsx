@@ -745,7 +745,6 @@ export default function MatchScreen() {
         s.off('reconnect', onReconnected);
         s.off('connect_error');
       } catch (error) {
-        console.error('Error cleaning up socket listeners:', error);
       }
     };
   }, [token]); // Remove hasActiveSession from dependencies since we set it in handlers

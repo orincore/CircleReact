@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { friendsApi } from '@/src/api/friends';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,14 +15,12 @@ import {
   View
 } from 'react-native';
 import FriendRequestCard from './FriendRequestCard';
-import UserProfileModal from './UserProfileModal';
 
 export default function FriendRequestsSection() {
+  const router = useRouter();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [showUserProfile, setShowUserProfile] = useState(false);
   const { token } = useAuth();
 
   useEffect(() => {
@@ -79,8 +78,8 @@ export default function FriendRequestsSection() {
   };
 
   const handleViewProfile = (user) => {
-    setSelectedUser(user);
-    setShowUserProfile(true);
+    // Navigate to user profile page
+    router.push(`/secure/user-profile/${user.id}`);
   };
 
   const onRefresh = () => {
@@ -166,15 +165,6 @@ export default function FriendRequestsSection() {
         }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-      />
-
-      {/* User Profile Modal */}
-      <UserProfileModal
-        visible={showUserProfile}
-        onClose={() => setShowUserProfile(false)}
-        userId={selectedUser?.id}
-        userName={selectedUser?.name}
-        userAvatar={selectedUser?.avatar}
       />
     </View>
   );

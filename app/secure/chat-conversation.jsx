@@ -26,10 +26,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getSocket, socketService } from "@/src/api/socket";
 import { chatApi } from "@/src/api/chat";
+import { exploreApi } from "@/src/api/explore";
 import { reportsApi, REPORT_REASONS } from "@/src/api/reports";
 import { blindDatingApi } from "@/src/api/blindDating";
-import UserProfileModal from "@/src/components/UserProfileModal";
 import ReactionPicker from "@/src/components/ReactionPicker";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -192,7 +193,6 @@ export default function ChatConversationScreen() {
   const [typingUsers, setTypingUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [showUserProfile, setShowUserProfile] = useState(false);
   const [reactionTarget, setReactionTarget] = useState(null);
   const [showAllReactions, setShowAllReactions] = useState(false);
 
@@ -214,7 +214,6 @@ export default function ChatConversationScreen() {
   const [editingMessage, setEditingMessage] = useState(null);
   const [friendStatus, setFriendStatus] = useState('unknown');
   
-  // Report modal state
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportMessage, setReportMessage] = useState(null);
   const [selectedReportReason, setSelectedReportReason] = useState(null);
@@ -224,6 +223,8 @@ export default function ChatConversationScreen() {
   const [blindDateMessageCount, setBlindDateMessageCount] = useState(0);
   const [isRevealSubmitting, setIsRevealSubmitting] = useState(false);
   const [hasRequestedReveal, setHasRequestedReveal] = useState(false);
+  const [showBlockedInfoModal, setShowBlockedInfoModal] = useState(false);
+  const [blockedInfoMessage, setBlockedInfoMessage] = useState(null);
   const REVEAL_THRESHOLD = 30;
   const [reportAdditionalDetails, setReportAdditionalDetails] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
@@ -233,6 +234,7 @@ export default function ChatConversationScreen() {
     if (user?.id != null && String(paramOtherUserId) === String(user.id)) return true;
     return false;
   });
+  const [otherUserVerified, setOtherUserVerified] = useState(false);
 
   const backgroundSource = isDarkMode
     ? require("../../assets/images/dark-mode-bg.png")
@@ -420,6 +422,15 @@ export default function ChatConversationScreen() {
       );
     };
 
+    const handleMessageBlocked = (data) => {
+      if (!isBlindDate || !data) return;
+      setBlockedInfoMessage(
+        data.message ||
+          "In blind date chats, you can't send personal details like phone numbers, social media or email until both of you choose to reveal your profiles."
+      );
+      setShowBlockedInfoModal(true);
+    };
+
     const handleSocketMessage = (data) => {
       if (!data || !data.message) return;
       const msg = data.message;
@@ -453,6 +464,7 @@ export default function ChatConversationScreen() {
     socket.on("chat:presence:active", handleActivePresence);
     socket.on("chat:reaction:added", handleReactionAdded);
     socket.on("chat:reaction:removed", handleReactionRemoved);
+    socket.on("chat:message:blocked", handleMessageBlocked);
 
     return () => {
       try {
@@ -467,6 +479,7 @@ export default function ChatConversationScreen() {
       socket.off("chat:presence:active", handleActivePresence);
       socket.off("chat:reaction:added", handleReactionAdded);
       socket.off("chat:reaction:removed", handleReactionRemoved);
+      socket.off("chat:message:blocked", handleMessageBlocked);
       socketService.clearCurrentChatId();
     };
   }, [conversationId, myUserId, user]);
@@ -1010,6 +1023,25 @@ export default function ChatConversationScreen() {
     };
   }, [token, paramOtherUserId, user?.id, friendStatus]);
 
+  // Fetch other user's verification status
+  useEffect(() => {
+    if (!token || !paramOtherUserId || isBlindDate) return;
+    
+    const fetchVerificationStatus = async () => {
+      try {
+        const response = await exploreApi.getUserProfile(paramOtherUserId, token);
+        if (response?.user?.verification_status === 'verified') {
+          setOtherUserVerified(true);
+        }
+      } catch (error) {
+        // Silent fail - verification badge just won't show
+        console.log('[ChatConversation] Could not fetch user verification status');
+      }
+    };
+    
+    fetchVerificationStatus();
+  }, [token, paramOtherUserId, isBlindDate]);
+
   // If myUserId changes after initial mount, ensure we don't show myself as typing
   useEffect(() => {
     if (!typingUsers.length) return;
@@ -1134,14 +1166,22 @@ export default function ChatConversationScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => !isBlindDate && setShowUserProfile(true)}
+            onPress={() => !isBlindDate && paramOtherUserId && router.push(`/secure/user-profile/${paramOtherUserId}`)}
             disabled={!paramOtherUserId || isBlindDate}
           >
             {avatarUrl ? (
               <View style={{ overflow: 'hidden', borderRadius: 16 }}>
-                <Image source={{ uri: avatarUrl }} style={styles.headerAvatarImage} />
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.headerAvatarImage}
+                  blurRadius={isBlindDate ? 50 : 0}
+                />
                 {isBlindDate && (
-                  <BlurView intensity={50} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <BlurView
+                    intensity={40}
+                    tint={isDarkMode ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
                 )}
               </View>
             ) : (
@@ -1162,12 +1202,17 @@ export default function ChatConversationScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerInfo}>
-            <Text
-              style={[styles.headerTitle, { color: theme.textPrimary }]}
-              numberOfLines={1}
-            >
-              {conversationName}
-            </Text>
+            <View style={styles.headerNameRow}>
+              <Text
+                style={[styles.headerTitle, { color: theme.textPrimary }]}
+                numberOfLines={1}
+              >
+                {conversationName}
+              </Text>
+              {otherUserVerified && !isBlindDate && (
+                <VerifiedBadge size={18} style={{ marginLeft: 4 }} />
+              )}
+            </View>
             {isBlindDate && blindDateInfo ? (
               <Text
                 style={[styles.headerSubtitle, { color: theme.primary }]}
@@ -1304,17 +1349,18 @@ export default function ChatConversationScreen() {
                 style={[
                   styles.sendButton,
                   (!composer.trim() || !canMessage) && styles.sendButtonDisabled,
-                  { backgroundColor: theme.primary },
+                  { borderColor: theme.primary },
                 ]}
                 onPress={handleSend}
                 disabled={!composer.trim() || !canMessage}
               >
-                <Ionicons
-                  name="send"
-                  size={18}
-                  color="#fff"
-                  style={{ transform: [{ rotate: "45deg" }] }}
-                />
+                <View style={[styles.sendButtonInner, { backgroundColor: theme.primary }]}>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={18}
+                    color="#fff"
+                  />
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -1499,6 +1545,55 @@ export default function ChatConversationScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showBlockedInfoModal && isBlindDate}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBlockedInfoModal(false)}
+      >
+        <View style={styles.blockedModalOverlay}>
+          <View
+            style={[
+              styles.blockedModalContainer,
+              { backgroundColor: isDarkMode ? "#1a1a2e" : "#ffffff" },
+            ]}
+          >
+            <View style={styles.blockedModalTag}>
+              <Text style={styles.blockedModalTagText}>Blind date safety</Text>
+            </View>
+
+            <View style={styles.blockedModalIconWrapper}>
+              <Text style={styles.blockedModalIcon}>🔒</Text>
+            </View>
+
+            <Text
+              style={[
+                styles.blockedModalTitle,
+                { color: isDarkMode ? "#fff" : "#000" },
+              ]}
+              numberOfLines={1}
+            >
+              No personal info yet
+            </Text>
+            <Text
+              style={[
+                styles.blockedModalSubtitle,
+                { color: isDarkMode ? "#aaa" : "#666" },
+              ]}
+            >
+              {blockedInfoMessage ||
+                "In blind date chats, messages with personal details like phone numbers, social media or email are blocked until both of you choose to reveal your profiles."}
+            </Text>
+            <TouchableOpacity
+              style={styles.blockedModalButton}
+              onPress={() => setShowBlockedInfoModal(false)}
+            >
+              <Text style={styles.blockedModalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Blind Date Reveal Prompt Modal */}
       <Modal
         visible={showRevealPrompt && isBlindDate && !hasRequestedReveal}
@@ -1559,14 +1654,6 @@ export default function ChatConversationScreen() {
           setReactionTarget(null);
         }}
       />
-      <UserProfileModal
-        key={paramOtherUserId || "unknown"}
-        visible={showUserProfile && !!paramOtherUserId}
-        onClose={() => setShowUserProfile(false)}
-        userId={paramOtherUserId}
-        userName={conversationName}
-        userAvatar={avatarUrl}
-      />
     </ImageBackground>
   );
 }
@@ -1618,6 +1705,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "600",
+    flexShrink: 1,
+  },
+  headerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerSubtitle: {
     marginTop: 2,
@@ -1678,15 +1770,29 @@ const styles = StyleSheet.create({
     maxHeight: 120,
   },
   sendButton: {
-    marginLeft: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    marginLeft: 6,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    backgroundColor: "transparent",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  sendButtonInner: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
   sendButtonDisabled: {
-    opacity: 0.4,
+    opacity: 0.45,
   },
   typingRow: {
     flexDirection: "row",
@@ -1981,6 +2087,72 @@ const styles = StyleSheet.create({
   },
   skipRevealBtnText: {
     fontSize: 14,
+  },
+  blockedModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  blockedModalContainer: {
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+  },
+  blockedModalTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 12,
+  },
+  blockedModalTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4C1D95',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  blockedModalIconWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3E8FF',
+    marginBottom: 12,
+  },
+  blockedModalIcon: {
+    fontSize: 30,
+  },
+  blockedModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  blockedModalSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 21,
+  },
+  blockedModalButton: {
+    backgroundColor: "#7C3AED",
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  blockedModalButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

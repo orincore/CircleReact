@@ -143,7 +143,6 @@ export default function ProfileScreen() {
       setLoadingPhotos(true);
       const userPhotos = await PhotoGalleryService.getPhotos(token);
       setPhotos(userPhotos || []);
-      //console.log('📸 Loaded photos:', userPhotos?.length || 0);
     } catch (error) {
       console.error('❌ Failed to load photos:', error);
       // Set empty array on error to prevent crashes
