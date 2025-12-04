@@ -31,6 +31,16 @@ export default function BlindDatingAdmin() {
   const [userFilter, setUserFilter] = useState('all');
   const [matchingResults, setMatchingResults] = useState(null);
   const [showMatchingModal, setShowMatchingModal] = useState(false);
+  
+  // Manual match creation state
+  const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
+  const [userASearch, setUserASearch] = useState('');
+  const [userBSearch, setUserBSearch] = useState('');
+  const [selectedUserA, setSelectedUserA] = useState(null);
+  const [selectedUserB, setSelectedUserB] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchingFor, setSearchingFor] = useState(null); // 'userA' or 'userB'
+  const [creatingMatch, setCreatingMatch] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -365,6 +375,98 @@ export default function BlindDatingAdmin() {
     loadData();
   };
 
+  // Search users for manual match creation
+  const handleSearchUsers = async (query, forUser) => {
+    if (!query || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/users/search?q=${encodeURIComponent(query)}&limit=10`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      if (data.users) {
+        setSearchResults(data.users);
+        setSearchingFor(forUser);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+    }
+  };
+
+  const handleSelectUser = (user, forUser) => {
+    if (forUser === 'userA') {
+      setSelectedUserA(user);
+      setUserASearch('');
+    } else {
+      setSelectedUserB(user);
+      setUserBSearch('');
+    }
+    setSearchResults([]);
+    setSearchingFor(null);
+  };
+
+  const handleCreateManualMatch = async () => {
+    if (!selectedUserA || !selectedUserB) {
+      Alert.alert('Error', 'Please select both users');
+      return;
+    }
+    
+    if (selectedUserA.id === selectedUserB.id) {
+      Alert.alert('Error', 'Cannot match a user with themselves');
+      return;
+    }
+
+    setCreatingMatch(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/create-match`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userAId: selectedUserA.id,
+          userBId: selectedUserB.id
+        }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        Alert.alert(
+          '✅ Match Created!', 
+          `Successfully created blind date match between ${selectedUserA.first_name || selectedUserA.username} and ${selectedUserB.first_name || selectedUserB.username}. Both users have been notified.`
+        );
+        setShowCreateMatchModal(false);
+        setSelectedUserA(null);
+        setSelectedUserB(null);
+        setUserASearch('');
+        setUserBSearch('');
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to create match');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create match');
+    } finally {
+      setCreatingMatch(false);
+    }
+  };
+
+  const openCreateMatchModal = () => {
+    setSelectedUserA(null);
+    setSelectedUserB(null);
+    setUserASearch('');
+    setUserBSearch('');
+    setSearchResults([]);
+    setShowCreateMatchModal(true);
+  };
+
   const renderOverview = () => (
     <View>
       {/* Stats Grid */}
@@ -482,6 +584,15 @@ export default function BlindDatingAdmin() {
                 <Text style={styles.actionButtonText}>Run Detailed Matching (with Reasons)</Text>
               </>
             )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#FF4081', marginTop: 8, flex: 1 }]}
+            onPress={openCreateMatchModal}
+            disabled={processing}
+          >
+            <Ionicons name="person-add" size={20} color="#FFF" />
+            <Text style={styles.actionButtonText}>Create Manual Match</Text>
           </TouchableOpacity>
         </View>
         
@@ -949,6 +1060,188 @@ export default function BlindDatingAdmin() {
                 ))}
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Manual Match Modal */}
+      <Modal
+        visible={showCreateMatchModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateMatchModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Manual Blind Date</Text>
+              <TouchableOpacity onPress={() => setShowCreateMatchModal(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.createMatchLabel}>
+                Select two users to create a blind date match. Both users will be notified.
+              </Text>
+              
+              {/* User A Selection */}
+              <View style={styles.userSelectSection}>
+                <Text style={styles.userSelectLabel}>👤 User A</Text>
+                {selectedUserA ? (
+                  <View style={styles.selectedUserCard}>
+                    <View style={styles.selectedUserInfo}>
+                      <Text style={styles.selectedUserName}>
+                        {selectedUserA.first_name} {selectedUserA.last_name}
+                      </Text>
+                      <Text style={styles.selectedUserDetails}>
+                        @{selectedUserA.username} • {selectedUserA.gender || 'Unknown'} • {selectedUserA.age || '?'} yrs
+                      </Text>
+                      <Text style={styles.selectedUserEmail}>{selectedUserA.email}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.removeUserBtn}
+                      onPress={() => setSelectedUserA(null)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <TextInput
+                      style={styles.userSearchInput}
+                      placeholder="Search by name, username, or email..."
+                      value={userASearch}
+                      onChangeText={(text) => {
+                        setUserASearch(text);
+                        handleSearchUsers(text, 'userA');
+                      }}
+                    />
+                    {searchingFor === 'userA' && searchResults.length > 0 && (
+                      <View style={styles.searchResultsList}>
+                        {searchResults.map((user) => (
+                          <TouchableOpacity
+                            key={user.id}
+                            style={styles.searchResultItem}
+                            onPress={() => handleSelectUser(user, 'userA')}
+                          >
+                            <Text style={styles.searchResultName}>
+                              {user.first_name} {user.last_name}
+                            </Text>
+                            <Text style={styles.searchResultDetails}>
+                              @{user.username} • {user.gender || '?'} • {user.age || '?'} yrs
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+              
+              {/* Match Icon */}
+              <View style={styles.matchIconContainer}>
+                <Ionicons name="heart" size={32} color="#FF4081" />
+              </View>
+              
+              {/* User B Selection */}
+              <View style={styles.userSelectSection}>
+                <Text style={styles.userSelectLabel}>👤 User B</Text>
+                {selectedUserB ? (
+                  <View style={styles.selectedUserCard}>
+                    <View style={styles.selectedUserInfo}>
+                      <Text style={styles.selectedUserName}>
+                        {selectedUserB.first_name} {selectedUserB.last_name}
+                      </Text>
+                      <Text style={styles.selectedUserDetails}>
+                        @{selectedUserB.username} • {selectedUserB.gender || 'Unknown'} • {selectedUserB.age || '?'} yrs
+                      </Text>
+                      <Text style={styles.selectedUserEmail}>{selectedUserB.email}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.removeUserBtn}
+                      onPress={() => setSelectedUserB(null)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <TextInput
+                      style={styles.userSearchInput}
+                      placeholder="Search by name, username, or email..."
+                      value={userBSearch}
+                      onChangeText={(text) => {
+                        setUserBSearch(text);
+                        handleSearchUsers(text, 'userB');
+                      }}
+                    />
+                    {searchingFor === 'userB' && searchResults.length > 0 && (
+                      <View style={styles.searchResultsList}>
+                        {searchResults.map((user) => (
+                          <TouchableOpacity
+                            key={user.id}
+                            style={styles.searchResultItem}
+                            onPress={() => handleSelectUser(user, 'userB')}
+                          >
+                            <Text style={styles.searchResultName}>
+                              {user.first_name} {user.last_name}
+                            </Text>
+                            <Text style={styles.searchResultDetails}>
+                              @{user.username} • {user.gender || '?'} • {user.age || '?'} yrs
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+              
+              {/* Validation Messages */}
+              {selectedUserA && selectedUserB && (
+                <View style={styles.validationSection}>
+                  {selectedUserA.gender && selectedUserB.gender && 
+                   selectedUserA.gender.toLowerCase() === selectedUserB.gender.toLowerCase() && (
+                    <View style={styles.warningBox}>
+                      <Ionicons name="warning" size={20} color="#FF9800" />
+                      <Text style={styles.warningText}>
+                        Warning: Both users have the same gender. Blind dates require opposite genders.
+                      </Text>
+                    </View>
+                  )}
+                  {selectedUserA.id === selectedUserB.id && (
+                    <View style={styles.errorBox}>
+                      <Ionicons name="alert-circle" size={20} color="#F44336" />
+                      <Text style={styles.errorText}>
+                        Cannot match a user with themselves.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+            
+            {/* Create Button */}
+            <View style={styles.createMatchFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.createMatchBtn,
+                  (!selectedUserA || !selectedUserB || creatingMatch) && styles.createMatchBtnDisabled
+                ]}
+                onPress={handleCreateManualMatch}
+                disabled={!selectedUserA || !selectedUserB || creatingMatch}
+              >
+                {creatingMatch ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="heart" size={20} color="#FFF" />
+                    <Text style={styles.createMatchBtnText}>Create Blind Date Match</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1514,5 +1807,140 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#999',
     marginLeft: 8,
+  },
+  // Create Match Modal Styles
+  createMatchLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  userSelectSection: {
+    marginBottom: 16,
+  },
+  userSelectLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1147',
+    marginBottom: 8,
+  },
+  selectedUserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  selectedUserInfo: {
+    flex: 1,
+  },
+  selectedUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  selectedUserDetails: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  selectedUserEmail: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  removeUserBtn: {
+    padding: 4,
+  },
+  userSearchInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  searchResultsList: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    maxHeight: 200,
+  },
+  searchResultItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  searchResultName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F1147',
+  },
+  searchResultDetails: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  matchIconContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  validationSection: {
+    marginTop: 16,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#E65100',
+    marginLeft: 8,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#C62828',
+    marginLeft: 8,
+  },
+  createMatchFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  createMatchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF4081',
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  createMatchBtnDisabled: {
+    backgroundColor: '#BDBDBD',
+  },
+  createMatchBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

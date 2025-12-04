@@ -188,7 +188,8 @@ export default function useAndroidNotifications() {
       senderName: message.senderName || 'Someone',
       message: message.content || message.text || 'New message',
       chatId: message.chatId,
-      senderId: message.senderId
+      senderId: message.senderId,
+      messageId: message.id // For deduplication with push notifications
     });
   };
 

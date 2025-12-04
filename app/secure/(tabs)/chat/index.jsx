@@ -373,6 +373,7 @@ export default function ChatListScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
   const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
+  const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'blind'
   const buttonRefs = React.useRef({});
 
   const loadInbox = async (isRefresh = false) => {
@@ -587,9 +588,14 @@ export default function ChatListScreen() {
       }
     };
 
-    // Handle background messages
-    const handleBackgroundMessage = ({ message }) => {
-      handleNewMessage({ message });
+    // Handle background messages (received when user is not in the specific chat)
+    const handleBackgroundMessage = (data) => {
+      console.log('📬 [ChatList] Background message received:', data);
+      // Handle both { message: {...} } and direct message object
+      const message = data?.message || data;
+      if (message) {
+        handleNewMessage({ message });
+      }
     };
 
     // Handle typing indicators
@@ -695,6 +701,7 @@ export default function ChatListScreen() {
       // Listen to socket events
       if (socket && typeof socket.on === 'function') {
         socket.on('chat:message', handleNewMessage);
+        socket.on('chat:message:background', handleBackgroundMessage);
         socket.on('chat:typing', handleTyping);
         socket.on('chat:list:typing', handleListTyping);
         socket.on('chat:read', handleRead);
@@ -706,6 +713,7 @@ export default function ChatListScreen() {
         
         console.log('✅ [ChatList] Socket listeners registered:', [
           'chat:message',
+          'chat:message:background',
           'chat:typing',
           'chat:list:typing',
           'chat:read',
@@ -738,6 +746,7 @@ export default function ChatListScreen() {
           
           // Remove chat event listeners
           socket.off('chat:message', handleNewMessage);
+          socket.off('chat:message:background', handleBackgroundMessage);
           socket.off('chat:typing', handleTyping);
           socket.off('chat:list:typing', handleListTyping);
           socket.off('chat:read', handleRead);
@@ -810,18 +819,48 @@ export default function ChatListScreen() {
     }
   }, [conversations, searchQuery]);
 
-  // Apply archived toggle filter on top of text filtering
-  const visibleConversations = React.useMemo(() => {
+  const tabFilteredConversations = React.useMemo(() => {
     try {
-      return filteredConversations.filter(item => showArchived ? !!item.archived : !item.archived);
-    } catch (e) {
-      console.error('[ChatList] Error computing visibleConversations:', e);
+      return filteredConversations.filter(item => {
+        if (!item) return false;
+        const isBlind = !!item.isBlindDateOngoing;
+        if (activeTab === 'blind' && !isBlind) return false;
+        if (activeTab === 'chats' && isBlind) return false;
+        return true;
+      });
+    } catch (error) {
+      console.error('[ChatList] Error in tabFilteredConversations:', error);
       return filteredConversations;
     }
-  }, [filteredConversations, showArchived]);
+  }, [filteredConversations, activeTab]);
+
+  const visibleConversations = React.useMemo(() => {
+    try {
+      return tabFilteredConversations.filter(item => showArchived ? !!item.archived : !item.archived);
+    } catch (e) {
+      console.error('[ChatList] Error computing visibleConversations:', e);
+      return tabFilteredConversations;
+    }
+  }, [tabFilteredConversations, showArchived]);
+
+  const activeTabCount = React.useMemo(() => {
+    try {
+      if (!Array.isArray(conversations)) return 0;
+      return conversations.filter(item => {
+        if (!item) return false;
+        const isBlind = !!item.isBlindDateOngoing;
+        if (activeTab === 'blind' && !isBlind) return false;
+        if (activeTab === 'chats' && isBlind) return false;
+        return showArchived ? !!item.archived : !item.archived;
+      }).length;
+    } catch (error) {
+      console.error('[ChatList] Error computing activeTabCount:', error);
+      return 0;
+    }
+  }, [conversations, activeTab, showArchived]);
 
 
-  const handleChatPress = (chatId, name, profilePhoto, otherUserId) => {
+  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null) => {
     try {
       if (!chatId) {
         console.error('[ChatList] Invalid chatId:', chatId);
@@ -841,7 +880,11 @@ export default function ChatListScreen() {
           id: chatId, 
           name: name || 'Chat',
           avatar: profilePhoto || '',
-          otherUserId: otherUserId || ''
+          otherUserId: otherUserId || '',
+          isBlindDate: blindDateInfo ? 'true' : 'false',
+          blindDateMatchReason: blindDateInfo?.matchReason || '',
+          blindDateGender: blindDateInfo?.gender || '',
+          blindDateAge: blindDateInfo?.age ? String(blindDateInfo.age) : '',
         }
       });
     } catch (error) {
@@ -887,8 +930,8 @@ export default function ChatListScreen() {
             </TouchableOpacity>
             <Text style={[styles.headerSubtitle, dynamicStyles.headerSubtitle]}>
               {showArchived
-                ? `${conversations.filter(c => c.archived).length} archived`
-                : `${conversations.filter(c => !c.archived).length} conversation${conversations.filter(c => !c.archived).length !== 1 ? 's' : ''}`}
+                ? `${activeTabCount} archived`
+                : `${activeTabCount} conversation${activeTabCount !== 1 ? 's' : ''}`}
             </Text>
           </View>
           <TouchableOpacity 
@@ -912,6 +955,41 @@ export default function ChatListScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+        </View>
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'chats' && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveTab('chats')}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'chats' && styles.tabLabelActive,
+              ]}
+            >
+              Chats
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'blind' && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveTab('blind')}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'blind' && styles.tabLabelActive,
+              ]}
+            >
+              Blind date
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Daily Blind Date status banner */}
@@ -958,7 +1036,7 @@ export default function ChatListScreen() {
         ) : (
           <FlatList
             data={visibleConversations}
-            extraData={[visibleConversations, typingIndicators, unreadCounts]}
+            extraData={[visibleConversations, typingIndicators, unreadCounts, conversations.length]}
             keyExtractor={(item) => {
               try {
                 return item?.chat?.id || `fallback-${Math.random()}`;
@@ -969,7 +1047,7 @@ export default function ChatListScreen() {
             }}
             contentContainerStyle={styles.listContent}
             removeClippedSubviews={false}
-            style={{ overflow: 'visible' }}
+            style={{ flex: 1 }}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             refreshControl={
               <RefreshControl
@@ -1005,10 +1083,21 @@ export default function ChatListScreen() {
                 
                 const chatId = item.chat.id;
                 const isBlindDateOngoing = !!item.isBlindDateOngoing;
-                const displayName = isBlindDateOngoing ? '***' : (item.otherName || 'Unknown');
+                const blindDateInfo = item.blindDateInfo;
+                // Use masked name for blind dates, otherwise use real name
+                const displayName = isBlindDateOngoing && blindDateInfo?.maskedName 
+                  ? blindDateInfo.maskedName 
+                  : (item.otherName || 'Unknown');
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
+                
+                // Build blind date subtitle: "Looking for Friendship • Female • 25"
+                const blindDateSubtitle = isBlindDateOngoing && blindDateInfo ? [
+                  blindDateInfo.matchReason ? `Looking for ${blindDateInfo.matchReason}` : null,
+                  blindDateInfo.gender ? blindDateInfo.gender.charAt(0).toUpperCase() + blindDateInfo.gender.slice(1) : null,
+                  blindDateInfo.age ? `${blindDateInfo.age} yrs` : null,
+                ].filter(Boolean).join(' • ') : null;
               
               const row = (
                 <TouchableOpacity
@@ -1018,7 +1107,7 @@ export default function ChatListScreen() {
                     { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
                     openMenuChatId === chatId && styles.chatRowElevated,
                   ]}
-                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId)}
+                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null)}
                 >
                   <View style={styles.avatarContainer}>
                     {displayAvatar ? (
@@ -1047,8 +1136,8 @@ export default function ChatListScreen() {
                       <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}>{displayName} {item.pinned ? '📌' : ''}</Text>
                       <Text style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
                     </View>
-                    {isBlindDateOngoing && (
-                      <Text style={styles.blindDateTag}>Blind date ongoing</Text>
+                    {isBlindDateOngoing && blindDateSubtitle && (
+                      <Text style={styles.blindDateTag}>{blindDateSubtitle}</Text>
                     )}
                     <View style={styles.messageRow}>
                       <Text style={[styles.chatMessage, dynamicStyles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
@@ -1257,6 +1346,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     marginBottom: 20,
+    zIndex: 10,
   },
   headerIconContainer: {
     width: 52,
@@ -1309,15 +1399,45 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
+    zIndex: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: "#FFFFFF",
   },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    padding: 3,
+    zIndex: 10,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: 'rgba(124, 43, 134, 0.9)',
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(248, 250, 252, 0.8)',
+  },
+  tabLabelActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   listContent: {
-    paddingVertical: 24,
-    overflow: 'visible',
+    paddingVertical: 12,
+    paddingBottom: 100,
   },
   separator: {
     height: 1,
@@ -1328,7 +1448,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
-    overflow: 'visible',
     position: 'relative',
   },
   chatRowElevated: {
@@ -1362,6 +1481,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 12,
     marginBottom: 4,
+    zIndex: 10,
   },
   blindDateDailyBannerSuccess: {
     backgroundColor: 'rgba(34, 197, 94, 0.12)',
@@ -1418,6 +1538,12 @@ const styles = StyleSheet.create({
   },
   chatTime: {
     color: "rgba(255, 255, 255, 0.45)",
+  },
+  blindDateTag: {
+    fontSize: 11,
+    color: 'rgba(124, 43, 134, 0.9)',
+    fontWeight: '500',
+    marginBottom: 2,
   },
   messageRow: {
     flexDirection: 'row',

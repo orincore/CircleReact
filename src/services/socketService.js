@@ -168,7 +168,7 @@ class SocketService {
       senderName: message.senderName || 'Someone',
       message: message.text || 'New message',
       chatId: message.chatId,
-      avatar: message.senderName,
+      avatar: message.senderAvatar || message.senderName,
       onPress: () => this.navigateToChat(message.chatId, message.senderName),
     });
   }

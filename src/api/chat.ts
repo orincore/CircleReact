@@ -22,6 +22,13 @@ export interface MessageReaction {
   createdAt: string;
 }
 
+export interface BlindDateInfo {
+  matchReason?: string;
+  gender?: string;
+  age?: number;
+  maskedName?: string;
+}
+
 export interface ChatInboxItem {
   chat: {
     id: string;
@@ -43,6 +50,7 @@ export interface ChatInboxItem {
   pinned?: boolean;
   archived?: boolean;
   isBlindDateOngoing?: boolean;
+  blindDateInfo?: BlindDateInfo | null;
 }
 
 export const chatApi = {
@@ -77,6 +85,7 @@ export const chatApi = {
       pinned: !!it.pinned,
       archived: !!it.archived,
       isBlindDateOngoing: !!it.isBlindDateOngoing,
+      blindDateInfo: it.blindDateInfo || null,
     }))
     return { inbox }
   },

@@ -2,16 +2,53 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { chatApi } from '../api/chat';
+import socketService from './socketService';
+
+// Deduplication cache for push notifications (messageId -> timestamp)
+const recentPushNotifications = new Map();
+const PUSH_DEDUP_WINDOW_MS = 5000; // 5 second window
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    // Show and sound for all notification types in all app states
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data || {};
+    
+    // For message notifications, check deduplication
+    if (data.type === 'new_message' || data.type === 'message') {
+      const messageId = data.messageId;
+      if (messageId) {
+        const now = Date.now();
+        const lastShown = recentPushNotifications.get(messageId);
+        if (lastShown && (now - lastShown) < PUSH_DEDUP_WINDOW_MS) {
+          // Already shown this notification recently, suppress it
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+        // Mark as shown
+        recentPushNotifications.set(messageId, now);
+        // Cleanup old entries
+        if (recentPushNotifications.size > 100) {
+          const cutoff = now - PUSH_DEDUP_WINDOW_MS;
+          for (const [id, ts] of recentPushNotifications) {
+            if (ts < cutoff) recentPushNotifications.delete(id);
+          }
+        }
+      }
+    }
+    
+    // Show and sound for all notification types
+    return {
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 class AndroidNotificationService {
@@ -44,6 +81,20 @@ class AndroidNotificationService {
           options: {
             opensAppToForeground: false,
             isDestructive: true,
+          },
+        },
+      ]);
+
+      await Notifications.setNotificationCategoryAsync('message_reply', [
+        {
+          identifier: 'REPLY_INLINE',
+          buttonTitle: 'Reply',
+          options: {
+            opensAppToForeground: true,
+          },
+          textInput: {
+            placeholder: 'Type a reply...',
+            submitButtonTitle: 'Send',
           },
         },
       ]);
@@ -255,8 +306,8 @@ class AndroidNotificationService {
     // For example, updating badge counts, playing custom sounds, etc.
   }
 
-  handleNotificationResponse(response) {
-    const { notification } = response;
+  async handleNotificationResponse(response) {
+    const { notification, actionIdentifier, userText } = response;
     const { data } = notification.request.content;
     
     //console.log('🎯 User interacted with notification:', data);
@@ -269,11 +320,40 @@ class AndroidNotificationService {
           //console.log('📱 Opening friend requests');
           break;
         case 'message':
-          // Navigate to chat
-          if (data.chatId) {
-            //console.log('📱 Opening chat:', data.chatId);
+        case 'new_message': {
+          if (actionIdentifier === 'REPLY_INLINE') {
+            const reply = (userText || '').trim();
+            if (reply && data.chatId) {
+              try {
+                // Get token from AsyncStorage for the API call
+                const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+                const token = await AsyncStorage.getItem('@circle:access_token');
+                if (!token) {
+                  console.error('❌ No auth token found for inline reply');
+                  return;
+                }
+                console.log('📤 Sending inline reply from notification:', { chatId: data.chatId, replyLength: reply.length });
+                await chatApi.sendMessage(String(data.chatId), reply, token);
+                console.log('✅ Inline reply sent successfully');
+              } catch (error) {
+                console.error('❌ Failed to send inline reply from notification:', error);
+              }
+            }
+          } else if (data.chatId) {
+            try {
+              const rawTitle = notification.request.content?.title;
+              const senderName =
+                data.senderName ||
+                (typeof rawTitle === 'string'
+                  ? rawTitle.replace(/^💬\s*/, '')
+                  : 'Chat');
+              socketService.navigateToChat(String(data.chatId), senderName);
+            } catch (error) {
+              console.error('❌ Failed to navigate to chat from notification tap:', error);
+            }
           }
           break;
+        }
         case 'match':
           // Navigate to matches
           //console.log('📱 Opening matches');
@@ -359,7 +439,26 @@ class AndroidNotificationService {
     });
   }
 
-  async showMessageNotification({ senderName, message, chatId, senderId }) {
+  async showMessageNotification({ senderName, message, chatId, senderId, messageId }) {
+    // Deduplication: skip if we've shown this message recently (uses module-level cache)
+    if (messageId) {
+      const now = Date.now();
+      const lastShown = recentPushNotifications.get(messageId);
+      if (lastShown && (now - lastShown) < PUSH_DEDUP_WINDOW_MS) {
+        // Already shown this notification recently, skip
+        return null;
+      }
+      // Mark as shown
+      recentPushNotifications.set(messageId, now);
+      // Cleanup old entries periodically
+      if (recentPushNotifications.size > 100) {
+        const cutoff = now - PUSH_DEDUP_WINDOW_MS;
+        for (const [id, ts] of recentPushNotifications) {
+          if (ts < cutoff) recentPushNotifications.delete(id);
+        }
+      }
+    }
+
     return this.showLocalNotification({
       title: `💬 ${senderName}`,
       body: message,
@@ -367,9 +466,11 @@ class AndroidNotificationService {
         type: 'message', 
         chatId, 
         senderId,
+        senderName,
         action: 'open_chat'
       },
-      channelId: 'messages'
+      channelId: 'messages',
+      categoryId: 'message_reply'
     });
   }
 

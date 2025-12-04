@@ -74,9 +74,27 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
 
   if (!res.ok) {
     const errorMessage = (isJson && (data as any)?.error) || `HTTP ${res.status} on ${method} ${url}`;
-    
-    // Only log non-404 errors to reduce noise
-    if (res.status !== 404) {
+
+    // Special-case: clearing certain chats can legitimately return 403
+    // with a domain-specific error message. Treat this as a warning to
+    // avoid noisy "🚨 API Error" logs for expected behavior.
+    const isExpectedChatClear403 =
+      res.status === 403 &&
+      isJson &&
+      typeof (data as any)?.error === 'string' &&
+      (data as any).error === 'Not authorized to clear this chat';
+
+    if (isExpectedChatClear403) {
+      console.warn(`⚠️ Expected chat clear restriction [403]:`, {
+        url,
+        method,
+        status: res.status,
+        statusText: res.statusText,
+        error: errorMessage,
+        details: data,
+      });
+    } else if (res.status !== 404) {
+      // Only log non-404 errors to reduce noise
       console.error(`🚨 API Error [${res.status}]:`, {
         url,
         method,
@@ -89,7 +107,7 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
       // Just log 404s as warnings
       console.warn(`⚠️ Resource not found [404]: ${method} ${url}`);
     }
-    
+
     const err: ApiError = new Error(errorMessage);
     err.status = res.status;
     if (isJson) err.details = data;

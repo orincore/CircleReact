@@ -6,7 +6,8 @@ import {
   StyleSheet, 
   Animated, 
   Dimensions,
-  Platform 
+  Platform,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -79,6 +80,8 @@ export default function ToastNotification({
       console.error('Failed to play notification effects:', error);
     }
   };
+
+  const isAvatarUrl = typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://'));
 
   const playNotificationSound = async () => {
     try {
@@ -169,11 +172,15 @@ export default function ToastNotification({
         >
           <View style={styles.iconContainer}>
             {avatar ? (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {avatar.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              isAvatarUrl ? (
+                <Image source={{ uri: avatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {avatar.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )
             ) : (
               <Ionicons 
                 name={getIcon()} 
@@ -251,6 +258,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
