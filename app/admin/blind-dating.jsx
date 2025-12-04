@@ -437,7 +437,7 @@ export default function BlindDatingAdmin() {
       });
       const data = await response.json();
       
-      if (data.success) {
+      if (response.ok && data.success) {
         Alert.alert(
           '✅ Match Created!', 
           `Successfully created blind date match between ${selectedUserA.first_name || selectedUserA.username} and ${selectedUserB.first_name || selectedUserB.username}. Both users have been notified.`
@@ -449,7 +449,8 @@ export default function BlindDatingAdmin() {
         setUserBSearch('');
         loadData();
       } else {
-        Alert.alert('Error', data.error || 'Failed to create match');
+        console.error('Create match error:', data);
+        Alert.alert('Error', data.error || data.message || 'Failed to create match');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to create match');
