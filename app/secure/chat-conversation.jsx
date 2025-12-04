@@ -507,32 +507,8 @@ export default function ChatConversationScreen() {
     };
   }, [token, conversationId]);
 
-  // Fetch blind date status and track message count
-  useEffect(() => {
-    if (!isBlindDate || !conversationId || !token) return;
-    
-    const fetchBlindDateStatus = async () => {
-      try {
-        const status = await blindDatingApi.getChatStatus(conversationId, token);
-        const data = status?.data || status;
-        
-        if (data?.match) {
-          setBlindDateMatch(data.match);
-          setHasRevealedSelf(data.hasRevealedSelf || false);
-          setOtherHasRevealed(data.otherHasRevealed || false);
-          setBothRevealed(data.match.status === 'revealed');
-          setBlindDateMessageCount(data.match.message_count || 0);
-          if (data.otherUserProfile) {
-            setOtherUserProfile(data.otherUserProfile);
-          }
-        }
-      } catch (error) {
-        console.log('[BlindDate] Error fetching status:', error);
-      }
-    };
-    
-    fetchBlindDateStatus();
-  }, [isBlindDate, conversationId, token]);
+  // Initial blind date status is now fetched via socket in the socket event listener useEffect
+  // This ensures real-time updates from the start
 
   // Track message count for blind date reveal prompt
   useEffect(() => {
@@ -553,16 +529,78 @@ export default function ChatConversationScreen() {
     }
   }, [messages, isBlindDate, hasRevealedSelf, bothRevealed, lastPromptDismissedAt, showRevealPrompt]);
 
-  // Listen for blind date socket events
+  // Listen for blind date socket events - ALL REAL-TIME UPDATES
   useEffect(() => {
     if (!isBlindDate || !token) return;
     
     const socket = getSocket(token);
     if (!socket) return;
     
-    // When other user reveals their identity
+    // Handle status response from socket
+    const handleStatusResponse = (data) => {
+      console.log('[BlindDate] Received status:', data);
+      if (data?.match) {
+        setBlindDateMatch(data.match);
+        setHasRevealedSelf(data.hasRevealedSelf || false);
+        setOtherHasRevealed(data.otherHasRevealed || false);
+        setBothRevealed(data.match.status === 'revealed');
+        if (data.otherUserProfile) {
+          setOtherUserProfile(data.otherUserProfile);
+        }
+      }
+    };
+    
+    // Handle reveal success (when I reveal)
+    const handleRevealSuccess = (data) => {
+      console.log('[BlindDate] Reveal success:', data);
+      setIsRevealSubmitting(false);
+      
+      if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
+        setHasRevealedSelf(true);
+        setShowRevealPrompt(false);
+        
+        if (data.match) {
+          setBlindDateMatch(data.match);
+        }
+        
+        if (data.bothRevealed) {
+          setBothRevealed(true);
+          setOtherHasRevealed(true);
+          if (data.otherUser) {
+            setOtherUserProfile(data.otherUser);
+          }
+          if (data.friendshipCreated) {
+            setFriendStatus('friends');
+            setCanMessage(true);
+          }
+          Alert.alert(
+            '🎉 Profiles Revealed!',
+            'Both of you have revealed! You are now friends and can see each other\'s full profiles.',
+            [{ 
+              text: 'View Profile', 
+              onPress: () => {
+                if (data.otherUserId) {
+                  router.push(`/secure/user-profile/${data.otherUserId}`);
+                }
+              }
+            },
+            { text: 'Continue Chatting' }]
+          );
+        }
+        // Single reveal - banner will show status
+      }
+    };
+    
+    // Handle reveal error
+    const handleRevealError = (data) => {
+      console.log('[BlindDate] Reveal error:', data);
+      setIsRevealSubmitting(false);
+      Alert.alert('Error', data.error || 'Failed to request reveal.');
+    };
+    
+    // When other user reveals their identity (I receive notification)
     const handleRevealRequested = (data) => {
-      console.log('[BlindDate] Received reveal_requested:', data);
+      console.log('[BlindDate] Other user revealed:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
         setOtherHasRevealed(true);
         // Show prompt immediately when other user reveals
@@ -572,23 +610,20 @@ export default function ChatConversationScreen() {
       }
     };
     
-    // When both users have revealed - LIVE UPDATE UI
+    // When both users have revealed - LIVE UPDATE UI (received by both)
     const handleBothRevealed = (data) => {
-      console.log('[BlindDate] Received both_revealed:', data);
+      console.log('[BlindDate] Both revealed:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
         // Update all reveal states
         setBothRevealed(true);
         setHasRevealedSelf(true);
         setOtherHasRevealed(true);
         setShowRevealPrompt(false);
+        setIsRevealSubmitting(false);
         
         // Update other user's profile with revealed data
         if (data.otherUser) {
           setOtherUserProfile(data.otherUser);
-          // Update conversation name and avatar if we have the data
-          if (data.otherUser.first_name) {
-            // The header will automatically use otherUserProfile if available
-          }
         }
         
         // Friendship was created - update canMessage state
@@ -614,10 +649,22 @@ export default function ChatConversationScreen() {
       }
     };
     
+    // Register all socket event listeners
+    socket.on('blind_date:status', handleStatusResponse);
+    socket.on('blind_date:reveal:success', handleRevealSuccess);
+    socket.on('blind_date:reveal:error', handleRevealError);
     socket.on('blind_date:reveal_requested', handleRevealRequested);
     socket.on('blind_date:revealed', handleBothRevealed);
     
+    // Request initial status via socket
+    if (conversationId) {
+      socket.emit('blind_date:get_status', { chatId: conversationId });
+    }
+    
     return () => {
+      socket.off('blind_date:status', handleStatusResponse);
+      socket.off('blind_date:reveal:success', handleRevealSuccess);
+      socket.off('blind_date:reveal:error', handleRevealError);
       socket.off('blind_date:reveal_requested', handleRevealRequested);
       socket.off('blind_date:revealed', handleBothRevealed);
     };
@@ -834,55 +881,55 @@ export default function ChatConversationScreen() {
     }, 1500);
   };
 
-  // Blind date reveal handlers
+  // Blind date reveal handlers - USE SOCKET for real-time updates
   const handleRevealProfile = async () => {
     if (!conversationId || isRevealSubmitting || hasRevealedSelf) return;
     
+    const socket = token ? getSocket(token) : null;
+    if (!socket) {
+      Alert.alert('Error', 'Connection not available. Please try again.');
+      return;
+    }
+    
     setIsRevealSubmitting(true);
-    try {
-      // Use cached match ID or fetch it
-      let matchId = blindDateMatch?.id;
-      if (!matchId) {
+    
+    // Use cached match ID or fetch it via socket
+    let matchId = blindDateMatch?.id;
+    if (!matchId) {
+      // Request status via socket first
+      socket.emit('blind_date:get_status', { chatId: conversationId });
+      // Wait a bit for response, or use REST as fallback
+      try {
         const statusResult = await blindDatingApi.getChatStatus(conversationId, token);
         const data = statusResult?.data || statusResult;
         matchId = data?.match?.id;
-      }
-      
-      if (!matchId) {
-        Alert.alert('Error', 'Could not find blind date match information.');
-        setIsRevealSubmitting(false);
-        return;
-      }
-      
-      const result = await blindDatingApi.requestReveal(matchId, token);
-      const resultData = result?.data || result;
-      
-      if (resultData?.success) {
-        setHasRevealedSelf(true);
-        setShowRevealPrompt(false);
-        
-        if (resultData.bothRevealed) {
-          setBothRevealed(true);
-          setOtherHasRevealed(true);
-          if (resultData.otherUser) {
-            setOtherUserProfile(resultData.otherUser);
-          }
-          Alert.alert(
-            '🎉 Profiles Revealed!',
-            'Both of you have agreed to reveal! You can now see each other\'s full profiles and continue chatting as friends.',
-            [{ text: 'Awesome!' }]
-          );
+        if (data?.match) {
+          setBlindDateMatch(data.match);
         }
-        // No alert for single reveal - the banner will show the status
-      } else {
-        Alert.alert('Error', resultData?.message || 'Failed to request reveal.');
+      } catch (e) {
+        console.log('[BlindDate] Fallback status fetch failed:', e);
       }
-    } catch (error) {
-      console.error('Error requesting reveal:', error);
-      Alert.alert('Error', 'Failed to request reveal. Please try again.');
-    } finally {
-      setIsRevealSubmitting(false);
     }
+    
+    if (!matchId) {
+      Alert.alert('Error', 'Could not find blind date match information.');
+      setIsRevealSubmitting(false);
+      return;
+    }
+    
+    console.log('[BlindDate] Sending reveal request via socket:', { matchId, chatId: conversationId });
+    
+    // Send reveal request via socket for real-time response
+    socket.emit('blind_date:request_reveal', { 
+      matchId, 
+      chatId: conversationId 
+    });
+    
+    // The response will be handled by the socket event listeners
+    // Set a timeout to reset submitting state if no response
+    setTimeout(() => {
+      setIsRevealSubmitting(false);
+    }, 10000);
   };
 
   const handleSkipReveal = () => {
