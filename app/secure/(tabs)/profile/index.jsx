@@ -56,6 +56,9 @@ export default function ProfileScreen() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [imageErrors, setImageErrors] = useState(new Set());
+  const [verificationStatus, setVerificationStatus] = useState(
+    user?.verification_status || user?.verificationStatus || 'unverified'
+  );
 
   // Rainbow theme animation for LGBTQ users
   const rainbowAnim = useRef(new Animated.Value(0)).current;
@@ -132,6 +135,33 @@ export default function ProfileScreen() {
       loop.stop();
     };
   }, [isLgbtqUser, rainbowAnim]);
+
+  // Load full profile (including verification_status) using the same
+  // endpoint as [userId].jsx but for the current user
+  useEffect(() => {
+    const loadOwnProfile = async () => {
+      if (!token || !user?.id) return;
+      try {
+        const { API_BASE_URL } = await import('@/src/api/config');
+        const response = await fetch(`${API_BASE_URL}/api/friends/user/${user.id}/profile`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setVerificationStatus(data.verification_status || 'unverified');
+        }
+      } catch (error) {
+        console.warn('[Profile] Failed to load own profile for verification badge:', error);
+      }
+    };
+
+    loadOwnProfile();
+  }, [token, user?.id]);
 
   // Comprehensive refresh function
   const handleRefresh = async () => {
@@ -813,7 +843,7 @@ export default function ProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
                 <Text style={dynamicStyles.profileName}>{displayName}</Text>
-                {user?.verification_status === 'verified' && (
+                {verificationStatus === 'verified' && (
                   <VerifiedBadge size={20} />
                 )}
                 {isPremium && plan !== 'free' && (

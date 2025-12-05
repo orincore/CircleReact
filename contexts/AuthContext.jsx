@@ -78,7 +78,10 @@ export function AuthProvider({ children }) {
         console.warn('⚠️ Unable to fetch full user profile - using login response data');
       }
       
-      setUser(fullUser || resp.user || null);
+      // Merge REST user snapshot with GraphQL user so we preserve fields
+      // like verification_status that might not be present in GraphQL
+      const mergedUser = fullUser || resp.user ? { ...(resp.user || {}), ...(fullUser || {}) } : null;
+      setUser(mergedUser);
     } catch (_e) {
       const isAuthError = _e?.isAuthError === true || _e?.status === 401 || _e?.status === 403;
       
@@ -92,7 +95,8 @@ export function AuthProvider({ children }) {
       // Network error or we have fallback data from login response
       console.warn('⚠️ Failed to fetch full user profile, using login response data:', _e.message);
       fullUser = resp.user;
-      setUser(resp.user || null);
+      const mergedUser = resp.user || null;
+      setUser(mergedUser);
     }
     
     // Check account status before proceeding
@@ -387,7 +391,9 @@ export function AuthProvider({ children }) {
         if (authed && savedToken) {
           try {
             const fullUser = await meGql(savedToken);
-            snapshot = fullUser || snapshot;
+            // Merge persisted REST snapshot with GraphQL user so we keep
+            // fields like verification_status that may not exist in GraphQL
+            snapshot = fullUser ? { ...(snapshot || {}), ...fullUser } : snapshot;
           } catch (_e) {
             // keep snapshot
           }

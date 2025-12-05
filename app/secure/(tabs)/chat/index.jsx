@@ -366,6 +366,7 @@ export default function ChatListScreen() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isCacheLoaded, setIsCacheLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typingIndicators, setTypingIndicators] = useState({}); // chatId -> array of typing users
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> unread count
@@ -375,7 +376,83 @@ export default function ChatListScreen() {
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
   const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
   const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'blind'
+  const [otherVerificationCache, setOtherVerificationCache] = useState({}); // otherUserId -> boolean
   const buttonRefs = React.useRef({});
+
+  // Cache key for chat list
+  const CHAT_LIST_CACHE_KEY = `@circle:chat_list:${user?.id || 'unknown'}`;
+  const UNREAD_COUNTS_CACHE_KEY = `@circle:unread_counts:${user?.id || 'unknown'}`;
+
+  // Load cached chat list on mount for instant display
+  useEffect(() => {
+    const loadCachedChatList = async () => {
+      if (!user?.id) return;
+      try {
+        const [cachedConversations, cachedUnreadCounts] = await Promise.all([
+          AsyncStorage.getItem(CHAT_LIST_CACHE_KEY),
+          AsyncStorage.getItem(UNREAD_COUNTS_CACHE_KEY),
+        ]);
+        
+        if (cachedConversations) {
+          const parsed = JSON.parse(cachedConversations);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setConversations(parsed);
+            // If we have cached data, don't show loading spinner
+            setLoading(false);
+          }
+        }
+        
+        if (cachedUnreadCounts) {
+          const parsedCounts = JSON.parse(cachedUnreadCounts);
+          if (parsedCounts && typeof parsedCounts === 'object') {
+            setUnreadCounts(parsedCounts);
+          }
+        }
+      } catch (error) {
+        console.warn('[ChatList] Failed to load cached chat list:', error);
+      } finally {
+        setIsCacheLoaded(true);
+      }
+    };
+    loadCachedChatList();
+  }, [user?.id]);
+
+  // Save conversations to cache whenever they change
+  const cacheTimeoutRef = React.useRef(null);
+  useEffect(() => {
+    if (!isCacheLoaded || !user?.id || conversations.length === 0) return;
+    
+    // Debounce cache saves to avoid excessive writes
+    if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+    cacheTimeoutRef.current = setTimeout(async () => {
+      try {
+        await AsyncStorage.setItem(CHAT_LIST_CACHE_KEY, JSON.stringify(conversations));
+      } catch (error) {
+        console.warn('[ChatList] Failed to cache conversations:', error);
+      }
+    }, 1000);
+    
+    return () => {
+      if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+    };
+  }, [conversations, isCacheLoaded, user?.id]);
+
+  // Save unread counts to cache
+  useEffect(() => {
+    if (!isCacheLoaded || !user?.id) return;
+    
+    const saveUnreadCounts = async () => {
+      try {
+        await AsyncStorage.setItem(UNREAD_COUNTS_CACHE_KEY, JSON.stringify(unreadCounts));
+      } catch (error) {
+        console.warn('[ChatList] Failed to cache unread counts:', error);
+      }
+    };
+    
+    // Debounce unread count saves
+    const timeout = setTimeout(saveUnreadCounts, 500);
+    return () => clearTimeout(timeout);
+  }, [unreadCounts, isCacheLoaded, user?.id]);
 
   const loadInbox = async (isRefresh = false) => {
     if (!token) {
@@ -387,7 +464,8 @@ export default function ChatListScreen() {
     
     try {
       if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      // Only show loading if we don't have cached data
+      else if (conversations.length === 0) setLoading(true);
       
       
       // Add timeout to prevent infinite loading
@@ -816,6 +894,63 @@ export default function ChatListScreen() {
     }
   }, [tabFilteredConversations, showArchived]);
 
+  // Ensure we know verification status for users shown in the list.
+  // If inbox data doesn't provide a verified flag, fall back to the
+  // same profile endpoint used in [userId].jsx and the self profile tab.
+  useEffect(() => {
+    if (!token || !Array.isArray(visibleConversations)) return;
+
+    const loadMissingVerification = async () => {
+      try {
+        const idsToFetch = new Set();
+
+        visibleConversations.forEach((item) => {
+          if (!item || !item.otherId) return;
+          const cacheVal = otherVerificationCache[item.otherId];
+          if (cacheVal === true) return;
+
+          const flag = item.otherVerificationStatus ?? item.other_verification_status;
+          if (flag === 'verified' || flag === true) return;
+
+          idsToFetch.add(item.otherId);
+        });
+
+        if (idsToFetch.size === 0) return;
+
+        const { API_BASE_URL } = await import('@/src/api/config');
+        await Promise.all(
+          Array.from(idsToFetch).map(async (otherId) => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/api/friends/user/${otherId}/profile`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              if (!res.ok) return;
+              const data = await res.json();
+              if (!data) return;
+              const isVerified = data.verification_status === 'verified';
+              if (isVerified) {
+                setOtherVerificationCache((prev) => ({
+                  ...prev,
+                  [otherId]: true,
+                }));
+              }
+            } catch {
+              // ignore per-user errors
+            }
+          })
+        );
+      } catch (e) {
+        console.warn('[ChatList] Failed to backfill verification status:', e?.message);
+      }
+    };
+
+    loadMissingVerification();
+  }, [token, visibleConversations, otherVerificationCache]);
+
   const activeTabCount = React.useMemo(() => {
     try {
       if (!Array.isArray(conversations)) return 0;
@@ -833,7 +968,7 @@ export default function ChatListScreen() {
   }, [conversations, activeTab, showArchived]);
 
 
-  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null) => {
+  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null, isVerified = false) => {
     try {
       if (!chatId) {
         console.error('[ChatList] Invalid chatId:', chatId);
@@ -858,6 +993,7 @@ export default function ChatListScreen() {
           blindDateMatchReason: blindDateInfo?.matchReason || '',
           blindDateGender: blindDateInfo?.gender || '',
           blindDateAge: blindDateInfo?.age ? String(blindDateInfo.age) : '',
+          isOtherUserVerified: isVerified ? 'true' : 'false',
         }
       });
     } catch (error) {
@@ -1082,7 +1218,9 @@ export default function ChatListScreen() {
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
+                const cachedVerified = item.otherId ? otherVerificationCache[item.otherId] : undefined;
                 const isOtherUserVerified =
+                  cachedVerified === true ||
                   item.otherVerificationStatus === 'verified' ||
                   item.otherVerificationStatus === true ||
                   item.other_verification_status === 'verified';
@@ -1102,7 +1240,7 @@ export default function ChatListScreen() {
                     { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
                     openMenuChatId === chatId && styles.chatRowElevated,
                   ]}
-                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null)}
+                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified)}
                   onLongPress={() => {
                     if (Platform.OS !== 'web') {
                       setOpenMenuChatId(chatId);
@@ -1147,13 +1285,30 @@ export default function ChatListScreen() {
                   <View style={styles.chatInfo}>
                     <View style={styles.chatHeader}>
                       <View style={styles.chatNameRow}>
-                        <Text style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]} numberOfLines={1}>{displayName}</Text>
+                        <Text
+                          style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}
+                          numberOfLines={1}
+                        >
+                          {displayName}
+                        </Text>
                         {isOtherUserVerified && !isBlindDateOngoing && (
                           <VerifiedBadge size={16} style={{ marginLeft: 4 }} />
                         )}
                         {item.pinned && <Text style={styles.pinnedIcon}>📌</Text>}
                       </View>
-                      <Text style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}>{formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}</Text>
+                      <View style={styles.chatMetaColumn}>
+                        <Text
+                          style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}
+                          numberOfLines={1}
+                        >
+                          {formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}
+                        </Text>
+                        {currentUnreadCount > 0 && (
+                          <View style={styles.unreadBadge}>
+                            <Text style={styles.unreadText}>{currentUnreadCount}</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                     {isBlindDateOngoing && blindDateSubtitle && (
                       <Text style={styles.blindDateTag}>{blindDateSubtitle}</Text>
@@ -1237,9 +1392,6 @@ export default function ChatListScreen() {
                         </View>
                       )}
                     </View>
-                  )}
-                  {currentUnreadCount > 0 && (
-                    <View style={styles.unreadBadge}><Text style={styles.unreadText}>{currentUnreadCount}</Text></View>
                   )}
                 </TouchableOpacity>
               );
