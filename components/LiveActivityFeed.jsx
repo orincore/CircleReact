@@ -166,13 +166,24 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
       socket.on(event, handleActivity);
     });
 
-    // Request initial activities
-    socket.emit('activity:get_recent', { limit: maxItems });
+    // Request initial activities when socket connects
+    const requestActivities = () => {
+      if (socket && socket.connected) {
+        socket.emit('activity:get_recent', { limit: maxItems });
+      }
+    };
+
+    // Request immediately if connected
+    requestActivities();
+
+    // Also request on reconnection
+    socket.on('connect', requestActivities);
 
     return () => {
       activityEvents.forEach(event => {
         socket.off(event, handleActivity);
       });
+      socket.off('connect', requestActivities);
     };
   }, [socket, maxItems]);
 
@@ -203,6 +214,19 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
       socket.off('activity:recent_list', handleInitialActivities);
     };
   }, [socket]);
+
+  // Retry fetching activities if none loaded after a delay
+  useEffect(() => {
+    if (!socket || activities.length > 0) return;
+
+    const retryTimer = setTimeout(() => {
+      if (socket && socket.connected && activities.length === 0) {
+        socket.emit('activity:get_recent', { limit: maxItems });
+      }
+    }, 3000); // Retry after 3 seconds if no activities
+
+    return () => clearTimeout(retryTimer);
+  }, [socket, activities.length, maxItems]);
 
   // Update displayed activities when activities or currentPage changes
   useEffect(() => {

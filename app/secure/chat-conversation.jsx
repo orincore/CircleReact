@@ -1,11 +1,13 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Image,
   ImageBackground,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,9 +20,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
+import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +40,118 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
+// Swipeable Message Wrapper for reply gesture using react-native-gesture-handler
+// This prevents keyboard from closing during swipe
+function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const replyIconOpacity = useRef(new Animated.Value(0)).current;
+  const SWIPE_THRESHOLD = 60;
+  const hasTriggeredReply = useRef(false);
+  
+  // Reset the trigger flag
+  const resetTriggerFlag = useCallback(() => {
+    hasTriggeredReply.current = false;
+  }, []);
+
+  // Wrapper function to safely call the reply callback
+  const triggerReply = useCallback(() => {
+    if (onSwipeReply && !hasTriggeredReply.current) {
+      hasTriggeredReply.current = true;
+      onSwipeReply(message);
+    }
+  }, [onSwipeReply, message]);
+
+  // Reset animation to original position
+  const resetPosition = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 10,
+      }),
+      Animated.timing(replyIconOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [translateX, replyIconOpacity]);
+
+  // Update animation values
+  const updateAnimation = useCallback((translationXValue) => {
+    const clampedX = Math.max(-SWIPE_THRESHOLD - 20, Math.min(SWIPE_THRESHOLD + 20, translationXValue));
+    translateX.setValue(clampedX);
+    const progress = Math.min(Math.abs(clampedX) / SWIPE_THRESHOLD, 1);
+    replyIconOpacity.setValue(progress);
+  }, [translateX, replyIconOpacity]);
+
+  // Handle gesture end with threshold check
+  const handleGestureEnd = useCallback((translationXValue) => {
+    if (Math.abs(translationXValue) >= SWIPE_THRESHOLD) {
+      triggerReply();
+    }
+    resetPosition();
+  }, [triggerReply, resetPosition]);
+  
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20]) // Only activate after 20px horizontal movement
+    .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (allow more vertical tolerance)
+    .minDistance(10) // Minimum distance before gesture activates
+    .onStart(() => {
+      'worklet';
+      runOnJS(resetTriggerFlag)();
+    })
+    .onUpdate((event) => {
+      'worklet';
+      runOnJS(updateAnimation)(event.translationX);
+    })
+    .onEnd((event) => {
+      'worklet';
+      runOnJS(handleGestureEnd)(event.translationX);
+    })
+    .onFinalize(() => {
+      'worklet';
+      runOnJS(resetPosition)();
+    });
+
+  return (
+    <View style={styles.swipeableContainer}>
+      {/* Reply icon indicator - left side */}
+      <Animated.View
+        style={[
+          styles.replyIconContainer,
+          styles.replyIconLeft,
+          { opacity: replyIconOpacity },
+        ]}
+      >
+        <View style={styles.replyIconCircle}>
+          <Ionicons name="arrow-undo" size={18} color="#fff" />
+        </View>
+      </Animated.View>
+      
+      {/* Reply icon indicator - right side */}
+      <Animated.View
+        style={[
+          styles.replyIconContainer,
+          styles.replyIconRight,
+          { opacity: replyIconOpacity },
+        ]}
+      >
+        <View style={styles.replyIconCircle}>
+          <Ionicons name="arrow-undo" size={18} color="#fff" />
+        </View>
+      </Animated.View>
+      
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={{ transform: [{ translateX }] }}>
+          {children}
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
 function MessageBubble({
   message,
   isMine,
@@ -45,6 +162,11 @@ function MessageBubble({
   isEditing,
   selectionMode,
   onToggleSelect,
+  replyToMessage,
+  allMessages,
+  isDarkMode,
+  onReplyTap,
+  isHighlighted,
 }) {
   // Determine tick style based on message status
   let tickIconName = null;
@@ -109,6 +231,11 @@ function MessageBubble({
     }
   };
 
+  // Find the replied-to message if this message is a reply
+  const repliedMessage = message.reply_to_id && allMessages
+    ? allMessages.find(m => m.id === message.reply_to_id)
+    : null;
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -129,8 +256,45 @@ function MessageBubble({
           isMine ? styles.myMessageBubble : styles.theirMessageBubble,
           isSelected && styles.messageBubbleSelected,
           isEditing && styles.messageBubbleEditing,
+          isHighlighted && styles.messageBubbleHighlighted,
         ]}
       >
+        {/* Reply preview inside bubble - tappable to scroll to original message */}
+        {repliedMessage && (
+          <TouchableOpacity 
+            activeOpacity={0.7}
+            onPress={() => onReplyTap && onReplyTap(message.reply_to_id)}
+            style={[
+              styles.replyPreviewInBubble,
+              isMine 
+                ? (isDarkMode ? styles.replyPreviewInBubbleMineDark : styles.replyPreviewInBubbleMine)
+                : (isDarkMode ? styles.replyPreviewInBubbleTheirsDark : styles.replyPreviewInBubbleTheirs),
+            ]}
+          >
+            <View style={[
+              styles.replyPreviewBar,
+              isMine ? styles.replyPreviewBarMine : styles.replyPreviewBarTheirs,
+            ]} />
+            <View style={styles.replyPreviewContent}>
+              <Text style={[
+                styles.replyPreviewName,
+                isMine 
+                  ? (isDarkMode ? styles.replyPreviewNameMineDark : styles.replyPreviewNameMine)
+                  : (isDarkMode ? styles.replyPreviewNameTheirsDark : styles.replyPreviewNameTheirs),
+              ]} numberOfLines={1}>
+                {repliedMessage.senderId === message.senderId ? 'You' : 'Them'}
+              </Text>
+              <Text style={[
+                styles.replyPreviewText,
+                isMine 
+                  ? (isDarkMode ? styles.replyPreviewTextMineDark : styles.replyPreviewTextMine)
+                  : (isDarkMode ? styles.replyPreviewTextTheirsDark : styles.replyPreviewTextTheirs),
+              ]} numberOfLines={1}>
+                {repliedMessage.text || 'Message'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
         <Text style={isMine ? styles.myMessageText : styles.theirMessageText}>
           {message.text}
         </Text>
@@ -204,6 +368,10 @@ export default function ChatConversationScreen() {
   const [reactionTarget, setReactionTarget] = useState(null);
   const [showAllReactions, setShowAllReactions] = useState(false);
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState(null); // For swipe-to-reply
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null); // For highlighting replied message
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false); // For scroll to bottom button
+  const [newMessageCount, setNewMessageCount] = useState(0); // Count of new messages while scrolled up
 
   // Cache key for this conversation
   const cacheKey = `@circle:chat_messages:${conversationId}`;
@@ -272,6 +440,7 @@ export default function ChatConversationScreen() {
   const processedMessageIdsRef = useRef(new Set());
   const listRef = useRef(null);
   const typingIndicatorTimeoutRef = useRef(null);
+  const isNearBottomRef = useRef(true); // Track if user is near bottom for auto-scroll
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
@@ -308,6 +477,9 @@ export default function ChatConversationScreen() {
   });
   const [otherUserVerified, setOtherUserVerified] = useState(paramIsOtherUserVerified === 'true');
 
+  // Track local system messages like screenshot attempts (not sent to server)
+  const [screenshotAttemptCount, setScreenshotAttemptCount] = useState(0);
+
   const backgroundSource = isDarkMode
     ? require("../../assets/images/dark-mode-bg.png")
     : require("../../assets/images/light-mode-bg.png");
@@ -342,6 +514,106 @@ export default function ChatConversationScreen() {
       return true;
     });
   };
+
+  // Handle screenshot attempts: show notice and send a real chat message so both users see it
+  const handleScreenshotAttempt = useCallback(() => {
+    const displayName = user?.firstName || user?.first_name || user?.username || "You";
+
+    try {
+      Alert.alert(
+        "Screenshots restricted",
+        "Screenshots are not allowed in this chat."
+      );
+    } catch (e) {
+      // Ignore alert errors
+    }
+
+    const socket = token ? getSocket(token) : null;
+    if (!socket || !conversationId) {
+      return;
+    }
+
+    const text = `${displayName} tried to take a screenshot`;
+    const tempId = `temp-screenshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Optimistic local message
+    const optimisticMessage = {
+      id: tempId,
+      text,
+      senderId: myUserId,
+      chatId: conversationId,
+      createdAt: new Date().toISOString(),
+      status: "sending",
+      reactions: [],
+      isOptimistic: true,
+      type: "system_screenshot",
+    };
+
+    setScreenshotAttemptCount((c) => c + 1);
+    setMessages((prev) => [...prev, optimisticMessage]);
+    processedMessageIdsRef.current.add(tempId);
+
+    // Ensure we stay at bottom so the divider is visible immediately on sender side
+    isNearBottomRef.current = true;
+    setShowScrollToBottom(false);
+    setTimeout(() => {
+      try {
+        listRef.current?.scrollToEnd({ animated: true });
+      } catch {}
+    }, 50);
+
+    try {
+      socket.emit("chat:message", {
+        chatId: conversationId,
+        text,
+        tempId,
+        // Mark this as a system screenshot message so receivers render it as a divider
+        type: "system_screenshot",
+      });
+    } catch (error) {
+      // Mark message as failed if emit throws
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId ? { ...msg, status: "failed" } : msg
+        )
+      );
+    }
+  }, [user, token, conversationId, myUserId]);
+
+  // Prevent screenshots while this screen is active and listen for attempts
+  useEffect(() => {
+    let subscription;
+
+    const setup = async () => {
+      try {
+        await ScreenCapture.preventScreenCaptureAsync();
+      } catch (e) {
+        // Ignore failures; not all platforms support this
+      }
+
+      try {
+        subscription = ScreenCapture.addScreenshotListener(() => {
+          handleScreenshotAttempt();
+        });
+      } catch (e) {
+        // Ignore listener failures
+      }
+    };
+
+    setup();
+
+    return () => {
+      try {
+        ScreenCapture.allowScreenCaptureAsync();
+      } catch (e) {
+        // Ignore failures
+      }
+
+      if (subscription && typeof subscription.remove === "function") {
+        subscription.remove();
+      }
+    };
+  }, [handleScreenshotAttempt]);
 
   // Socket setup: join room, history, messages, typing, presence
   useEffect(() => {
@@ -827,13 +1099,20 @@ export default function ChatConversationScreen() {
       status: 'sending',
       reactions: [],
       isOptimistic: true,
+      reply_to_id: replyToMessage?.id || null, // Include reply reference
     };
 
     // Add optimistic message immediately for instant UI feedback
     setMessages((prev) => [...prev, optimisticMessage]);
     processedMessageIdsRef.current.add(tempId);
 
-    // Scroll to bottom after adding message
+    // Clear reply state after sending
+    const replyId = replyToMessage?.id || null;
+    setReplyToMessage(null);
+
+    // Scroll to bottom after adding message and mark as near bottom
+    isNearBottomRef.current = true;
+    setShowScrollToBottom(false);
     setTimeout(() => {
       try {
         listRef.current?.scrollToEnd({ animated: true });
@@ -841,7 +1120,12 @@ export default function ChatConversationScreen() {
     }, 50);
 
     try {
-      socket.emit("chat:message", { chatId: conversationId, text: trimmed, tempId });
+      socket.emit("chat:message", { 
+        chatId: conversationId, 
+        text: trimmed, 
+        tempId,
+        replyToId: replyId, // Send reply reference to backend
+      });
     } catch (error) {
       // Mark message as failed if emit throws
       setMessages((prev) =>
@@ -890,26 +1174,175 @@ export default function ChatConversationScreen() {
     }
   };
 
-  const renderItem = ({ item }) => {
+  // Handle swipe-to-reply
+  const handleSwipeReply = useCallback((message) => {
+    setReplyToMessage(message);
+    // Focus the input (optional haptic feedback could be added here)
+  }, []);
+
+  // Handle tap on reply preview to scroll to and highlight the original message
+  const handleReplyTap = useCallback((replyToId) => {
+    if (!replyToId || !listRef.current) return;
+    
+    // Find the index of the replied message
+    const messageIndex = messages.findIndex(m => m.id === replyToId);
+    if (messageIndex === -1) return;
+    
+    // Scroll to the message
+    listRef.current.scrollToIndex({
+      index: messageIndex,
+      animated: true,
+      viewPosition: 0.5, // Center the message on screen
+    });
+    
+    // Highlight the message
+    setHighlightedMessageId(replyToId);
+    
+    // Remove highlight after 1.5 seconds
+    setTimeout(() => {
+      setHighlightedMessageId(null);
+    }, 1500);
+  }, [messages]);
+
+  // Helper function to format date for dividers
+  const formatDateDivider = useCallback((timestamp) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const isToday = date.toDateString() === today.toDateString();
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+    
+    if (isToday) return 'Today';
+    if (isYesterday) return 'Yesterday';
+    
+    // Check if within this week
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    if (date > weekAgo) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    }
+    
+    // Check if same year
+    if (date.getFullYear() === today.getFullYear()) {
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    }
+    
+    // Different year
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }, []);
+
+  // Helper to get date string for comparison
+  const getDateString = useCallback((timestamp) => {
+    return new Date(timestamp).toDateString();
+  }, []);
+
+  // Find the first unread message from other user
+  const firstUnreadMessageId = useMemo(() => {
+    if (!messages.length || !myUserId) return null;
+    // Find first message from other user that is not read
+    for (const msg of messages) {
+      const senderIdStr = msg.senderId != null ? String(msg.senderId) : null;
+      if (senderIdStr !== myUserId && msg.status !== 'read' && !msg.isOptimistic) {
+        return msg.id;
+      }
+    }
+    return null;
+  }, [messages, myUserId]);
+
+  const renderItem = ({ item, index }) => {
+    const isScreenshotDivider =
+      item?.type === "system_screenshot" ||
+      (typeof item?.text === "string" &&
+        item.text.toLowerCase().includes("tried to take a screenshot"));
+
+    if (isScreenshotDivider) {
+      return (
+        <View style={styles.dividerContainer}>
+          <View
+            style={[
+              styles.dividerPill,
+              {
+                backgroundColor: isDarkMode ? "#4B5563" : "#E5E7EB",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dividerText,
+                { color: isDarkMode ? "#F9FAFB" : "#374151" },
+              ]}
+            >
+              {item.text}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
     const senderIdStr = item.senderId != null ? String(item.senderId) : null;
     const isMine = senderIdStr && myUserId && senderIdStr === myUserId;
     const isSelected = selectedMessageIds.includes(item.id);
     const isEditing = editingMessage && editingMessage.id === item.id;
+    const isHighlighted = highlightedMessageId === item.id;
+    
+    // Check if we need to show date divider
+    const currentDate = getDateString(item.createdAt);
+    const prevMessage = index > 0 ? messages[index - 1] : null;
+    const prevDate = prevMessage ? getDateString(prevMessage.createdAt) : null;
+    const showDateDivider = !prevMessage || currentDate !== prevDate;
+    
+    // Check if this is the first unread message
+    const showUnreadDivider = item.id === firstUnreadMessageId;
+    
     return (
-      <MessageBubble
-        message={item}
-        isMine={isMine}
-        onReact={(emoji) => handleAddReaction(item.id, emoji)}
-        onDoubleTap={() => setReactionTarget(item)}
-        onLongPress={() => {
-          setActionMessage(item);
-          setShowMessageActions(true);
-        }}
-        isSelected={isSelected}
-        isEditing={!!isEditing}
-        selectionMode={selectionMode}
-        onToggleSelect={() => toggleSelectMessage(item.id)}
-      />
+      <View>
+        {/* Date Divider */}
+        {showDateDivider && (
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerPill, { backgroundColor: isDarkMode ? '#374151' : '#E5E7EB' }]}>
+              <Text style={[styles.dividerText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                {formatDateDivider(item.createdAt)}
+              </Text>
+            </View>
+          </View>
+        )}
+        
+        {/* Unread Messages Divider */}
+        {showUnreadDivider && (
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerPill, styles.unreadDividerPill]}>
+              <Text style={styles.unreadDividerText}>Unread Messages</Text>
+            </View>
+          </View>
+        )}
+        
+        <SwipeableMessage
+          isMine={isMine}
+          message={item}
+          onSwipeReply={handleSwipeReply}
+        >
+          <MessageBubble
+            message={item}
+            isMine={isMine}
+            onReact={(emoji) => handleAddReaction(item.id, emoji)}
+            onDoubleTap={() => setReactionTarget(item)}
+            onLongPress={() => {
+              setActionMessage(item);
+              setShowMessageActions(true);
+            }}
+            isSelected={isSelected}
+            isEditing={!!isEditing}
+            selectionMode={selectionMode}
+            onToggleSelect={() => toggleSelectMessage(item.id)}
+            allMessages={messages}
+            isDarkMode={isDarkMode}
+            onReplyTap={handleReplyTap}
+            isHighlighted={isHighlighted}
+          />
+        </SwipeableMessage>
+      </View>
     );
   };
 
@@ -1228,14 +1661,50 @@ export default function ChatConversationScreen() {
     };
   }, [conversationId, token]);
 
-  // Auto-scroll to bottom when messages change
+  // Track the last message ID to detect actual new messages (not just status updates)
+  const lastMessageIdRef = useRef(null);
+  const lastMessageCountRef = useRef(0);
+  const isLoadingOlderRef = useRef(false);
+  
+  // Auto-scroll to bottom ONLY when a new message is added at the END - not on status updates or older messages
   useEffect(() => {
     if (!listRef.current || messages.length === 0) return;
-    try {
-      // Scroll to the end of the list (latest message)
-      listRef.current.scrollToEnd({ animated: true });
-    } catch {}
-  }, [messages.length]);
+    
+    // Don't scroll if we're loading older messages
+    if (loadingMore || isLoadingOlderRef.current) {
+      lastMessageIdRef.current = messages[messages.length - 1]?.id;
+      lastMessageCountRef.current = messages.length;
+      return;
+    }
+    
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageId = lastMessage?.id;
+    
+    // Check if this is a new message at the END (not older messages loaded at the beginning)
+    // A new message means: different last message ID AND the message count increased
+    const isNewMessageAtEnd = lastMessageId !== lastMessageIdRef.current && 
+                              messages.length > lastMessageCountRef.current;
+    
+    if (isNewMessageAtEnd) {
+      if (isNearBottomRef.current) {
+        // User is near bottom - scroll to show new message
+        try {
+          setTimeout(() => {
+            listRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        } catch {}
+        // Reset new message count since we're scrolling to bottom
+        setNewMessageCount(0);
+      } else {
+        // User is scrolled up - increment new message counter
+        setNewMessageCount((prev) => prev + 1);
+      }
+    }
+    
+    // Update refs
+    lastMessageIdRef.current = lastMessageId;
+    lastMessageCountRef.current = messages.length;
+  }, [messages, loadingMore]);
 
   // Clear typing indicator if it gets stuck (no updates for a while)
   useEffect(() => {
@@ -1345,13 +1814,16 @@ export default function ChatConversationScreen() {
     setTypingUsers((prev) => prev.filter((id) => id && id !== myUserId));
   }, [myUserId]);
 
-  // Also auto-scroll when typing indicator appears
+  // Also auto-scroll when typing indicator appears - only if user is near bottom
   useEffect(() => {
     if (!listRef.current) return;
     if (typingUsers.length === 0) return;
-    try {
-      listRef.current.scrollToEnd({ animated: true });
-    } catch {}
+    // Only scroll if user is near bottom
+    if (isNearBottomRef.current) {
+      try {
+        listRef.current.scrollToEnd({ animated: true });
+      } catch {}
+    }
   }, [typingUsers.length]);
 
   // Emit delivery/read receipts when other user's messages become visible
@@ -1405,22 +1877,36 @@ export default function ChatConversationScreen() {
     [token, conversationId, myUserId]
   );
 
-  // Cleanup receipt timeout on unmount
+  // Debounce ref for load more to prevent rapid calls
+  const loadMoreTimeoutRef = useRef(null);
+  const lastLoadTimeRef = useRef(0);
+
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (receiptTimeoutRef.current) {
         clearTimeout(receiptTimeoutRef.current);
       }
+      if (loadMoreTimeoutRef.current) {
+        clearTimeout(loadMoreTimeoutRef.current);
+      }
       // Clear the sent receipts set when leaving the chat
       sentReceiptsRef.current.clear();
     };
   }, []);
+  
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || !conversationId || !token) return;
+    
+    // Debounce: prevent loading more than once per second
+    const now = Date.now();
+    if (now - lastLoadTimeRef.current < 1000) return;
+    lastLoadTimeRef.current = now;
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore || !conversationId) return;
-    if (!token) return;
-
+    // Mark that we're loading older messages to prevent auto-scroll
+    isLoadingOlderRef.current = true;
     setLoadingMore(true);
+    
     try {
       const beforeIso = oldestAt ? new Date(oldestAt).toISOString() : undefined;
       const { messages: older } = await chatApi.getMessagesPaginated(
@@ -1437,6 +1923,7 @@ export default function ChatConversationScreen() {
       if (!olderAsc.length) {
         setHasMore(false);
       } else {
+        // Add older messages smoothly
         setMessages((prev) => deduplicateMessages([...olderAsc, ...prev]));
         setOldestAt(olderAsc[0].createdAt || oldestAt);
       }
@@ -1444,17 +1931,49 @@ export default function ChatConversationScreen() {
       // Silent fail for now
     }
 
-    setLoadingMore(false);
-  };
+    // Small delay before hiding loader for smoother UX
+    setTimeout(() => {
+      setLoadingMore(false);
+      // Reset the loading older flag after a short delay
+      setTimeout(() => {
+        isLoadingOlderRef.current = false;
+      }, 200);
+    }, 300);
+  }, [loadingMore, hasMore, conversationId, token, oldestAt]);
 
-  const handleScroll = (event) => {
-    const { contentOffset } = event.nativeEvent;
-    if (!contentOffset) return;
-    // When user reaches near the top, try to load more
-    if (contentOffset.y <= 50) {
-      loadMore();
+  const handleScroll = useCallback((event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    if (!contentOffset || !contentSize || !layoutMeasurement) return;
+    
+    // Calculate distance from bottom
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    
+    // Track if user is near bottom (within 100px) for auto-scroll decision
+    isNearBottomRef.current = distanceFromBottom < 100;
+    
+    // Show scroll to bottom button when user scrolls up more than 200px from bottom
+    setShowScrollToBottom(distanceFromBottom > 200);
+    
+    // Load more when near top (scrolled up) - with debounce
+    if (contentOffset.y < 150 && !loadingMore && hasMore) {
+      if (loadMoreTimeoutRef.current) {
+        clearTimeout(loadMoreTimeoutRef.current);
+      }
+      loadMoreTimeoutRef.current = setTimeout(() => {
+        loadMore();
+      }, 200);
     }
-  };
+  }, [loadMore, loadingMore, hasMore]);
+
+  // Scroll to bottom of chat
+  const scrollToBottom = useCallback(() => {
+    if (listRef.current && messages.length > 0) {
+      isNearBottomRef.current = true;
+      listRef.current.scrollToEnd({ animated: true });
+      setShowScrollToBottom(false);
+      setNewMessageCount(0); // Reset new message counter
+    }
+  }, [messages.length]);
 
   return (
     <ImageBackground
@@ -1671,11 +2190,65 @@ export default function ChatConversationScreen() {
             renderItem={renderItem}
             contentContainerStyle={styles.messagesContainer}
             showsVerticalScrollIndicator={false}
-            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            // Smooth scrolling optimizations
+            removeClippedSubviews={Platform.OS === 'android'}
+            maxToRenderPerBatch={10}
+            windowSize={15}
+            initialNumToRender={15}
+            updateCellsBatchingPeriod={50}
+            // Maintain scroll position when new items are added at the top (iOS only)
+            maintainVisibleContentPosition={Platform.OS === 'ios' ? {
+              minIndexForVisible: 1,
+              autoscrollToTopThreshold: 10,
+            } : undefined}
+            // Improve scroll performance
+            decelerationRate="normal"
+            scrollIndicatorInsets={{ right: 1 }}
+            onScrollToIndexFailed={(info) => {
+              // Handle scroll to index failure by scrolling to approximate position
+              const wait = new Promise(resolve => setTimeout(resolve, 100));
+              wait.then(() => {
+                if (listRef.current) {
+                  listRef.current.scrollToOffset({
+                    offset: info.averageItemLength * info.index,
+                    animated: true,
+                  });
+                  // Try again after scrolling
+                  setTimeout(() => {
+                    if (listRef.current && info.index < messages.length) {
+                      listRef.current.scrollToIndex({
+                        index: info.index,
+                        animated: true,
+                        viewPosition: 0.5,
+                      });
+                    }
+                  }, 100);
+                }
+              });
+            }}
+            // Loading indicator at top when loading older messages
+            ListHeaderComponent={
+              loadingMore ? (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color="#7C3AED" />
+                  <Text style={[styles.loadingMoreText, { color: theme.textSecondary }]}>
+                    Loading messages...
+                  </Text>
+                </View>
+              ) : !hasMore && messages.length > 10 ? (
+                <View style={styles.loadingMoreContainer}>
+                  <Text style={[styles.noMoreMessagesText, { color: theme.textSecondary }]}>
+                    Beginning of conversation
+                  </Text>
+                </View>
+              ) : null
+            }
             ListFooterComponent={
               typingUsers.length > 0 ? (
                 <View style={styles.typingRow}>
@@ -1691,6 +2264,24 @@ export default function ChatConversationScreen() {
               ) : null
             }
           />
+
+          {/* Scroll to bottom floating button with new message badge */}
+          {showScrollToBottom && (
+            <TouchableOpacity
+              style={styles.scrollToBottomButton}
+              onPress={scrollToBottom}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chevron-down" size={24} color="#fff" />
+              {newMessageCount > 0 && (
+                <View style={styles.newMessageBadge}>
+                  <Text style={styles.newMessageBadgeText}>
+                    {newMessageCount > 99 ? '99+' : newMessageCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
           <View
             style={[styles.composerContainer, { borderTopColor: theme.border }]}
@@ -1744,6 +2335,35 @@ export default function ChatConversationScreen() {
                   }}
                 >
                   <Text style={styles.editBannerCancel}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Reply preview banner */}
+            {replyToMessage && (
+              <View style={[
+                styles.replyBanner,
+                { backgroundColor: isDarkMode ? '#2D2D3A' : '#F3F4F6' }
+              ]}>
+                <View style={styles.replyBannerBar} />
+                <View style={styles.replyBannerContent}>
+                  <Text style={[
+                    styles.replyBannerLabel,
+                    { color: isDarkMode ? '#A78BFA' : '#7C3AED' }
+                  ]}>
+                    Replying to {replyToMessage.senderId === myUserId ? 'yourself' : conversationName}
+                  </Text>
+                  <Text style={[
+                    styles.replyBannerText,
+                    { color: isDarkMode ? '#9CA3AF' : '#6B7280' }
+                  ]} numberOfLines={1}>
+                    {replyToMessage.text || 'Message'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.replyBannerClose}
+                  onPress={() => setReplyToMessage(null)}
+                >
+                  <Ionicons name="close" size={20} color={isDarkMode ? '#9CA3AF' : '#666'} />
                 </TouchableOpacity>
               </View>
             )}
@@ -1831,6 +2451,17 @@ export default function ChatConversationScreen() {
             }}
           >
             <View style={styles.actionsSheet}>
+              {/* Reply option */}
+              <TouchableOpacity
+                style={styles.actionsSheetButton}
+                onPress={() => {
+                  setReplyToMessage(actionMessage);
+                  setShowMessageActions(false);
+                  setActionMessage(null);
+                }}
+              >
+                <Text style={[styles.actionsSheetText, { color: '#7C3AED' }]}>Reply</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionsSheetButton}
                 onPress={() => {
@@ -2255,6 +2886,94 @@ const styles = StyleSheet.create({
   typingText: {
     fontSize: 12,
   },
+  // Date and Unread Dividers - WhatsApp/Instagram style
+  dividerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dividerPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  unreadDividerPill: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
+  },
+  unreadDividerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  scrollToBottomButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 80, // Above the composer
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 100,
+  },
+  newMessageBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444', // Red badge
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  newMessageBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // Loading more messages indicator
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  loadingMoreText: {
+    fontSize: 13,
+    marginLeft: 10,
+    fontWeight: '500',
+  },
+  noMoreMessagesText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
   statusRow: {
     marginTop: 4,
     flexDirection: "row",
@@ -2263,6 +2982,11 @@ const styles = StyleSheet.create({
   messageBubbleSelected: {
     borderWidth: 1,
     borderColor: "#7C3AED",
+  },
+  messageBubbleHighlighted: {
+    backgroundColor: '#FEF3C7', // Light yellow highlight
+    borderWidth: 2,
+    borderColor: '#F59E0B', // Amber border
   },
   reactionEmoji: {
     fontSize: 12,
@@ -2398,6 +3122,135 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#EF4444",
     fontWeight: "600",
+  },
+  // Swipe-to-reply styles
+  swipeableContainer: {
+    position: 'relative',
+    overflow: 'visible',
+  },
+  replyIconContainer: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -16,
+    zIndex: 1,
+  },
+  replyIconLeft: {
+    left: 8,
+  },
+  replyIconRight: {
+    right: 8,
+  },
+  replyIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Reply preview inside message bubble - WhatsApp style
+  replyPreviewInBubble: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  replyPreviewInBubbleMine: {
+    backgroundColor: 'rgba(0, 0, 0, 0.06)', // Subtle overlay on light green bubble
+  },
+  replyPreviewInBubbleTheirs: {
+    backgroundColor: 'rgba(124, 58, 237, 0.08)', // Light purple tint
+  },
+  // For dark mode - will be applied dynamically
+  replyPreviewInBubbleMineDark: {
+    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Darker overlay for dark mode
+  },
+  replyPreviewInBubbleTheirsDark: {
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  replyPreviewBar: {
+    width: 4,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+  },
+  replyPreviewBarMine: {
+    backgroundColor: '#075E54', // WhatsApp dark green accent
+  },
+  replyPreviewBarTheirs: {
+    backgroundColor: '#7C3AED', // Purple accent
+  },
+  replyPreviewContent: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  replyPreviewName: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  replyPreviewNameMine: {
+    color: '#075E54', // Dark green for own messages
+  },
+  replyPreviewNameTheirs: {
+    color: '#7C3AED', // Purple for their messages
+  },
+  replyPreviewText: {
+    fontSize: 13,
+  },
+  replyPreviewTextMine: {
+    color: '#000000', // Black text always
+  },
+  replyPreviewTextTheirs: {
+    color: '#000000', // Black text always
+  },
+  // Dark mode text colors - keep black for readability
+  replyPreviewNameMineDark: {
+    color: '#075E54', // Keep dark green
+  },
+  replyPreviewNameTheirsDark: {
+    color: '#7C3AED', // Keep purple
+  },
+  replyPreviewTextMineDark: {
+    color: '#000000', // Black text always
+  },
+  replyPreviewTextTheirsDark: {
+    color: '#000000', // Black text always
+  },
+  // Reply banner in composer
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  replyBannerBar: {
+    width: 3,
+    height: '100%',
+    minHeight: 32,
+    backgroundColor: '#7C3AED',
+    borderRadius: 2,
+    marginRight: 10,
+  },
+  replyBannerContent: {
+    flex: 1,
+  },
+  replyBannerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7C3AED',
+    marginBottom: 2,
+  },
+  replyBannerText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  replyBannerClose: {
+    padding: 4,
+    marginLeft: 8,
   },
   // Report Modal Styles
   reportModalOverlay: {
