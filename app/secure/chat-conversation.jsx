@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -21,6 +21,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -57,6 +58,12 @@ function MessageBubble({
       tickIconName = "checkmark-done"; // double tick
     } else if (message.status === "sent") {
       tickIconName = "checkmark"; // single tick
+    } else if (message.status === "sending" || message.isOptimistic) {
+      tickIconName = "time-outline"; // clock for sending
+      tickColor = "#A0A0A0";
+    } else if (message.status === "failed") {
+      tickIconName = "alert-circle"; // error icon for failed
+      tickColor = "#FF4444";
     }
   }
 
@@ -169,6 +176,7 @@ export default function ChatConversationScreen() {
     blindDateMatchReason,
     blindDateGender,
     blindDateAge,
+    isOtherUserVerified: paramIsOtherUserVerified,
   } = useLocalSearchParams();
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
@@ -195,6 +203,64 @@ export default function ChatConversationScreen() {
   const [isActive, setIsActive] = useState(false);
   const [reactionTarget, setReactionTarget] = useState(null);
   const [showAllReactions, setShowAllReactions] = useState(false);
+  const [isCacheLoaded, setIsCacheLoaded] = useState(false);
+
+  // Cache key for this conversation
+  const cacheKey = `@circle:chat_messages:${conversationId}`;
+  const CACHE_MAX_MESSAGES = 50; // Cache last 50 messages for fast load
+
+  // Load cached messages on mount for instant display
+  useEffect(() => {
+    const loadCachedMessages = async () => {
+      if (!conversationId) return;
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) {
+          const parsedMessages = JSON.parse(cached);
+          if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+            setMessages(parsedMessages);
+            parsedMessages.forEach((msg) => {
+              if (msg.id) processedMessageIdsRef.current.add(msg.id);
+            });
+            if (parsedMessages.length > 0) {
+              setOldestAt(parsedMessages[0].createdAt || null);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[Chat] Failed to load cached messages:', error);
+      } finally {
+        setIsCacheLoaded(true);
+      }
+    };
+    loadCachedMessages();
+  }, [conversationId]);
+
+  // Save messages to cache whenever they change
+  const saveMessagesToCache = useCallback(async (messagesToCache) => {
+    if (!conversationId || !messagesToCache.length) return;
+    try {
+      // Only cache the last N messages to keep storage small
+      const toCache = messagesToCache.slice(-CACHE_MAX_MESSAGES);
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(toCache));
+    } catch (error) {
+      console.warn('[Chat] Failed to cache messages:', error);
+    }
+  }, [conversationId, cacheKey]);
+
+  // Debounced cache save
+  const cacheTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!isCacheLoaded || messages.length === 0) return;
+    // Debounce cache saves to avoid excessive writes
+    if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+    cacheTimeoutRef.current = setTimeout(() => {
+      saveMessagesToCache(messages);
+    }, 1000);
+    return () => {
+      if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+    };
+  }, [messages, isCacheLoaded, saveMessagesToCache]);
 
   const [oldestAt, setOldestAt] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -240,7 +306,7 @@ export default function ChatConversationScreen() {
     if (user?.id != null && String(paramOtherUserId) === String(user.id)) return true;
     return false;
   });
-  const [otherUserVerified, setOtherUserVerified] = useState(false);
+  const [otherUserVerified, setOtherUserVerified] = useState(paramIsOtherUserVerified === 'true');
 
   const backgroundSource = isDarkMode
     ? require("../../assets/images/dark-mode-bg.png")
@@ -329,12 +395,38 @@ export default function ChatConversationScreen() {
             : raw.status),
       };
       if (msg.chatId !== conversationId) return;
+      
       setMessages((prev) => {
-        const exists = prev.some(
-          (m) =>
-            m.id === msg.id ||
-            (m.id === msg.id && m.text === msg.text && m.createdAt === msg.createdAt)
-        );
+        // Check if this is a confirmation for an optimistic message (tempId match)
+        const tempId = data.tempId || raw.tempId;
+        if (tempId) {
+          const optimisticIndex = prev.findIndex((m) => m.id === tempId);
+          if (optimisticIndex !== -1) {
+            // Replace optimistic message with real one
+            const updated = [...prev];
+            updated[optimisticIndex] = { ...msg, isOptimistic: false };
+            processedMessageIdsRef.current.add(msg.id);
+            return updated;
+          }
+        }
+        
+        // For own messages, check if there's an optimistic message with same text (server didn't return tempId)
+        const isMine = msg.senderId != null && String(msg.senderId) === myUserId;
+        if (isMine) {
+          const optimisticIndex = prev.findIndex(
+            (m) => m.isOptimistic && m.text === msg.text && String(m.senderId) === myUserId
+          );
+          if (optimisticIndex !== -1) {
+            // Replace optimistic message with real one
+            const updated = [...prev];
+            updated[optimisticIndex] = { ...msg, isOptimistic: false };
+            processedMessageIdsRef.current.add(msg.id);
+            return updated;
+          }
+        }
+        
+        // Check for duplicate by real ID
+        const exists = prev.some((m) => m.id === msg.id);
         if (exists) return prev;
         return [...prev, msg];
       });
@@ -724,10 +816,40 @@ export default function ChatConversationScreen() {
       return;
     }
 
-    // New message
+    // New message - add optimistic update for instant rendering
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const optimisticMessage = {
+      id: tempId,
+      text: trimmed,
+      senderId: myUserId,
+      chatId: conversationId,
+      createdAt: new Date().toISOString(),
+      status: 'sending',
+      reactions: [],
+      isOptimistic: true,
+    };
+
+    // Add optimistic message immediately for instant UI feedback
+    setMessages((prev) => [...prev, optimisticMessage]);
+    processedMessageIdsRef.current.add(tempId);
+
+    // Scroll to bottom after adding message
+    setTimeout(() => {
+      try {
+        listRef.current?.scrollToEnd({ animated: true });
+      } catch {}
+    }, 50);
+
     try {
-      socket.emit("chat:message", { chatId: conversationId, text: trimmed });
-    } catch {}
+      socket.emit("chat:message", { chatId: conversationId, text: trimmed, tempId });
+    } catch (error) {
+      // Mark message as failed if emit throws
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+    }
   };
 
   const handleAddReaction = async (messageId, emoji) => {
@@ -1186,19 +1308,31 @@ export default function ChatConversationScreen() {
     };
   }, [token, paramOtherUserId, user?.id, friendStatus]);
 
-  // Fetch other user's verification status
+  // Fetch other user's verification status using the same endpoint
+  // as [userId].jsx and the self profile tab
   useEffect(() => {
     if (!token || !paramOtherUserId || isBlindDate) return;
     
     const fetchVerificationStatus = async () => {
       try {
-        const response = await exploreApi.getUserProfile(paramOtherUserId, token);
-        if (response?.user?.verification_status === 'verified') {
-          setOtherUserVerified(true);
+        const { API_BASE_URL } = await import('@/src/api/config');
+        const response = await fetch(`${API_BASE_URL}/api/friends/user/${paramOtherUserId}/profile`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.verification_status === 'verified') {
+            setOtherUserVerified(true);
+          }
         }
       } catch (error) {
         // Silent fail - verification badge just won't show
-        console.log('[ChatConversation] Could not fetch user verification status');
+        console.log('[ChatConversation] Could not fetch user verification status', error?.message);
       }
     };
     
@@ -1221,35 +1355,66 @@ export default function ChatConversationScreen() {
   }, [typingUsers.length]);
 
   // Emit delivery/read receipts when other user's messages become visible
+  // Use a Set to track which messages we've already sent receipts for
+  const sentReceiptsRef = useRef(new Set());
+  const receiptQueueRef = useRef([]);
+  const receiptTimeoutRef = useRef(null);
+  
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
   const onViewableItemsChanged = React.useCallback(
     ({ viewableItems }) => {
       const socket = token ? getSocket(token) : null;
       if (!socket || !conversationId || !myUserId) return;
+      
+      // Collect message IDs that need receipts
+      const messageIdsToMark = [];
       viewableItems.forEach((vi) => {
         const item = vi.item;
         if (!item || !item.id) return;
-        const senderIdStr =
-          item.senderId != null ? String(item.senderId) : null;
+        // Skip optimistic messages (they have temp IDs)
+        if (item.isOptimistic || String(item.id).startsWith('temp-')) return;
+        // Skip if we already sent receipt for this message
+        if (sentReceiptsRef.current.has(item.id)) return;
+        
+        const senderIdStr = item.senderId != null ? String(item.senderId) : null;
         if (senderIdStr && myUserId && senderIdStr !== myUserId) {
-          try {
-            socket.emit("chat:delivered", { chatId: conversationId, messageId: item.id });
-          } catch {}
-          try {
-            socket.emit("chat:read", { chatId: conversationId, messageId: item.id });
-          } catch {}
-          // Also emit new-style receipt events that backend uses to notify sender
-          try {
-            socket.emit("chat:message:delivered", { messageId: item.id });
-          } catch {}
-          try {
-            socket.emit("chat:message:read", { messageId: item.id });
-          } catch {}
+          messageIdsToMark.push(item.id);
+          sentReceiptsRef.current.add(item.id);
         }
       });
+      
+      if (messageIdsToMark.length === 0) return;
+      
+      // Add to queue and debounce
+      receiptQueueRef.current.push(...messageIdsToMark);
+      
+      // Clear existing timeout and set new one
+      if (receiptTimeoutRef.current) clearTimeout(receiptTimeoutRef.current);
+      receiptTimeoutRef.current = setTimeout(() => {
+        const uniqueIds = [...new Set(receiptQueueRef.current)];
+        receiptQueueRef.current = [];
+        
+        // Send receipts in batch - only emit chat:read (which handles both)
+        uniqueIds.forEach((messageId) => {
+          try {
+            socket.emit("chat:read", { chatId: conversationId, messageId });
+          } catch {}
+        });
+      }, 300); // Debounce 300ms
     },
     [token, conversationId, myUserId]
   );
+
+  // Cleanup receipt timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (receiptTimeoutRef.current) {
+        clearTimeout(receiptTimeoutRef.current);
+      }
+      // Clear the sent receipts set when leaving the chat
+      sentReceiptsRef.current.clear();
+    };
+  }, []);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || !conversationId) return;

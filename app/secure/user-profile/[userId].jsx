@@ -529,6 +529,7 @@ export default function UserProfileScreen() {
   const displayAge = profileData?.age ? `${profileData.age}` : null;
   const displayGender = profileData?.gender || null;
   const userInterests = profileData?.interests || [];
+  const userNeeds = Array.isArray(profileData?.needs) ? profileData.needs : [];
 
   // Dynamic styles based on theme
   const dynamicStyles = {
@@ -851,26 +852,6 @@ export default function UserProfileScreen() {
             )}
           </View>
 
-          {/* Stats Row */}
-          <View style={dynamicStyles.statsCard}>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{profileData?.stats?.friends || 0}</Text>
-                <Text style={dynamicStyles.statLabel}>Friends</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{profileData?.stats?.chats || 0}</Text>
-                <Text style={dynamicStyles.statLabel}>Chats</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{profileData?.stats?.messages || 0}</Text>
-                <Text style={dynamicStyles.statLabel}>Messages</Text>
-              </View>
-            </View>
-          </View>
-
           {/* Photo Gallery */}
           {userPhotos.length > 0 && (
             <View style={dynamicStyles.photosCard}>
@@ -931,6 +912,25 @@ export default function UserProfileScreen() {
                 {userInterests.length > 8 && (
                   <View style={styles.moreInterestsChip}>
                     <Text style={styles.moreInterestsText}>+{userInterests.length - 8} more</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Needs Section */}
+          {userNeeds.length > 0 && (
+            <View style={dynamicStyles.interestsCard}>
+              <Text style={dynamicStyles.sectionTitle}>Needs</Text>
+              <View style={styles.interestsGrid}>
+                {userNeeds.slice(0, 8).map((need, index) => (
+                  <View key={index} style={dynamicStyles.interestChip}>
+                    <Text style={dynamicStyles.interestText}>{need}</Text>
+                  </View>
+                ))}
+                {userNeeds.length > 8 && (
+                  <View style={styles.moreInterestsChip}>
+                    <Text style={styles.moreInterestsText}>+{userNeeds.length - 8} more</Text>
                   </View>
                 )}
               </View>
@@ -1332,60 +1332,61 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 12,
     marginTop: 20,
   },
   messageButton: {
     flex: 1,
-    maxWidth: 160,
-    borderRadius: 12,
+    maxWidth: 170,
+    borderRadius: 999,
     overflow: 'hidden',
   },
   messageButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     gap: 8,
   },
   messageButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   friendButton: {
     flex: 1,
-    maxWidth: 160,
+    maxWidth: 190,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: '#0F172A',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(148, 163, 184, 0.55)',
     gap: 8,
   },
   friendButtonActive: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
+    backgroundColor: 'rgba(248, 113, 113, 0.08)',
+    borderColor: 'rgba(248, 113, 113, 0.65)',
   },
   friendButtonPending: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
+    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+    borderColor: 'rgba(251, 191, 36, 0.65)',
   },
   friendButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#7C2B86',
+    color: '#E5E7EB',
   },
   friendButtonTextActive: {
-    color: '#FF6B6B',
+    color: '#F97373',
   },
   friendButtonTextPending: {
-    color: '#D97706',
+    color: '#FBBF24',
   },
   requestButtonsContainer: {
     flexDirection: 'row',
@@ -1395,32 +1396,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#10B981',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: '#16A34A',
     gap: 6,
   },
   acceptButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   declineButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(248, 113, 113, 0.08)',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: 'rgba(248, 113, 113, 0.6)',
     gap: 6,
   },
   declineButtonText: {
-    color: '#FF4444',
-    fontSize: 15,
+    color: '#F97373',
+    fontSize: 14,
     fontWeight: '600',
   },
   statsRow: {
@@ -1578,12 +1579,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
   },
   popupContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
     width: '100%',
     maxWidth: 340,
   },
@@ -1598,7 +1602,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748B',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   popupMessage: {
     fontSize: 14,
@@ -1610,12 +1614,13 @@ const styles = StyleSheet.create({
   popupButtons: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 18,
   },
   popupCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    paddingVertical: 11,
+    borderRadius: 999,
+    backgroundColor: '#F9FAFB',
     alignItems: 'center',
   },
   popupCancelText: {
@@ -1625,8 +1630,8 @@ const styles = StyleSheet.create({
   },
   popupActionButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 11,
+    borderRadius: 999,
     alignItems: 'center',
   },
   popupBlockButton: {
@@ -1647,17 +1652,18 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   reportScrollView: {
-    maxHeight: 300,
+    maxHeight: 260,
+    marginTop: 8,
   },
   reportTypes: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   reportTypeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
     borderRadius: 20,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
