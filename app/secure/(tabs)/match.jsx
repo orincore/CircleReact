@@ -299,6 +299,22 @@ const mockMatches = [
   { id: 3, name: "Liam", age: 26, location: "1 km away", compatibility: "85%" },
 ];
 
+// Helper function to format time ago
+const getTimeAgo = (date) => {
+  if (!date) return '';
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays < 7) return `${diffDays}d`;
+  return `${Math.floor(diffDays / 7)}w`;
+};
+
 export default function MatchScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -1674,8 +1690,22 @@ export default function MatchScreen() {
   };
 
   const handleViewProfile = (user) => {
-    setSelectedUser(user);
-    setShowUserProfile(true);
+    if (!user) return;
+
+    // Support different shapes for user objects coming from matches, nearby users, or friend requests
+    const userId =
+      user.id != null
+        ? user.id
+        : user.userId != null
+        ? user.userId
+        : user.sender_id != null
+        ? user.sender_id
+        : null;
+
+    if (!userId) return;
+
+    // Navigate directly to the profile screen
+    router.push(`/secure/user-profile/${userId}`);
   };
 
   const handleSendFriendRequest = async (userOrId) => {
@@ -1909,29 +1939,65 @@ export default function MatchScreen() {
                 <View style={styles.sidebarFriendRequests}>
                   <Text style={styles.sidebarSectionTitle}>Friend Requests</Text>
                   {friendRequests.slice(0, 3).map((request) => {
-                    const displayName = request.sender?.first_name || 'Someone';
+                    const displayName = request.sender?.first_name 
+                      ? `${request.sender.first_name}${request.sender.last_name ? ' ' + request.sender.last_name : ''}`
+                      : 'Someone';
+                    const timeAgo = request.created_at 
+                      ? getTimeAgo(new Date(request.created_at))
+                      : '';
                     return (
-                      <View key={request.id} style={styles.sidebarRequestItem}>
-                        <View style={styles.sidebarRequestAvatar}>
-                          <Text style={styles.sidebarRequestAvatarText}>
-                            {displayName.charAt(0).toUpperCase()}
+                      <View key={request.id} style={styles.sidebarRequestCard}>
+                        {/* Tappable Avatar */}
+                        <TouchableOpacity 
+                          onPress={() => handleViewProfile(request.sender)}
+                          activeOpacity={0.7}
+                        >
+                          {request.sender?.profile_photo_url ? (
+                            <Image 
+                              source={{ uri: request.sender.profile_photo_url }}
+                              style={styles.sidebarRequestAvatarImage}
+                            />
+                          ) : (
+                            <LinearGradient
+                              colors={['#7C2B86', '#FF6FB5']}
+                              style={styles.sidebarRequestAvatarGradient}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                            >
+                              <Text style={styles.sidebarRequestAvatarText}>
+                                {displayName.charAt(0).toUpperCase()}
+                              </Text>
+                            </LinearGradient>
+                          )}
+                        </TouchableOpacity>
+                        
+                        {/* Info */}
+                        <View style={styles.sidebarRequestContent}>
+                          <Text style={styles.sidebarRequestName} numberOfLines={1}>{displayName}</Text>
+                          <Text style={styles.sidebarRequestSubtitle} numberOfLines={1}>
+                            Friend request{timeAgo ? ` · ${timeAgo}` : ''}
                           </Text>
+                          <View style={styles.sidebarRequestPill}>
+                            <Ionicons name="people" size={10} color="#7C2B86" />
+                            <Text style={styles.sidebarRequestPillText}>Wants to connect</Text>
+                          </View>
                         </View>
-                        <View style={styles.sidebarRequestInfo}>
-                          <Text style={styles.sidebarRequestName}>{displayName}</Text>
-                        </View>
+                        
+                        {/* Actions */}
                         <View style={styles.sidebarRequestActions}>
                           <TouchableOpacity 
-                            style={styles.sidebarRequestReject}
+                            style={styles.sidebarRequestRejectBtn}
                             onPress={() => handleRejectRequest(request)}
+                            activeOpacity={0.7}
                           >
-                            <Ionicons name="close" size={14} color="#FF4444" />
+                            <Ionicons name="close" size={16} color="#9CA3AF" />
                           </TouchableOpacity>
                           <TouchableOpacity 
-                            style={styles.sidebarRequestAccept}
+                            style={styles.sidebarRequestAcceptBtn}
                             onPress={() => handleAcceptRequest(request)}
+                            activeOpacity={0.7}
                           >
-                            <Ionicons name="checkmark" size={14} color="#00AA55" />
+                            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2254,32 +2320,72 @@ export default function MatchScreen() {
               <View style={styles.mobileFriendRequests}>
                 <Text style={[styles.mobileFriendRequestsTitle, dynamicStyles.sectionTitle]}>Friend Requests</Text>
                 {friendRequests.slice(0, 3).map((request) => {
-                  const displayName = request.sender?.first_name || 'Someone';
+                  const displayName = request.sender?.first_name 
+                    ? `${request.sender.first_name}${request.sender.last_name ? ' ' + request.sender.last_name : ''}`
+                    : 'Someone';
+                  const timeAgo = request.created_at 
+                    ? getTimeAgo(new Date(request.created_at))
+                    : '';
                   return (
-                    <View key={request.id} style={[styles.mobileFriendRequestItem, { backgroundColor: theme.surface }]}>
-                      <View style={styles.mobileFriendRequestAvatar}>
-                        <Text style={styles.mobileFriendRequestAvatarText}>
-                          {displayName.charAt(0).toUpperCase()}
-                        </Text>
+                    <View key={request.id} style={styles.mobileFriendRequestCard}>
+                      {/* Tappable Avatar */}
+                      <TouchableOpacity 
+                        style={styles.mobileFriendRequestAvatarContainer}
+                        onPress={() => handleViewProfile(request.sender)}
+                        activeOpacity={0.7}
+                      >
+                        {request.sender?.profile_photo_url ? (
+                          <Image 
+                            source={{ uri: request.sender.profile_photo_url }}
+                            style={styles.mobileFriendRequestAvatarImage}
+                          />
+                        ) : (
+                          <LinearGradient
+                            colors={['#7C2B86', '#FF6FB5']}
+                            style={styles.mobileFriendRequestAvatarGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Text style={styles.mobileFriendRequestAvatarText}>
+                              {displayName.charAt(0).toUpperCase()}
+                            </Text>
+                          </LinearGradient>
+                        )}
+                      </TouchableOpacity>
+                      
+                      {/* Info Section */}
+                      <View style={styles.mobileFriendRequestContent}>
+                        <View style={styles.mobileFriendRequestHeader}>
+                          <Text style={[styles.mobileFriendRequestName, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {displayName}
+                          </Text>
+                          <Text style={styles.mobileFriendRequestSubtitle} numberOfLines={1}>
+                            Friend request{timeAgo ? ` · ${timeAgo}` : ''}
+                          </Text>
+                        </View>
+                        
+                        {/* Wants to connect pill */}
+                        <View style={styles.mobileFriendRequestPill}>
+                          <Ionicons name="people" size={12} color="#7C2B86" />
+                          <Text style={styles.mobileFriendRequestPillText}>Wants to connect</Text>
+                        </View>
                       </View>
-                      <View style={styles.mobileFriendRequestInfo}>
-                        <Text style={[styles.mobileFriendRequestName, { color: theme.textPrimary }]}>{displayName}</Text>
-                        <Text style={[styles.mobileFriendRequestMessage, { color: theme.textSecondary }]} numberOfLines={1}>
-                          {request.message || 'Wants to connect'}
-                        </Text>
-                      </View>
+                      
+                      {/* Action Buttons */}
                       <View style={styles.mobileFriendRequestActions}>
                         <TouchableOpacity 
-                          style={styles.mobileFriendRequestReject}
+                          style={styles.mobileFriendRequestRejectBtn}
                           onPress={() => handleRejectRequest(request)}
+                          activeOpacity={0.7}
                         >
-                          <Ionicons name="close" size={16} color="#FF4444" />
+                          <Ionicons name="close" size={20} color="#9CA3AF" />
                         </TouchableOpacity>
                         <TouchableOpacity 
-                          style={styles.mobileFriendRequestAccept}
+                          style={styles.mobileFriendRequestAcceptBtn}
                           onPress={() => handleAcceptRequest(request)}
+                          activeOpacity={0.7}
                         >
-                          <Ionicons name="checkmark" size={16} color="#00AA55" />
+                          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -3272,53 +3378,85 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 12,
   },
-  sidebarRequestItem: {
+  // Sidebar Friend Request Card - Desktop version
+  sidebarRequestCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
     marginBottom: 8,
     gap: 10,
   },
-  sidebarRequestAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#7C2B86',
+  sidebarRequestAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  sidebarRequestAvatarGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   sidebarRequestAvatarText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  sidebarRequestInfo: {
+  sidebarRequestContent: {
     flex: 1,
+    gap: 3,
   },
   sidebarRequestName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  sidebarRequestSubtitle: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  sidebarRequestPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 214, 242, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 4,
+    marginTop: 2,
+  },
+  sidebarRequestPillText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#E8B4D8',
   },
   sidebarRequestActions: {
     flexDirection: 'row',
     gap: 6,
   },
-  sidebarRequestReject: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+  sidebarRequestRejectBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(156, 163, 175, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.3)',
   },
-  sidebarRequestAccept: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 170, 85, 0.2)',
+  sidebarRequestAcceptBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4000,12 +4138,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Mobile Friend Requests
+  // Mobile Friend Requests - WhatsApp/Instagram style
   mobileFriendRequests: {
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: 20,
-    padding: 20,
-    gap: 16,
+    padding: 16,
+    gap: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -4013,58 +4151,91 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+    marginBottom: 4,
   },
-  mobileFriendRequestItem: {
+  mobileFriendRequestCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
+    padding: 12,
+    gap: 12,
   },
-  mobileFriendRequestAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#7C2B86',
+  mobileFriendRequestAvatarContainer: {
+    position: 'relative',
+  },
+  mobileFriendRequestAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  mobileFriendRequestAvatarGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   mobileFriendRequestAvatarText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  mobileFriendRequestInfo: {
+  mobileFriendRequestContent: {
     flex: 1,
+    gap: 6,
+  },
+  mobileFriendRequestHeader: {
+    gap: 2,
   },
   mobileFriendRequestName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  mobileFriendRequestMessage: {
+  mobileFriendRequestSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  mobileFriendRequestPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 214, 242, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 5,
+  },
+  mobileFriendRequestPillText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#E8B4D8',
   },
   mobileFriendRequestActions: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 10,
   },
-  mobileFriendRequestReject: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+  mobileFriendRequestRejectBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(156, 163, 175, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.3)',
   },
-  mobileFriendRequestAccept: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 170, 85, 0.2)',
+  mobileFriendRequestAcceptBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
   },

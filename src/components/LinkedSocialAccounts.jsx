@@ -11,11 +11,13 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { socialAccountsApi } from '@/src/api/social-accounts';
 
 const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }) => {
   const { token } = useAuth();
   const { features = {} } = useSubscription() || {};
+  const { theme, isDarkMode } = useTheme();
   const [linkedAccounts, setLinkedAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -116,7 +118,7 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Social Accounts</Text>
+          <Text style={[styles.title, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>Social Accounts</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color="#7C2B86" />
@@ -132,8 +134,13 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Social Accounts</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>Social Accounts</Text>
+        <Text
+          style={[
+            styles.subtitle,
+            { color: isDarkMode ? 'rgba(148, 163, 184, 0.9)' : '#666' },
+          ]}
+        >
           {isOwnProfile ? 'Your connected accounts' : 'Connected accounts'}
         </Text>
       </View>
@@ -142,7 +149,17 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
         {linkedAccounts.map((account, index) => (
           <TouchableOpacity
             key={account.id || `account-${index}-${account.platform}`}
-            style={styles.accountCard}
+            style={[
+              styles.accountCard,
+              {
+                backgroundColor: isDarkMode ? theme.surface : '#FFFFFF',
+                borderColor: isDarkMode
+                  ? 'rgba(148, 163, 184, 0.35)'
+                  : '#E0E0E0',
+                shadowColor: isDarkMode ? '#020617' : '#000',
+                shadowOpacity: isDarkMode ? 0.35 : 0.1,
+              },
+            ]}
             onPress={() => {
               if (account.platform === 'instagram' && !isOwnProfile) {
                 // Check if user has premium subscription
@@ -167,10 +184,25 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
                 {account.platform_avatar_url ? (
                   <Image 
                     source={{ uri: account.platform_avatar_url }} 
-                    style={styles.accountAvatar}
+                    style={[
+                      styles.accountAvatar,
+                      {
+                        borderColor: isDarkMode ? '#333' : '#CCC',
+                        borderWidth: 1,
+                      },
+                    ]}
                   />
                 ) : (
-                  <View style={[styles.platformIcon, { backgroundColor: getPlatformColor(account.platform) }]}>
+                  <View
+                    style={[
+                      styles.platformIcon,
+                      {
+                        backgroundColor: getPlatformColor(account.platform),
+                        borderColor: isDarkMode ? '#333' : '#CCC',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
                     <Ionicons 
                       name={getPlatformIcon(account.platform)} 
                       size={20} 
@@ -181,7 +213,12 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
                 
                 <View style={styles.accountDetails}>
                   <View style={styles.accountTitleRow}>
-                    <Text style={styles.platformName}>
+                    <Text
+                      style={[
+                        styles.platformName,
+                        { color: isDarkMode ? '#E5E7EB' : '#1F1147' },
+                      ]}
+                    >
                       {getPlatformDisplayName(account.platform)}
                     </Text>
                     {account.is_verified && (
@@ -189,20 +226,35 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
                     )}
                   </View>
                   
-                  <Text style={styles.accountUsername}>
+                  <Text
+                    style={[
+                      styles.accountUsername,
+                      { color: isDarkMode ? '#A855F7' : '#7C2B86' },
+                    ]}
+                  >
                     @{isOwnProfile || features.instagramUsernames || account.platform !== 'instagram' 
                       ? account.platform_username 
                       : getMaskedUsername(account.platform_username, account.platform)}
                   </Text>
                   
                   {account.platform_display_name !== account.platform_username && (
-                    <Text style={styles.accountDisplayName}>
+                    <Text
+                      style={[
+                        styles.accountDisplayName,
+                        { color: isDarkMode ? '#CBD5F5' : '#333' },
+                      ]}
+                    >
                       {account.platform_display_name}
                     </Text>
                   )}
                   
                   {formatPlatformData(account) && (
-                    <Text style={styles.accountData}>
+                    <Text
+                      style={[
+                        styles.accountData,
+                        { color: isDarkMode ? 'rgba(148, 163, 184, 0.9)' : '#666' },
+                      ]}
+                    >
                       {formatPlatformData(account)}
                     </Text>
                   )}
