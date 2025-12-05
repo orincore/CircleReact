@@ -6,6 +6,7 @@ import { API_BASE_URL } from '../api/config';
 
 const VERSION_KEY = '@circle:app_version';
 const UPDATE_CHECK_KEY = '@circle:last_update_check';
+const FORCE_UPDATE_CHECK_KEY = '@circle:last_force_update_check';
 
 class AppVersionService {
   constructor() {
@@ -13,6 +14,8 @@ class AppVersionService {
     this.buildNumber = Constants.expoConfig?.android?.versionCode || Constants.expoConfig?.ios?.buildNumber || 1;
     this.platform = Platform.OS;
     this.updateListeners = [];
+    this.forceUpdateListeners = [];
+    this.lastVersionCheckResult = null;
   }
 
   /**
@@ -23,7 +26,10 @@ class AppVersionService {
       // Track app version on startup
       await this.trackAppVersion();
       
-      // Check for updates if not in development
+      // Check for forced updates from backend (always check, even in dev for testing)
+      await this.checkForForcedUpdate();
+      
+      // Check for OTA updates if not in development
       if (!__DEV__) {
         await this.checkForUpdates();
       }
@@ -32,6 +38,115 @@ class AppVersionService {
     } catch (error) {
       console.error('App version service initialization error:', error);
     }
+  }
+
+  /**
+   * Compare two semantic version strings
+   * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+   */
+  compareVersions(v1, v2) {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+      const p1 = parts1[i] || 0;
+      const p2 = parts2[i] || 0;
+      
+      if (p1 < p2) return -1;
+      if (p1 > p2) return 1;
+    }
+    
+    return 0;
+  }
+
+  /**
+   * Check if app needs forced update from backend
+   */
+  async checkForForcedUpdate() {
+    try {
+      // Don't check too frequently (every 30 minutes)
+      const lastCheck = await AsyncStorage.getItem(FORCE_UPDATE_CHECK_KEY);
+      const now = Date.now();
+      const thirtyMinutes = 30 * 60 * 1000;
+      
+      if (lastCheck && (now - parseInt(lastCheck)) < thirtyMinutes) {
+        // Return cached result if available
+        if (this.lastVersionCheckResult) {
+          return this.lastVersionCheckResult;
+        }
+      }
+
+      // Store current check time
+      await AsyncStorage.setItem(FORCE_UPDATE_CHECK_KEY, now.toString());
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/app-version/check?version=${this.currentVersion}&platform=${this.platform}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error('Version check failed:', response.status);
+        return null;
+      }
+
+      const result = await response.json();
+      this.lastVersionCheckResult = result;
+
+      // If update is required, notify listeners
+      if (result.updateRequired) {
+        this.notifyForceUpdateListeners(result);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error checking for forced update:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Register a callback for forced update notifications
+   */
+  onForceUpdateRequired(listener) {
+    if (typeof listener === 'function') {
+      if (!Array.isArray(this.forceUpdateListeners)) {
+        this.forceUpdateListeners = [];
+      }
+      this.forceUpdateListeners.push(listener);
+    }
+  }
+
+  /**
+   * Notify all force update listeners
+   */
+  notifyForceUpdateListeners(result) {
+    try {
+      if (Array.isArray(this.forceUpdateListeners)) {
+        this.forceUpdateListeners.forEach((listener) => {
+          if (typeof listener === 'function') {
+            try {
+              listener(result);
+            } catch (cbErr) {
+              console.error('Error in force update listener callback:', cbErr);
+            }
+          }
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Error notifying force update listeners:', notifyErr);
+    }
+  }
+
+  /**
+   * Get the last version check result
+   */
+  getLastVersionCheckResult() {
+    return this.lastVersionCheckResult;
   }
 
   /**

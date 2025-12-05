@@ -57,7 +57,46 @@ export default function RootLayout() {
 
       // Initialize app version tracking and update checks
       try {
-        // Register update listener once to show popup and redirect to store
+        // Register forced update listener (from backend version check)
+        appVersionService.onForceUpdateRequired((result) => {
+          if (Platform.OS === 'android' || Platform.OS === 'ios') {
+            const buttons = result.forceUpdate
+              ? [
+                  {
+                    text: 'Update Now',
+                    onPress: () => {
+                      try {
+                        Linking.openURL(result.storeUrl);
+                      } catch (err) {
+                        console.error('Failed to open store URL:', err);
+                      }
+                    },
+                  },
+                ]
+              : [
+                  { text: 'Later', style: 'cancel' },
+                  {
+                    text: 'Update',
+                    onPress: () => {
+                      try {
+                        Linking.openURL(result.storeUrl);
+                      } catch (err) {
+                        console.error('Failed to open store URL:', err);
+                      }
+                    },
+                  },
+                ];
+
+            Alert.alert(
+              'Update Required',
+              result.message || 'A new version of Circle is available. Please update to continue.',
+              buttons,
+              { cancelable: !result.forceUpdate },
+            );
+          }
+        });
+
+        // Register OTA update listener (Expo Updates)
         appVersionService.onUpdateAvailable(() => {
           if (Platform.OS === 'android') {
             const url = appVersionService.getPlayStoreUrl();

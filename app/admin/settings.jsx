@@ -42,8 +42,18 @@ export default function AdminSettings() {
   const [profanityFilter, setProfanityFilter] = useState(true);
   const [imageModeration, setImageModeration] = useState(true);
 
+  // App Version Management
+  const [androidMinVersion, setAndroidMinVersion] = useState('1.0.0');
+  const [androidLatestVersion, setAndroidLatestVersion] = useState('1.3.1');
+  const [androidForceUpdate, setAndroidForceUpdate] = useState(false);
+  const [iosMinVersion, setIosMinVersion] = useState('1.0.0');
+  const [iosLatestVersion, setIosLatestVersion] = useState('1.3.1');
+  const [iosForceUpdate, setIosForceUpdate] = useState(false);
+  const [savingVersion, setSavingVersion] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadVersionConfig();
   }, []);
 
   const loadSettings = async () => {
@@ -86,6 +96,80 @@ export default function AdminSettings() {
       Alert.alert('Error', 'Failed to load settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadVersionConfig = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/app-version/config`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Set Android config
+        if (data.android) {
+          setAndroidMinVersion(data.android.min_version || '1.0.0');
+          setAndroidLatestVersion(data.android.latest_version || '1.0.0');
+          setAndroidForceUpdate(data.android.force_update || false);
+        }
+        
+        // Set iOS config
+        if (data.ios) {
+          setIosMinVersion(data.ios.min_version || '1.0.0');
+          setIosLatestVersion(data.ios.latest_version || '1.0.0');
+          setIosForceUpdate(data.ios.force_update || false);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading version config:', error);
+    }
+  };
+
+  const saveVersionConfig = async (platform) => {
+    setSavingVersion(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      
+      const config = platform === 'android' 
+        ? {
+            platform: 'android',
+            min_version: androidMinVersion,
+            latest_version: androidLatestVersion,
+            force_update: androidForceUpdate,
+          }
+        : {
+            platform: 'ios',
+            min_version: iosMinVersion,
+            latest_version: iosLatestVersion,
+            force_update: iosForceUpdate,
+          };
+
+      const response = await fetch(`${API_BASE_URL}/api/app-version/config`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        Alert.alert('Success', result.message || `${platform} version config saved`);
+      } else {
+        const error = await response.json();
+        Alert.alert('Error', error.error || 'Failed to save version config');
+      }
+    } catch (error) {
+      console.error('Error saving version config:', error);
+      Alert.alert('Error', 'Failed to save version config');
+    } finally {
+      setSavingVersion(false);
     }
   };
 
@@ -431,6 +515,125 @@ export default function AdminSettings() {
           </SettingRow>
         </SettingSection>
 
+        {/* App Version Management */}
+        <SettingSection title="App Version Management">
+          {/* Android Section */}
+          <View style={styles.versionPlatformSection}>
+            <View style={styles.versionPlatformHeader}>
+              <Ionicons name="logo-android" size={24} color="#3DDC84" />
+              <Text style={styles.versionPlatformTitle}>Android</Text>
+            </View>
+            
+            <SettingRow
+              label="Minimum Version"
+              description="Users below this version must update"
+            >
+              <TextInput
+                style={styles.versionInput}
+                value={androidMinVersion}
+                onChangeText={setAndroidMinVersion}
+                placeholder="1.0.0"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Latest Version"
+              description="Current version in Play Store"
+            >
+              <TextInput
+                style={styles.versionInput}
+                value={androidLatestVersion}
+                onChangeText={setAndroidLatestVersion}
+                placeholder="1.3.1"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Force Update"
+              description="Block app until user updates"
+            >
+              <Switch
+                value={androidForceUpdate}
+                onValueChange={setAndroidForceUpdate}
+                trackColor={{ false: '#ccc', true: '#7C2B86' }}
+                thumbColor="#FFFFFF"
+              />
+            </SettingRow>
+
+            <TouchableOpacity
+              style={[styles.versionSaveButton, savingVersion && styles.versionSaveButtonDisabled]}
+              onPress={() => saveVersionConfig('android')}
+              disabled={savingVersion}
+            >
+              <Text style={styles.versionSaveButtonText}>
+                {savingVersion ? 'Saving...' : 'Save Android Config'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* iOS Section */}
+          <View style={[styles.versionPlatformSection, { marginTop: 20 }]}>
+            <View style={styles.versionPlatformHeader}>
+              <Ionicons name="logo-apple" size={24} color="#000000" />
+              <Text style={styles.versionPlatformTitle}>iOS</Text>
+            </View>
+            
+            <SettingRow
+              label="Minimum Version"
+              description="Users below this version must update"
+            >
+              <TextInput
+                style={styles.versionInput}
+                value={iosMinVersion}
+                onChangeText={setIosMinVersion}
+                placeholder="1.0.0"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Latest Version"
+              description="Current version in App Store"
+            >
+              <TextInput
+                style={styles.versionInput}
+                value={iosLatestVersion}
+                onChangeText={setIosLatestVersion}
+                placeholder="1.3.1"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Force Update"
+              description="Block app until user updates"
+            >
+              <Switch
+                value={iosForceUpdate}
+                onValueChange={setIosForceUpdate}
+                trackColor={{ false: '#ccc', true: '#7C2B86' }}
+                thumbColor="#FFFFFF"
+              />
+            </SettingRow>
+
+            <TouchableOpacity
+              style={[styles.versionSaveButton, savingVersion && styles.versionSaveButtonDisabled]}
+              onPress={() => saveVersionConfig('ios')}
+              disabled={savingVersion}
+            >
+              <Text style={styles.versionSaveButtonText}>
+                {savingVersion ? 'Saving...' : 'Save iOS Config'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionInfoBox}>
+            <Ionicons name="information-circle" size={20} color="#7C2B86" />
+            <Text style={styles.versionInfoText}>
+              When minimum version is higher than user's app version, they will see an update prompt. 
+              If "Force Update" is enabled, users cannot skip the prompt.
+            </Text>
+          </View>
+        </SettingSection>
+
         {/* Danger Zone */}
         <View style={styles.dangerZone}>
           <Text style={styles.dangerTitle}>Danger Zone</Text>
@@ -575,5 +778,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#F44336',
     fontWeight: '500',
+  },
+  versionPlatformSection: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    padding: 16,
+  },
+  versionPlatformHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  versionPlatformTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F1147',
+  },
+  versionInput: {
+    width: 100,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#1F1147',
+    textAlign: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  versionSaveButton: {
+    backgroundColor: '#7C2B86',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  versionSaveButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  versionSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  versionInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F3E5F5',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    gap: 10,
+  },
+  versionInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#7C2B86',
+    lineHeight: 18,
   },
 });
