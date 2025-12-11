@@ -1,8 +1,8 @@
 import LocationMap from '@/components/LocationMap';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { nearbyUsersGql } from '@/src/api/graphql';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -31,6 +31,7 @@ const isDesktop = screenWidth >= 1024; // Desktop breakpoint
 export default function LocationPage() {
   const router = useRouter();
   const { token, user } = useAuth();
+  const { theme } = useTheme();
   
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1091,14 +1092,8 @@ export default function LocationPage() {
           gestureEnabled: true,
         }} 
       />
-      <LinearGradient
-        colors={["#1F1147", "#2D1B69", "#1F1147"]}
-        locations={[0, 0.5, 1]}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea}>
+      <View style={[styles.gradient, { backgroundColor: theme.background }]}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
         {/* Invisible Mode Check */}
         {user?.invisibleMode ? (
           <View style={styles.invisibleModeContainer}>
@@ -1130,15 +1125,18 @@ export default function LocationPage() {
           <>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity 
+            style={[styles.backButton, { backgroundColor: theme.surfaceSecondary }]}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
               {screenData.isDesktop ? 'Location Explorer' : 'Nearby Matches'}
             </Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
               {totalFilteredUsers === 0 
                 ? `No users found near ${currentLocationName || 'this location'}`
                 : `${totalFilteredUsers} ${totalFilteredUsers === 1 ? 'user' : 'users'} found near ${currentLocationName || 'this location'}`
@@ -1153,39 +1151,47 @@ export default function LocationPage() {
                 style={[styles.viewToggleBtn, viewMode === 'map' && styles.viewToggleBtnActive]}
                 onPress={() => setViewMode('map')}
               >
-                <Ionicons name="map" size={18} color={viewMode === 'map' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} />
+                <Ionicons 
+                  name="map" 
+                  size={18} 
+                  color={viewMode === 'map' ? theme.textPrimary : theme.textMuted} 
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.viewToggleBtn, viewMode === 'list' && styles.viewToggleBtnActive]}
                 onPress={() => setViewMode('list')}
               >
-                <Ionicons name="grid" size={18} color={viewMode === 'list' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} />
+                <Ionicons 
+                  name="grid" 
+                  size={18} 
+                  color={viewMode === 'list' ? theme.textPrimary : theme.textMuted} 
+                />
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.headerButton}
+              style={[styles.headerButton, { backgroundColor: theme.surfaceSecondary }]}
               onPress={() => setShowFilters(!showFilters)}
             >
-              <Ionicons name="options" size={20} color="#FFFFFF" />
+              <Ionicons name="options" size={20} color={theme.textPrimary} />
             </TouchableOpacity>
           )}
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color="#7C2B86" style={styles.searchIcon} />
+          <View style={[styles.searchInputContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+            <Ionicons name="search" size={20} color={theme.textMuted} style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.textPrimary }]}
               placeholder="Search by name or interests..."
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholderTextColor="rgba(124, 43, 134, 0.5)"
+              placeholderTextColor={theme.textMuted}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color="#7C2B86" />
+                <Ionicons name="close-circle" size={20} color={theme.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -1429,8 +1435,10 @@ export default function LocationPage() {
                   screenData.isBrowser && screenData.isLandscape && styles.listSectionLandscape
                 ]}>
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>People in {currentLocationName || 'Area'}</Text>
-              <View style={styles.countBadge}>
+              <Text style={[styles.listTitle, { color: theme.textPrimary }]}> 
+                People in {currentLocationName || 'Area'}
+              </Text>
+              <View style={[styles.countBadge, { backgroundColor: theme.primary }]}> 
                 <Text style={styles.countText}>{totalFilteredUsers}</Text>
               </View>
             </View>
@@ -1503,7 +1511,7 @@ export default function LocationPage() {
         </>
         )}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
     </>
   );
 }

@@ -2,14 +2,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getSocket, socketService } from "@/src/api/socket";
 import { chatApi } from "@/src/api/chat";
-import { useLocalNotificationCount } from "@/src/hooks/useLocalNotificationCount";
 import { unreadCountService } from "@/src/services/unreadCountService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from 'react';
 import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import NotificationPanel from './NotificationPanel';
 
 // Web-specific bottom padding to account for mobile browser chrome
 const WEB_BOTTOM_PADDING = 20;
@@ -18,8 +16,6 @@ const WEB_BOTTOM_PADDING = 20;
 export default function TabBarWithNotifications({ state, descriptors, navigation }) {
   const { token } = useAuth();
   const { theme, isDarkMode } = useTheme();
-  const { notificationCount, resetCount: resetNotificationCount, incrementCount } = useLocalNotificationCount();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [chatUnreadCounts, setChatUnreadCounts] = useState({}); // chatId -> unread count
   const insets = useSafeAreaInsets();
@@ -102,15 +98,14 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   const setupSocketListeners = () => {
     const socket = getSocket(token);
     
-    // Listen for new notifications
+    // Listen for new notifications (count is now handled elsewhere)
     socket.on('notification:new', ({ notification }) => {
-      //console.log('🔔 New notification received in tab bar:', notification);
-      incrementCount();
+      // Notification badges are handled outside the tab bar
     });
     
     // Keep existing friend request listeners for compatibility
     socket.on('friend:request:received', () => {
-      incrementCount();
+      // Notification badges are handled outside the tab bar
     });
 
     socket.on('friend:request:accept:confirmed', () => {
@@ -248,34 +243,8 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
           );
         })}
 
-        {/* Notification button */}
-        <TouchableOpacity
-          style={[styles.notificationButton, showNotifications && { backgroundColor: theme.primaryLight, borderRadius: 16 }]}
-          onPress={() => setShowNotifications(!showNotifications)}
-        >
-          <View style={styles.notificationIconContainer}>
-            <Ionicons 
-              name="notifications" 
-              size={24} 
-              color={showNotifications ? theme.primary : theme.textMuted} 
-            />
-            {notificationCount > 0 && (
-              <View style={[styles.notificationBadge, { backgroundColor: theme.error }]}>
-                <Text style={styles.notificationBadgeText}>
-                  {notificationCount > 99 ? '99+' : notificationCount}
-                </Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
         </View>
       </View>
-
-      {/* Notification Panel */}
-      <NotificationPanel 
-        visible={showNotifications} 
-        onClose={() => setShowNotifications(false)} 
-      />
     </>
   );
 }
@@ -318,37 +287,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
     textAlign: 'center',
-  },
-  notificationButton: {
-    width: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    marginHorizontal: 2,
-    minHeight: 52,
-  },
-  notificationIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  notificationBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
   },
   tabIconContainer: {
     position: 'relative',

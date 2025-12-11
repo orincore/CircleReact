@@ -16,6 +16,7 @@ import NotificationPermissionBanner from "@/src/components/NotificationPermissio
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import PromptMatchingWrapper from "@/components/PromptMatchingWrapper";
 import HelpRequestsList from "@/components/HelpRequestsList";
+import NotificationPanel from "@/components/NotificationPanel";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -373,6 +374,7 @@ export default function MatchScreen() {
   const livePulse = useRef(new Animated.Value(0)).current;
   const [passedMatchIds, setPassedMatchIds] = useState(new Set());
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
@@ -573,9 +575,9 @@ export default function MatchScreen() {
     return user?.firstName || user?.first_name || 'there';
   };
 
-  // Navigate to settings with score improvement suggestions
-  const handleSettingsPress = () => {
-    router.push('/secure/profile/settings');
+  // Notifications from Match screen header
+  const handleNotificationsPress = () => {
+    setShowNotifications(true);
   };
 
   // Helper function to generate dynamic description
@@ -2182,10 +2184,10 @@ export default function MatchScreen() {
               </View>
               <TouchableOpacity 
                 style={[styles.settingsButton, { backgroundColor: theme.surfaceSecondary }]}
-                onPress={handleSettingsPress}
+                onPress={handleNotificationsPress}
                 activeOpacity={0.7}
               >
-                <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
+                <Ionicons name="notifications-outline" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -2633,6 +2635,12 @@ export default function MatchScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Notifications panel (same as bottom navbar previously) */}
+      <NotificationPanel
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
       
       </LinearGradient>
     </View>

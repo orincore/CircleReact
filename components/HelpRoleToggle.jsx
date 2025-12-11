@@ -14,17 +14,17 @@ const HelpRoleToggle = ({ selectedRole, onRoleChange }) => {
   const roles = [
     { 
       id: 'giver', 
-      label: 'Giver', 
+      label: 'Beacon', 
       icon: 'hand-left',
-      description: 'Help others',
+      description: 'Offer support',
       gradient: ['#7C2B86', '#5D5FEF'],
       color: '#7C2B86'
     },
     { 
       id: 'receiver', 
-      label: 'Receiver', 
+      label: 'Voyager', 
       icon: 'hand-right',
-      description: 'Get help',
+      description: 'Find support',
       gradient: ['#FF6FB5', '#FF8E53'],
       color: '#FF6FB5'
     },
@@ -44,7 +44,7 @@ const HelpRoleToggle = ({ selectedRole, onRoleChange }) => {
         <View style={styles.headerLeft}>
           <Ionicons name="people-circle" size={24} color={theme.primary} />
           <Text style={[styles.title, { color: theme.textPrimary }]}>
-            Help Connect
+            Harmony
           </Text>
         </View>
         {selectedRole !== 'off' && (
@@ -56,7 +56,7 @@ const HelpRoleToggle = ({ selectedRole, onRoleChange }) => {
       </View>
       
       <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-        Choose how you want to connect with others
+        Choose how you want to be part of Harmony
       </Text>
 
       <View style={styles.toggleContainer}>
@@ -173,16 +173,18 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
     gap: 10,
+    alignItems: 'stretch',
   },
   roleButtonWrapper: {
     flex: 1,
   },
   roleButton: {
-    paddingVertical: 18,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    flex: 1,
     minHeight: 120,
   },
   iconContainer: {

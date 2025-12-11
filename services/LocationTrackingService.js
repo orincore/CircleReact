@@ -1,4 +1,3 @@
-import { updateLocationGql } from '@/src/api/graphql';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -51,18 +50,18 @@ async function handleLocationUpdate(coords) {
       return;
     }
 
-    // Update location in database (only send fields expected by GraphQL schema)
-    const locationData = {
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    };
-    
-    await updateLocationGql(locationData, token);
+    // Step 1: Save location to database via REST API (more reliable for background)
+    try {
+      await updateLocationInDatabase(coords.latitude, coords.longitude, token);
+    } catch (dbError) {
+      console.error('Failed to save location to database:', dbError);
+      // Continue anyway to try nearby check
+    }
     
     // Store last update time
     await AsyncStorage.setItem(LAST_LOCATION_UPDATE_KEY, now.toString());
     
-    // Check for nearby Circle users and send notifications (every 15-30 mins)
+    // Step 2: Check for nearby Circle users and send notifications to BOTH users
     try {
       await checkNearbyUsersAndNotify(coords.latitude, coords.longitude, token);
     } catch (nearbyError) {
@@ -71,6 +70,35 @@ async function handleLocationUpdate(coords) {
     
   } catch (error) {
     console.error('❌ Failed to update location in background:', error);
+  }
+}
+
+// Save location to database via REST API
+async function updateLocationInDatabase(latitude, longitude, token) {
+  try {
+    const { API_BASE_URL } = await import('@/src/config/api');
+    
+    const response = await fetch(`${API_BASE_URL}/api/location/update`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        latitude,
+        longitude,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Location update failed: ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating location in database:', error);
+    throw error;
   }
 }
 

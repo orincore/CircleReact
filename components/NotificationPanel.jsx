@@ -705,13 +705,13 @@ export default function NotificationPanel({ visible, onClose }) {
         <View style={[styles.content, { backgroundColor: theme.background }] }>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#7C2B86" />
+              <ActivityIndicator size="large" color={theme.primary} />
               <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
             </View>
           ) : getFilteredNotifications().length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconContainer}>
-                <Ionicons name="notifications-outline" size={64} color="#C7C7CC" />
+                <Ionicons name="notifications-outline" size={64} color={theme.textTertiary} />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
                 {selectedTab === 'All' ? 'No Notifications Yet' : `No ${selectedTab}`}
@@ -755,7 +755,7 @@ export default function NotificationPanel({ visible, onClose }) {
 const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   browserOverlay: {
     position: 'absolute',
@@ -771,11 +771,10 @@ const styles = StyleSheet.create({
     right: 20,
     width: 420,
     maxHeight: '80%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 16,
     elevation: 24,
     overflow: 'hidden',
@@ -789,9 +788,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: isBrowser ? 12 : 50,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderBottomWidth: 0.5,
-    borderBottomColor: '#DBDBDB',
+    borderBottomColor: 'rgba(148, 163, 184, 0.35)',
   },
   backButton: {
     padding: 8,
@@ -821,9 +820,9 @@ const styles = StyleSheet.create({
     color: '#7C2B86',
   },
   filterContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderBottomWidth: 0.5,
-    borderBottomColor: '#DBDBDB',
+    borderBottomColor: 'rgba(148, 163, 184, 0.2)',
     paddingVertical: 8,
   },
   filterScrollContent: {
@@ -836,11 +835,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F3F4F6',
     gap: 6,
   },
   filterTabActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#A16AE8',
   },
   filterTabText: {
     fontSize: 14,
@@ -870,7 +869,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   unreadBadge: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#EF4444',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -893,8 +892,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: '#6B7280',
   },
   emptyContainer: {
     flex: 1,
@@ -907,13 +906,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700',
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -945,7 +943,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   swipeableContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   notificationItem: {
     backgroundColor: '#FFFFFF',
@@ -955,7 +953,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EEEEEE',
   },
   unreadNotification: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(161, 106, 232, 0.05)',
   },
   notificationContent: {
     flexDirection: 'row',
@@ -974,22 +972,21 @@ const styles = StyleSheet.create({
   },
   usernameText: {
     fontWeight: '600',
-    color: '#000',
   },
   actionText: {
-    color: '#666',
+    color: '#6B7280',
   },
   successText: {
     color: '#10B981',
     fontWeight: '600',
   },
   timeText: {
-    color: '#999',
+    color: '#9CA3AF',
     fontSize: 14,
   },
   messageText: {
     fontSize: 14,
-    color: '#666',
+    color: '#6B7280',
     marginTop: 4,
     lineHeight: 18,
   },
