@@ -22,7 +22,7 @@ export default function AdminLayout() {
   const menuItems = [
     { name: 'Dashboard', icon: 'grid', path: '/admin/dashboard' },
     { name: 'AI Dashboard', icon: 'sparkles', path: '/admin/ai-dashboard' },
-    { name: 'Blind Dating', icon: 'heart-half', path: '/admin/blind-dating' },
+    { name: 'Blind Connect', icon: 'heart-half', path: '/admin/blind-dating' },
     { name: 'Users', icon: 'people', path: '/admin/users' },
     { name: 'Referrals', icon: 'gift', path: '/admin/referrals' },
     { name: 'Subscriptions', icon: 'diamond', path: '/admin/subscriptions' },

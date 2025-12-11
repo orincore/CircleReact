@@ -172,7 +172,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
             end={{ x: 1, y: 1 }}
           >
             <Ionicons name="heart-half" size={48} color="white" />
-            <Text style={styles.headerTitle}>Blind Dating</Text>
+            <Text style={styles.headerTitle}>Blind Connect</Text>
             <Text style={styles.headerSubtitle}>
               Meet someone special anonymously
             </Text>
@@ -184,7 +184,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={[styles.toggleTitle, { color: theme.textPrimary }]}>
-                Enable Blind Dating
+                Enable Blind Connect
               </Text>
               <Text style={[styles.toggleDescription, { color: theme.textSecondary }]}>
                 {settings?.is_enabled 
@@ -320,7 +320,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
                   </Text>
                 </View>
                 <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
-                  Maximum number of blind dates at once
+                  Maximum number of blind connects at once
                 </Text>
                 <Slider
                   style={styles.slider}

@@ -125,7 +125,7 @@ export default function BlindDatingAdmin() {
   };
 
   const handleEnableForAll = async () => {
-    const confirmMessage = 'This will enable blind dating for ALL users. Continue?';
+    const confirmMessage = 'This will enable Blind Connect for ALL users. Continue?';
     
     if (Platform.OS === 'web') {
       if (!window.confirm(confirmMessage)) return;
@@ -154,7 +154,7 @@ export default function BlindDatingAdmin() {
         Alert.alert('Error', data.error || 'Failed to enable');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to enable blind dating for all users');
+      Alert.alert('Error', 'Failed to enable Blind Connect for all users');
     } finally {
       setProcessing(false);
     }
@@ -281,7 +281,7 @@ export default function BlindDatingAdmin() {
   };
 
   const handleEndAllActiveMatches = async () => {
-    const confirmMessage = 'Are you sure you want to END ALL ACTIVE MATCHES? This will end all current blind dates but keep the history.';
+    const confirmMessage = 'Are you sure you want to END ALL ACTIVE MATCHES? This will end all current Blind Connect sessions but keep the history.';
     
     if (Platform.OS === 'web') {
       if (!window.confirm(confirmMessage)) return;
@@ -314,7 +314,7 @@ export default function BlindDatingAdmin() {
   };
 
   const handleResetAllMatches = async () => {
-    const confirmMessage = 'DANGER: This will DELETE ALL BLIND DATE DATA including matches, messages, and history. This cannot be undone. Type "RESET_ALL_BLIND_DATES" to confirm.';
+    const confirmMessage = 'DANGER: This will DELETE ALL Blind Connect DATA including matches, messages, and history. This cannot be undone. Type "RESET_ALL_BLIND_DATES" to confirm.';
     
     let userInput = '';
     if (Platform.OS === 'web') {
@@ -326,8 +326,8 @@ export default function BlindDatingAdmin() {
     } else {
       // For mobile, show a simpler confirmation
       Alert.alert(
-        'DANGER: Reset All Blind Dates',
-        'This will DELETE ALL blind date data permanently. Are you absolutely sure?',
+        'DANGER: Reset All Blind Connect Sessions',
+        'This will DELETE ALL Blind Connect data permanently. Are you absolutely sure?',
         [
           { text: 'Cancel', style: 'cancel' },
           { 
@@ -637,7 +637,7 @@ export default function BlindDatingAdmin() {
         <Text style={styles.sectionTitle}>Eligibility Status</Text>
         <View style={styles.infoCard}>
           <InfoRow label="Total Users" value={stats?.totalUsers || 0} />
-          <InfoRow label="Blind Dating Enabled" value={stats?.usersWithBlindDatingEnabled || 0} />
+          <InfoRow label="Blind Connect Enabled" value={stats?.usersWithBlindDatingEnabled || 0} />
           <InfoRow label="Auto-Match Enabled" value={stats?.usersWithAutoMatch || 0} />
           <InfoRow label="Eligible for New Matches" value={stats?.eligibleForNewMatches || 0} />
           <InfoRow label="At Max Matches" value={stats?.usersAtMaxMatches || 0} />
@@ -825,7 +825,7 @@ export default function BlindDatingAdmin() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#7C2B86" />
-        <Text style={styles.loadingText}>Loading Blind Dating Data...</Text>
+        <Text style={styles.loadingText}>Loading Blind Connect Data...</Text>
       </View>
     );
   }
@@ -834,7 +834,9 @@ export default function BlindDatingAdmin() {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.header}>
-        <Text style={styles.headerTitle}>🎭 Blind Dating</Text>
+        <Text style={styles.headerTitle}>
+          🎭 Blind Connect
+        </Text>
         <Text style={styles.headerSubtitle}>Manage anonymous matchmaking</Text>
       </LinearGradient>
 

@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { blindDatingApi } from '@/src/api/blindDating';
 
 /**
- * Test Panel for Blind Dating Content Filter
+ * Test Panel for Blind Connect Content Filter
  * Allows testing the Together AI content filter instantly
  */
 const BlindDatingTestPanel = ({ onClose }) => {
@@ -106,7 +106,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
         type: 'enabled' 
       });
     } catch (error) {
-      console.error('Failed to enable blind dating:', error);
+      console.error('Failed to enable blind connect:', error);
       setMatchResult({ 
         success: false, 
         error: error.message,
@@ -154,7 +154,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
       // Add welcome message to chat
       setAiChatHistory([{
         role: 'system',
-        content: '🤖 Test match created! You are now chatting with an AI blind date partner. Try sending messages - personal info will be blocked!',
+        content: '🤖 Test match created! You are now chatting with an AI blind connect partner. Try sending messages - personal info will be blocked!',
       }]);
       
       // Refresh stats
@@ -646,13 +646,13 @@ const BlindDatingTestPanel = ({ onClose }) => {
           </View>
           
           <Text style={[styles.testSuiteDesc, { color: theme.textSecondary }]}>
-            Test the matchmaking system by instantly finding a compatible blind date match.
+            Test the matchmaking system by instantly finding a compatible blind connect match.
           </Text>
           
-          {/* Blind Dating Status */}
+          {/* Blind Connect Status */}
           <View style={[styles.statusSection, { backgroundColor: theme.background, borderRadius: 12, padding: 12, marginBottom: 12 }]}>
             <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>
-              Blind Dating Status:
+              Blind Connect Status:
             </Text>
             <View style={[
               styles.statusBadge,
@@ -690,7 +690,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
                 ) : (
                   <>
                     <Ionicons name="power" size={20} color="white" />
-                    <Text style={styles.buttonText}>Enable Blind Dating First</Text>
+                    <Text style={styles.buttonText}>Enable Blind Connect First</Text>
                   </>
                 )}
               </LinearGradient>
@@ -852,7 +852,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
           </View>
           
           <Text style={[styles.testSuiteDesc, { color: theme.textSecondary }]}>
-            Create a test match with an AI bot and chat to see how blind dating works! Try sending personal info - it will be blocked.
+            Create a test match with an AI bot and chat to see how Blind Connect works! Try sending personal info - it will be blocked.
           </Text>
           
           {/* Debug Button */}

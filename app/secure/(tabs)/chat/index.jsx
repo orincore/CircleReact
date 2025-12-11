@@ -1096,12 +1096,12 @@ export default function ChatListScreen() {
                 activeTab === 'blind' && styles.tabLabelActive,
               ]}
             >
-              Blind date
+              Blind Connect
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Daily Blind Date status banner */}
+        {/* Daily Blind Connect status banner */}
         {blindDateStatus.enabled && !blindDateStatus.loading && (
           <View
             style={[
@@ -1120,14 +1120,14 @@ export default function ChatListScreen() {
             <View style={{ flex: 1 }}>
               <Text
                 style={[
-                  styles.blindDateDailyTitle,
-                  { color: isDarkMode ? '#FFFFFF' : theme.textPrimary },
+                  styles.blindDateBannerTitle,
+                  { color: theme.textPrimary },
                 ]}
                 numberOfLines={1}
               >
                 {blindDateStatus.foundToday
-                  ? 'Blind date found today!'
-                  : 'No blind date found today yet'}
+                  ? 'Blind Connect match found today!'
+                  : 'No Blind Connect match found today yet'}
               </Text>
               {!blindDateStatus.foundToday && (
                 <Text

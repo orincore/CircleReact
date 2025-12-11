@@ -436,11 +436,15 @@ export default function ChatConversationScreen() {
 
   // Normalize my user ID to string for consistent comparisons
   const myUserId = user?.id != null ? String(user.id) : null;
+  const isScreenshotExempt =
+    typeof user?.username === "string" &&
+    ["orincore", "karun"].includes(user.username.toLowerCase());
   const typingTimeoutRef = useRef(null);
   const processedMessageIdsRef = useRef(new Set());
   const listRef = useRef(null);
   const typingIndicatorTimeoutRef = useRef(null);
   const isNearBottomRef = useRef(true); // Track if user is near bottom for auto-scroll
+  const hasInitialScrollRef = useRef(false);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
@@ -517,6 +521,9 @@ export default function ChatConversationScreen() {
 
   // Handle screenshot attempts: show notice and send a real chat message so both users see it
   const handleScreenshotAttempt = useCallback(() => {
+    if (isScreenshotExempt) {
+      return;
+    }
     const displayName = user?.firstName || user?.first_name || user?.username || "You";
 
     try {
@@ -578,10 +585,14 @@ export default function ChatConversationScreen() {
         )
       );
     }
-  }, [user, token, conversationId, myUserId]);
+  }, [user, token, conversationId, myUserId, isScreenshotExempt]);
 
   // Prevent screenshots while this screen is active and listen for attempts
   useEffect(() => {
+    if (isScreenshotExempt) {
+      return;
+    }
+
     let subscription;
 
     const setup = async () => {
@@ -613,7 +624,7 @@ export default function ChatConversationScreen() {
         subscription.remove();
       }
     };
-  }, [handleScreenshotAttempt]);
+  }, [handleScreenshotAttempt, isScreenshotExempt]);
 
   // Socket setup: join room, history, messages, typing, presence
   useEffect(() => {
@@ -796,7 +807,7 @@ export default function ChatConversationScreen() {
       if (!isBlindDate || !data) return;
       setBlockedInfoMessage(
         data.message ||
-          "In blind date chats, you can't send personal details like phone numbers, social media or email until both of you choose to reveal your profiles."
+          "In Blind Connect chats, you can't send personal details like phone numbers, social media or email until both of you choose to reveal your profiles."
       );
       setShowBlockedInfoModal(true);
     };
@@ -871,10 +882,10 @@ export default function ChatConversationScreen() {
     };
   }, [token, conversationId]);
 
-  // Initial blind date status is now fetched via socket in the socket event listener useEffect
+  // Initial Blind Connect status is now fetched via socket in the socket event listener useEffect
   // This ensures real-time updates from the start
 
-  // Track message count for blind date reveal prompt
+  // Track message count for Blind Connect reveal prompt
   useEffect(() => {
     if (!isBlindDate) return;
     
@@ -893,7 +904,7 @@ export default function ChatConversationScreen() {
     }
   }, [messages, isBlindDate, hasRevealedSelf, bothRevealed, lastPromptDismissedAt, showRevealPrompt]);
 
-  // Listen for blind date socket events - ALL REAL-TIME UPDATES
+  // Listen for Blind Connect socket events - ALL REAL-TIME UPDATES
   useEffect(() => {
     if (!isBlindDate || !token) return;
     
@@ -1436,7 +1447,7 @@ export default function ChatConversationScreen() {
     }, 1500);
   };
 
-  // Blind date reveal handlers - USE SOCKET for real-time updates
+  // Blind Connect reveal handlers - USE SOCKET for real-time updates
   const handleRevealProfile = async () => {
     if (!conversationId || isRevealSubmitting || hasRevealedSelf) return;
     
@@ -1467,7 +1478,7 @@ export default function ChatConversationScreen() {
     }
     
     if (!matchId) {
-      Alert.alert('Error', 'Could not find blind date match information.');
+      Alert.alert('Error', 'Could not find Blind Connect match information.');
       setIsRevealSubmitting(false);
       return;
     }
@@ -1705,6 +1716,20 @@ export default function ChatConversationScreen() {
     lastMessageIdRef.current = lastMessageId;
     lastMessageCountRef.current = messages.length;
   }, [messages, loadingMore]);
+
+  // On initial load of this conversation, ensure we start at the latest (bottom) message
+  useEffect(() => {
+    if (!listRef.current || messages.length === 0) return;
+    if (hasInitialScrollRef.current) return;
+
+    hasInitialScrollRef.current = true;
+    try {
+      // Small delay to allow layout to settle before scrolling
+      setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: false });
+      }, 50);
+    } catch {}
+  }, [messages.length]);
 
   // Clear typing indicator if it gets stuck (no updates for a while)
   useEffect(() => {
@@ -2123,7 +2148,7 @@ export default function ChatConversationScreen() {
           </View>
         </View>
         
-        {/* Blind Date Reveal Status Banner */}
+        {/* Blind Connect Reveal Status Banner */}
         {isBlindDate && !bothRevealed && (hasRevealedSelf || otherHasRevealed) && (
           <View style={[
             styles.revealStatusBanner,
@@ -2183,87 +2208,34 @@ export default function ChatConversationScreen() {
           behavior={keyboardBehavior}
           keyboardVerticalOffset={keyboardOffset}
         >
-          <FlatList
+          <ScrollView
             ref={listRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
             contentContainerStyle={styles.messagesContainer}
             showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
-            // Smooth scrolling optimizations
-            removeClippedSubviews={Platform.OS === 'android'}
-            maxToRenderPerBatch={10}
-            windowSize={15}
-            initialNumToRender={15}
-            updateCellsBatchingPeriod={50}
-            // Maintain scroll position when new items are added at the top (iOS only)
-            maintainVisibleContentPosition={Platform.OS === 'ios' ? {
-              minIndexForVisible: 1,
-              autoscrollToTopThreshold: 10,
-            } : undefined}
-            // Improve scroll performance
-            decelerationRate="normal"
-            scrollIndicatorInsets={{ right: 1 }}
-            onScrollToIndexFailed={(info) => {
-              // Handle scroll to index failure by scrolling to approximate position
-              const wait = new Promise(resolve => setTimeout(resolve, 100));
-              wait.then(() => {
-                if (listRef.current) {
-                  listRef.current.scrollToOffset({
-                    offset: info.averageItemLength * info.index,
-                    animated: true,
-                  });
-                  // Try again after scrolling
-                  setTimeout(() => {
-                    if (listRef.current && info.index < messages.length) {
-                      listRef.current.scrollToIndex({
-                        index: info.index,
-                        animated: true,
-                        viewPosition: 0.5,
-                      });
-                    }
-                  }, 100);
-                }
-              });
-            }}
-            // Loading indicator at top when loading older messages
-            ListHeaderComponent={
-              loadingMore ? (
-                <View style={styles.loadingMoreContainer}>
-                  <ActivityIndicator size="small" color="#7C3AED" />
-                  <Text style={[styles.loadingMoreText, { color: theme.textSecondary }]}>
-                    Loading messages...
-                  </Text>
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            {messages.map((item, index) => (
+              <View key={item.id || index}>
+                {renderItem({ item, index })}
+              </View>
+            ))}
+
+            {typingUsers.length > 0 && (
+              <View style={styles.typingRow}>
+                <View style={styles.typingDotsContainer}>
+                  <View style={styles.typingDot} />
+                  <View style={styles.typingDot} />
+                  <View style={styles.typingDot} />
                 </View>
-              ) : !hasMore && messages.length > 10 ? (
-                <View style={styles.loadingMoreContainer}>
-                  <Text style={[styles.noMoreMessagesText, { color: theme.textSecondary }]}>
-                    Beginning of conversation
-                  </Text>
-                </View>
-              ) : null
-            }
-            ListFooterComponent={
-              typingUsers.length > 0 ? (
-                <View style={styles.typingRow}>
-                  <View style={styles.typingDotsContainer}>
-                    <View style={styles.typingDot} />
-                    <View style={styles.typingDot} />
-                    <View style={styles.typingDot} />
-                  </View>
-                  <Text style={[styles.typingText, { color: theme.textSecondary }]}>
-                    typing...
-                  </Text>
-                </View>
-              ) : null
-            }
-          />
+                <Text style={[styles.typingText, { color: theme.textSecondary }]}>
+                  typing...
+                </Text>
+              </View>
+            )}
+          </ScrollView>
 
           {/* Scroll to bottom floating button with new message badge */}
           {showScrollToBottom && (
@@ -2611,7 +2583,7 @@ export default function ChatConversationScreen() {
             ]}
           >
             <View style={styles.blockedModalTag}>
-              <Text style={styles.blockedModalTagText}>Blind date safety</Text>
+              <Text style={styles.blockedModalTagText}>Blind Connect safety</Text>
             </View>
 
             <View style={styles.blockedModalIconWrapper}>
@@ -2634,7 +2606,7 @@ export default function ChatConversationScreen() {
               ]}
             >
               {blockedInfoMessage ||
-                "In blind date chats, messages with personal details like phone numbers, social media or email are blocked until both of you choose to reveal your profiles."}
+                "In Blind Connect chats, messages with personal details like phone numbers, social media or email are blocked until both of you choose to reveal your profiles."}
             </Text>
             <TouchableOpacity
               style={styles.blockedModalButton}
@@ -2646,7 +2618,7 @@ export default function ChatConversationScreen() {
         </View>
       </Modal>
 
-      {/* Blind Date Reveal Prompt Modal */}
+      {/* Blind Connect Reveal Prompt Modal */}
       <Modal
         visible={showRevealPrompt && isBlindDate && !hasRevealedSelf && !bothRevealed}
         transparent={true}
@@ -2808,7 +2780,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   myMessageBubble: {
-    backgroundColor: "#DCF8C6",
+    backgroundColor: "#E9D5FF",
     borderTopRightRadius: 2,
   },
   theirMessageBubble: {

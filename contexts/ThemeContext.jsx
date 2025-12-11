@@ -85,14 +85,17 @@ const darkTheme = {
 
 export const ThemeProvider = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === 'dark');
-  const [theme, setTheme] = useState(systemColorScheme === 'dark' ? darkTheme : lightTheme);
+  const prefersDark = systemColorScheme === 'dark';
+  const [isDarkMode, setIsDarkMode] = useState(prefersDark);
+  const [theme, setTheme] = useState(prefersDark ? darkTheme : lightTheme);
+  const [isReady, setIsReady] = useState(false);
 
-  // Update theme when system color scheme changes
+  // Hydrate theme from system color scheme and keep it in sync
   useEffect(() => {
     const newIsDarkMode = systemColorScheme === 'dark';
     setIsDarkMode(newIsDarkMode);
     setTheme(newIsDarkMode ? darkTheme : lightTheme);
+    setIsReady(true);
   }, [systemColorScheme]);
 
   const toggleTheme = () => {
@@ -108,6 +111,11 @@ export const ThemeProvider = ({ children }) => {
     toggleTheme,
     colors: theme,
   };
+
+  // Avoid flashing the wrong theme (e.g. light before dark) while hydrating
+  if (!isReady) {
+    return null;
+  }
 
   return (
     <ThemeContext.Provider value={value}>

@@ -215,7 +215,7 @@ function AdminDashboard() {
           <>
             <StatCard
               icon="heart-half"
-              label="Blind Dating Users"
+              label="Blind Connect Users"
               value={blindDatingStats.usersWithBlindDatingEnabled || 0}
               color="#E91E63"
             />
@@ -241,7 +241,7 @@ function AdminDashboard() {
           />
           <ActionButton
             icon="heart-half"
-            label="Blind Dating"
+            label="Blind Connect"
             onPress={() => router.push('/admin/blind-dating')}
             color="#E91E63"
           />

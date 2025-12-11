@@ -14,6 +14,8 @@ import { blindDatingApi } from "@/src/api/blindDating";
 import { getSocket } from "@/src/api/socket";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import PromptMatchingWrapper from "@/components/PromptMatchingWrapper";
+import HelpRequestsList from "@/components/HelpRequestsList";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -1253,12 +1255,12 @@ export default function MatchScreen() {
         // Disable blind dating
         await blindDatingApi.disable(token);
         setBlindDateEnabled(false);
-        showToast('Blind Date mode disabled', 'info');
+        showToast('Blind Connect mode disabled', 'info');
       } else {
         // Enable blind dating
         await blindDatingApi.enable(token);
         setBlindDateEnabled(true);
-        showToast('Blind Date mode enabled! 🎭', 'success');
+        showToast('Blind Connect mode enabled! 🎭', 'success');
       }
     } catch (error) {
       console.error('Error toggling blind date:', error);
@@ -2141,6 +2143,16 @@ export default function MatchScreen() {
                 </View>
               </View>
 
+              {/* Help Requests Section */}
+              <View style={[dynamicStyles.sectionCard, { marginBottom: 20 }]}>
+                <HelpRequestsList 
+                  status="searching"
+                  title="People Looking for Help"
+                  showHelpButton={true}
+                  maxItems={5}
+                />
+              </View>
+
               {/* Live Activity Feed */}
               <LiveActivityFeed isVisible={true} maxItems={50} />
             </ScrollView>
@@ -2223,6 +2235,9 @@ export default function MatchScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+
+            {/* Prompt Matching Toggle - Help Mode */}
+            <PromptMatchingWrapper />
 
             {/* Blind Date Feature Card - NEW */}
             <TouchableOpacity 
@@ -2435,6 +2450,16 @@ export default function MatchScreen() {
                 </View>
               </View>
             )}
+
+            {/* Help Requests Section */}
+            <View style={[dynamicStyles.sectionCard, { marginBottom: 20 }]}>
+              <HelpRequestsList 
+                status="searching"
+                title="People Looking for Help"
+                showHelpButton={true}
+                maxItems={8}
+              />
+            </View>
 
             {/* Live Activity Feed */}
             <LiveActivityFeed isVisible={true} maxItems={50} />
