@@ -542,111 +542,30 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const handleDeleteAccount = async () => {
-    const confirmMessage = `⚠️ DELETE ACCOUNT - FINAL WARNING ⚠️\n\nThis will PERMANENTLY delete:\n\n• All your messages and chats\n• All friendships and friend requests\n• All notifications and activities\n• All photos and profile visits\n• All matchmaking data\n• All subscription information\n\nYour profile will be anonymized and marked as deleted.\n\n⛔ THIS CANNOT BE UNDONE ⛔\n\nType "DELETE" to confirm you understand this is permanent.`;
-    
-    if (Platform.OS === 'web') {
-      const userInput = window.prompt(confirmMessage);
-      
-      if (userInput !== 'DELETE') {
-        if (userInput !== null) {
-          window.alert('Account deletion cancelled. You must type "DELETE" exactly to confirm.');
+    try {
+      const email = user?.email || '';
+
+      if (!email) {
+        if (Platform.OS === 'web') {
+          window.alert('Error\n\nUnable to find your email address. Please try again or contact support.');
+        } else {
+          Alert.alert('Error', 'Unable to find your email address. Please try again or contact support.');
         }
         return;
       }
-      
-      // Second confirmation
-      const finalConfirm = window.confirm(
-        'FINAL CONFIRMATION\n\nAre you absolutely sure you want to delete your account?\n\nThis is your last chance to cancel.'
-      );
-      
-      if (!finalConfirm) {
-        window.alert('Account deletion cancelled.');
-        return;
+
+      const encodedEmail = encodeURIComponent(email.trim().toLowerCase());
+      const path = `/delete-account.html?email=${encodedEmail}`;
+
+      // Open the hosted delete-account page in browser (web or native)
+      openWebPath(path);
+    } catch (error) {
+      console.error('Error opening delete account page:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nFailed to open delete account page. Please try again later.');
+      } else {
+        Alert.alert('Error', 'Failed to open delete account page. Please try again later.');
       }
-      
-      // Proceed with deletion
-      setDeletingAccount(true);
-      try {
-        const result = await accountDeletionApi.deleteAccount(token);
-        
-        window.alert(
-          `Account Deleted Successfully\n\n${result.message}\n\nDeleted:\n` +
-          `• ${result.deletionSummary.messages} messages\n` +
-          `• ${result.deletionSummary.chats} chats\n` +
-          `• ${result.deletionSummary.friendships} friendships\n` +
-          `• ${result.deletionSummary.notifications} notifications\n` +
-          `• ${result.deletionSummary.photos} photos\n\n` +
-          `You will now be logged out.`
-        );
-        
-        // Log out the user
-        await logOut();
-        router.replace('/login');
-      } catch (error) {
-        console.error('Error deleting account:', error);
-        window.alert(`Error\n\nFailed to delete account: ${error.message || 'Unknown error'}\n\nPlease try again or contact support.`);
-      } finally {
-        setDeletingAccount(false);
-      }
-    } else {
-      // Mobile flow
-      Alert.alert(
-        "⚠️ DELETE ACCOUNT",
-        "This will PERMANENTLY delete all your data:\n\n• Messages & chats\n• Friendships\n• Photos\n• All activity\n\n⛔ THIS CANNOT BE UNDONE ⛔",
-        [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Continue", 
-            style: "destructive", 
-            onPress: () => {
-              // Second confirmation
-              Alert.alert(
-                "FINAL CONFIRMATION",
-                "Are you absolutely sure?\n\nThis is your last chance to cancel.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Delete Forever",
-                    style: "destructive",
-                    onPress: async () => {
-                      setDeletingAccount(true);
-                      try {
-                        const result = await accountDeletionApi.deleteAccount(token);
-                        
-                        Alert.alert(
-                          "Account Deleted",
-                          `${result.message}\n\nDeleted:\n` +
-                          `• ${result.deletionSummary.messages} messages\n` +
-                          `• ${result.deletionSummary.friendships} friendships\n` +
-                          `• ${result.deletionSummary.photos} photos\n\n` +
-                          `You will now be logged out.`,
-                          [
-                            {
-                              text: "OK",
-                              onPress: async () => {
-                                await logOut();
-                                router.replace('/login');
-                              }
-                            }
-                          ]
-                        );
-                      } catch (error) {
-                        console.error('Error deleting account:', error);
-                        Alert.alert(
-                          "Error",
-                          `Failed to delete account: ${error.message || 'Unknown error'}\n\nPlease try again or contact support.`
-                        );
-                      } finally {
-                        setDeletingAccount(false);
-                      }
-                    }
-                  }
-                ]
-              );
-            }
-          }
-        ]
-      );
     }
   };
 

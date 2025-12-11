@@ -988,6 +988,27 @@ export default function ChatConversationScreen() {
     const socket = getSocket(token);
     if (!socket) return;
     
+    // Fetch blind date status via REST API as fallback
+    const fetchBlindDateStatus = async () => {
+      try {
+        const response = await blindDatingApi.getChatStatus(conversationId, token);
+        if (response?.isBlindDate && response?.match) {
+          setBlindDateMatch(response.match);
+          setHasRevealedSelf(response.hasRevealedSelf || false);
+          setOtherHasRevealed(response.otherHasRevealed || false);
+          setBothRevealed(response.match.status === 'revealed');
+          if (response.otherUserProfile) {
+            setOtherUserProfile(response.otherUserProfile);
+          }
+        }
+      } catch (error) {
+        console.warn('[Chat] Failed to fetch blind date status:', error);
+      }
+    };
+    
+    // Fetch immediately via REST API
+    fetchBlindDateStatus();
+    
     // Handle status response from socket
     const handleStatusResponse = (data) => {
       if (data?.match) {
@@ -2107,7 +2128,13 @@ export default function ChatConversationScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/secure/(tabs)/match');
+              }
+            }}
           >
             <Ionicons
               name="chevron-back"
@@ -2181,7 +2208,9 @@ export default function ChatConversationScreen() {
               >
                 {bothRevealed && otherUserProfile?.first_name 
                   ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
-                  : conversationName
+                  : isBlindDate && otherUserProfile?.first_name
+                    ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
+                    : conversationName
                 }
               </Text>
               {(otherUserVerified || (bothRevealed && otherUserProfile?.is_verified)) && (
@@ -2194,15 +2223,15 @@ export default function ChatConversationScreen() {
                 </View>
               )}
             </View>
-            {isBlindDate && !bothRevealed && blindDateInfo ? (
+            {isBlindDate && !bothRevealed && (blindDateInfo || otherUserProfile) ? (
               <Text
                 style={[styles.headerSubtitle, { color: theme.primary }]}
                 numberOfLines={1}
               >
                 {[
-                  blindDateInfo.matchReason ? `Looking for ${blindDateInfo.matchReason}` : null,
-                  blindDateInfo.gender ? blindDateInfo.gender.charAt(0).toUpperCase() + blindDateInfo.gender.slice(1) : null,
-                  blindDateInfo.age ? `${blindDateInfo.age} yrs` : null,
+                  blindDateInfo?.matchReason ? `Looking for ${blindDateInfo.matchReason}` : (otherUserProfile?.needs ? `Looking for ${otherUserProfile.needs}` : null),
+                  blindDateInfo?.gender || otherUserProfile?.gender ? (blindDateInfo?.gender || otherUserProfile?.gender).charAt(0).toUpperCase() + (blindDateInfo?.gender || otherUserProfile?.gender).slice(1) : null,
+                  blindDateInfo?.age || otherUserProfile?.age ? `${blindDateInfo?.age || otherUserProfile?.age} yrs` : null,
                 ].filter(Boolean).join(' • ')}
               </Text>
             ) : bothRevealed && otherUserProfile ? (
@@ -2215,6 +2244,13 @@ export default function ChatConversationScreen() {
                   otherUserProfile.age ? `${otherUserProfile.age} yrs` : null,
                   '• Tap to view profile'
                 ].filter(Boolean).join(' ')}
+              </Text>
+            ) : isBlindDate ? (
+              <Text
+                style={[styles.headerSubtitle, { color: theme.primary }]}
+                numberOfLines={1}
+              >
+                Blind Connect • Anonymous Chat
               </Text>
             ) : (
               <Text

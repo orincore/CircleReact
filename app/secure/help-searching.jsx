@@ -8,74 +8,143 @@ import {
   TouchableOpacity,
   Alert,
   AppState,
+  Vibration,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { getSocket } from '@/src/api/socket';
 import { promptMatchingApi } from '@/src/api/promptMatching';
 import * as Notifications from 'expo-notifications';
 import { useBackgroundSearch } from '@/src/hooks/useBackgroundSearch';
+import * as Haptics from 'expo-haptics';
 
 const HelpSearchingScreen = () => {
   const router = useRouter();
   const { theme } = useTheme();
+  const { token } = useAuth();
   const params = useLocalSearchParams();
   const { requestId, prompt } = params;
 
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [status, setStatus] = useState('searching');
+  const [status, setStatus] = useState('analyzing'); // analyzing, searching, matching, found, waiting, connected, error
+  const [statusMessage, setStatusMessage] = useState('Analyzing your request with AI...');
+  const [progress, setProgress] = useState(10);
   const [canGoBack, setCanGoBack] = useState(false);
   const [backgroundSearch, setBackgroundSearch] = useState(false);
+  const [matchedGiver, setMatchedGiver] = useState(null);
   
   const { addBackgroundSearch, removeBackgroundSearch } = useBackgroundSearch();
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(10)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
-  const searchingMessages = [
-    { title: "Finding the perfect person…", subtitle: "Analyzing your request..." },
-    { title: "Matching with helpers…", subtitle: "Searching for the best match..." },
-    { title: "Analyzing interests…", subtitle: "Finding someone who can help..." },
-    { title: "Connecting…", subtitle: "Almost there..." },
-    { title: "Looking for experts…", subtitle: "Finding the right person..." },
-  ];
+  // Status-specific messages for fallback
+  const statusMessages = {
+    analyzing: { title: 'Analyzing with AI...', subtitle: 'Understanding your request' },
+    searching: { title: 'Searching for helpers...', subtitle: 'Finding the perfect match' },
+    matching: { title: 'AI Matching...', subtitle: 'Comparing with available helpers' },
+    found: { title: 'Helper Found!', subtitle: 'Waiting for their response...' },
+    waiting: { title: 'Waiting for response...', subtitle: 'Your helper is reviewing' },
+    connected: { title: 'Connected!', subtitle: 'Opening chat...' },
+    error: { title: 'Something went wrong', subtitle: 'Please try again' },
+  };
+
+  // Animate progress bar
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 500,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [progress]);
+
+  // Polling fallback - check status via HTTP if socket events aren't received
+  useEffect(() => {
+    if (!requestId || status === 'connected' || status === 'error') return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await promptMatchingApi.getHelpRequestStatus(requestId);
+        if (response && response.request) {
+          const { status: reqStatus, chat_room_id } = response.request;
+          
+          // Update status based on HTTP response
+          if (reqStatus === 'matched' && chat_room_id) {
+            setStatus('connected');
+            setStatusMessage('Connected! Opening chat...');
+            setProgress(100);
+            
+            // Navigate to chat
+            setTimeout(() => {
+              router.replace({
+                pathname: '/secure/chat-conversation',
+                params: { chatId: chat_room_id },
+              });
+            }, 1500);
+          } else if (reqStatus === 'searching') {
+            // Still searching - update progress if stuck
+            if (progress < 50) {
+              setProgress(prev => Math.min(prev + 10, 50));
+              setStatus('searching');
+              setStatusMessage('Looking for the perfect helper...');
+            }
+          } else if (reqStatus === 'cancelled' || reqStatus === 'expired') {
+            setStatus('error');
+            setStatusMessage('Request was cancelled or expired');
+          }
+        }
+      } catch (error) {
+        console.log('Polling status check failed:', error);
+      }
+    };
+
+    // Poll every 5 seconds as fallback
+    const pollInterval = setInterval(pollStatus, 5000);
+    
+    // Initial poll after 3 seconds to catch any missed socket events
+    const initialPoll = setTimeout(pollStatus, 3000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(initialPoll);
+    };
+  }, [requestId, status, progress, router]);
 
   useEffect(() => {
-    // Allow going back after 10 seconds of searching
+    // Allow going back after 5 seconds of searching
     const backTimer = setTimeout(() => {
       setCanGoBack(true);
-    }, 10000);
-
-    // Message rotation
-    const messageInterval = setInterval(() => {
-      setCurrentMessageIndex((prev) => (prev + 1) % searchingMessages.length);
-    }, 3000);
+    }, 5000);
 
     // Pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
+          toValue: 1.15,
+          duration: 800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    // Rotate animation
+    // Rotate animation (slower when found)
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 3000,
+        duration: status === 'found' || status === 'waiting' ? 6000 : 3000,
         easing: Easing.linear,
         useNativeDriver: true,
       })
@@ -86,33 +155,92 @@ const HelpSearchingScreen = () => {
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 1500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 1500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     ).start();
 
+    // Glow animation for 'found' status
+    if (status === 'found' || status === 'waiting') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    }
+
     return () => {
       clearTimeout(backTimer);
-      clearInterval(messageInterval);
     };
-  }, []);
+  }, [status]);
 
   useEffect(() => {
-    // Listen for socket events
-    const socket = getSocket();
+    // Listen for socket events - pass token to ensure socket is authenticated
+    if (!token) return;
+    const socket = getSocket(token);
+    
+    // Real-time search status updates from AI matching
+    const handleSearchStatus = (data) => {
+      console.log('🔍 Search status:', data);
+      
+      if (data.requestId && data.requestId !== requestId) return;
+      
+      setStatus(data.status);
+      setStatusMessage(data.message);
+      setProgress(data.progress || 0);
+      
+      if (data.matchedGiver) {
+        setMatchedGiver(data.matchedGiver);
+      }
+      
+      // Haptic feedback on status changes
+      if (data.status === 'found') {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {
+          Vibration.vibrate(200);
+        }
+      } else if (data.status === 'error') {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        } catch (e) {
+          Vibration.vibrate([0, 100, 100, 100]);
+        }
+      }
+    };
     
     const handleAccepted = (data) => {
       if (data.requestId === requestId) {
-        setStatus('matched');
+        setStatus('connected');
+        setStatusMessage('Connected! Opening chat...');
+        setProgress(100);
         setBackgroundSearch(false);
+        
+        // Haptic feedback
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {
+          Vibration.vibrate(300);
+        }
         
         // Show local notification if app is in background
         if (AppState.currentState !== 'active') {
@@ -122,7 +250,7 @@ const HelpSearchingScreen = () => {
               body: 'Someone is ready to help you. Tap to start chatting!',
               data: { chatId: data.chatId, type: 'match_found' },
             },
-            trigger: null, // Show immediately
+            trigger: null,
           });
         }
         
@@ -138,9 +266,7 @@ const HelpSearchingScreen = () => {
 
     const handleDeclined = (data) => {
       if (data.requestId === requestId && data.searching) {
-        // Continue searching
-        setStatus('searching');
-        
+        // Status will be updated via help_search_status event
         // If in background, show notification about continued search
         if (backgroundSearch && AppState.currentState !== 'active') {
           Notifications.scheduleNotificationAsync({
@@ -155,14 +281,16 @@ const HelpSearchingScreen = () => {
       }
     };
 
+    socket.on('help_search_status', handleSearchStatus);
     socket.on('help_request_accepted', handleAccepted);
     socket.on('help_request_declined', handleDeclined);
 
     return () => {
+      socket.off('help_search_status', handleSearchStatus);
       socket.off('help_request_accepted', handleAccepted);
       socket.off('help_request_declined', handleDeclined);
     };
-  }, [requestId, backgroundSearch]);
+  }, [requestId, backgroundSearch, token]);
 
   const handleCancel = async () => {
     Alert.alert(
@@ -214,13 +342,80 @@ const HelpSearchingScreen = () => {
 
   const translateY = floatAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -20],
+    outputRange: [0, -15],
   });
 
-  const currentMessage = searchingMessages[currentMessageIndex];
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.8],
+  });
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+
+  // Get current display message
+  const currentMessage = statusMessages[status] || statusMessages.searching;
+  const displayTitle = statusMessage || currentMessage.title;
+  const displaySubtitle = currentMessage.subtitle;
+
+  // Get icon based on status
+  const getStatusIcon = () => {
+    switch (status) {
+      case 'analyzing':
+        return 'sparkles';
+      case 'searching':
+        return 'search';
+      case 'matching':
+        return 'git-compare';
+      case 'found':
+      case 'waiting':
+        return 'person-circle';
+      case 'connected':
+        return 'checkmark-circle';
+      case 'error':
+        return 'alert-circle';
+      default:
+        return 'search';
+    }
+  };
+
+  // Get icon color based on status
+  const getStatusColor = () => {
+    switch (status) {
+      case 'found':
+      case 'waiting':
+        return '#4CAF50';
+      case 'connected':
+        return '#2196F3';
+      case 'error':
+        return '#F44336';
+      default:
+        return theme.primary;
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Progress Bar */}
+      <View style={styles.progressContainer}>
+        <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+          <Animated.View 
+            style={[
+              styles.progressBar, 
+              { 
+                backgroundColor: getStatusColor(),
+                width: progressWidth 
+              }
+            ]} 
+          />
+        </View>
+        <Text style={[styles.progressText, { color: theme.textSecondary }]}>
+          {progress}%
+        </Text>
+      </View>
+
       {/* Animated Icon */}
       <Animated.View
         style={[
@@ -228,17 +423,29 @@ const HelpSearchingScreen = () => {
           {
             transform: [
               { scale: pulseAnim },
-              { rotate: spin },
+              { rotate: status === 'connected' ? '0deg' : spin },
               { translateY },
             ],
           },
         ]}
       >
-        <View style={[styles.iconCircle, { backgroundColor: theme.primary + '20' }]}>
+        {/* Glow effect for found status */}
+        {(status === 'found' || status === 'waiting') && (
+          <Animated.View 
+            style={[
+              styles.glowCircle, 
+              { 
+                backgroundColor: '#4CAF50',
+                opacity: glowOpacity 
+              }
+            ]} 
+          />
+        )}
+        <View style={[styles.iconCircle, { backgroundColor: getStatusColor() + '20' }]}>
           <Ionicons 
-            name={status === 'matched' ? 'checkmark-circle' : 'search'} 
-            size={80} 
-            color={theme.primary} 
+            name={getStatusIcon()} 
+            size={70} 
+            color={getStatusColor()} 
           />
         </View>
       </Animated.View>
@@ -246,10 +453,18 @@ const HelpSearchingScreen = () => {
       {/* Messages */}
       <View style={styles.messageContainer}>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
-          {status === 'matched' ? 'Match Found!' : currentMessage.title}
+          {displayTitle}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          {status === 'matched' ? 'Connecting you to chat...' : currentMessage.subtitle}
+          {displaySubtitle}
+        </Text>
+      </View>
+
+      {/* AI Badge */}
+      <View style={[styles.aiBadge, { backgroundColor: theme.primary + '15' }]}>
+        <Ionicons name="sparkles" size={14} color={theme.primary} />
+        <Text style={[styles.aiBadgeText, { color: theme.primary }]}>
+          AI-Powered Matching
         </Text>
       </View>
 
@@ -257,12 +472,12 @@ const HelpSearchingScreen = () => {
       <View style={[styles.requestCard, { 
         backgroundColor: theme.surface,
         borderWidth: 1,
-        borderColor: theme.border
+        borderColor: status === 'found' ? '#4CAF50' + '50' : theme.border
       }]}>
         <Text style={[styles.requestLabel, { color: theme.textSecondary }]}>
           Your Request:
         </Text>
-        <Text style={[styles.requestText, { color: theme.textPrimary }]}>
+        <Text style={[styles.requestText, { color: theme.textPrimary }]} numberOfLines={3}>
           "{prompt}"
         </Text>
       </View>
@@ -271,26 +486,46 @@ const HelpSearchingScreen = () => {
       <View style={styles.statusContainer}>
         <View style={styles.statusRow}>
           <Ionicons 
-            name={status === 'matched' ? 'checkmark-circle' : 'time'} 
+            name={status === 'found' || status === 'waiting' || status === 'connected' ? 'checkmark-circle' : 'time'} 
             size={20} 
-            color={status === 'matched' ? '#4CAF50' : theme.primary} 
+            color={status === 'found' || status === 'waiting' || status === 'connected' ? '#4CAF50' : theme.primary} 
           />
           <Text style={[styles.statusText, { color: theme.textSecondary }]}>
-            {status === 'matched' ? 'Helper found!' : 'Searching for helpers...'}
+            {status === 'found' || status === 'waiting' 
+              ? 'Helper found! Waiting for response...' 
+              : status === 'connected' 
+                ? 'Connected!' 
+                : 'AI is searching for the best match...'}
           </Text>
         </View>
         <View style={styles.statusRow}>
           <Ionicons name="shield-checkmark" size={20} color={theme.primary} />
           <Text style={[styles.statusText, { color: theme.textSecondary }]}>
-            Identity protected
+            Identity protected until you both agree
           </Text>
         </View>
+        {matchedGiver && (status === 'found' || status === 'waiting') && (
+          <View style={[styles.matchInfoRow, { backgroundColor: '#4CAF50' + '10' }]}>
+            <Ionicons name="person" size={18} color="#4CAF50" />
+            <Text style={[styles.matchInfoText, { color: '#4CAF50' }]}>
+              {matchedGiver.displayName || 'Helper'} • {Math.round((matchedGiver.similarityScore || matchedGiver.similarity_score || 0) * 100)}% match
+            </Text>
+          </View>
+        )}
+        {(status === 'found' || status === 'waiting') && (
+          <View style={[styles.waitingBanner, { backgroundColor: theme.primary + '15' }]}>
+            <Ionicons name="hourglass" size={16} color={theme.primary} />
+            <Text style={[styles.waitingText, { color: theme.primary }]}>
+              Request sent! Waiting for helper's response...
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Action Buttons */}
-      {status === 'searching' && (
+      {status !== 'connected' && (
         <View style={styles.actionButtons}>
-          {canGoBack && (
+          {canGoBack && status !== 'found' && status !== 'waiting' && (
             <TouchableOpacity
               style={[styles.backgroundButton, { 
                 backgroundColor: theme.primary,
@@ -312,7 +547,7 @@ const HelpSearchingScreen = () => {
             onPress={handleCancel}
           >
             <Text style={[styles.cancelButtonText, { color: theme.textPrimary }]}>
-              Cancel Request
+              {status === 'found' || status === 'waiting' ? 'Cancel & Stop Waiting' : 'Cancel Request'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -326,7 +561,9 @@ const HelpSearchingScreen = () => {
       }]}>
         <Ionicons name="information-circle" size={18} color={theme.primary} />
         <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-          We're finding the best person to help you. This may take a few moments.
+          {status === 'found' || status === 'waiting'
+            ? 'Your matched helper is reviewing your request. They\'ll respond shortly!'
+            : 'Our AI is analyzing your request and finding the perfect person to help you.'}
         </Text>
       </View>
     </View>
@@ -337,11 +574,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 100,
+    paddingTop: 60,
     alignItems: 'center',
   },
+  progressContainer: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+    gap: 12,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
+  },
   iconContainer: {
-    marginBottom: 40,
+    marginBottom: 30,
+    position: 'relative',
+  },
+  glowCircle: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -10,
+    left: -10,
   },
   iconCircle: {
     width: 160,
@@ -352,82 +621,120 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginBottom: 20,
+    gap: 6,
+  },
+  aiBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   requestCard: {
     width: '100%',
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
-    marginBottom: 30,
+    marginBottom: 20,
   },
   requestLabel: {
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: 13,
+    marginBottom: 6,
     fontWeight: '500',
   },
   requestText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 21,
   },
   statusContainer: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: 10,
+    gap: 10,
   },
   statusText: {
     fontSize: 14,
+    flex: 1,
+  },
+  matchInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 4,
+    gap: 8,
+  },
+  matchInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  waitingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  waitingText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   actionButtons: {
     width: '100%',
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   backgroundButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     gap: 8,
   },
   backgroundButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   cancelButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
   infoBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    alignItems: 'flex-start',
+    padding: 14,
     borderRadius: 12,
-    gap: 12,
+    gap: 10,
     width: '100%',
   },
   infoText: {

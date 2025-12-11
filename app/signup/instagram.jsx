@@ -1,5 +1,3 @@
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
 import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
@@ -16,6 +14,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupWizardContext } from "./_layout";
@@ -78,31 +77,101 @@ export default function SignupInstagram() {
     router.push("/signup/interests");
   };
 
-  const canContinue = instagramUsername.trim().length > 0; // Instagram is required
+  const canContinue = true; // Instagram is optional
+
+  // Dynamic styles similar to SignupStepOne/Contact
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    inputContainer: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    inputContainerFocused: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+    },
+    input: {
+      flex: 1,
+      fontSize: 16,
+      color: theme.textPrimary,
+      fontWeight: '400',
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    primaryButtonDisabled: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border,
+      opacity: 0.7,
+    },
+  };
 
   return (
-    <AnimatedBackground>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
               {/* Header */}
-              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                  <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-                <View style={styles.brandRow}>
-                  <Image 
-                    source={require('@/assets/logo/circle-logo.png')} 
-                    style={styles.brandLogo}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.appName}>Circle</Text>
+              <Animated.View style={[styles.header, { opacity: fadeAnim }] }>
+                <View style={styles.headerLeft}>
+                  <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
+                  </TouchableOpacity>
+                  <View style={styles.brandRow}>
+                    <Image 
+                      source={require('@/assets/logo/circle-logo.png')} 
+                      style={styles.brandLogo}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
+                  </View>
                 </View>
-                <CircularProgress progress={80} currentStep={4} totalSteps={5} />
+                <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+                  <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 3 of 5</Text>
+                </View>
               </Animated.View>
 
-              {/* Welcome block */}
+              {/* Title Section */}
               <Animated.View 
                 style={[
                   styles.welcomeBlock, 
@@ -112,46 +181,51 @@ export default function SignupInstagram() {
                   }
                 ]}
               >
-                <Text style={styles.title}>Connect your Instagram 📸</Text>
-                <Text style={styles.subtitle}>
-                  Share your Instagram username so others can see more of your world. This is required to help build trust and authenticity!
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Your Instagram</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                  Share your Instagram username so people can get a better sense of who you are.
                 </Text>
-                <Text style={styles.nextStep}>✨ Next: Choose interests 🎯</Text>
               </Animated.View>
 
-              {/* Glassmorphism card */}
+              {/* Form Card */}
               <Animated.View 
                 style={[
-                  styles.glassCard,
+                  dynamicStyles.card,
                   {
                     opacity: fadeAnim,
                     transform: [{ translateY: slideAnim }],
-                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
-                    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
-                    borderWidth: 1,
                   }
                 ]}
               >
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📷 Instagram Username</Text>
-                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, instagramUsername && { borderColor: theme.primary }]}>
-                    <Text style={[styles.atSymbol, { color: isDarkMode ? '#FFD6F2' : theme.primary }]}>@</Text>
+                  <Text style={dynamicStyles.label}>Instagram username (optional)</Text>
+                  <View style={[
+                    dynamicStyles.inputContainer,
+                    instagramUsername.trim() && dynamicStyles.inputContainerFocused,
+                  ]}>
+                    <Text style={[styles.atSymbol, { color: theme.textTertiary }]}>@</Text>
                     <TextInput
                       value={instagramUsername}
                       onChangeText={setInstagramUsername}
                       placeholder="yourusername"
-                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
+                      placeholderTextColor={theme.textTertiary}
                       autoCapitalize="none"
                       autoCorrect={false}
-                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
+                      style={dynamicStyles.input}
                     />
                   </View>
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                  <Text style={[styles.helperText, { color: theme.textTertiary }]}>
+                    Add your handle to make it easier for people to know you better. You can skip this for now.
+                  </Text>
                 </View>
+              </Animated.View>
 
+              {/* Next Button */}
+              <Animated.View style={[styles.buttonContainer, { transform: [{ scale: buttonScale }] }]}>
                 <TouchableOpacity 
                   activeOpacity={0.85} 
-                  style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
+                  style={[dynamicStyles.primaryButton, !canContinue && dynamicStyles.primaryButtonDisabled]} 
                   onPress={onNext} 
                   disabled={!canContinue}
                 >
@@ -163,21 +237,15 @@ export default function SignupInstagram() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </AnimatedBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   scrollContentLarge: {
     paddingHorizontal: 60,
     paddingTop: 40,
@@ -188,237 +256,90 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   contentWrapperLarge: {
-    maxWidth: 800,
+    maxWidth: 560,
     width: '100%',
   },
+
+  // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 24,
+    paddingTop: 8,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-  },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brandLogo: { 
-    width: 48, 
-    height: 48,
-  },
-  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
-  content: {
-    flex: 1,
-    alignItems: "center",
-    paddingTop: 20,
-  },
-  nextStep: {
-    fontSize: 14,
-    color: "rgba(255, 214, 242, 0.95)",
-    fontWeight: "600",
-    marginBottom: 32,
-    textAlign: "center",
-  },
-  iconContainer: {
-    marginBottom: 32,
-  },
-  instagramIconBg: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#E4405F",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#E4405F",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    textAlign: "center",
-    marginBottom: 12,
-    lineHeight: 38,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  inputContainer: {
-    width: "100%",
-    marginBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFE8FF",
-    marginBottom: 8,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.3)",
-    paddingHorizontal: 16,
-  },
-  atSymbol: {
-    fontSize: 18,
-    color: "#FFE8FF",
-    fontWeight: "600",
     marginRight: 4,
   },
-  input: {
-    flex: 1,
-    height: 56,
-    fontSize: 16,
-    color: "#FFFFFF",
-    fontWeight: "500",
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  brandLogo: {
+    width: 32,
+    height: 32,
   },
-  inputError: {
-    borderColor: "#FF6B6B",
+  appName: { fontSize: 20, fontWeight: "700", letterSpacing: -0.4 },
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  errorText: {
-    fontSize: 12,
-    color: "#FF6B6B",
-    marginTop: 8,
-    marginLeft: 4,
+  stepText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "rgba(255, 214, 242, 0.15)",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-    gap: 12,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
-    lineHeight: 20,
-  },
-  footer: {
-    paddingTop: 24,
-  },
-  nextButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#A16AE8",
-    borderRadius: 999,
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+
+  // Title section
+  welcomeBlock: {
+    marginBottom: 24,
     gap: 8,
-    shadowColor: "#A16AE8",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
-  nextButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#D1C9FF",
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: -0.4,
   },
-  nextButtonText: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
   },
-  
-  // Primary button styles (for consistency with other pages)
-  primaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#A16AE8",
-    borderRadius: 999,
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    gap: 8,
-    shadowColor: "#A16AE8",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#D1C9FF",
-  },
-  primaryButtonText: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  
-  // Form styles
-  glassCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderRadius: 22,
-    padding: 24,
-    gap: 20,
-    shadowColor: "rgba(18, 8, 43, 0.35)",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 1,
-    shadowRadius: 24,
-    elevation: 20,
-  },
+
+  // Form group
   inputGroup: {
     gap: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#58468B",
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(93, 95, 239, 0.25)",
-    backgroundColor: "rgba(246, 245, 255, 0.9)",
-    paddingHorizontal: 16,
-    height: 52,
+    marginBottom: 20,
   },
   atSymbol: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#A16AE8",
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1F1147",
     fontWeight: "500",
+    marginRight: 4,
   },
+  helperText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  // Button
+  buttonContainer: {
+    marginTop: 8,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+
   errorText: {
     fontSize: 13,
     color: "#EF4444",
     fontWeight: "600",
-  },
-  welcomeBlock: {
-    marginBottom: 20,
-    gap: 8,
   },
 });

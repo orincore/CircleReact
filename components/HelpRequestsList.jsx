@@ -3,6 +3,7 @@ import { View, Text, FlatList, RefreshControl, StyleSheet, Alert } from 'react-n
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { promptMatchingApi } from '@/src/api/promptMatching';
+import { getSocket } from '@/src/api/socket';
 import HelpRequestCard from './HelpRequestCard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -15,7 +16,9 @@ const HelpRequestsList = ({
   title = 'Help Requests',
   showHelpButton = true,
   onHelpOffer,
-  maxItems = null 
+  maxItems = null,
+  onRefresh = null,
+  externalRefreshing = false
 }) => {
   const { theme, isDarkMode } = useTheme();
   const { token } = useAuth();
@@ -34,7 +37,7 @@ const HelpRequestsList = ({
       const currentOffset = isRefresh ? 0 : offset;
       const limit = maxItems || 20;
       
-      const response = await promptMatchingApi.getHelpRequests(limit, currentOffset, status);
+      const response = await promptMatchingApi.getHelpRequests(limit, currentOffset, status, token);
       
       if (response.success) {
         const newRequests = response.requests || [];
@@ -71,11 +74,53 @@ const HelpRequestsList = ({
     loadRequests(true);
   }, [status, token]);
 
+  // Socket listener for real-time updates when new requests come in
+  useEffect(() => {
+    if (!token) return;
+    
+    const socket = getSocket(token);
+    if (!socket) return;
+
+    const handleNewRequest = (data) => {
+      console.log('📥 New help request received via socket:', data);
+      // Refresh the list when a new request is targeted to this user
+      if (data.isTargetedMatch) {
+        loadRequests(true);
+      }
+    };
+
+    const handleRequestUpdate = (data) => {
+      console.log('🔄 Help request status update:', data);
+      // Refresh list on any request status change
+      loadRequests(true);
+    };
+
+    socket.on('incoming_help_request', handleNewRequest);
+    socket.on('help_request_accepted', handleRequestUpdate);
+    socket.on('help_request_declined', handleRequestUpdate);
+
+    return () => {
+      socket.off('incoming_help_request', handleNewRequest);
+      socket.off('help_request_accepted', handleRequestUpdate);
+      socket.off('help_request_declined', handleRequestUpdate);
+    };
+  }, [token, loadRequests]);
+
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setOffset(0);
     loadRequests(true);
-  }, [loadRequests]);
+    if (onRefresh) {
+      onRefresh();
+    }
+  }, [loadRequests, onRefresh]);
+
+  // Handle external refresh trigger
+  useEffect(() => {
+    if (externalRefreshing) {
+      loadRequests(true);
+    }
+  }, [externalRefreshing, loadRequests]);
 
   const handleLoadMore = useCallback(() => {
     if (!loading && hasMore && !maxItems) {
@@ -98,7 +143,7 @@ const HelpRequestsList = ({
               text: 'Yes, Help!', 
               onPress: async () => {
                 try {
-                  await promptMatchingApi.respondToHelpRequest(request.id, true);
+                  await promptMatchingApi.respondToHelpRequest(request.id, true, token);
                   Alert.alert('Success', 'Your help offer has been sent!');
                   handleRefresh();
                 } catch (error) {

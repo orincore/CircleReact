@@ -12,13 +12,17 @@ import {
   Animated,
   useWindowDimensions,
   Image,
+  ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useTheme } from "@/contexts/ThemeContext";
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
+import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
 
 export default function SignupAbout() {
   const router = useRouter();
@@ -29,6 +33,10 @@ export default function SignupAbout() {
   const [about, setAbout] = useState(data.about || "");
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { signUp } = useAuth();
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +64,13 @@ export default function SignupAbout() {
     router.back();
   };
 
-  const onNext = () => {
+  const onSubmit = async () => {
+    if (isSubmitting) return;
+
+    const isValid = validateAbout();
+    if (!isValid) return;
+
+    // Button press animation
     Animated.sequence([
       Animated.spring(buttonScale, {
         toValue: 0.95,
@@ -69,11 +83,43 @@ export default function SignupAbout() {
       }),
     ]).start();
 
+    // Persist about in context
     setData((prev) => ({ ...prev, about: about.trim() }));
-    router.push("/signup/instagram");
+
+    try {
+      setIsSubmitting(true);
+
+      const payload = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        age: data.age,
+        gender: data.gender,
+        email: data.email,
+        username: data.username,
+        password: data.password,
+        phoneNumber: data.phoneNumber,
+        interests: data.interests || [],
+        needs: data.needs || [],
+        about: about.trim(),
+        instagramUsername: data.instagramUsername,
+        referralCode: data.referralCode,
+      };
+
+      await signUp(payload);
+
+      router.replace("/signup/summary");
+    } catch (e) {
+      console.error("Error during signup:", e);
+      setError(
+        e?.response?.data?.error ||
+          "Something went wrong while creating your account. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const canContinue = about.trim().length >= 10;
+  const canContinue = about.trim().length >= 10 && !isSubmitting;
 
   const getCharacterCountColor = () => {
     const length = about.length;
@@ -96,139 +142,213 @@ export default function SignupAbout() {
     return true;
   };
 
+  const generateAboutMe = async () => {
+    setIsGenerating(true);
+    setError("");
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/ai-support/generate-about-me`,
+        {
+          firstName: data.firstName || 'User',
+          age: data.age,
+          gender: data.gender,
+          interests: data.interests || [],
+          needs: data.needs || [],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000,
+        }
+      );
+
+      if (response.data?.success && response.data?.bio) {
+        setAbout(response.data.bio);
+      } else {
+        setError("Failed to generate bio. Please try again.");
+      }
+    } catch (err) {
+      console.error('Error generating about me:', err);
+      setError("Failed to generate bio. Please write your own!");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+  };
+
   return (
-    <AnimatedBackground>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
           <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
             <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
-            {/* Header */}
-            <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <TouchableOpacity style={styles.backButton} onPress={onBack}>
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.appName}>Circle</Text>
-              </View>
-              <CircularProgress progress={60} currentStep={3} totalSteps={5} />
-            </Animated.View>
-
-            {/* Welcome block */}
-            <Animated.View 
-              style={[
-                styles.welcomeBlock, 
-                { 
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
-              <Text style={styles.title}>Tell us your story 📖</Text>
-              <Text style={styles.subtitle}>
-                Share a bit about who you are and what makes you unique. This helps others get to know the real you!
-              </Text>
-              <Text style={styles.nextStep}>✨ Next: Connect Instagram 📸</Text>
-            </Animated.View>
-
-            {/* Glassmorphism card */}
-            <Animated.View 
-              style={[
-                styles.glassCard,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
-                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
-                  borderWidth: 1,
-                }
-              ]}
-            >
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📝 About Me</Text>
-                <View style={[
-                  styles.textAreaWrapper,
-                  { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
-                  isFocused && { borderColor: theme.primary },
-                  about.trim().length >= 10 && { borderColor: theme.primary }
-                ]}>
-                  <TextInput
-                    value={about}
-                    onChangeText={(text) => {
-                      setAbout(text);
-                      if (error) validateAbout();
-                    }}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => {
-                      setIsFocused(false);
-                      validateAbout();
-                    }}
-                    placeholder="I'm passionate about technology and love exploring new places. When I'm not coding, you can find me hiking or trying out new coffee shops. I believe in making meaningful connections and always up for a good conversation about life, dreams, and everything in between..."
-                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
-                    style={[styles.textArea, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
-                    multiline
-                    numberOfLines={8}
-                    textAlignVertical="top"
-                    maxLength={500}
-                  />
-                </View>
-                
-                {/* Character count */}
-                <View style={styles.characterCount}>
-                  <Text style={[
-                    styles.characterCountText,
-                    { color: getCharacterCountColor() }
-                  ]}>
-                    {about.length}/500 characters
-                  </Text>
-                </View>
-
-                {!!error && <Text style={styles.errorText}>{error}</Text>}
-                
-                {/* Tips */}
-                <View style={[styles.tipsContainer, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 214, 242, 0.3)' }]}>
-                  <Text style={[styles.tipsTitle, { color: isDarkMode ? '#FFFFFF' : '#7C2B86' }]}>💡 Tips for a great profile:</Text>
-                  <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Share your interests and hobbies</Text>
-                  </View>
-                  <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Mention what you're looking for</Text>
-                  </View>
-                  <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Be authentic and genuine</Text>
-                  </View>
-                  <View style={styles.tipRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                    <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Keep it positive and engaging</Text>
+              {/* Header */}
+              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+                <View style={styles.headerLeft}>
+                  <TouchableOpacity style={styles.backButton} onPress={onBack}>
+                    <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
+                  </TouchableOpacity>
+                  <View style={styles.brandRow}>
+                    <Image 
+                      source={require('@/assets/logo/circle-logo.png')} 
+                      style={styles.brandLogo}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
                   </View>
                 </View>
-              </View>
-
-              {/* Next Button */}
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-                <TouchableOpacity 
-                  activeOpacity={0.85} 
-                  style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
-                  onPress={onNext} 
-                  disabled={!canContinue}
-                >
-                  <Text style={styles.primaryButtonText}>Continue</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
+                <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+                  <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 5 of 5</Text>
+                </View>
               </Animated.View>
-            </Animated.View>
+
+              {/* Welcome block */}
+              <Animated.View 
+                style={[
+                  styles.welcomeBlock, 
+                  { 
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
+              >
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Tell us your story</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                  Share a bit about who you are and what makes you unique. This helps others get to know the real you.
+                </Text>
+              </Animated.View>
+
+              {/* Main content card */}
+              <Animated.View 
+                style={[
+                  dynamicStyles.card,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  }
+                ]}
+              >
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>About Me</Text>
+                  <View style={[
+                    styles.textAreaWrapper,
+                    { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
+                    isFocused && { borderColor: theme.primary },
+                    about.trim().length >= 10 && { borderColor: theme.primary }
+                  ]}>
+                    <TextInput
+                      value={about}
+                      onChangeText={(text) => {
+                        setAbout(text);
+                        if (error) validateAbout();
+                      }}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        validateAbout();
+                      }}
+                      placeholder="I'm passionate about technology and love exploring new places. When I'm not coding, you can find me hiking or trying out new coffee shops. I believe in making meaningful connections and always up for a good conversation about life, dreams, and everything in between..."
+                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
+                      style={[styles.textArea, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
+                      multiline
+                      numberOfLines={8}
+                      textAlignVertical="top"
+                      maxLength={500}
+                    />
+                  </View>
+                  {/* Character count and AI Generate button */}
+                  <View style={styles.characterCountRow}>
+                    <TouchableOpacity 
+                      style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+                      onPress={generateAboutMe}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <ActivityIndicator size="small" color="#A16AE8" />
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={16} color="#A16AE8" />
+                          <Text style={styles.generateButtonText}>AI Generate</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <Text style={[
+                      styles.characterCountText,
+                      { color: getCharacterCountColor() }
+                    ]}>
+                      {about.length}/500
+                    </Text>
+                  </View>
+
+                  {!!error && <Text style={styles.errorText}>{error}</Text>}
+                  
+                  {/* Tips */}
+                  <View style={[styles.tipsContainer, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 214, 242, 0.3)' }]}>
+                    <Text style={[styles.tipsTitle, { color: isDarkMode ? '#FFFFFF' : '#7C2B86' }]}>Tips for a great profile</Text>
+                    <View style={styles.tipRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Share your interests and hobbies</Text>
+                    </View>
+                    <View style={styles.tipRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Mention what you're looking for</Text>
+                    </View>
+                    <View style={styles.tipRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Be authentic and genuine</Text>
+                    </View>
+                    <View style={styles.tipRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Keep it positive and engaging</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Create Account Button */}
+                <Animated.View style={{ transform: [{ scale: buttonScale }], marginTop: 8 }}>
+                  <TouchableOpacity 
+                    activeOpacity={0.85} 
+                    style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
+                    onPress={onSubmit} 
+                    disabled={!canContinue}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.primaryButtonText}>Create account</Text>
+                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
+              </Animated.View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </AnimatedBackground>
+    </View>
   );
 }
 
@@ -341,9 +461,30 @@ const styles = StyleSheet.create({
     minHeight: 120,
     fontWeight: "500",
   },
-  characterCount: {
-    alignItems: "flex-end",
-    marginTop: 4,
+  characterCountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Platform.OS === 'web' ? "rgba(161, 106, 232, 0.2)" : "rgba(161, 106, 232, 0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Platform.OS === 'web' ? "rgba(161, 106, 232, 0.4)" : "rgba(161, 106, 232, 0.3)",
+  },
+  generateButtonDisabled: {
+    opacity: 0.6,
+  },
+  generateButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#A16AE8",
   },
   characterCountText: {
     fontSize: 12,

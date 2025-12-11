@@ -1,25 +1,22 @@
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
 import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests } from "@/constants/interests";
-import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, StatusBar } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupWizardContext } from "./_layout";
 
 export default function SignupInterests() {
   const router = useRouter();
   const { data, setData } = useContext(SignupWizardContext);
-  const { signUp } = useAuth();
   const { theme, isDarkMode } = useTheme();
 
   const [query, setQuery] = useState("");
   const [interests, setInterests] = useState(new Set(data.interests || []));
   const [needs, setNeeds] = useState(new Set(data.needs || []));
-  const [expandedCategories, setExpandedCategories] = useState(new Set(['creative', 'tech', 'fitness'])); // Start with first 3 expanded
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['creative', 'tech', 'fitness'])); // Start with first 3 expanded one dy
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -121,73 +118,23 @@ export default function SignupInterests() {
       return { firstName, lastName, username, gender, email, age, phoneOut, interestArr, needsArr };
     })();
 
-    try {
-      // Validate all required fields against backend schema
-      if (!norm.firstName) return alert('First name is required');
-      if (!norm.lastName) return alert('Last name is required');
-      if (!norm.username || norm.username.length < 3) return alert('Please provide a valid username (3-30, letters, numbers, _ . -)');
-      if (!norm.gender) return alert('Please select your gender');
-      if (!/[^@\s]+@[^@\s]+\.[^@\s]+/.test(norm.email)) return alert('Please enter a valid email');
-      if (!norm.age || norm.age < 13 || norm.age > 120) return alert('Please select a valid age (13-120)');
-      if (norm.phoneOut && norm.phoneOut.replace(/[^0-9]/g, '').length < 5) return alert('Phone should be at least 5 digits');
-      if (!data.instagramUsername || data.instagramUsername.trim().length < 1) return alert('Instagram username is required');
+    // Basic validation (same as final step) but without calling signup yet
+    if (!norm.firstName) return alert('First name is required');
+    if (!norm.lastName) return alert('Last name is required');
+    if (!norm.username || norm.username.length < 3) return alert('Please provide a valid username (3-30, letters, numbers, _ . -)');
+    if (!norm.gender) return alert('Please select your gender');
+    if (!/[^@\s]+@[^@\s]+\.[^@\s]+/.test(norm.email)) return alert('Please enter a valid email');
+    if (!norm.age || norm.age < 16 || norm.age > 120) return alert('Please select a valid age (16-120)');
+    if (norm.phoneOut && norm.phoneOut.replace(/[^0-9]/g, '').length < 5) return alert('Phone should be at least 5 digits');
 
+    // Persist interests and needs to context for the About screen / AI generation
+    setData((prev) => ({
+      ...prev,
+      interests: norm.interestArr,
+      needs: norm.needsArr,
+    }));
 
-      const instagramUsernameValue = (data.instagramUsername || '').trim().replace('@', '');
-      
-      const payload = {
-        firstName: norm.firstName,
-        lastName: norm.lastName,
-        age: norm.age,
-        gender: norm.gender,
-        email: norm.email,
-        phoneNumber: norm.phoneOut,
-        username: norm.username,
-        password: data.password,
-        interests: norm.interestArr,
-        needs: norm.needsArr,
-        instagramUsername: instagramUsernameValue,
-        about: (data.about || '').trim(),
-        referralCode: data.referralCode || undefined,
-      };
-      
-      await signUp(payload);
-      router.replace("/signup/summary");
-    } catch (e) {
-      try { console.log('Signup error details', e?.details); } catch {}
-      // If backend complains about invalid body, attempt a single retry with empty interests/needs
-      const fieldErrors = e?.details?.details?.fieldErrors || e?.details?.fieldErrors;
-      if (e?.status === 400 && (e?.details?.error === 'Invalid body' || fieldErrors)) {
-        const retry = {
-          firstName: norm.firstName,
-          lastName: norm.lastName,
-          age: norm.age,
-          gender: norm.gender,
-          email: norm.email,
-          phoneNumber: norm.phoneOut,
-          username: norm.username,
-          password: data.password,
-          interests: [],
-          needs: [],
-          instagramUsername: (data.instagramUsername || '').trim().replace('@', ''),
-          about: (data.about || '').trim(),
-          referralCode: data.referralCode || undefined,
-        };
-        try {
-          console.log('🔄 Retrying signup with empty interests/needs');
-          console.log('🔄 Retry payload:', retry);
-          console.log('🔄 Instagram username in retry:', retry.instagramUsername);
-          await signUp(retry);
-          router.replace('/signup/summary');
-          return;
-        } catch (_e) {
-          // fall through to user-facing message
-        }
-      }
-      const firstErr = fieldErrors && Object.entries(fieldErrors).find(([, arr]) => Array.isArray(arr) && arr.length)?.[1]?.[0];
-      const msg = firstErr || e?.details?.error || e?.message || 'Signup failed. Please check your details and try again.';
-      alert(msg);
-    }
+    router.push("/signup/about");
   };
 
   const renderChip = (label, selected, onPress) => (
@@ -196,7 +143,7 @@ export default function SignupInterests() {
       onPress={onPress} 
       style={[
         styles.chip, 
-        { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
+        { backgroundColor: 'transparent', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
         selected && { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)', borderColor: theme.primary }
       ]}
     >
@@ -205,26 +152,54 @@ export default function SignupInterests() {
     </TouchableOpacity>
   );
 
+  // Dynamic styles similar to other signup steps
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+  };
+
   return (
-    <AnimatedBackground>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
           <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Header */}
             <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.appName}>Circle</Text>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                  <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
+                </TouchableOpacity>
+                <View style={styles.brandRow}>
+                  <Image 
+                    source={require('@/assets/logo/circle-logo.png')} 
+                    style={styles.brandLogo}
+                    resizeMode="contain"
+                  />
+                  <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
+                </View>
               </View>
-              <CircularProgress progress={100} currentStep={5} totalSteps={5} />
+              <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+                <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 4 of 5</Text>
+              </View>
             </Animated.View>
 
+            {/* Title Section */}
             <Animated.View 
               style={[
                 styles.welcomeBlock,
@@ -234,47 +209,43 @@ export default function SignupInterests() {
                 }
               ]}
             >
-              <Text style={styles.title}>Pick your vibe 🎨</Text>
-              <Text style={styles.subtitle}>Select interests and needs that describe you. This helps us find your perfect matches!</Text>
-              <Text style={styles.nextStep}>🎉 Final step - Let's create your account!</Text>
+              <Text style={[styles.title, { color: theme.textPrimary }]}>Interests & needs</Text>
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Select a few interests and what youre looking for. This helps us customise your experience.</Text>
             </Animated.View>
 
+            {/* Main content card */}
             <Animated.View 
               style={[
-                styles.glassCard,
+                dynamicStyles.card,
                 {
                   opacity: fadeAnim,
                   transform: [{ translateY: slideAnim }],
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
-                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
-                  borderWidth: 1,
                 }
               ]}
             >
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>Search</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }]}>
-                  <Ionicons name="search" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
-                  <TextInput value={query} onChangeText={setQuery} placeholder="type to filter" placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} />
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Search</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.background, borderColor: theme.border }]}>
+                  <Ionicons name="search" size={18} color={theme.textTertiary} />
+                  <TextInput value={query} onChangeText={setQuery} placeholder="Type to filter interests and needs" placeholderTextColor={theme.textTertiary} style={[styles.input, { color: theme.textPrimary }]} />
                 </View>
               </View>
 
-              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>Interests ({interests.size} selected)</Text>
-              
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Interests ({interests.size} selected)</Text>
               {/* Show all categories vertically - collapsible */}
               {filteredCategories.map((category) => {
                 const isExpanded = expandedCategories.has(category.id);
                 const selectedCount = category.interests.filter(i => interests.has(i)).length;
                 
                 return (
-                  <View key={category.id} style={[styles.categorySection, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.border }]}>
+                  <View key={category.id} style={[styles.categorySection, { backgroundColor: 'transparent', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.border }]}>
                     <TouchableOpacity 
                       style={styles.categoryHeader}
                       onPress={() => toggleCategory(category.id)}
                       activeOpacity={0.7}
                     >
                       <Ionicons name={category.icon} size={18} color={theme.primary} />
-                      <Text style={[styles.categoryTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>{category.name}</Text>
+                      <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>{category.name}</Text>
                       <View style={[styles.categoryBadge, { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)' }]}>
                         <Text style={[styles.categoryBadgeText, { color: theme.primary }]}>
                           {selectedCount}/{category.interests.length}
@@ -283,7 +254,7 @@ export default function SignupInterests() {
                       <Ionicons 
                         name={isExpanded ? "chevron-up" : "chevron-down"} 
                         size={20} 
-                        color={isDarkMode ? "rgba(255, 255, 255, 0.6)" : theme.textSecondary} 
+                        color={theme.textSecondary} 
                       />
                     </TouchableOpacity>
                     
@@ -298,39 +269,98 @@ export default function SignupInterests() {
                 );
               })}
 
-              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}>What are you looking for? ({needs.size} selected)</Text>
-              <View style={styles.chipWrap}>
-                {filteredNeeds.map((need) => (
-                  <TouchableOpacity 
-                    key={need.id} 
-                    onPress={() => toggle(setNeeds, needs, need.label)} 
-                    style={[
-                      styles.needChip, 
-                      { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
-                      needs.has(need.label) && { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.3)' : 'rgba(161, 106, 232, 0.15)', borderColor: theme.primary }
-                    ]}
-                  >
-                    <Ionicons name={need.icon} size={18} color={needs.has(need.label) ? theme.primary : (isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textSecondary)} />
-                    <View style={styles.needChipContent}>
-                      <Text style={[styles.needChipLabel, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }, needs.has(need.label) && { color: theme.primary }]}>{need.label}</Text>
-                      <Text style={[styles.needChipDescription, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>{need.description}</Text>
-                    </View>
-                    {needs.has(need.label) && <Ionicons name="checkmark-circle" size={20} color={theme.primary} />}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 8 }]}>What are you looking for? ({needs.size} selected)</Text>
+              <View style={[styles.needsWrap, { marginTop: 8 }]}>
+                {filteredNeeds.map((need) => {
+                  const isSelected = needs.has(need.label);
+                  const isLgbtqNeed = ['queer_relationship', 'lgbtq_friends', 'same_gender_connection'].includes(need.id);
 
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-                <TouchableOpacity activeOpacity={0.85} style={styles.primaryButton} onPress={onSubmit}>
-                  <Text style={styles.primaryButtonText}>Create Account 🎉</Text>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </Animated.View>
+                  const cardInner = (
+                    <View
+                      style={[
+                        styles.needCard,
+                        {
+                          // For LGBTQ cards we want a solid inner background so gradient stays as border only
+                          backgroundColor: isLgbtqNeed ? theme.surface : 'transparent',
+                          borderColor: isLgbtqNeed ? 'transparent' : theme.border,
+                        },
+                        isSelected && styles.needCardSelected,
+                        isLgbtqNeed && styles.needCardLgbtq,
+                      ]}
+                    >
+                      <Ionicons
+                        name={need.icon}
+                        size={18}
+                        color={
+                          isSelected
+                            ? (isLgbtqNeed ? "#EC4899" : theme.primary)
+                            : (isLgbtqNeed ? "#EC4899" : theme.textSecondary)
+                        }
+                      />
+                      <View style={styles.needCardContent}>
+                        <Text
+                          style={[
+                            styles.needCardLabel,
+                            { color: isLgbtqNeed && isDarkMode ? '#000000' : theme.textPrimary },
+                            isSelected && styles.needCardLabelSelected,
+                          ]}
+                        >
+                          {need.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.needCardDescription,
+                            { color: isLgbtqNeed && isDarkMode ? '#000000' : theme.textTertiary },
+                          ]}
+                        >
+                          {need.description}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={isLgbtqNeed ? "#EC4899" : theme.primary}
+                        />
+                      )}
+                    </View>
+                  );
+
+                  return (
+                    <TouchableOpacity
+                      key={need.id}
+                      onPress={() => toggle(setNeeds, needs, need.label)}
+                      activeOpacity={0.9}
+                    >
+                      {isLgbtqNeed ? (
+                        <LinearGradient
+                          colors={["#EC4899", "#F97316", "#FACC15", "#22C55E", "#3B82F6", "#8B5CF6"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.needCardLgbtqWrapper}
+                        >
+                          {cardInner}
+                        </LinearGradient>
+                      ) : (
+                        cardInner
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </Animated.View>
+
+            {/* Next Button */}
+            <Animated.View style={{ transform: [{ scale: buttonScale }], marginTop: 8 }}>
+              <TouchableOpacity activeOpacity={0.85} style={styles.primaryButton} onPress={onSubmit}>
+                <Text style={styles.primaryButtonText}>Continue</Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </AnimatedBackground>
+    </View>
   );
 }
 
@@ -346,26 +376,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    marginRight: 4,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   brandLogo: { 
-    width: 48, 
-    height: 48,
+    width: 32, 
+    height: 32,
   },
   appName: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+  },
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  stepText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   
   // Category Sections
@@ -400,38 +441,44 @@ const styles = StyleSheet.create({
     color: "#7C2B86",
   },
   
-  // Need Chips (Card Style)
-  needChip: {
+  // Needs list cards (used for "What are you looking for?")
+  needsWrap: {
+    gap: 10,
+  },
+  needCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.3)" : "rgba(93, 95, 239, 0.25)",
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)",
-    marginBottom: 10,
-    width: '100%',
+    borderWidth: 1,
   },
-  needChipSelected: {
-    borderColor: "#7C2B86",
-    backgroundColor: Platform.OS === 'web' ? "rgba(124, 43, 134, 0.2)" : "rgba(124, 43, 134, 0.15)",
+  // Outer gradient wrapper for LGBTQ-focused needs
+  needCardLgbtqWrapper: {
+    borderRadius: 14,
+    padding: 1.5,
   },
-  needChipContent: {
+  // Inner card gets slight transparency when in rainbow wrapper
+  needCardLgbtq: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  // Selected state gets a subtle tint; unselected cards stay transparent via inline style
+  needCardSelected: {
+    backgroundColor: 'rgba(124, 43, 134, 0.08)',
+  },
+  needCardContent: {
     flex: 1,
   },
-  needChipLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+  needCardLabel: {
+    fontSize: 14,
+    fontWeight: '700',
     marginBottom: 2,
   },
-  needChipLabelSelected: {
-    color: "#7C2B86",
+  needCardLabelSelected: {
+    color: '#7C2B86',
   },
-  needChipDescription: {
+  needCardDescription: {
     fontSize: 12,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "#8880B6",
   },
   welcomeBlock: { marginBottom: 20, gap: 8 },
   title: { 
@@ -513,7 +560,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, 
     borderWidth: 2, 
     borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.3)" : "rgba(93, 95, 239, 0.25)", 
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)",
+    backgroundColor: 'transparent',
   },
   chipSelected: { 
     backgroundColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.3)" : "#FFD6F2", 

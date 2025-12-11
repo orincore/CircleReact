@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
 import { Linking } from "react-native";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
@@ -104,21 +103,20 @@ export default function Login() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <LinearGradient
-          colors={isDarkMode ? ['#1F1147', '#7C2B86', '#5D5FEF'] : ['#7C2B86', '#A16AE8', '#5D5FEF']}
-          locations={[0, 0.5, 1]}
-          style={[styles.loginSection, isLargeScreen && styles.loginSectionLarge]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View
+          style={[
+            styles.loginSection,
+            isLargeScreen && styles.loginSectionLarge,
+          ]}
           pointerEvents="box-none"
         >
           <SafeAreaView style={styles.safeArea}>
@@ -154,54 +152,71 @@ export default function Login() {
                           style={styles.brandLogo}
                           resizeMode="contain"
                         />
-                        <Text style={styles.brandName}>Circle</Text>
-                        <Text style={styles.brandTagline}>
+                        <Text style={[styles.brandName, { color: theme.textPrimary }]}>Circle</Text>
+                        <Text style={[styles.brandTagline, { color: theme.textSecondary }]}>
                           Welcome back to your circle of connections
                         </Text>
                       </View>
                       
                       <View style={styles.featureList}>
                         <View style={styles.featureItem}>
-                          <LinearGradient
-                            colors={['#FF6FB5', '#FF8CC5']}
-                            style={styles.featureIconSmall}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
+                          <View
+                            style={[
+                              styles.featureIconSmall,
+                              {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.border,
+                              },
+                            ]}
                           >
-                            <Ionicons name="heart" size={20} color="#FFFFFF" />
-                          </LinearGradient>
-                          <Text style={styles.featureText}>Smart Matching</Text>
+                            <Ionicons name="heart" size={20} color={theme.primary} />
+                          </View>
+                          <Text style={[styles.featureText, { color: theme.textPrimary }]}>Smart Matching</Text>
                         </View>
                         <View style={styles.featureItem}>
-                          <LinearGradient
-                            colors={['#A16AE8', '#B88EF0']}
-                            style={styles.featureIconSmall}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
+                          <View
+                            style={[
+                              styles.featureIconSmall,
+                              {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.border,
+                              },
+                            ]}
                           >
-                            <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
-                          </LinearGradient>
-                          <Text style={styles.featureText}>Real-time Chat</Text>
+                            <Ionicons name="chatbubbles" size={20} color={theme.primary} />
+                          </View>
+                          <Text style={[styles.featureText, { color: theme.textPrimary }]}>Real-time Chat</Text>
                         </View>
                         <View style={styles.featureItem}>
-                          <LinearGradient
-                            colors={['#10B981', '#34D399']}
-                            style={styles.featureIconSmall}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
+                          <View
+                            style={[
+                              styles.featureIconSmall,
+                              {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.border,
+                              },
+                            ]}
                           >
-                            <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
-                          </LinearGradient>
-                          <Text style={styles.featureText}>Safe & Secure</Text>
+                            <Ionicons name="shield-checkmark" size={20} color={theme.primary} />
+                          </View>
+                          <Text style={[styles.featureText, { color: theme.textPrimary }]}>Safe & Secure</Text>
                         </View>
                       </View>
                     </View>
                     
                     {/* Right Side - Login Form */}
                     <View style={styles.desktopRight}>
-                      <View style={[styles.formCard, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#FFFFFF' }]}>
-                        <Text style={[styles.formTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>Log In</Text>
-                        <Text style={[styles.formSubtitle, { color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'rgba(31, 17, 71, 0.7)' }]}>
+                      <View
+                        style={[
+                          styles.formCard,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Log In</Text>
+                        <Text style={[styles.formSubtitle, { color: theme.textSecondary }]}>
                           Enter your credentials to continue
                         </Text>
                         
@@ -213,38 +228,54 @@ export default function Login() {
                         ) : null}
                         
                         <View style={styles.inputGroup}>
-                          <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Email or Username</Text>
-                          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
-                            <Ionicons name="mail-outline" size={20} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
+                          <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email or Username</Text>
+                          <View
+                            style={[
+                              styles.inputWrapper,
+                              {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.border,
+                              },
+                            ]}
+                          >
+                            <Ionicons name="mail-outline" size={20} color={theme.primary} />
                             <TextInput
                               value={email}
                               onChangeText={setEmail}
                               placeholder="you@example.com"
-                              placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
+                              placeholderTextColor={theme.textTertiary}
                               keyboardType="email-address"
                               autoCapitalize="none"
-                              style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
+                              style={[styles.input, { color: theme.textPrimary }]}
                             />
                           </View>
                         </View>
                         
                         <View style={styles.inputGroup}>
-                          <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Password</Text>
-                          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
-                            <Ionicons name="lock-closed-outline" size={20} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
+                          <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Password</Text>
+                          <View
+                            style={[
+                              styles.inputWrapper,
+                              {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.border,
+                              },
+                            ]}
+                          >
+                            <Ionicons name="lock-closed-outline" size={20} color={theme.primary} />
                             <TextInput
                               value={password}
                               onChangeText={setPassword}
                               placeholder="Enter your password"
-                              placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
+                              placeholderTextColor={theme.textTertiary}
                               secureTextEntry={!showPassword}
-                              style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
+                              style={[styles.input, { color: theme.textPrimary }]}
                             />
                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                               <Ionicons 
                                 name={showPassword ? "eye-off-outline" : "eye-outline"} 
                                 size={20} 
-                                color={isDarkMode ? '#FFD6F2' : '#A16AE8'}
+                                color={theme.textTertiary}
                               />
                             </TouchableOpacity>
                           </View>
@@ -254,7 +285,7 @@ export default function Login() {
                           style={styles.forgotPassword}
                           onPress={() => router.push('/auth/forgot-password')}
                         >
-                          <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                          <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>Forgot password?</Text>
                         </TouchableOpacity>
                         
                         <TouchableOpacity
@@ -269,10 +300,10 @@ export default function Login() {
                         </TouchableOpacity>
                         
                         <View style={styles.signupPrompt}>
-                          <Text style={styles.signupPromptText}>Don't have an account? </Text>
+                          <Text style={[styles.signupPromptText, { color: theme.textSecondary }]}>Don't have an account? </Text>
                           <Link href="/signup" asChild>
                             <TouchableOpacity>
-                              <Text style={styles.signupLink}>Sign Up</Text>
+                              <Text style={[styles.signupLink, { color: theme.primary }]}>Sign Up</Text>
                             </TouchableOpacity>
                           </Link>
                         </View>
@@ -286,7 +317,7 @@ export default function Login() {
                               Linking.openURL('https://circle.orincore.com/terms.html');
                             }
                           }}>
-                            <Text style={styles.legalLink}>Terms of Service</Text>
+                            <Text style={[styles.legalLink, { color: theme.textTertiary }]}>Terms of Service</Text>
                           </TouchableOpacity>
                           <Text style={styles.legalSeparator}> • </Text>
                           <TouchableOpacity onPress={() => {
@@ -296,7 +327,7 @@ export default function Login() {
                               Linking.openURL('https://circle.orincore.com/privacy.html');
                             }
                           }}>
-                            <Text style={styles.legalLink}>Privacy Policy</Text>
+                            <Text style={[styles.legalLink, { color: theme.textTertiary }]}>Privacy Policy</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -307,9 +338,9 @@ export default function Login() {
                   <View style={styles.mobileLayout}>
                     <TouchableOpacity
                       onPress={() => router.back()}
-                      style={styles.backButtonMobile}
+                      style={[styles.backButtonMobile, { borderColor: theme.border }]}
                     >
-                      <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                      <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                     
                     <View style={styles.mobileHeader}>
@@ -318,13 +349,21 @@ export default function Login() {
                         style={styles.mobileLogo}
                         resizeMode="contain"
                       />
-                      <Text style={styles.mobileTitle}>Welcome Back</Text>
-                      <Text style={styles.mobileSubtitle}>
+                      <Text style={[styles.mobileTitle, { color: theme.textPrimary }]}>Welcome back</Text>
+                      <Text style={[styles.mobileSubtitle, { color: theme.textSecondary }]}>
                         Log in to continue your journey
                       </Text>
                     </View>
                     
-                    <View style={[styles.mobileFormCard, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255, 255, 255, 0.95)', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(255, 255, 255, 0.3)' }]}>
+                    <View
+                      style={[
+                        styles.mobileFormCard,
+                        {
+                          backgroundColor: theme.surface,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
                       {error ? (
                         <View style={styles.errorBox}>
                           <Ionicons name="alert-circle" size={18} color="#EF4444" />
@@ -333,42 +372,58 @@ export default function Login() {
                       ) : null}
                       
                       <View style={styles.inputGroup}>
-                        <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Email or Username</Text>
-                        <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
-                          <Ionicons name="mail-outline" size={18} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
+                        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email or Username</Text>
+                        <View
+                          style={[
+                            styles.inputWrapper,
+                            {
+                              backgroundColor: theme.surface,
+                              borderColor: theme.border,
+                            },
+                          ]}
+                        >
+                          <Ionicons name="mail-outline" size={18} color={theme.primary} />
                           <TextInput
                             value={email}
                             onChangeText={setEmail}
                             placeholder="you@example.com"
-                            placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
+                            placeholderTextColor={theme.textTertiary}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             autoCorrect={false}
-                            style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
+                            style={[styles.input, { color: theme.textPrimary }]}
                             removeClippedSubviews={true}
                           />
                         </View>
                       </View>
                       
                       <View style={styles.inputGroup}>
-                        <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : '#7C2B86' }]}>Password</Text>
-                        <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F9FAFB', borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(161, 106, 232, 0.2)' }]}>
-                          <Ionicons name="lock-closed-outline" size={18} color={isDarkMode ? '#FFD6F2' : '#A16AE8'} />
+                        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Password</Text>
+                        <View
+                          style={[
+                            styles.inputWrapper,
+                            {
+                              backgroundColor: theme.surface,
+                              borderColor: theme.border,
+                            },
+                          ]}
+                        >
+                          <Ionicons name="lock-closed-outline" size={18} color={theme.primary} />
                           <TextInput
                             value={password}
                             onChangeText={setPassword}
                             placeholder="Enter your password"
-                            placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(31, 17, 71, 0.4)'}
+                            placeholderTextColor={theme.textTertiary}
                             secureTextEntry={!showPassword}
                             autoCorrect={false}
-                            style={[styles.input, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}
+                            style={[styles.input, { color: theme.textPrimary }]}
                             removeClippedSubviews={true}
                           />
                           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                             <Ionicons 
                               name={showPassword ? "eye-off-outline" : "eye-outline"} 
                               size={18} 
-                              color={isDarkMode ? '#FFD6F2' : '#A16AE8'}
+                              color={theme.textTertiary}
                             />
                           </TouchableOpacity>
                         </View>
@@ -378,7 +433,7 @@ export default function Login() {
                         style={styles.forgotPasswordMobile}
                         onPress={() => router.push('/auth/forgot-password')}
                       >
-                        <Text style={styles.forgotPasswordTextMobile}>Forgot password?</Text>
+                        <Text style={[styles.forgotPasswordTextMobile, { color: theme.primary }]}>Forgot password?</Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity
@@ -395,10 +450,10 @@ export default function Login() {
                     </View>
                     
                     <View style={styles.mobileSignupPrompt}>
-                      <Text style={styles.mobileSignupText}>Don't have an account? </Text>
+                      <Text style={[styles.mobileSignupText, { color: theme.textSecondary }]}>Don't have an account? </Text>
                       <Link href="/signup" asChild>
                         <TouchableOpacity>
-                          <Text style={styles.mobileSignupLink}>Sign Up</Text>
+                          <Text style={[styles.mobileSignupLink, { color: theme.primary }]}>Sign Up</Text>
                         </TouchableOpacity>
                       </Link>
                     </View>
@@ -412,7 +467,7 @@ export default function Login() {
                           Linking.openURL('https://circle.orincore.com/terms.html');
                         }
                       }}>
-                        <Text style={styles.mobileLegalLink}>Terms of Service</Text>
+                        <Text style={[styles.mobileLegalLink, { color: theme.textTertiary }]}>Terms of Service</Text>
                       </TouchableOpacity>
                       <Text style={styles.mobileLegalSeparator}> • </Text>
                       <TouchableOpacity onPress={() => {
@@ -422,7 +477,7 @@ export default function Login() {
                           Linking.openURL('https://circle.orincore.com/privacy.html');
                         }
                       }}>
-                        <Text style={styles.mobileLegalLink}>Privacy Policy</Text>
+                        <Text style={[styles.mobileLegalLink, { color: theme.textTertiary }]}>Privacy Policy</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -430,7 +485,7 @@ export default function Login() {
               </Animated.View>
             </KeyboardAvoidingView>
           </SafeAreaView>
-        </LinearGradient>
+        </View>
       </ScrollView>
     </View>
   );
@@ -449,12 +504,12 @@ const styles = StyleSheet.create({
   },
   loginSection: {
     minHeight: '100%',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
   loginSectionLarge: {
-    paddingHorizontal: 60,
-    paddingVertical: 60,
+    paddingHorizontal: 48,
+    paddingVertical: 40,
   },
   safeArea: {
     flex: 1,
@@ -464,7 +519,8 @@ const styles = StyleSheet.create({
   },
   loginContent: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 16,
   },
   loginContentLarge: {
     maxWidth: 1200,
@@ -475,8 +531,8 @@ const styles = StyleSheet.create({
   // Desktop Layout
   desktopGrid: {
     flexDirection: 'row',
-    gap: 60,
-    alignItems: 'center',
+    gap: 40,
+    alignItems: 'flex-start',
   },
   desktopLeft: {
     flex: 1,
@@ -496,7 +552,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   brandingSection: {
-    marginBottom: 48,
+    marginBottom: 32,
   },
   brandLogo: {
     width: 80,
@@ -541,13 +597,13 @@ const styles = StyleSheet.create({
   },
   formCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 40,
+    borderRadius: 20,
+    padding: 28,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 15 },
-    elevation: 20,
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
   },
   formTitle: {
     fontSize: 32,
@@ -564,8 +620,8 @@ const styles = StyleSheet.create({
   // Mobile Layout
   mobileLayout: {
     flex: 1,
-    justifyContent: 'space-between',
-    paddingVertical: 20,
+    justifyContent: 'flex-start',
+    paddingVertical: 16,
   },
   backButtonMobile: {
     width: 44,
@@ -580,7 +636,7 @@ const styles = StyleSheet.create({
   },
   mobileHeader: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   mobileLogo: {
     width: 80,
@@ -601,14 +657,14 @@ const styles = StyleSheet.create({
   },
   mobileFormCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 24,
-    gap: 20,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 15,
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
@@ -660,7 +716,7 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginTop: 12,
+    marginTop: 2,
     marginBottom: 8,
   },
   forgotPasswordText: {

@@ -202,6 +202,12 @@ export const NEED_OPTIONS = [
     icon: 'cafe'
   },
   {
+    id: 'situationship',
+    label: 'Situationship',
+    description: 'Just a casual sexual hookup',
+    icon: 'flame'
+  },
+  {
     id: 'networking',
     label: 'Professional Networking',
     description: 'Business and career connections',

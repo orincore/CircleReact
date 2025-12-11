@@ -2150,6 +2150,7 @@ export default function MatchScreen() {
                   title="People Looking for Help"
                   showHelpButton={true}
                   maxItems={5}
+                  externalRefreshing={refreshing}
                 />
               </View>
 
@@ -2458,6 +2459,7 @@ export default function MatchScreen() {
                 title="People Looking for Help"
                 showHelpButton={true}
                 maxItems={8}
+                externalRefreshing={refreshing}
               />
             </View>
 

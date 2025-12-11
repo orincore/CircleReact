@@ -1,28 +1,70 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { promptMatchingApi } from '@/src/api/promptMatching';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 /**
  * Card component to display a help request
- * Shows user info, prompt, and action buttons
+ * Shows MASKED user info and Accept/Deny buttons for anonymous matching
  */
-const HelpRequestCard = ({ request, onHelp, showHelpButton = true }) => {
+const HelpRequestCard = ({ request, onHelp, onAccept, onDeny, showHelpButton = true }) => {
   const { theme, isDarkMode } = useTheme();
   const router = useRouter();
+  const { token } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [action, setAction] = useState(null);
 
-  const handleUserPress = () => {
-    router.push({
-      pathname: '/secure/profile-view',
-      params: { userId: request.user.id }
-    });
+  // Generate masked display name from request ID
+  const getMaskedName = () => {
+    const id = request?.id || request?.user?.id || 'unknown';
+    return `User #${id.substring(0, 4).toUpperCase()}`;
   };
 
-  const handleHelpPress = () => {
-    if (onHelp) {
-      onHelp(request);
+  const handleAccept = async () => {
+    if (loading) return;
+    setLoading(true);
+    setAction('accept');
+    try {
+      if (onAccept) {
+        await onAccept(request);
+      } else {
+        // Default: call API to accept and navigate to chat
+        const response = await promptMatchingApi.respondToHelpRequest(request.id, true, token);
+        if (response?.chatId) {
+          router.replace({
+            pathname: '/secure/chat-conversation',
+            params: { id: response.chatId, isBlindDate: 'true' }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error accepting request:', error);
+    } finally {
+      setLoading(false);
+      setAction(null);
+    }
+  };
+
+  const handleDeny = async () => {
+    if (loading) return;
+    setLoading(true);
+    setAction('deny');
+    try {
+      if (onDeny) {
+        await onDeny(request);
+      } else {
+        // Default: call API to decline
+        await promptMatchingApi.respondToHelpRequest(request.id, false, token);
+      }
+    } catch (error) {
+      console.error('Error denying request:', error);
+    } finally {
+      setLoading(false);
+      setAction(null);
     }
   };
 
@@ -53,21 +95,19 @@ const HelpRequestCard = ({ request, onHelp, showHelpButton = true }) => {
       borderColor: isDarkMode ? 'transparent' : theme.border,
       shadowColor: theme.shadowColor,
     }]}>
-      {/* Header with user info */}
-      <TouchableOpacity onPress={handleUserPress} style={styles.header}>
-        <Image
-          source={{ 
-            uri: request.user.profilePhotoUrl || 'https://i.pravatar.cc/100?img=' + (request.user.id?.slice(-1) || '1')
-          }}
-          style={styles.avatar}
-        />
+      {/* Header with MASKED user info */}
+      <View style={styles.header}>
+        <View style={[styles.maskedAvatar, { backgroundColor: theme.primary + '20' }]}>
+          <Ionicons name="person" size={24} color={theme.primary} />
+        </View>
         <View style={styles.userInfo}>
           <Text style={[styles.userName, { color: theme.textPrimary }]}>
-            {request.user.firstName} {request.user.lastName}
+            {getMaskedName()}
           </Text>
           <View style={styles.userMeta}>
-            <Text style={[styles.userAge, { color: theme.textSecondary }]}>
-              {request.user.age} years old
+            <Ionicons name="shield-checkmark" size={12} color={theme.primary} />
+            <Text style={[styles.anonymousLabel, { color: theme.primary }]}>
+              Anonymous Request
             </Text>
             <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>
               • {request.timeAgo}
@@ -80,61 +120,79 @@ const HelpRequestCard = ({ request, onHelp, showHelpButton = true }) => {
             {statusInfo.text}
           </Text>
         </View>
-      </TouchableOpacity>
+      </View>
+
+      {/* AI-generated summary (if available) */}
+      {request.summary && (
+        <View style={[styles.summaryContainer, { backgroundColor: theme.primary + '10' }]}>
+          <Ionicons name="sparkles" size={14} color={theme.primary} />
+          <Text style={[styles.summary, { color: theme.primary }]}>
+            {request.summary}
+          </Text>
+        </View>
+      )}
 
       {/* Help request prompt */}
       <View style={styles.promptContainer}>
-        <Text style={[styles.prompt, { color: theme.textPrimary }]}>
+        <Text style={[styles.prompt, { color: theme.textPrimary }]} numberOfLines={3}>
           "{request.prompt}"
         </Text>
       </View>
 
-      {/* Interests tags */}
-      {displayInterests.length > 0 && (
-        <View style={styles.interestsContainer}>
-          {displayInterests.map((interest, index) => (
-            <View key={index} style={[styles.interestTag, { 
-              backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.primary + '15',
-              borderColor: theme.primary + '30'
-            }]}>
-              <Text style={[styles.interestText, { 
-                color: isDarkMode ? theme.textSecondary : theme.primary 
-              }]}>
-                {interest}
-              </Text>
-            </View>
-          ))}
-          {request.user.interests?.length > 3 && (
-            <Text style={[styles.moreInterests, { color: theme.textTertiary }]}>
-              +{request.user.interests.length - 3} more
-            </Text>
-          )}
+      {/* AI Match indicator */}
+      {request.isTargetedMatch && (
+        <View style={[styles.matchIndicator, { backgroundColor: '#4CAF50' + '15' }]}>
+          <Ionicons name="sparkles" size={14} color="#4CAF50" />
+          <Text style={[styles.matchText, { color: '#4CAF50' }]}>
+            AI matched you as the perfect helper!
+          </Text>
         </View>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons - Accept/Deny for anonymous matching */}
       {showHelpButton && request.status === 'searching' && (
         <View style={styles.actions}>
-          <TouchableOpacity onPress={handleHelpPress} style={styles.helpButton}>
+          <TouchableOpacity 
+            onPress={handleAccept} 
+            style={[styles.acceptButton, { opacity: loading && action === 'accept' ? 0.7 : 1 }]}
+            disabled={loading}
+          >
             <LinearGradient
-              colors={['#7C2B86', '#5D5FEF']}
+              colors={['#4CAF50', '#45a049']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.helpButtonGradient}
+              style={styles.actionButtonGradient}
             >
-              <Ionicons name="hand-left" size={16} color="#FFFFFF" />
-              <Text style={styles.helpButtonText}>Offer Help</Text>
+              {loading && action === 'accept' ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>Accept</Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
           
-          <TouchableOpacity onPress={handleUserPress} style={[styles.viewButton, { 
-            backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.surface,
-            borderColor: theme.border
-          }]}>
-            <Ionicons name="person" size={16} color={theme.textSecondary} />
-            <Text style={[styles.viewButtonText, { color: theme.textSecondary }]}>
-              View Profile
-            </Text>
+          <TouchableOpacity 
+            onPress={handleDeny} 
+            style={[styles.denyButton, { 
+              backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.surface,
+              borderColor: theme.border,
+              opacity: loading && action === 'deny' ? 0.7 : 1
+            }]}
+            disabled={loading}
+          >
+            {loading && action === 'deny' ? (
+              <ActivityIndicator color={theme.textSecondary} size="small" />
+            ) : (
+              <>
+                <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
+                <Text style={[styles.denyButtonText, { color: theme.textSecondary }]}>
+                  Skip
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -256,7 +314,49 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  viewButton: {
+  maskedAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  anonymousLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  matchIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  matchText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  acceptButton: {
+    flex: 1,
+  },
+  actionButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 6,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  denyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -265,9 +365,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     gap: 6,
-    minWidth: 120,
+    minWidth: 100,
   },
-  viewButtonText: {
+  denyButtonText: {
     fontSize: 14,
     fontWeight: '600',
   },
@@ -282,6 +382,19 @@ const styles = StyleSheet.create({
   },
   attemptsText: {
     fontSize: 12,
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    gap: 8,
+  },
+  summary: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
 });
 

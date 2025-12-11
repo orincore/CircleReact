@@ -60,8 +60,8 @@ const HelpRequestScreen = () => {
       const response = await promptMatchingApi.createHelpRequest(prompt.trim());
 
       if (response.success) {
-        // Navigate to searching screen
-        router.push({
+        // Navigate to searching screen - use replace to avoid stacking screens
+        router.replace({
           pathname: '/secure/help-searching',
           params: {
             requestId: response.requestId,
@@ -101,7 +101,7 @@ const HelpRequestScreen = () => {
             {
               text: 'View Search',
               onPress: () => {
-                router.push({
+                router.replace({
                   pathname: '/secure/help-searching',
                   params: {
                     requestId,
@@ -188,7 +188,13 @@ const HelpRequestScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/secure/(tabs)/match');
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
@@ -220,7 +226,7 @@ const HelpRequestScreen = () => {
               <TouchableOpacity
                 style={[styles.activeRequestButton, { backgroundColor: theme.primary }]}
                 onPress={() => {
-                  router.push({
+                  router.replace({
                     pathname: '/secure/help-searching',
                     params: {
                       requestId: activeRequest.id,

@@ -9,18 +9,15 @@ import {
   TextInput, 
   TouchableOpacity, 
   View, 
-  Modal, 
-  FlatList,
   Animated,
   useWindowDimensions,
   Image,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SignupWizardContext } from "./_layout";
 import { useTheme } from "@/contexts/ThemeContext";
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
 
 // Removed country codes - phone number field removed
 
@@ -90,96 +87,168 @@ export default function SignupContact() {
       ...prev, 
       email: email.trim()
     }));
-    router.push("/signup/about");
+    router.push("/signup/instagram");
+  };
+
+  // Dynamic styles to match SignupStepOne
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    inputContainer: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    inputContainerFocused: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+    },
+    input: {
+      flex: 1,
+      fontSize: 16,
+      color: theme.textPrimary,
+      fontWeight: '400',
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    primaryButtonDisabled: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border,
+      opacity: 0.7,
+    },
   };
 
   return (
-    <AnimatedBackground>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
-            {/* Header */}
-            <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.appName}>Circle</Text>
-              </View>
-              <CircularProgress progress={40} currentStep={2} totalSteps={5} />
-            </Animated.View>
-
-            {/* Welcome block */}
-            <Animated.View 
-              style={[
-                styles.welcomeBlock, 
-                { 
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
-              <Text style={styles.title}>How can we reach you? 📧</Text>
-              <Text style={styles.subtitle}>We'll use this to keep your account secure and send you updates.</Text>
-              <Text style={styles.nextStep}>✨ Next: Tell us about yourself 📝</Text>
-            </Animated.View>
-
-            {/* Glassmorphism card */}
-            <Animated.View 
-              style={[
-                styles.glassCard,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
-                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
-                  borderWidth: 1,
-                }
-              ]}
-            >
-              {/* Email */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>📧 Email Address</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, email.trim() && { borderColor: theme.primary }]}>
-                  <Ionicons name="mail" size={18} color={isDarkMode ? "#FFD6F2" : theme.primary} />
-                  <TextInput 
-                    value={email} 
-                    onChangeText={setEmail} 
-                    onBlur={validateEmail}
-                    placeholder="you@example.com" 
-                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
-                    keyboardType="email-address" 
-                    autoCapitalize="none" 
-                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
-                  />
-                  {email.trim() && /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email.trim()) && (
-                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                  )}
+              {/* Header */}
+              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+                <View style={styles.headerLeft}>
+                  <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
+                  </TouchableOpacity>
+                  <View style={styles.brandRow}>
+                    <Image 
+                      source={require('@/assets/logo/circle-logo.png')} 
+                      style={styles.brandLogo}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
+                  </View>
                 </View>
-                {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-                <Text style={[styles.helperText, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>We'll never share your email with anyone</Text>
-              </View>
-
-              {/* Trust badge */}
-              <View style={[styles.trustBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)' }]}>
-                <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-                <View style={styles.trustTextContainer}>
-                  <Text style={[styles.trustTitle, { color: isDarkMode ? '#FFFFFF' : '#10B981' }]}>Your privacy matters</Text>
-                  <Text style={[styles.trustText, { color: isDarkMode ? 'rgba(255,255,255,0.8)' : theme.textSecondary }]}>We use industry-standard encryption to protect your data</Text>
+                <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+                  <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 2 of 5</Text>
                 </View>
-              </View>
+              </Animated.View>
+
+              {/* Title Section */}
+              <Animated.View 
+                style={[
+                  styles.welcomeBlock, 
+                  { 
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
+              >
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Contact details</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                  Use an email address you check often. Well use it for verification and important updates.
+                </Text>
+              </Animated.View>
+
+              {/* Form Card */}
+              <Animated.View 
+                style={[
+                  dynamicStyles.card,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  }
+                ]}
+              >
+                {/* Email */}
+                <View style={styles.inputGroup}>
+                  <Text style={dynamicStyles.label}>Email address</Text>
+                  <View style={[
+                    dynamicStyles.inputContainer,
+                    email.trim() && dynamicStyles.inputContainerFocused,
+                  ]}>
+                    <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={{ marginRight: 8 }} />
+                    <TextInput 
+                      value={email} 
+                      onChangeText={setEmail} 
+                      onBlur={validateEmail}
+                      placeholder="you@example.com" 
+                      placeholderTextColor={theme.textTertiary}
+                      keyboardType="email-address" 
+                      autoCapitalize="none" 
+                      style={dynamicStyles.input} 
+                    />
+                    {email.trim() && /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email.trim()) && (
+                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                    )}
+                  </View>
+                  {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+                  <Text style={[styles.helperText, { color: theme.textTertiary }]}>Well never share your email with anyone.</Text>
+                </View>
+
+                {/* Trust badge */}
+                <View style={[styles.trustBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.06)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.18)' }]}>
+                  <Ionicons name="shield-checkmark-outline" size={22} color="#10B981" />
+                  <View style={styles.trustTextContainer}>
+                    <Text style={[styles.trustTitle, { color: theme.textPrimary }]}>Secure and private</Text>
+                    <Text style={[styles.trustText, { color: theme.textSecondary }]}>Your contact details are encrypted and used only to protect your account.</Text>
+                  </View>
+                </View>
+              </Animated.View>
 
               {/* Next Button */}
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <Animated.View style={[styles.buttonContainer, { transform: [{ scale: buttonScale }] }] }>
                 <TouchableOpacity 
                   activeOpacity={0.85} 
-                  style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
+                  style={[dynamicStyles.primaryButton, !canContinue && dynamicStyles.primaryButtonDisabled]} 
                   onPress={onNext} 
                   disabled={!canContinue}
                 >
@@ -187,13 +256,11 @@ export default function SignupContact() {
                   <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </Animated.View>
-            </Animated.View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-    </AnimatedBackground>
+    </View>
   );
 }
 
@@ -201,7 +268,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   scrollContentLarge: {
     paddingHorizontal: 60,
     paddingTop: 40,
@@ -212,217 +279,103 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   contentWrapperLarge: {
-    maxWidth: 800,
+    maxWidth: 560,
     width: '100%',
   },
-  
+
+  // Header
   header: { 
     flexDirection: "row", 
     justifyContent: "space-between", 
     alignItems: "center",
     marginBottom: 24,
+    paddingTop: 8,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    marginRight: 4,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   brandLogo: { 
-    width: 48, 
-    height: 48,
+    width: 32, 
+    height: 32,
   },
-  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
-  
-  welcomeBlock: { marginBottom: 20, gap: 8 },
+  appName: { fontSize: 20, fontWeight: "700", letterSpacing: -0.4 },
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  stepText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // Title / welcome block
+  welcomeBlock: { marginBottom: 24, gap: 8 },
   title: { 
-    fontSize: 32, 
-    fontWeight: "800", 
-    color: "#FFFFFF",
-    lineHeight: 38,
+    fontSize: 24, 
+    fontWeight: "700",
+    letterSpacing: -0.4,
   },
   subtitle: { 
-    fontSize: 16, 
-    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 15, 
     lineHeight: 22,
   },
-  nextStep: {
-    fontSize: 14,
-    color: "rgba(255, 214, 242, 0.95)",
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  
-  glassCard: { 
-    backgroundColor: Platform.OS === 'web' 
-      ? "rgba(255, 255, 255, 0.15)" 
-      : "rgba(255, 255, 255, 0.92)", 
-    borderRadius: 28, 
-    padding: 24, 
-    gap: 20,
-    ...(Platform.OS === 'web' && {
-      backdropFilter: 'blur(20px)',
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-    }),
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-  },
-  
-  inputGroup: { gap: 8 },
-  inputLabel: { 
-    fontSize: 13, 
-    fontWeight: "700", 
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.95)" : "#58468B",
-    letterSpacing: 0.3,
-  },
-  inputWrapper: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 10, 
-    borderRadius: 16, 
-    borderWidth: 2, 
-    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(93, 95, 239, 0.2)", 
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)", 
-    paddingHorizontal: 16, 
-    height: 54,
-  },
-  inputWrapperFilled: {
-    borderColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.5)" : "rgba(161, 106, 232, 0.4)",
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.15)" : "rgba(255, 255, 255, 1)",
-  },
-  input: { 
-    flex: 1, 
-    fontSize: 16, 
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
-    fontWeight: "500",
-  },
-  
+
+  // Form group
+  inputGroup: { gap: 8, marginBottom: 20 },
+
   helperText: {
     fontSize: 12,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "rgba(31, 17, 71, 0.6)",
-    fontStyle: "italic",
     marginTop: 4,
   },
-  
+
   trustBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: Platform.OS === 'web' ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)",
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Platform.OS === 'web' ? "rgba(16, 185, 129, 0.3)" : "rgba(16, 185, 129, 0.2)",
+    marginTop: 4,
   },
   trustTextContainer: {
     flex: 1,
   },
   trustTitle: {
     fontSize: 14,
-    fontWeight: "700",
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#10B981",
+    fontWeight: "600",
     marginBottom: 2,
   },
   trustText: {
     fontSize: 12,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.8)" : "rgba(31, 17, 71, 0.7)",
-    lineHeight: 16,
+    lineHeight: 18,
   },
-  
-  primaryButton: { 
-    backgroundColor: "#A16AE8",
-    borderRadius: 999, 
-    paddingVertical: 18, 
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    shadowColor: "#A16AE8",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#D1C9FF",
+
+  // Button
+  buttonContainer: {
+    marginTop: 8,
   },
   primaryButtonText: { 
-    fontSize: 17, 
-    fontWeight: "800", 
+    fontSize: 16, 
+    fontWeight: "600", 
     color: "#FFFFFF",
-    letterSpacing: 0.5,
   },
-  
+
   errorText: { 
     marginTop: 4, 
     color: "#EF4444", 
     fontSize: 12, 
-    fontWeight: "600" 
-  },
-  
-  // Modal styles
-  modalBackdrop: { 
-    flex: 1, 
-    backgroundColor: "rgba(0,0,0,0.5)", 
-    justifyContent: "flex-end",
-  },
-  modalCard: { 
-    backgroundColor: "#FFFFFF", 
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24, 
-    padding: 20,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalTitle: { 
-    fontSize: 20, 
-    fontWeight: "800", 
-    color: "#1F1147" 
-  },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(246, 245, 255, 0.9)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(93, 95, 239, 0.2)",
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1F1147",
-  },
-  optionRow: { 
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(93, 95, 239, 0.1)",
-  },
-  optionText: { 
-    fontSize: 16, 
-    color: "#1F1147",
-    fontWeight: "500",
+    fontWeight: "500" 
   },
 });

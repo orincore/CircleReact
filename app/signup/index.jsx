@@ -1,6 +1,4 @@
 import ProfilePictureUpload from "@/components/ProfilePictureUpload";
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
 import { useTheme } from "@/contexts/ThemeContext";
 import { authApi } from "@/src/api/auth";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -8,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  ActivityIndicator,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -15,6 +14,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -38,7 +38,9 @@ const GENDER_OPTIONS = [
   "other",
   "prefer not to say"
 ];
-const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
+const AGE_OPTIONS = Array.from({ length: 120 - 16 + 1 }, (_, i) => String(16 + i));
+const DEFAULT_PROFILE_IMAGE_URL =
+  "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_640.png";
 
 export default function SignupStepOne() {
   const router = useRouter();
@@ -124,7 +126,7 @@ export default function SignupStepOne() {
     if (key === 'password') next.password = password.length >= 6 ? '' : 'Password must be at least 6 characters';
     if (key === 'age') {
       const n = Number(age);
-      next.age = n && n >= 13 && n <= 120 ? '' : 'Please select a valid age (13-120)';
+      next.age = n && n >= 16 && n <= 120 ? '' : 'Please select a valid age (16-120)';
     }
     if (key === 'gender') next.gender = gender ? '' : 'Please select a gender';
     if (key === 'username') {
@@ -182,10 +184,10 @@ export default function SignupStepOne() {
       firstName.trim().length > 0 &&
       lastName.trim().length > 0 &&
       !!gender &&
-      !!age && ageNum >= 13 && ageNum <= 120 &&
+      !!age && ageNum >= 16 && ageNum <= 120 &&
       username.trim().length >= 3 &&
       password.length >= 6 &&
-      !!profileImage // Profile picture is now mandatory
+      true // Profile picture is optional
     );
     return baseOk && (usernameAvail !== false);
   }, [firstName, lastName, gender, age, username, password, usernameAvail, profileImage]);
@@ -215,308 +217,328 @@ export default function SignupStepOne() {
       gender: gender.trim(),
       username: username.trim(),
       password,
-      profileImage,
+      // If user didn't upload a photo, store default avatar URL
+      profileImage: profileImage || DEFAULT_PROFILE_IMAGE_URL,
     }));
     router.push("/signup/contact");
   };
 
+  // Dynamic styles based on theme
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    inputContainer: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    inputContainerFocused: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+    },
+    input: {
+      flex: 1,
+      fontSize: 16,
+      color: theme.textPrimary,
+      fontWeight: '400',
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    primaryButtonDisabled: {
+      backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border,
+      opacity: 0.7,
+    },
+    secondaryText: {
+      color: theme.textSecondary,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 12,
+      marginTop: 4,
+      fontWeight: '500',
+    },
+    successText: {
+      color: '#10B981',
+      fontSize: 12,
+      marginTop: 4,
+      fontWeight: '500',
+    },
+  };
+
   return (
-    <AnimatedBackground>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
-            {/* Header with animated logo and progress */}
-            <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <View style={styles.brandRow}>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.appName}>Circle</Text>
-              </View>
-              <CircularProgress progress={20} currentStep={1} totalSteps={5} />
-            </Animated.View>
-
-            {/* Welcome block with animation */}
-            <Animated.View 
-              style={[
-                styles.welcomeBlock, 
-                { 
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
-              <Text style={styles.title}>What should we call you? 👋</Text>
-              <Text style={styles.subtitle}>Let's start with the basics. Don't worry, you can always change this later!</Text>
-              <Text style={styles.nextStep}>✨ Next: Contact info 📧</Text>
-            </Animated.View>
-
-            {/* Glassmorphism card with animation */}
-            <Animated.View 
-              style={[
-                styles.glassCard,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : theme.surface,
-                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : theme.border,
-                  borderWidth: 1,
-                }
-              ]}
-            >
-              {/* Profile Picture Upload */}
-              <ProfilePictureUpload
-                currentImage={profileImage}
-                onImageSelected={handleImageSelected}
-                size={120}
-              />
-
-              {/* Name inputs */}
-              <View style={styles.row2}>
-                <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>👤 First Name</Text>
-                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, firstName.trim() && { borderColor: theme.primary }]}>
-                    <TextInput 
-                      value={firstName} 
-                      onChangeText={setFirstName} 
-                      onBlur={() => validateField('firstName')} 
-                      placeholder="Alex" 
-                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} 
-                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
-                    />
-                  </View>
-                  {!!errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-                </View>
-                <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>👤 Last Name</Text>
-                  <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, lastName.trim() && { borderColor: theme.primary }]}>
-                    <TextInput 
-                      value={lastName} 
-                      onChangeText={setLastName} 
-                      onBlur={() => validateField('lastName')} 
-                      placeholder="Parker" 
-                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary} 
-                      style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
-                    />
-                  </View>
-                  {!!errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-                </View>
-              </View>
-
-              {/* Age and Gender */}
-              <View style={styles.row2}>
-                <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>🎂 Age</Text>
-                  <TouchableOpacity style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, age && { borderColor: theme.primary }]} onPress={() => setShowAgePicker(true)}>
-                    <Text style={[styles.input, { paddingVertical: 14, color: age ? (isDarkMode ? '#FFFFFF' : theme.textPrimary) : (isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary) }]}>
-                      {age || "Select age"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
-                  </TouchableOpacity>
-                  {!!errors.age && <Text style={styles.errorText}>{errors.age}</Text>}
-                </View>
-                <View style={[styles.inputGroup, styles.col]}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>💫 Gender</Text>
-                  <TouchableOpacity style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, gender && { borderColor: theme.primary }]} onPress={() => setShowGenderPicker(true)}>
-                    <Text style={[styles.input, { paddingVertical: 14, color: gender ? (isDarkMode ? '#FFFFFF' : theme.textPrimary) : (isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary) }]}>
-                      {gender ? formatTitleCase(gender) : "Select gender"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
-                  </TouchableOpacity>
-                  {!!errors.gender && <Text style={styles.errorText}>{errors.gender}</Text>}
-                </View>
-              </View>
-
-              {/* Username */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>✨ Pick your unique handle</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, username.trim() && { borderColor: theme.primary }]}>
-                  <Ionicons name="at" size={18} color={isDarkMode ? '#FFD6F2' : theme.primary} />
-                  <TextInput 
-                    value={username} 
-                    onChangeText={(t) => { setUsername(t); setUsernameAvail(null); setSuggestedUsernames([]); }} 
-                    onBlur={onUsernameBlur} 
-                    placeholder="alex.parker" 
-                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
-                    autoCapitalize="none" 
-                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
+              {/* Header */}
+              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+                <View style={styles.headerLeft}>
+                  <Image 
+                    source={require('@/assets/logo/circle-logo.png')} 
+                    style={styles.logo}
+                    resizeMode="contain"
                   />
-                  {checkingUsername && <Ionicons name="hourglass" size={18} color="#8880B6" />}
-                  {!checkingUsername && usernameAvail === true && (
-                    <Animated.View style={{ transform: [{ scale: confettiAnim }] }}>
+                  <Text style={[styles.logoText, { color: theme.textPrimary }]}>Circle</Text>
+                </View>
+                <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+                  <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 1 of 5</Text>
+                </View>
+              </Animated.View>
+
+              {/* Title Section */}
+              <Animated.View 
+                style={[
+                  styles.titleSection, 
+                  { 
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }]
+                  }
+                ]}
+              >
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Create your profile</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                  Let's start with the basics. This helps others know who they're connecting with.
+                </Text>
+              </Animated.View>
+
+              {/* Main Form Card */}
+              <Animated.View 
+                style={[
+                  dynamicStyles.card,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  }
+                ]}
+              >
+                {/* Profile Picture */}
+                <View style={styles.profileSection}>
+                  <ProfilePictureUpload
+                    currentImage={profileImage}
+                    onImageSelected={handleImageSelected}
+                    size={100}
+                  />
+                  <Text style={[styles.profileHint, { color: theme.textTertiary }]}>
+                    Profile photo (optional)
+                  </Text>
+                </View>
+
+                {/* Name Row */}
+                <View style={styles.row}>
+                  <View style={styles.halfField}>
+                    <Text style={[dynamicStyles.label]}>First name</Text>
+                    <View style={[dynamicStyles.inputContainer, firstName.trim() && dynamicStyles.inputContainerFocused]}>
+                      <TextInput 
+                        value={firstName} 
+                        onChangeText={setFirstName} 
+                        onBlur={() => validateField('firstName')} 
+                        placeholder="Alex" 
+                        placeholderTextColor={theme.textTertiary} 
+                        style={dynamicStyles.input} 
+                      />
+                    </View>
+                    {!!errors.firstName && <Text style={dynamicStyles.errorText}>{errors.firstName}</Text>}
+                  </View>
+                  <View style={styles.halfField}>
+                    <Text style={[dynamicStyles.label]}>Last name</Text>
+                    <View style={[dynamicStyles.inputContainer, lastName.trim() && dynamicStyles.inputContainerFocused]}>
+                      <TextInput 
+                        value={lastName} 
+                        onChangeText={setLastName} 
+                        onBlur={() => validateField('lastName')} 
+                        placeholder="Parker" 
+                        placeholderTextColor={theme.textTertiary} 
+                        style={dynamicStyles.input} 
+                      />
+                    </View>
+                    {!!errors.lastName && <Text style={dynamicStyles.errorText}>{errors.lastName}</Text>}
+                  </View>
+                </View>
+
+                {/* Age and Gender Row */}
+                <View style={styles.row}>
+                  <View style={styles.halfField}>
+                    <Text style={[dynamicStyles.label]}>Age</Text>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.inputContainer, age && dynamicStyles.inputContainerFocused]} 
+                      onPress={() => setShowAgePicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[dynamicStyles.input, !age && { color: theme.textTertiary }]}>
+                        {age || "Select"}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color={theme.textTertiary} />
+                    </TouchableOpacity>
+                    {!!errors.age && <Text style={dynamicStyles.errorText}>{errors.age}</Text>}
+                  </View>
+                  <View style={styles.halfField}>
+                    <Text style={[dynamicStyles.label]}>Gender</Text>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.inputContainer, gender && dynamicStyles.inputContainerFocused]} 
+                      onPress={() => setShowGenderPicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[dynamicStyles.input, !gender && { color: theme.textTertiary }]} numberOfLines={1}>
+                        {gender ? formatTitleCase(gender) : "Select"}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color={theme.textTertiary} />
+                    </TouchableOpacity>
+                    {!!errors.gender && <Text style={dynamicStyles.errorText}>{errors.gender}</Text>}
+                  </View>
+                </View>
+
+                {/* Username */}
+                <View style={styles.fieldGroup}>
+                  <Text style={[dynamicStyles.label]}>Username</Text>
+                  <View style={[dynamicStyles.inputContainer, username.trim() && dynamicStyles.inputContainerFocused]}>
+                    <Text style={[styles.atSymbol, { color: theme.textTertiary }]}>@</Text>
+                    <TextInput 
+                      value={username} 
+                      onChangeText={(t) => { setUsername(t); setUsernameAvail(null); setSuggestedUsernames([]); }} 
+                      onBlur={onUsernameBlur} 
+                      placeholder="username" 
+                      placeholderTextColor={theme.textTertiary}
+                      autoCapitalize="none" 
+                      style={dynamicStyles.input} 
+                    />
+                    {checkingUsername && <ActivityIndicator size="small" color={theme.primary} />}
+                    {!checkingUsername && usernameAvail === true && (
                       <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                    </Animated.View>
+                    )}
+                    {!checkingUsername && usernameAvail === false && (
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    )}
+                  </View>
+                  {!!errors.username && <Text style={dynamicStyles.errorText}>{errors.username}</Text>}
+                  {checkingUsername && <Text style={[styles.helperText, { color: theme.textTertiary }]}>Checking availability...</Text>}
+                  {!checkingUsername && usernameAvail === true && (
+                    <Text style={dynamicStyles.successText}>Username is available</Text>
                   )}
-                  {!checkingUsername && usernameAvail === false && <Ionicons name="close-circle" size={20} color="#EF4444" />}
-                </View>
-                {!!errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
-                {checkingUsername && <Text style={styles.infoText}>Checking availability...</Text>}
-                {!checkingUsername && usernameAvail === true && (
-                  <Text style={styles.successText}>✓ Username is available!</Text>
-                )}
-                {!checkingUsername && usernameAvail === false && (
-                  <View>
-                    <Text style={styles.errorText}>✗ Username is taken. Try these:</Text>
-                    <View style={styles.suggestionsWrap}>
-                      {suggestedUsernames.map((suggestion) => (
-                        <TouchableOpacity 
-                          key={suggestion} 
-                          style={styles.suggestionChip}
-                          onPress={() => {
-                            setUsername(suggestion);
-                            setUsernameAvail(null);
-                            setSuggestedUsernames([]);
-                          }}
-                        >
-                          <Text style={styles.suggestionText}>{suggestion}</Text>
-                        </TouchableOpacity>
-                      ))}
+                  {!checkingUsername && usernameAvail === false && (
+                    <View>
+                      <Text style={dynamicStyles.errorText}>Username taken. Try one of these:</Text>
+                      <View style={styles.suggestionsRow}>
+                        {suggestedUsernames.map((suggestion) => (
+                          <TouchableOpacity 
+                            key={suggestion} 
+                            style={[styles.suggestionChip, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background, borderColor: theme.border }]}
+                            onPress={() => {
+                              setUsername(suggestion);
+                              setUsernameAvail(null);
+                              setSuggestedUsernames([]);
+                            }}
+                          >
+                            <Text style={[styles.suggestionText, { color: theme.primary }]}>{suggestion}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     </View>
+                  )}
+                </View>
+
+                {/* Password */}
+                <View style={styles.fieldGroup}>
+                  <Text style={[dynamicStyles.label]}>Password</Text>
+                  <View style={[dynamicStyles.inputContainer, password && dynamicStyles.inputContainerFocused]}>
+                    <TextInput 
+                      value={password} 
+                      onChangeText={setPassword} 
+                      onBlur={() => validateField('password')} 
+                      placeholder="Min. 6 characters" 
+                      placeholderTextColor={theme.textTertiary}
+                      secureTextEntry={!showPassword}
+                      style={dynamicStyles.input} 
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={theme.textTertiary} />
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-
-              {/* Password */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>🔒 Password</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }, password && { borderColor: theme.primary }]}>
-                  <TextInput 
-                    value={password} 
-                    onChangeText={setPassword} 
-                    onBlur={() => validateField('password')} 
-                    placeholder="Create a strong password" 
-                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
-                    secureTextEntry={!showPassword}
-                    style={[styles.input, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]} 
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={isDarkMode ? '#FFD6F2' : theme.primary} />
-                  </TouchableOpacity>
+                  {!!errors.password && <Text style={dynamicStyles.errorText}>{errors.password}</Text>}
                 </View>
-                {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-                <Text style={[styles.trustText, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>🔐 Your password stays private and secure</Text>
-              </View>
 
-              {/* Requirements Checklist */}
-              {!canContinue && (
-                <View style={[styles.requirementsCard, { backgroundColor: isDarkMode ? 'rgba(255, 214, 242, 0.1)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(255, 214, 242, 0.2)' : 'rgba(255, 214, 242, 0.4)' }]}>
-                  <Text style={[styles.requirementsTitle, { color: isDarkMode ? '#FFFFFF' : theme.primary }]}>✓ Complete these to continue:</Text>
-                  <View style={styles.requirementsList}>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={firstName.trim() ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={firstName.trim() ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, firstName.trim() && styles.requirementTextComplete]}>
-                        First name
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={lastName.trim() ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={lastName.trim() ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, lastName.trim() && styles.requirementTextComplete]}>
-                        Last name
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={age && Number(age) >= 13 ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={age && Number(age) >= 13 ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, age && Number(age) >= 13 && styles.requirementTextComplete]}>
-                        Age (13+)
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={gender ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={gender ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, gender && styles.requirementTextComplete]}>
-                        Gender
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={username.trim().length >= 3 && usernameAvail === true ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={username.trim().length >= 3 && usernameAvail === true ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, username.trim().length >= 3 && usernameAvail === true && styles.requirementTextComplete]}>
-                        Available username
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={password.length >= 6 ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={password.length >= 6 ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, password.length >= 6 && styles.requirementTextComplete]}>
-                        Password (6+ characters)
-                      </Text>
-                    </View>
-                    <View style={styles.requirementItem}>
-                      <Ionicons 
-                        name={profileImage ? "checkmark-circle" : "ellipse-outline"} 
-                        size={18} 
-                        color={profileImage ? "#10B981" : "#9CA3AF"} 
-                      />
-                      <Text style={[styles.requirementText, profileImage && styles.requirementTextComplete]}>
-                        Profile picture
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )}
+              </Animated.View>
 
-              {/* Next Button */}
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              {/* Continue Button */}
+              <Animated.View style={[styles.buttonContainer, { transform: [{ scale: buttonScale }] }]}>
                 <TouchableOpacity 
-                  activeOpacity={0.85} 
-                  style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
+                  activeOpacity={0.8} 
+                  style={[dynamicStyles.primaryButton, !canContinue && dynamicStyles.primaryButtonDisabled]} 
                   onPress={onNext} 
                   disabled={!canContinue}
                 >
-                  <Text style={styles.primaryButtonText}>Continue</Text>
+                  <Text style={styles.buttonText}>Continue</Text>
                   <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </Animated.View>
 
-              {/* Legal Documents Links */}
-              <View style={styles.legalLinks}>
-                <Text style={styles.legalText}>By continuing, you agree to our </Text>
-                <TouchableOpacity onPress={() => {
-                  if (Platform.OS === 'web') {
-                    router.push('/terms');
-                  } else {
-                    Linking.openURL('https://circle.orincore.com/terms.html');
-                  }
-                }}>
-                  <Text style={styles.legalLink}>Terms of Service</Text>
-                </TouchableOpacity>
-                <Text style={styles.legalText}> and </Text>
-                <TouchableOpacity onPress={() => {
-                  if (Platform.OS === 'web') {
-                    router.push('/legal/privacy-policy');
-                  } else {
-                    Linking.openURL('https://circle.orincore.com/privacy.html');
-                  }
-                }}>
-                  <Text style={styles.legalLink}>Privacy Policy</Text>
-                </TouchableOpacity>
-                <Text style={styles.legalText}>.</Text>
+              {/* Info hint when form incomplete */}
+              {!canContinue && (
+                <Animated.View style={{ opacity: fadeAnim }}>
+                  <Text style={[styles.formHint, { color: theme.textTertiary }]}>
+                    Please fill in all required fields to continue. You can add a photo now or later.
+                  </Text>
+                </Animated.View>
+              )}
+
+              {/* Legal */}
+              <View style={styles.legalContainer}>
+                <Text style={[styles.legalText, { color: theme.textTertiary }]}>
+                  By continuing, you agree to our{' '}
+                  <Text 
+                    style={[styles.legalLink, { color: theme.primary }]} 
+                    onPress={() => Platform.OS === 'web' ? router.push('/terms') : Linking.openURL('https://circle.orincore.com/terms.html')}
+                  >
+                    Terms
+                  </Text>
+                  {' '}and{' '}
+                  <Text 
+                    style={[styles.legalLink, { color: theme.primary }]} 
+                    onPress={() => Platform.OS === 'web' ? router.push('/legal/privacy-policy') : Linking.openURL('https://circle.orincore.com/privacy.html')}
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
               </View>
-            </Animated.View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -524,102 +546,110 @@ export default function SignupStepOne() {
 
       {/* Age Picker Modal */}
       <Modal transparent visible={showAgePicker} animationType="slide" onRequestClose={() => setShowAgePicker(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowAgePicker(false)}>
-          <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#2D2D44' : '#FFFFFF' }]}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowAgePicker(false)} />
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>How old are you? 🎂</Text>
-              <TouchableOpacity onPress={() => setShowAgePicker(false)}>
-                <Ionicons name="close" size={24} color={isDarkMode ? '#FFFFFF' : '#1F1147'} />
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Select age</Text>
+              <TouchableOpacity onPress={() => setShowAgePicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-            <View style={[styles.searchWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F5F5F5' }]}>
-              <Ionicons name="search" size={16} color={isDarkMode ? '#FFD6F2' : '#8880B6'} />
+            <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background, borderColor: theme.border }]}>
+              <Ionicons name="search" size={18} color={theme.textTertiary} />
               <TextInput 
                 value={ageQuery} 
                 onChangeText={setAgeQuery} 
-                placeholder="Search age" 
-                style={[styles.searchInput, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]} 
-                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : '#8880B6'}
+                placeholder="Search" 
+                style={[styles.searchInput, { color: theme.textPrimary }]} 
+                placeholderTextColor={theme.textTertiary}
                 keyboardType="numeric"
               />
             </View>
             <FlatList 
               data={filteredAges} 
               keyExtractor={(i) => i} 
-              style={{ maxHeight: 300 }} 
+              style={styles.optionsList}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity 
-                  style={[styles.optionRow, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F0F0F0' }]} 
+                  style={[styles.optionItem, { borderBottomColor: theme.border }]} 
                   onPress={() => { 
                     setAge(item); 
                     setShowAgePicker(false);
                     setErrors(prev => ({ ...prev, age: '' }));
                   }}
+                  activeOpacity={0.6}
                 >
-                  <Text style={[styles.optionText, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>{item}</Text>
-                  {age === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
+                  <Text style={[styles.optionText, { color: theme.textPrimary }]}>{item} years</Text>
+                  {age === item && <Ionicons name="checkmark-circle" size={22} color={theme.primary} />}
                 </TouchableOpacity>
               )} 
             />
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Gender Picker Modal */}
       <Modal transparent visible={showGenderPicker} animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowGenderPicker(false)}>
-          <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#2D2D44' : '#FFFFFF' }]}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowGenderPicker(false)} />
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>How do you identify? 💫</Text>
-              <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                <Ionicons name="close" size={24} color={isDarkMode ? '#FFFFFF' : '#1F1147'} />
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Select gender</Text>
+              <TouchableOpacity onPress={() => setShowGenderPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.modalSubtitle, { color: isDarkMode ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>
-              We celebrate all identities. Choose what feels right for you.
-            </Text>
-            <View style={[styles.searchWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F5F5F5' }]}>
-              <Ionicons name="search" size={16} color={isDarkMode ? '#FFD6F2' : '#8880B6'} />
+            <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.background, borderColor: theme.border }]}>
+              <Ionicons name="search" size={18} color={theme.textTertiary} />
               <TextInput 
                 value={genderQuery} 
                 onChangeText={setGenderQuery} 
-                placeholder="Search gender identity" 
-                style={[styles.searchInput, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]} 
-                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : '#8880B6'}
+                placeholder="Search" 
+                style={[styles.searchInput, { color: theme.textPrimary }]} 
+                placeholderTextColor={theme.textTertiary}
               />
             </View>
             <FlatList 
               data={filteredGenders} 
               keyExtractor={(i) => i} 
-              style={{ maxHeight: 350 }}
-              showsVerticalScrollIndicator={true}
+              style={styles.optionsList}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity 
-                  style={[styles.optionRow, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#F0F0F0' }]} 
+                  style={[styles.optionItem, { borderBottomColor: theme.border }]} 
                   onPress={() => { 
                     setGender(item); 
                     setShowGenderPicker(false);
-                    // Clear any existing error when selecting
                     setErrors(prev => ({ ...prev, gender: '' }));
                   }}
+                  activeOpacity={0.6}
                 >
-                  <Text style={[styles.optionText, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>{formatTitleCase(item)}</Text>
-                  {gender === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
+                  <Text style={[styles.optionText, { color: theme.textPrimary }]}>{formatTitleCase(item)}</Text>
+                  {gender === item && <Ionicons name="checkmark-circle" size={22} color={theme.primary} />}
                 </TouchableOpacity>
               )} 
             />
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
-    </AnimatedBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Layout
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingTop: 12, 
+    paddingBottom: 40 
+  },
   scrollContentLarge: {
     paddingHorizontal: 60,
     paddingTop: 40,
@@ -630,215 +660,169 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   contentWrapperLarge: {
-    maxWidth: 800,
+    maxWidth: 560,
     width: '100%',
   },
-  
+
+  // Header
   header: { 
     flexDirection: "row", 
     justifyContent: "space-between", 
     alignItems: "center",
     marginBottom: 24,
+    paddingTop: 8,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brandLogo: { 
-    width: 48, 
-    height: 48,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
-  
-  welcomeBlock: { marginBottom: 20, gap: 8 },
+  logo: { 
+    width: 36, 
+    height: 36,
+  },
+  logoText: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  stepText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // Title Section
+  titleSection: { 
+    marginBottom: 24,
+  },
   title: { 
-    fontSize: 32, 
-    fontWeight: "800", 
-    color: "#FFFFFF",
-    lineHeight: 38,
+    fontSize: 28, 
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: { 
-    fontSize: 16, 
-    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 15, 
     lineHeight: 22,
   },
-  nextStep: {
-    fontSize: 14,
-    color: "rgba(255, 214, 242, 0.95)",
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  
-  glassCard: { 
-    backgroundColor: Platform.OS === 'web' 
-      ? "rgba(255, 255, 255, 0.15)" 
-      : "rgba(255, 255, 255, 0.92)", 
-    borderRadius: 28, 
-    padding: 24, 
-    gap: 20,
-    ...(Platform.OS === 'web' && {
-      backdropFilter: 'blur(20px)',
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-    }),
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-  },
-  
-  profilePictureSection: {
+
+  // Profile Section
+  profileSection: {
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 20,
   },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#58468B",
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-  profilePictureButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    overflow: "hidden",
-  },
-  profilePicture: {
-    width: "100%",
-    height: "100%",
-  },
-  profilePlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(161, 106, 232, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(161, 106, 232, 0.3)",
-    borderStyle: "dashed",
-  },
-  profilePlaceholderText: {
-    fontSize: 12,
-    color: "#A16AE8",
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  
-  row2: { flexDirection: "row", gap: 12 },
-  col: { flex: 1 },
-  inputGroup: { gap: 8 },
-  inputLabel: { 
-    fontSize: 13, 
-    fontWeight: "700", 
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.95)" : "#58468B",
-    letterSpacing: 0.3,
-  },
-  inputWrapper: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 10, 
-    borderRadius: 16, 
-    borderWidth: 2, 
-    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(93, 95, 239, 0.2)", 
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)", 
-    paddingHorizontal: 16, 
-    height: 54,
-    transition: "all 0.3s ease",
-  },
-  inputWrapperFilled: {
-    borderColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.5)" : "rgba(161, 106, 232, 0.4)",
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.15)" : "rgba(255, 255, 255, 1)",
-  },
-  input: { 
-    flex: 1, 
-    fontSize: 16, 
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+  profileHint: {
+    fontSize: 13,
+    marginTop: 8,
     fontWeight: "500",
   },
-  placeholderText: {
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.5)" : "rgba(31, 17, 71, 0.35)",
+
+  // Form Layout
+  row: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
   },
-  
-  suggestionsWrap: {
+  halfField: {
+    flex: 1,
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+
+  // Username @ symbol
+  atSymbol: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginRight: 2,
+  },
+
+  // Helper text
+  helperText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  // Suggestions
+  suggestionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     marginTop: 8,
   },
   suggestionChip: {
-    backgroundColor: "rgba(161, 106, 232, 0.15)",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(161, 106, 232, 0.3)",
   },
   suggestionText: {
-    color: Platform.OS === 'web' ? "#FFD6F2" : "#7C2B86",
     fontSize: 13,
     fontWeight: "600",
   },
-  
-  primaryButton: { 
-    backgroundColor: "#A16AE8",
-    borderRadius: 999, 
-    paddingVertical: 18, 
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    shadowColor: "#A16AE8",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+
+  // Button
+  buttonContainer: {
+    marginTop: 8,
+    marginBottom: 16,
   },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#D1C9FF",
-  },
-  primaryButtonText: { 
-    fontSize: 17, 
-    fontWeight: "800", 
+  buttonText: { 
+    fontSize: 16, 
+    fontWeight: "600", 
     color: "#FFFFFF",
-    letterSpacing: 0.5,
   },
-  
-  trustText: {
-    fontSize: 12,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "#6B7280",
-    fontStyle: "italic",
-    marginTop: 4,
+
+  // Form hint
+  formHint: {
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 18,
   },
-  
-  errorText: { 
-    marginTop: 4, 
-    fontSize: 12, 
-    fontWeight: "600" 
+
+  // Legal
+  legalContainer: {
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
-  successText: { 
-    marginTop: 4, 
-    color: "#10B981", 
-    fontSize: 12, 
-    fontWeight: "700" 
+  legalText: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
   },
-  infoText: { 
-    marginTop: 4, 
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.7)" : "#6B7280", 
-    fontSize: 12 
+  legalLink: {
+    fontWeight: "600",
   },
-  
-  // Modal styles
-  modalBackdrop: { 
-    flex: 1, 
-    backgroundColor: "rgba(0,0,0,0.5)", 
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
     justifyContent: "flex-end",
   },
-  modalCard: { 
-    backgroundColor: "#FFFFFF", 
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24, 
-    padding: 20,
-    maxHeight: "80%",
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    maxHeight: "70%",
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: "row",
@@ -847,70 +831,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: { 
-    fontSize: 20, 
-    fontWeight: "800", 
-    color: "#1F1147" 
+    fontSize: 18, 
+    fontWeight: "700",
   },
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  searchWrap: {
+  searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "rgba(246, 245, 255, 0.9)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 44,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(93, 95, 239, 0.2)",
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: "#1F1147",
+    fontSize: 15,
   },
-  optionRow: { 
+  optionsList: {
+    maxHeight: 300,
+  },
+  optionItem: { 
     paddingVertical: 14,
-    paddingHorizontal: 4,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(93, 95, 239, 0.1)",
   },
   optionText: { 
-    fontSize: 16, 
-    color: "#1F1147",
+    fontSize: 16,
     fontWeight: "500",
   },
-  
-  // Legal Links
-  legalLinks: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingHorizontal: 8,
-  },
-  legalText: {
-    fontSize: 13,
-    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 17, 71, 0.7)',
-    textAlign: 'center',
-  },
-  legalLink: {
-    fontSize: 13,
-    color: Platform.OS === 'web' ? '#FFD6F2' : '#A16AE8',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  
-  // Divider styles
+
+  // Divider (kept for compatibility)
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -919,45 +872,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(31, 17, 71, 0.2)',
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 17, 71, 0.6)',
     fontWeight: '500',
-  },
-  
-  // Requirements checklist
-  requirementsCard: {
-    backgroundColor: Platform.OS === 'web' ? 'rgba(255, 214, 242, 0.15)' : 'rgba(255, 214, 242, 0.2)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Platform.OS === 'web' ? 'rgba(255, 214, 242, 0.3)' : 'rgba(255, 214, 242, 0.4)',
-  },
-  requirementsTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Platform.OS === 'web' ? '#FFFFFF' : '#7C2B86',
-    marginBottom: 12,
-  },
-  requirementsList: {
-    gap: 10,
-  },
-  requirementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  requirementText: {
-    fontSize: 14,
-    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(31, 17, 71, 0.6)',
-    fontWeight: '500',
-  },
-  requirementTextComplete: {
-    color: Platform.OS === 'web' ? '#FFFFFF' : '#10B981',
-    fontWeight: '600',
   },
 });

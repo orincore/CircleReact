@@ -244,8 +244,8 @@ export default function LandingPage({ onSignUp, onLogIn }) {
 
         {/* Hero Section */}
         <LinearGradient
-          colors={isDarkMode ? ['#1F1147', '#7C2B86', '#5D5FEF'] : ['#7C2B86', '#A16AE8', '#5D5FEF']}
-          locations={[0, 0.5, 1]}
+          colors={isLargeScreen ? (isDarkMode ? ['#1F1147', '#7C2B86', '#5D5FEF'] : ['#7C2B86', '#A16AE8', '#5D5FEF']) : ['#1a0b2e', '#2d1b4e', '#1a0b2e']}
+          locations={isLargeScreen ? [0, 0.5, 1] : [0, 0.5, 1]}
           style={[styles.heroSection, isLargeScreen && styles.heroSectionLarge]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -315,50 +315,88 @@ export default function LandingPage({ onSignUp, onLogIn }) {
               </View>
             ) : (
               <>
-                {/* Mobile: Logo and Tagline */}
-                <View style={styles.mobileLogoSection}>
-                  <View style={styles.mobileLogoGlow}>
-                    <Image 
-                      source={require('@/assets/logo/circle-logo.png')} 
-                      style={styles.mobileLogoImage}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <Text style={styles.mobileAppName}>Circle</Text>
-                  <Text style={styles.mobileTaglineMain}>
-                    Where Real Connections Begin
-                  </Text>
-                  <Text style={styles.mobileTaglineSub}>
-                    No endless swiping. Our AI finds your perfect match based on who you really are.
-                  </Text>
-                </View>
-
-                {/* Mobile: Feature Carousel */}
-                <View style={styles.mobileCarousel}>
-                  <View style={[styles.carouselCard, { backgroundColor: features[currentFeatureIndex].color + '15' }]}>
-                    <LinearGradient
-                      colors={features[currentFeatureIndex].gradient}
-                      style={styles.carouselIcon}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      <Ionicons name={features[currentFeatureIndex].icon} size={48} color="#FFFFFF" />
-                    </LinearGradient>
-                    <Text style={styles.carouselTitle}>{features[currentFeatureIndex].title}</Text>
-                    <Text style={styles.carouselDescription}>{features[currentFeatureIndex].description}</Text>
-                  </View>
-                  
-                  {/* Carousel Dots */}
-                  <View style={styles.carouselDots}>
-                    {features.map((_, index) => (
-                      <View
-                        key={index}
-                        style={[
-                          styles.carouselDot,
-                          index === currentFeatureIndex && styles.carouselDotActive
-                        ]}
+                {/* Mobile: Fixed Landing Page - Match Screen Theme */}
+                <View style={styles.mobileFixedContainer}>
+                  {/* Logo & Brand */}
+                  <View style={styles.mobileHeader}>
+                    <View style={styles.logoCircle}>
+                      <Image 
+                        source={require('@/assets/logo/circle-logo.png')} 
+                        style={styles.mobileLogo}
+                        resizeMode="contain"
                       />
-                    ))}
+                    </View>
+                    <Text style={styles.mobileAppName}>Circle</Text>
+                    <Text style={styles.mobileTagline}>Find Your People</Text>
+                  </View>
+
+                  {/* Premium Features Grid */}
+                  <View style={styles.premiumFeaturesGrid}>
+                    <Text style={styles.featuresTitle}>Premium Features</Text>
+                    
+                    <View style={styles.featureRow}>
+                      <View style={styles.premiumFeatureCard}>
+                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(255, 111, 181, 0.15)' }]}>
+                          <Ionicons name="search" size={20} color="#FF6FB5" />
+                        </View>
+                        <Text style={styles.premiumFeatureTitle}>Prompt Search</Text>
+                        <Text style={styles.premiumFeatureDesc}>AI finds helpers based on your needs</Text>
+                      </View>
+                      
+                      <View style={styles.premiumFeatureCard}>
+                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(161, 106, 232, 0.15)' }]}>
+                          <Ionicons name="heart" size={20} color="#A16AE8" />
+                        </View>
+                        <Text style={styles.premiumFeatureTitle}>Smart Matching</Text>
+                        <Text style={styles.premiumFeatureDesc}>AI-powered compatibility</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.featureRow}>
+                      
+                      
+                      <View style={styles.premiumFeatureCard}>
+                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(93, 95, 239, 0.15)' }]}>
+                          <Ionicons name="location" size={20} color="#5D5FEF" />
+                        </View>
+                        <Text style={styles.premiumFeatureTitle}>Nearby Alerts</Text>
+                        <Text style={styles.premiumFeatureDesc}>Get notified when users are near</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.featureRow}>
+                      <View style={styles.premiumFeatureCard}>
+                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(255, 215, 0, 0.15)' }]}>
+                          <Ionicons name="eye-off" size={20} color="#FFD700" />
+                        </View>
+                        <Text style={styles.premiumFeatureTitle}>Invisible Mode</Text>
+                        <Text style={styles.premiumFeatureDesc}>Browse without being seen</Text>
+                      </View>
+                      
+                      <View style={styles.premiumFeatureCard}>
+                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(255, 111, 181, 0.15)' }]}>
+                          <Ionicons name="infinite" size={20} color="#FF6FB5" />
+                        </View>
+                        <Text style={styles.premiumFeatureTitle}>Unlimited</Text>
+                        <Text style={styles.premiumFeatureDesc}>No daily match limits</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* App Highlights */}
+                  <View style={styles.highlightsRow}>
+                    <View style={styles.highlightChip}>
+                      <Ionicons name="ban" size={14} color="#10B981" />
+                      <Text style={styles.highlightChipText}>No Swiping</Text>
+                    </View>
+                    <View style={styles.highlightChip}>
+                      <Ionicons name="shield-checkmark" size={14} color="#A16AE8" />
+                      <Text style={styles.highlightChipText}>100% Safe</Text>
+                    </View>
+                    <View style={styles.highlightChip}>
+                      <Ionicons name="sparkles" size={14} color="#FFD700" />
+                      <Text style={styles.highlightChipText}>AI Powered</Text>
+                    </View>
                   </View>
                 </View>
               </>
@@ -863,11 +901,10 @@ const styles = StyleSheet.create({
   
   // Hero Section
   heroSection: {
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 60,
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 30,
     flex: 1,
-    minHeight: '100vh',
     justifyContent: 'center',
   },
   heroSectionLarge: {
@@ -1109,114 +1146,201 @@ const styles = StyleSheet.create({
     color: '#FFD6F2',
   },
   
-  // Mobile Specific Styles
-  mobileLogoSection: {
+  // Mobile Fixed Layout Styles - Match Screen Theme
+  mobileFixedContainer: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 40,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
-  mobileLogoGlow: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 111, 181, 0.15)',
+  
+  // Mobile Header with Logo
+  mobileHeader: {
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 214, 242, 0.3)',
-    shadowColor: '#FF6FB5',
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
     marginBottom: 20,
   },
-  mobileLogoImage: {
-    width: 70,
-    height: 70,
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 111, 181, 0.4)',
+    marginBottom: 12,
+    shadowColor: '#FF6FB5',
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  mobileLogo: {
+    width: 50,
+    height: 50,
   },
   mobileAppName: {
-    fontSize: 42,
+    fontSize: 36,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 12,
     letterSpacing: -1,
     textShadowColor: 'rgba(255, 111, 181, 0.4)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 12,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
-  mobileTaglineMain: {
-    fontSize: 24,
+  mobileTagline: {
+    fontSize: 14,
+    color: 'rgba(255, 214, 242, 0.9)',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  // Premium Features Grid
+  premiumFeaturesGrid: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  featuresTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFD6F2',
     textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: 0.5,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 12,
   },
-  mobileTaglineSub: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 10,
-  },
-  mobileTagline: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  mobileCarousel: {
-    marginBottom: 40,
-  },
-  carouselCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 24,
-    padding: 32,
+  premiumFeatureCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    padding: 14,
     alignItems: 'center',
-    minHeight: 280,
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  carouselIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+  featureIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
+    marginBottom: 8,
   },
-  carouselTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+  premiumFeatureTitle: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 12,
     textAlign: 'center',
+    marginBottom: 4,
   },
-  carouselDescription: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
+  premiumFeatureDesc: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 14,
   },
-  carouselDots: {
+
+  // Highlights Row
+  highlightsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
+    gap: 10,
+    marginBottom: 16,
   },
-  carouselDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  highlightChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
-  carouselDotActive: {
-    backgroundColor: '#FFFFFF',
-    width: 24,
+  highlightChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Legacy styles kept for compatibility
+  featureCardMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  featureIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  featureCardDesc: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 20,
+  },
+
+  // Stats Section
+  statsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 20,
+    zIndex: 1,
+  },
+  statCard: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    minWidth: 90,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFD6F2',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
   
   // Sections

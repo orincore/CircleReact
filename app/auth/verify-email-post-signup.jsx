@@ -2,10 +2,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { http } from '@/src/api/http';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function VerifyEmailPostSignup() {
@@ -218,31 +217,44 @@ export default function VerifyEmailPostSignup() {
   };
 
   return (
-    <LinearGradient 
-      colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]} 
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}> 
+            <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Verify Email</Text>
+          <View style={styles.brandRow}>
+            <Image 
+              source={require('@/assets/logo/circle-logo.png')} 
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Verify email</Text>
+          </View>
           <View style={styles.placeholder} />
         </View>
 
         <View style={styles.content}>
-          {/* Success Card */}
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          {/* Card */}
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <View style={styles.iconContainer}>
-              <Ionicons name="mail" size={64} color="#7C2B86" />
+              <Ionicons name="mail" size={48} color={theme.primary} />
             </View>
 
-            <Text style={[styles.title, { color: theme.textPrimary }]}>Check Your Email 📧</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Check your email</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }] }>
               We've sent a 6-digit verification code to{'\n'}
-              <Text style={styles.emailText}>{email || user?.email}</Text>
+              <Text style={[styles.emailText, { color: theme.primary }]}>{email || user?.email}</Text>
             </Text>
 
             {/* OTP Input */}
@@ -253,12 +265,12 @@ export default function VerifyEmailPostSignup() {
                   ref={(ref) => (inputRefs.current[index] = ref)}
                   style={[
                     styles.otpInput,
-                    { 
+                    digit && styles.otpInputFilled,
+                    loading && styles.otpInputDisabled,
+                    {
+                      color: theme.textPrimary,
                       borderColor: digit ? theme.primary : theme.border,
-                      backgroundColor: digit ? theme.surface : theme.surfaceSecondary,
-                      color: theme.textPrimary
                     },
-                    loading && styles.otpInputDisabled
                   ]}
                   value={digit}
                   onChangeText={(value) => handleOtpChange(value, index)}
@@ -273,19 +285,19 @@ export default function VerifyEmailPostSignup() {
 
             {/* Verify Button */}
             <TouchableOpacity
-              style={[styles.verifyButton, loading && styles.verifyButtonDisabled]}
+              style={[styles.primaryButton, (loading || otp.some(digit => !digit)) && styles.primaryButtonDisabled]}
               onPress={() => verifyOTP()}
               disabled={loading || otp.some(digit => !digit)}
             >
               {loading ? (
                 <>
                   <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={styles.verifyButtonText}>Verifying...</Text>
+                  <Text style={styles.primaryButtonText}>Verifying...</Text>
                 </>
               ) : (
                 <>
-                  <Text style={styles.verifyButtonText}>Verify Email</Text>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>Verify email</Text>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
                 </>
               )}
             </TouchableOpacity>
@@ -296,7 +308,7 @@ export default function VerifyEmailPostSignup() {
               {canResend ? (
                 <TouchableOpacity onPress={resendOTP} disabled={resending}>
                   <Text style={[styles.resendLink, { color: theme.primary }]}>
-                    {resending ? 'Sending...' : 'Resend Code'}
+                    {resending ? 'Sending...' : 'Resend code'}
                   </Text>
                 </TouchableOpacity>
               ) : (
@@ -307,13 +319,13 @@ export default function VerifyEmailPostSignup() {
             </View>
 
             {/* Spam Warning Banner */}
-            <View style={styles.spamWarningBanner}>
+            <View style={[styles.spamWarningBanner, { backgroundColor: isDarkMode ? 'rgba(255,244,230,0.12)' : '#FFF4E6', borderColor: '#FF6B00' }]}> 
               <View style={styles.warningIconContainer}>
-                <Ionicons name="warning" size={24} color="#FF6B00" />
+                <Ionicons name="warning" size={20} color="#FF6B00" />
               </View>
               <View style={styles.warningTextContainer}>
-                <Text style={styles.warningTitle}>⚠️ Check Your Spam Folder</Text>
-                <Text style={styles.warningText}>
+                <Text style={[styles.warningTitle, { color: '#FF6B00' }]}>Check your spam folder</Text>
+                <Text style={[styles.warningText, { color: theme.textSecondary }]}>
                   OTP emails may land in spam. Please check your spam/junk folder if you don't see the email in your inbox.
                 </Text>
               </View>
@@ -321,7 +333,7 @@ export default function VerifyEmailPostSignup() {
           </View>
         </View>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -337,144 +349,136 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brandLogo: {
+    width: 28,
+    height: 28,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
   placeholder: {
-    width: 40,
+    width: 36,
   },
   content: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F8F9FA',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F1147',
+    fontSize: 22,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
+    lineHeight: 20,
+    marginBottom: 20,
   },
   emailText: {
     fontWeight: '600',
-    color: '#7C2B86',
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
-    gap: 12,
+    marginBottom: 16,
+    gap: 10,
   },
   otpInput: {
-    width: 45,
-    height: 55,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
+    width: 44,
+    height: 52,
     borderRadius: 12,
+    borderWidth: 1,
     textAlign: 'center',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#1F1147',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(161, 106, 232, 0.06)',
   },
   otpInputFilled: {
-    borderColor: '#7C2B86',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(161, 106, 232, 0.14)',
   },
   otpInputDisabled: {
     opacity: 0.6,
   },
-  verifyButton: {
-    backgroundColor: '#7C2B86',
-    borderRadius: 16,
+  primaryButton: {
+    backgroundColor: '#A16AE8',
+    borderRadius: 999,
     paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    marginBottom: 24,
-    shadowColor: '#7C2B86',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: '#A16AE8',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+    marginTop: 4,
   },
-  verifyButtonDisabled: {
-    backgroundColor: '#A0A0A0',
-    shadowColor: '#A0A0A0',
+  primaryButtonDisabled: {
+    opacity: 0.6,
   },
-  verifyButtonText: {
+  primaryButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   resendSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 16,
   },
   resendText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: 13,
+    marginBottom: 6,
   },
   resendLink: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#7C2B86',
   },
   countdownText: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 13,
   },
   spamWarningBanner: {
-    backgroundColor: '#FFF4E6',
-    borderWidth: 2,
-    borderColor: '#FF6B00',
+    borderWidth: 1,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginTop: 8,
+    gap: 10,
+    marginTop: 16,
   },
   warningIconContainer: {
     marginTop: 2,
@@ -483,15 +487,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   warningTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#FF6B00',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   warningText: {
     fontSize: 13,
-    color: '#8B4000',
     lineHeight: 18,
-    fontWeight: '500',
   },
 });

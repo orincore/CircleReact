@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, KeyboardAvoidingView, ScrollView, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { http } from '@/src/api/http';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -12,6 +12,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const { theme, isDarkMode } = useTheme();
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -163,16 +164,24 @@ export default function ForgotPassword() {
     );
   }
 
-  // Mobile UI (existing design)
+  // Mobile UI with new theme-based design
   return (
-    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}> 
+            <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reset Password</Text>
+          <View style={styles.brandRow}>
+            <Image 
+              source={require('@/assets/logo/circle-logo.png')} 
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Circle</Text>
+          </View>
           <View style={styles.placeholder} />
         </View>
 
@@ -186,95 +195,115 @@ export default function ForgotPassword() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.content}>
-              {/* Icon */}
-              <View style={styles.iconContainer}>
-                <Ionicons name="lock-closed" size={64} color="#7C2B86" />
+              {/* Title and Description */}
+              <View style={styles.titleBlock}>
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Reset your password</Text>
+                <Text style={[styles.description, { color: theme.textSecondary }]}>
+                  Enter your email address and we'll send you a verification code to reset your password.
+                </Text>
               </View>
 
-              {/* Title and Description */}
-              <Text style={styles.title}>Forgot Your Password? 🔒</Text>
-              <Text style={styles.description}>
-                No worries! Enter your email address and we'll send you a verification code to reset your password.
-              </Text>
+              {/* Main card */}
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                {/* Success Message */}
+                {success && (
+                  <View style={[styles.successBanner, { backgroundColor: isDarkMode ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)', borderColor: '#10b981' }]}>
+                    <Ionicons name="checkmark-circle" size={22} color="#10b981" />
+                    <View style={styles.successTextContainer}>
+                      <Text style={[styles.successTitle, { color: '#10b981' }]}>Reset code sent</Text>
+                      <Text style={[styles.successText, { color: theme.textSecondary }]}>
+                        Check your email for the 6-digit code. Redirecting...
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
-              {/* Success Message */}
-              {success && (
-                <View style={styles.successBanner}>
-                  <Ionicons name="checkmark-circle" size={24} color="#10b981" />
-                  <View style={styles.successTextContainer}>
-                    <Text style={styles.successTitle}>Reset Code Sent! 📧</Text>
-                    <Text style={styles.successText}>
-                      Check your email for the 6-digit code. Redirecting...
-                    </Text>
+                {/* Error Message */}
+                {error && !success && (
+                  <View style={[styles.errorBanner, { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }]}>
+                    <Ionicons name="alert-circle" size={20} color="#ef4444" />
+                    <Text style={[styles.errorText, { color: '#ef4444' }]}>{error}</Text>
+                  </View>
+                )}
+
+                {/* Email Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email address</Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.background,
+                        borderColor: error ? '#ef4444' : theme.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="mail-outline" size={18} color={error ? '#ef4444' : theme.primary} />
+                    <TextInput
+                      style={[styles.input, { color: theme.textPrimary }]}
+                      value={email}
+                      onChangeText={(text) => {
+                        setEmail(text);
+                        setError('');
+                      }}
+                      placeholder="you@example.com"
+                      placeholderTextColor={theme.textTertiary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!loading && !success}
+                    />
                   </View>
                 </View>
-              )}
 
-              {/* Error Message */}
-              {error && !success && (
-                <View style={styles.errorBanner}>
-                  <Ionicons name="alert-circle" size={20} color="#ef4444" />
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              {/* Email Input */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email Address</Text>
-                <TextInput
-                  style={[styles.input, error && styles.inputError]}
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError('');
-                  }}
-                  placeholder="Enter your email address"
-                  placeholderTextColor="#A0A0A0"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading && !success}
-                />
+                {/* Send Code Button */}
+                <TouchableOpacity
+                  style={[styles.sendButton, (loading || success) && styles.sendButtonDisabled]}
+                  onPress={handleSendResetCode}
+                  disabled={loading || success}
+                >
+                  {loading ? (
+                    <>
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <Text style={styles.sendButtonText}>Sending code...</Text>
+                    </>
+                  ) : success ? (
+                    <>
+                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                      <Text style={styles.sendButtonText}>Code sent</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.sendButtonText}>Send reset code</Text>
+                      <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
-
-              {/* Send Code Button */}
-              <TouchableOpacity
-                style={[styles.sendButton, (loading || success) && styles.sendButtonDisabled]}
-                onPress={handleSendResetCode}
-                disabled={loading || success}
-              >
-                {loading ? (
-                  <>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.sendButtonText}>Sending Code...</Text>
-                  </>
-                ) : success ? (
-                  <>
-                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    <Text style={styles.sendButtonText}>Code Sent!</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.sendButtonText}>Send Reset Code</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                  </>
-                )}
-              </TouchableOpacity>
 
               {/* Back to Login */}
               <TouchableOpacity
                 style={styles.backToLoginButton}
                 onPress={() => router.back()}
               >
-                <Text style={styles.backToLoginText}>
-                  Remember your password? <Text style={styles.backToLoginLink}>Sign In</Text>
+                <Text style={[styles.backToLoginText, { color: theme.textSecondary }]}>
+                  Remember your password?{' '}
+                  <Text style={[styles.backToLoginLink, { color: theme.primary }]}>Sign in</Text>
                 </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -440,7 +469,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  // Mobile styles (existing)
+  // Mobile styles (new theme-based)
   container: {
     flex: 1,
   },
@@ -452,107 +481,108 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brandLogo: {
+    width: 28,
+    height: 28,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
   },
   placeholder: {
-    width: 40,
+    width: 36,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignSelf: 'center',
-    justifyContent: 'center',
+  titleBlock: {
+    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 12,
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 6,
   },
   description: {
-    fontSize: 16,
-    color: '#E0E0E0',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    marginTop: 8,
   },
   inputContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  sendButton: {
-    backgroundColor: '#7C2B86',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+  },
+  sendButton: {
+    backgroundColor: '#A16AE8',
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    marginBottom: 24,
-    shadowColor: '#7C2B86',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: '#A16AE8',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 8,
+    marginTop: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: '#A0A0A0',
-    shadowColor: '#A0A0A0',
+    opacity: 0.6,
   },
   sendButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   backToLoginButton: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   backToLoginText: {
-    fontSize: 16,
-    color: '#E0E0E0',
+    fontSize: 14,
   },
   backToLoginLink: {
-    color: '#7C2B86',
     fontWeight: '600',
   },
   keyboardView: {
@@ -564,42 +594,35 @@ const styles = StyleSheet.create({
   successBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 2,
-    borderColor: '#10b981',
+    borderWidth: 1,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    gap: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
   },
   successTextContainer: {
     flex: 1,
   },
   successTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#10b981',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   successText: {
-    fontSize: 14,
-    color: '#6ee7b7',
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 2,
-    borderColor: '#ef4444',
+    borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 24,
+    padding: 10,
+    marginBottom: 16,
     gap: 8,
   },
   errorText: {
-    fontSize: 14,
-    color: '#fca5a5',
+    fontSize: 13,
     flex: 1,
     fontWeight: '500',
   },

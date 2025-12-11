@@ -1,15 +1,16 @@
 import { http } from '@/src/api/http';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ResetPasswordOTP() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { email } = params;
+  const { theme, isDarkMode } = useTheme();
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -257,102 +258,163 @@ export default function ResetPasswordOTP() {
     );
   }
 
-  // Mobile UI (existing design)
+  // Mobile UI with new theme-based design
   return (
-    <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}> 
+            <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verify Reset Code</Text>
+          <View style={styles.brandRow}>
+            <Image 
+              source={require('@/assets/logo/circle-logo.png')} 
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Circle</Text>
+          </View>
           <View style={styles.placeholder} />
         </View>
 
-        <View style={styles.content}>
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            <Ionicons name="shield-checkmark" size={64} color="#7C2B86" />
-          </View>
-
-          <Text style={styles.title}>Enter Reset Code 🔐</Text>
-          <Text style={styles.description}>
-            We've sent a 6-digit reset code to {email}. Enter it below to continue.
-          </Text>
-
-          {/* OTP Input */}
-          <View style={styles.otpContainer}>
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={ref => inputRefs.current[index] = ref}
-                style={[
-                  styles.otpInput,
-                  digit && styles.otpInputFilled,
-                  loading && styles.otpInputDisabled
-                ]}
-                value={digit}
-                onChangeText={(value) => handleOtpChange(value, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-                keyboardType="numeric"
-                maxLength={1}
-                selectTextOnFocus
-                editable={!loading}
-              />
-            ))}
-          </View>
-
-          {/* Verify Button */}
-          <TouchableOpacity
-            style={[styles.verifyButton, loading && styles.verifyButtonDisabled]}
-            onPress={() => verifyOTP()}
-            disabled={loading || otp.join('').length !== 6}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {loading ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.verifyButtonText}>Verifying...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.verifyButtonText}>Verify Code</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Resend Section */}
-          <View style={styles.resendSection}>
-            <Text style={styles.resendText}>Didn't receive the code?</Text>
-            {canResend ? (
-              <TouchableOpacity onPress={resendOTP} disabled={resending}>
-                <Text style={styles.resendLink}>
-                  {resending ? 'Sending...' : 'Resend Code'}
+            <View style={styles.content}>
+              {/* Title & description */}
+              <View style={styles.titleBlock}>
+                <Text style={[styles.title, { color: theme.textPrimary }]}>Verify reset code</Text>
+                <Text style={[styles.description, { color: theme.textSecondary }]}>
+                  We've sent a 6-digit reset code to {email}. Enter it below to continue.
                 </Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.countdownText}>
-                Resend in {countdown}s
-              </Text>
-            )}
-          </View>
+              </View>
 
-          {/* Spam Warning Banner */}
-          <View style={styles.spamWarningBanner}>
-            <View style={styles.warningIconContainer}>
-              <Ionicons name="warning" size={24} color="#FF6B00" />
+              {/* Card with OTP + state */}
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                {/* Success banner */}
+                {success && (
+                  <View
+                    style={[
+                      styles.successBanner,
+                      {
+                        backgroundColor: isDarkMode
+                          ? 'rgba(16,185,129,0.16)'
+                          : 'rgba(16,185,129,0.08)',
+                        borderColor: '#10b981',
+                      },
+                    ]}
+                  >
+                    <View style={styles.successIconWrapper}>
+                      <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    </View>
+                    <View style={styles.successTextContainer}>
+                      <Text style={[styles.successTitle, { color: '#10b981' }]}>Code verified</Text>
+                      <Text style={[styles.successText, { color: theme.textSecondary }]}>
+                        Redirecting to set your new password.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Error banner */}
+                {error && !success && (
+                  <View style={[styles.errorBanner, { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }]}> 
+                    <Ionicons name="alert-circle" size={18} color="#ef4444" />
+                    <Text style={[styles.errorText, { color: '#ef4444' }]}>{error}</Text>
+                  </View>
+                )}
+
+                {/* OTP Input */}
+                <View style={styles.otpContainer}>
+                  {otp.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={ref => inputRefs.current[index] = ref}
+                      style={[
+                        styles.otpInput,
+                        digit && styles.otpInputFilled,
+                        loading && styles.otpInputDisabled,
+                      ]}
+                      value={digit}
+                      onChangeText={(value) => handleOtpChange(value, index)}
+                      onKeyPress={(e) => handleKeyPress(e, index)}
+                      keyboardType="numeric"
+                      maxLength={1}
+                      selectTextOnFocus
+                      editable={!loading}
+                    />
+                  ))}
+                </View>
+
+                {/* Verify Button */}
+                <TouchableOpacity
+                  style={[styles.primaryButton, (loading || otp.join('').length !== 6) && styles.primaryButtonDisabled]}
+                  onPress={() => verifyOTP()}
+                  disabled={loading || otp.join('').length !== 6}
+                >
+                  {loading ? (
+                    <>
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <Text style={styles.primaryButtonText}>Verifying...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.primaryButtonText}>Verify code</Text>
+                      <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Resend Section */}
+                <View style={styles.resendSection}>
+                  <Text style={[styles.resendText, { color: theme.textSecondary }]}>Didn't receive the code?</Text>
+                  {canResend ? (
+                    <TouchableOpacity onPress={resendOTP} disabled={resending}>
+                      <Text style={[styles.resendLink, { color: theme.primary }]}>
+                        {resending ? 'Sending...' : 'Resend code'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={[styles.countdownText, { color: theme.textTertiary }]}>
+                      Resend in {countdown}s
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Spam Warning Banner */}
+              <View style={[styles.spamWarningBanner, { backgroundColor: isDarkMode ? 'rgba(255,244,230,0.12)' : '#FFF4E6', borderColor: '#FF6B00' }]}> 
+                <View style={styles.warningIconContainer}>
+                  <Ionicons name="warning" size={20} color="#FF6B00" />
+                </View>
+                <View style={styles.warningTextContainer}>
+                  <Text style={[styles.warningTitle, { color: '#FF6B00' }]}>Check your spam folder</Text>
+                  <Text style={[styles.warningText, { color: theme.textSecondary }]}>
+                    OTP emails may land in spam. Please check your spam/junk folder if you don't see the email in your inbox.
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.warningTextContainer}>
-              <Text style={styles.warningTitle}>⚠️ Check Your Spam Folder</Text>
-              <Text style={styles.warningText}>
-                OTP emails may land in spam. Please check your spam/junk folder if you don't see the email in your inbox.
-              </Text>
-            </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -552,7 +614,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Mobile styles (existing)
+  // Mobile styles (new theme-based)
   container: {
     flex: 1,
   },
@@ -564,131 +626,133 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brandLogo: {
+    width: 28,
+    height: 28,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
   },
   placeholder: {
-    width: 40,
+    width: 36,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignSelf: 'center',
-    justifyContent: 'center',
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  titleBlock: {
+    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 12,
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 6,
   },
   description: {
-    fontSize: 16,
-    color: '#E0E0E0',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    marginTop: 8,
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 18,
+    columnGap: 10,
   },
   otpInput: {
-    width: 45,
-    height: 55,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    width: 46,
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: 'rgba(161, 106, 232, 0.06)',
+    borderColor: 'rgba(161, 106, 232, 0.25)',
     textAlign: 'center',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   otpInputFilled: {
-    borderColor: '#7C2B86',
-    backgroundColor: 'rgba(124, 43, 134, 0.2)',
+    borderColor: '#A16AE8',
+    backgroundColor: 'rgba(161, 106, 232, 0.14)',
   },
   otpInputDisabled: {
     opacity: 0.6,
   },
-  verifyButton: {
-    backgroundColor: '#7C2B86',
-    borderRadius: 12,
+  primaryButton: {
+    backgroundColor: '#A16AE8',
+    borderRadius: 999,
     paddingVertical: 16,
-    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginBottom: 24,
-    shadowColor: '#7C2B86',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: '#A16AE8',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 8,
+    marginTop: 4,
   },
-  verifyButtonDisabled: {
-    backgroundColor: '#A0A0A0',
-    shadowColor: '#A0A0A0',
+  primaryButtonDisabled: {
+    opacity: 0.6,
   },
-  verifyButtonText: {
-    fontSize: 18,
+  primaryButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   resendSection: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 10,
   },
   resendText: {
-    fontSize: 16,
-    color: '#E0E0E0',
-    marginBottom: 8,
+    fontSize: 13,
+    marginBottom: 6,
   },
   resendLink: {
-    fontSize: 16,
-    color: '#7C2B86',
+    fontSize: 13,
     fontWeight: '600',
   },
   countdownText: {
-    fontSize: 16,
-    color: '#A0A0A0',
+    fontSize: 13,
   },
   spamWarningBanner: {
-    backgroundColor: '#FFF4E6',
-    borderWidth: 2,
-    borderColor: '#FF6B00',
+    borderWidth: 1,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginTop: 24,
+    gap: 10,
+    marginTop: 20,
   },
   warningIconContainer: {
     marginTop: 2,
@@ -697,15 +761,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   warningTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#FF6B00',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   warningText: {
     fontSize: 13,
-    color: '#8B4000',
     lineHeight: 18,
-    fontWeight: '500',
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+    gap: 8,
+  },
+  successIconWrapper: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  successTextContainer: {
+    flex: 1,
+  },
+  successTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 1,
+  },
+  successText: {
+    fontSize: 12.5,
+    lineHeight: 17,
   },
 });

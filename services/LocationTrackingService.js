@@ -6,7 +6,12 @@ import * as TaskManager from 'expo-task-manager';
 const LOCATION_TASK_NAME = 'background-location-task';
 const LOCATION_TRACKING_KEY = 'location_tracking_enabled';
 const LAST_LOCATION_UPDATE_KEY = 'last_location_update';
-const MIN_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const NEARBY_CHECK_KEY = 'last_nearby_check';
+
+// Random interval between 15-30 minutes for battery efficiency
+const MIN_UPDATE_INTERVAL = 15 * 60 * 1000; // 15 minutes minimum
+const MAX_UPDATE_INTERVAL = 30 * 60 * 1000; // 30 minutes maximum
+const getRandomInterval = () => Math.floor(Math.random() * (MAX_UPDATE_INTERVAL - MIN_UPDATE_INTERVAL + 1)) + MIN_UPDATE_INTERVAL;
 
 // Define the background task
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
@@ -27,22 +32,22 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
 });
 
-// Handle location updates with rate limiting
+// Handle location updates with rate limiting and nearby user detection
 async function handleLocationUpdate(coords) {
   try {
-    // Check if enough time has passed since last update
+    // Check if enough time has passed since last update (use random interval)
     const lastUpdateTime = await AsyncStorage.getItem(LAST_LOCATION_UPDATE_KEY);
     const now = Date.now();
+    const currentInterval = getRandomInterval();
     
-    if (lastUpdateTime && (now - parseInt(lastUpdateTime)) < MIN_UPDATE_INTERVAL) {
-      //console.log('⏰ Skipping location update - too soon since last update');
+    if (lastUpdateTime && (now - parseInt(lastUpdateTime)) < currentInterval) {
+      // Too soon since last update
       return;
     }
 
     // Get stored auth token (using the same key as AuthContext)
     const token = await AsyncStorage.getItem('@circle:access_token');
     if (!token) {
-      //console.log('❌ No auth token found for location update');
       return;
     }
 
@@ -50,20 +55,56 @@ async function handleLocationUpdate(coords) {
     const locationData = {
       latitude: coords.latitude,
       longitude: coords.longitude,
-      // Note: accuracy and timestamp are not part of LocationInput schema
     };
-
-    
     
     await updateLocationGql(locationData, token);
     
     // Store last update time
     await AsyncStorage.setItem(LAST_LOCATION_UPDATE_KEY, now.toString());
     
-    //console.log('✅ Location updated successfully in background');
+    // Check for nearby Circle users and send notifications (every 15-30 mins)
+    try {
+      await checkNearbyUsersAndNotify(coords.latitude, coords.longitude, token);
+    } catch (nearbyError) {
+      console.error('Failed to check nearby users:', nearbyError);
+    }
     
   } catch (error) {
     console.error('❌ Failed to update location in background:', error);
+  }
+}
+
+// Check for nearby Circle users within 3km and trigger notifications
+async function checkNearbyUsersAndNotify(latitude, longitude, token) {
+  try {
+    const { API_BASE_URL } = await import('@/src/config/api');
+    
+    const response = await fetch(`${API_BASE_URL}/api/location/check-nearby`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        latitude,
+        longitude,
+        radiusKm: 3, // 3km radius
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Nearby check failed:', errorText);
+      return;
+    }
+
+    const result = await response.json();
+    
+    if (result.success && result.nearbyUsersNotified > 0) {
+      console.log(`📍 Found ${result.nearbyUsersNotified} nearby users, notifications sent`);
+    }
+  } catch (error) {
+    console.error('Error checking nearby users:', error);
   }
 }
 
@@ -128,16 +169,16 @@ class LocationTrackingService {
         throw new Error('Location permissions required for tracking');
       }
 
-      // Start background location updates
+      // Start background location updates with 15-30 min random interval
       if (typeof Location.startLocationUpdatesAsync === 'function') {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
           accuracy: Location.Accuracy.Balanced, // Good balance of accuracy and battery
-          timeInterval: MIN_UPDATE_INTERVAL, // 5 minutes
-          distanceInterval: 100, // Update if moved 100 meters
+          timeInterval: MIN_UPDATE_INTERVAL, // 15 minutes minimum (rate limiting done in handler)
+          distanceInterval: 500, // Update if moved 500 meters (more battery efficient)
           deferredUpdatesInterval: MIN_UPDATE_INTERVAL,
           foregroundService: {
             notificationTitle: 'Circle Location',
-            notificationBody: 'Updating your location for better matches',
+            notificationBody: 'Finding Circle users near you',
             notificationColor: '#7C2B86',
           },
           pausesUpdatesAutomatically: false, // Keep tracking even when stationary

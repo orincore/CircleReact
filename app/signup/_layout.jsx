@@ -17,6 +17,8 @@ export default function SignupLayout() {
     instagramUsername: "",
     interests: [],
     needs: [],
+    about: "",
+    profileImage: "",
   });
 
   const ctx = useMemo(() => ({ data, setData }), [data]);
@@ -26,9 +28,9 @@ export default function SignupLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="contact" />
-        <Stack.Screen name="about" />
         <Stack.Screen name="instagram" />
         <Stack.Screen name="interests" />
+        <Stack.Screen name="about" />
         <Stack.Screen name="summary" />
         <Stack.Screen name="google" />
       </Stack>

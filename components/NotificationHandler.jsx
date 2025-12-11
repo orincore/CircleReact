@@ -25,7 +25,7 @@ const NotificationHandler = () => {
       (notification) => {
         const { data } = notification.request.content;
         
-        if (data?.type === 'match_found') {
+        if (data?.type === 'match_found' || data?.type === 'help_request_accepted') {
           // Show alert for match found
           Alert.alert(
             '🎉 Helper Found!',
@@ -36,9 +36,9 @@ const NotificationHandler = () => {
                 text: 'Start Chat',
                 onPress: () => {
                   if (data.chatId) {
-                    router.push({
+                    router.replace({
                       pathname: '/secure/chat-conversation',
-                      params: { chatId: data.chatId },
+                      params: { id: data.chatId, isBlindDate: 'true' },
                     });
                   }
                 },
@@ -56,17 +56,51 @@ const NotificationHandler = () => {
         
         switch (data?.type) {
           case 'match_found':
+          case 'help_request_accepted':
+            // Navigate directly to chat for help connect matches (use isBlindDate for masked chat)
+            if (data.chatId) {
+              router.replace({
+                pathname: '/secure/chat-conversation',
+                params: { id: data.chatId, isBlindDate: 'true' },
+              });
+            }
+            break;
+            
+          case 'new_message':
+          case 'message':
+            // Navigate to the specific chat conversation
             if (data.chatId) {
               router.push({
                 pathname: '/secure/chat-conversation',
-                params: { chatId: data.chatId },
+                params: { 
+                  id: data.chatId,
+                  name: data.senderName || 'Chat',
+                  avatar: data.senderAvatar || ''
+                },
               });
+            } else {
+              // Fallback to chat list if no chatId
+              router.push('/secure/(tabs)/chats');
             }
             break;
             
           case 'help_request':
             // Navigate to giver request modal or match screen
             router.push('/secure/(tabs)/match');
+            break;
+            
+          case 'nearby_user':
+            // Navigate to the nearby user's profile (use main profile route)
+            if (data.userId) {
+              router.push(`/secure/user-profile/${data.userId}`);
+            } else {
+              router.push('/secure/(tabs)/match');
+            }
+            break;
+            
+          case 'friend_request':
+            // Navigate to friends screen
+            router.push('/secure/(tabs)/friends');
             break;
             
           case 'search_update':

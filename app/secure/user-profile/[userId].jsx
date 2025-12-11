@@ -83,6 +83,7 @@ export default function UserProfileScreen() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState('');
   const [reportReason, setReportReason] = useState('');
+  const [showAllInterests, setShowAllInterests] = useState(false);
   
   const photoScrollViewRef = useRef(null);
 
@@ -904,15 +905,19 @@ export default function UserProfileScreen() {
             <View style={dynamicStyles.interestsCard}>
               <Text style={dynamicStyles.sectionTitle}>Interests</Text>
               <View style={styles.interestsGrid}>
-                {userInterests.slice(0, 8).map((interest, index) => (
+                {(showAllInterests ? userInterests : userInterests.slice(0, 8)).map((interest, index) => (
                   <View key={index} style={dynamicStyles.interestChip}>
                     <Text style={dynamicStyles.interestText}>{interest}</Text>
                   </View>
                 ))}
-                {userInterests.length > 8 && (
-                  <View style={styles.moreInterestsChip}>
+                {!showAllInterests && userInterests.length > 8 && (
+                  <TouchableOpacity
+                    style={styles.moreInterestsChip}
+                    onPress={() => setShowAllInterests(true)}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.moreInterestsText}>+{userInterests.length - 8} more</Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>

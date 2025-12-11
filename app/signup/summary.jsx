@@ -3,10 +3,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { socialAccountsApi } from "@/src/api/social-accounts";
 import { ProfilePictureService } from "@/src/services/profilePictureService";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, StatusBar, BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupWizardContext } from "./_layout";
 
@@ -142,219 +141,304 @@ export default function SignupSummary() {
   }, [shimmer]);
   const shimmerTranslate = shimmer.interpolate({ inputRange: [0,1], outputRange: [-40, 40] });
 
-  // Confetti burst on mount
-  const { width } = Dimensions.get('window');
-  const [confetti] = useState(() => Array.from({ length: 18 }, (_, i) => ({
-    key: `c${i}`,
-    left: Math.floor(Math.random() * Math.max(220, Math.min(width - 48, 320))),
-    delay: Math.floor(Math.random() * 350),
-    color: ["#FFD6F2", "#E9E6FF", "#FFF6FB", "#D1C9FF"][i % 4],
-    size: 6 + Math.floor(Math.random() * 8),
-  })));
-  const confettiAnim = useRef(confetti.map(() => new Animated.Value(0))).current;
+  // Restrict hardware back on this summary screen
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Consume back press so user can't navigate back into signup flow
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
+
+  // Entrance animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    const animations = confettiAnim.map((val, idx) => (
-      Animated.timing(val, { toValue: 1, duration: 1200 + Math.floor(Math.random()*500), delay: confetti[idx].delay, easing: Easing.out(Easing.quad), useNativeDriver: true })
-    ));
-    Animated.stagger(60, animations).start();
-  }, [confettiAnim, confetti]);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Dynamic styles matching other signup screens
+  const dynamicStyles = {
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 24,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+  };
 
   return (
-    <LinearGradient colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]} style={styles.container}>
+    <View style={dynamicStyles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Account Summary</Text>
-        </View>
-
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
-            {/* Success Card */}
-            <View style={[styles.successCard, { backgroundColor: theme.surface }]}>
-              <View style={styles.successIcon}>
-                <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
-              </View>
-              <Text style={[styles.successTitle, { color: theme.textPrimary }]}>Account Created Successfully! 🎉</Text>
-              <Text style={[styles.successSubtitle, { color: theme.textSecondary }]}>
-                Your Circle account has been created. {missingInfo.length > 0 ? 'Complete your profile below, then verify your email.' : 'Please verify your email to start connecting with people.'}
-              </Text>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+            <View style={styles.headerLeft}>
+              <Image 
+                source={require('@/assets/logo/circle-logo.png')} 
+                style={styles.brandLogo}
+                resizeMode="contain"
+              />
+              <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
             </View>
+            <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
+              <Text style={[styles.stepText, { color: theme.textSecondary }]}>Complete</Text>
+            </View>
+          </Animated.View>
 
-            {/* Profile Summary Card */}
-            <View style={[styles.profileCard, { backgroundColor: theme.surface }]}>
+          {/* Welcome block */}
+          <Animated.View 
+            style={[
+              styles.welcomeBlock, 
+              { 
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Account created</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Your Circle account has been created successfully. Please verify your email to start connecting with people.
+            </Text>
+          </Animated.View>
 
-              {/* Profile Picture */}
-              {data.profileImage && (
-                <View style={styles.profileImageSection}>
-                  <View style={styles.profileImageContainer}>
-                    <Image source={{ uri: data.profileImage }} style={styles.profileImage} />
-                    <View style={styles.profileImageOverlay}>
-                      <Ionicons name="camera" size={20} color="#FFFFFF" />
+          {/* Success Card */}
+          <Animated.View 
+            style={[
+              dynamicStyles.card,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+                alignItems: 'center',
+              }
+            ]}
+          >
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+            </View>
+            <Text style={[styles.successTitle, { color: theme.textPrimary }]}>Welcome to Circle</Text>
+            <Text style={[styles.successSubtitle, { color: theme.textSecondary }]}>
+              {missingInfo.length > 0 ? 'Complete your profile below, then verify your email.' : 'Verify your email to start connecting with people.'}
+            </Text>
+          </Animated.View>
+
+          {/* Profile Summary Card */}
+          <Animated.View 
+            style={[
+              dynamicStyles.card,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+          >
+            {/* Profile Picture */}
+            {data.profileImage && (
+              <View style={styles.profileImageSection}>
+                <View style={styles.profileImageContainer}>
+                  <Image source={{ uri: data.profileImage }} style={styles.profileImage} />
+                  <View style={[styles.profileImageOverlay, { backgroundColor: theme.primary }]}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Basic Info */}
+            <View style={styles.infoSection}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Personal Information</Text>
+              
+              <View style={styles.infoRow}>
+                <View style={[styles.infoItem, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                  <Ionicons name="person" size={18} color={theme.primary} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Full Name</Text>
+                    <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.firstName} {displayData.lastName}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={[styles.infoItem, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                  <Ionicons name="mail" size={18} color={theme.primary} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Email</Text>
+                    <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.email}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={[styles.infoItem, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                  <Ionicons name="at" size={18} color={theme.primary} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Username</Text>
+                    <Text style={[styles.infoValue, { color: theme.textPrimary }]}>@{displayData.username}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.infoRowDouble}>
+                <View style={[styles.infoItemHalf, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                  <Ionicons name="calendar" size={18} color={theme.primary} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Age</Text>
+                    <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.age}</Text>
+                  </View>
+                </View>
+                <View style={[styles.infoItemHalf, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                  <Ionicons name="transgender" size={18} color={theme.primary} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Gender</Text>
+                    <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{formatTitleCase(displayData.gender)}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {displayData.phoneNumber && (
+                <View style={styles.infoRow}>
+                  <View style={[styles.infoItem, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : theme.surfaceSecondary, borderColor: theme.border }]}>
+                    <Ionicons name="call" size={18} color={theme.primary} />
+                    <View style={styles.infoText}>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Phone</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.countryCode} {displayData.phoneNumber}</Text>
                     </View>
                   </View>
                 </View>
               )}
+            </View>
 
-              {/* Basic Info */}
+            {/* About Section */}
+            {displayData.about && (
               <View style={styles.infoSection}>
-                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Personal Information</Text>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>About Me</Text>
+                <View
+                  style={[
+                    styles.aboutCard,
+                    {
+                      backgroundColor: isDarkMode
+                        ? 'rgba(255,255,255,0.05)'
+                        : theme.surfaceSecondary,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.aboutText, { color: theme.textSecondary }]}>
+                    {displayData.about}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Social Media */}
+            {displayData.instagramUsername && (
+              <View style={styles.infoSection}>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Social Media</Text>
+                <View style={styles.infoRow}>
+                  <View
+                    style={[
+                      styles.infoItem,
+                      {
+                        backgroundColor: isDarkMode
+                          ? 'rgba(255,255,255,0.05)'
+                          : theme.surfaceSecondary,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="logo-instagram" size={18} color="#E4405F" />
+                    <View style={styles.infoText}>
+                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Instagram</Text>
+                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
+                        @{displayData.instagramUsername}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Interests & Needs */}
+            {(Array.isArray(displayData.interests) && displayData.interests.length > 0) || (Array.isArray(displayData.needs) && displayData.needs.length > 0) ? (
+              <View style={styles.infoSection}>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Preferences</Text>
                 
-                <View style={styles.infoRow}>
-                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
-                    <Ionicons name="person" size={20} color={theme.primary} />
-                    <View style={styles.infoText}>
-                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Full Name</Text>
-                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.firstName} {displayData.lastName}</Text>
+                {Array.isArray(displayData.interests) && displayData.interests.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    <Text style={[styles.tagsLabel, { color: theme.textTertiary }]}>Interests</Text>
+                    <View style={styles.tagsWrapper}>
+                      {displayData.interests.map((interest, index) => (
+                        <View key={index} style={[styles.tag, { backgroundColor: isDarkMode ? 'rgba(161, 106, 232, 0.2)' : 'rgba(161, 106, 232, 0.1)', borderColor: theme.primary }]}>
+                          <Text style={[styles.tagText, { color: theme.primary }]}>{interest}</Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
-                </View>
+                )}
 
-                <View style={styles.infoRow}>
-                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
-                    <Ionicons name="mail" size={20} color={theme.primary} />
-                    <View style={styles.infoText}>
-                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Email</Text>
-                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.email}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <View style={[styles.infoItem, { backgroundColor: theme.surfaceSecondary }]}>
-                    <Ionicons name="at" size={20} color={theme.primary} />
-                    <View style={styles.infoText}>
-                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Username</Text>
-                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>@{displayData.username}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.infoRowDouble}>
-                  <View style={[styles.infoItemHalf, { backgroundColor: theme.surfaceSecondary }]}>
-                    <Ionicons name="calendar" size={20} color={theme.primary} />
-                    <View style={styles.infoText}>
-                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Age</Text>
-                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{displayData.age}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.infoItemHalf, { backgroundColor: theme.surfaceSecondary }]}>
-                    <Ionicons name="transgender" size={20} color={theme.primary} />
-                    <View style={styles.infoText}>
-                      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Gender</Text>
-                      <Text style={[styles.infoValue, { color: theme.textPrimary }]}>{formatTitleCase(displayData.gender)}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {displayData.phoneNumber && (
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoItem}>
-                      <Ionicons name="call" size={20} color="#7C2B86" />
-                      <View style={styles.infoText}>
-                        <Text style={styles.infoLabel}>Phone</Text>
-                        <Text style={styles.infoValue}>{displayData.countryCode} {displayData.phoneNumber}</Text>
-                      </View>
+                {Array.isArray(displayData.needs) && displayData.needs.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    <Text style={[styles.tagsLabel, { color: theme.textTertiary }]}>Looking For</Text>
+                    <View style={styles.tagsWrapper}>
+                      {displayData.needs.map((need, index) => (
+                        <View key={index} style={[styles.tag, styles.needTag, { backgroundColor: isDarkMode ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)', borderColor: '#EC4899' }]}>
+                          <Text style={[styles.tagText, styles.needTagText, { color: '#EC4899' }]}>{need}</Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
                 )}
               </View>
+            ) : null}
+          </Animated.View>
 
-              {/* About Section */}
-              {displayData.about && (
-                <View style={styles.infoSection}>
-                  <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>About Me</Text>
-                  <View
-                    style={[
-                      styles.aboutCard,
-                      {
-                        backgroundColor: isDarkMode
-                          ? 'rgba(255,255,255,0.06)'
-                          : theme.surfaceSecondary,
-                        borderColor: isDarkMode
-                          ? 'rgba(255,255,255,0.12)'
-                          : 'rgba(0,0,0,0.04)',
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.aboutText, { color: theme.textSecondary }]}>
-                      {displayData.about}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Social Media */}
-              {displayData.instagramUsername && (
-                <View style={styles.infoSection}>
-                  <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Social Media</Text>
-                  <View style={styles.infoRow}>
-                    <View
-                      style={[
-                        styles.infoItem,
-                        {
-                          backgroundColor: isDarkMode
-                            ? 'rgba(255,255,255,0.06)'
-                            : theme.surfaceSecondary,
-                        },
-                      ]}
-                    >
-                      <Ionicons name="logo-instagram" size={20} color="#E4405F" />
-                      <View style={styles.infoText}>
-                        <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>Instagram</Text>
-                        <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
-                          @{displayData.instagramUsername}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {/* Interests & Needs */}
-              {(Array.isArray(displayData.interests) && displayData.interests.length > 0) || (Array.isArray(displayData.needs) && displayData.needs.length > 0) ? (
-                <View style={styles.infoSection}>
-                  <Text style={styles.sectionTitle}>Preferences</Text>
-                  
-                  {Array.isArray(displayData.interests) && displayData.interests.length > 0 && (
-                    <View style={styles.tagsContainer}>
-                      <Text style={styles.tagsLabel}>Interests</Text>
-                      <View style={styles.tagsWrapper}>
-                        {displayData.interests.map((interest, index) => (
-                          <View key={index} style={styles.tag}>
-                            <Text style={styles.tagText}>{interest}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {Array.isArray(displayData.needs) && displayData.needs.length > 0 && (
-                    <View style={styles.tagsContainer}>
-                      <Text style={styles.tagsLabel}>Looking For</Text>
-                      <View style={styles.tagsWrapper}>
-                        {displayData.needs.map((need, index) => (
-                          <View key={index} style={[styles.tag, styles.needTag]}>
-                            <Text style={[styles.tagText, styles.needTagText]}>{need}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              ) : null}
-            </View>
-
+          {/* Verify Email Button */}
+          <Animated.View style={{ transform: [{ scale: buttonScale }], marginTop: 8 }}>
             <TouchableOpacity 
-              style={[
-                styles.cta,
-                {
-                  backgroundColor: isDarkMode ? '#000000' : '#FFFFFF',
-                  borderColor: isDarkMode ? '#FFFFFF' : '#7C2B86',
-                },
-              ]}
+              activeOpacity={0.85}
+              style={styles.primaryButton}
               onPress={() => {
-                // Navigate directly to email verification
-                //console.log('📧 Redirecting to email verification...');
+                Animated.sequence([
+                  Animated.spring(buttonScale, {
+                    toValue: 0.95,
+                    useNativeDriver: true,
+                  }),
+                  Animated.spring(buttonScale, {
+                    toValue: 1,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                ]).start();
                 router.replace({
                   pathname: '/auth/verify-email-post-signup',
                   params: {
@@ -364,265 +448,162 @@ export default function SignupSummary() {
                 });
               }}
             >
-              <Text
-                style={[
-                  styles.ctaText,
-                  { color: isDarkMode ? '#FFFFFF' : '#000000' },
-                ]}
-              >
-                Verify Email Address 📧
-              </Text>
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color={isDarkMode ? '#FFFFFF' : '#000000'}
-              />
+              <Text style={styles.primaryButtonText}>Verify Email Address</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  safeArea: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  
+  header: { 
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center",
+    marginBottom: 24,
   },
-  safeArea: { 
-    flex: 1,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  brandLogo: { 
+    width: 32, 
+    height: 32,
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  appName: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+  },
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  stepText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
-  placeholder: {
-    width: 40,
+  
+  welcomeBlock: { marginBottom: 20, gap: 8 },
+  title: { 
+    fontSize: 32, 
+    fontWeight: "800",
+    lineHeight: 38,
   },
-  scrollView: {
-    flex: 1,
+  subtitle: { 
+    fontSize: 16, 
+    lineHeight: 22,
   },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  successCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
+  
   successIcon: {
     marginBottom: 16,
   },
   successTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1F1147',
     textAlign: 'center',
     marginBottom: 8,
   },
   successSubtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
-  },
-  warningCard: {
-    backgroundColor: '#FFF3E0',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#FF9800',
-    shadowColor: '#FF9800',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  warningHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  warningTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#E65100',
-  },
-  warningSubtitle: {
-    fontSize: 14,
-    color: '#E65100',
-    marginBottom: 16,
     lineHeight: 20,
-  },
-  missingList: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  missingItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-  },
-  missingText: {
-    flex: 1,
-  },
-  missingField: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E65100',
-    marginBottom: 2,
-  },
-  missingMessage: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-  },
-  completeButton: {
-    backgroundColor: '#FF9800',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  completeButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  profileCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
   },
   profileImageSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   profileImageContainer: {
     position: 'relative',
   },
   profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   profileImageOverlay: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#7C2B86',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
   },
   infoSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1F1147',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   infoRow: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   infoRowDouble: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 10,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
+    borderWidth: 1,
   },
   infoItemHalf: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
     borderRadius: 12,
-    padding: 16,
-    flex: 0.48,
+    padding: 14,
+    flex: 1,
+    borderWidth: 1,
   },
   infoText: {
     marginLeft: 12,
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#666',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F1147',
-  },
-  aboutCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-  },
-  aboutText: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-  },
-  tagsContainer: {
-    marginBottom: 16,
-  },
-  tagsLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+  },
+  aboutCard: {
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+  },
+  aboutText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  tagsContainer: {
+    marginBottom: 12,
+  },
+  tagsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     marginBottom: 8,
   },
   tagsWrapper: {
@@ -631,44 +612,36 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tag: {
-    backgroundColor: '#E3F2FD',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    borderWidth: 1,
   },
   tagText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1976D2',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  needTag: {
-    backgroundColor: '#FCE4EC',
+  needTag: {},
+  needTagText: {},
+  
+  primaryButton: { 
+    backgroundColor: "#A16AE8",
+    borderRadius: 999, 
+    paddingVertical: 18, 
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#A16AE8",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  needTagText: {
-    color: '#C2185B',
-  },
-  cta: { 
-    backgroundColor: '#7C2B86',
-    borderRadius: 18,
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 16,
-    borderWidth: 2,
-    borderColor: '#FFD54F',
-    shadowColor: '#FFD54F',
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  ctaText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#FFFFFF', 
-    letterSpacing: 0.5 
+  primaryButtonText: { 
+    fontSize: 17, 
+    fontWeight: "800", 
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
 });

@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useTheme } from '@/contexts/ThemeContext'
 import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 
@@ -20,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient'
  */
 export default function ProfilePictureUpload({ currentImage, onImageSelected, size = 120 }) {
   const [loading, setLoading] = useState(false)
+  const { theme, isDarkMode } = useTheme()
 
   /**
    * Request permissions
@@ -136,7 +138,17 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.photoContainer, { width: size, height: size, borderRadius: size / 2 }]}
+        style={[
+          styles.photoContainer,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderColor: theme.primary,
+            backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.surface,
+            shadowColor: theme.shadowColor || '#000',
+          },
+        ]}
         onPress={showUploadOptions}
         disabled={loading}
       >
@@ -153,41 +165,59 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
             </TouchableOpacity>
           </>
         ) : (
-          <LinearGradient
-            colors={['#FFD6F2', '#E9E6FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.placeholderGradient}
-          >
-            <View style={styles.placeholderContainer}>
+          <View style={styles.placeholderOuter}>
+            <View style={styles.placeholderInner}>
               {loading ? (
-                <ActivityIndicator size="large" color="#7C2B86" />
+                <ActivityIndicator size="large" color={theme.primary} />
               ) : (
                 <>
-                  <Ionicons name="person" size={size * 0.4} color="#7C2B86" />
-                  <View style={styles.cameraIconContainer}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={size * 0.45}
+                    color={isDarkMode ? theme.textSecondary : theme.textPrimary}
+                  />
+                  <View
+                    style={[
+                      styles.cameraIconContainer,
+                      {
+                        backgroundColor: theme.primary,
+                        borderColor: theme.surface,
+                      },
+                    ]}
+                  >
                     <Ionicons name="camera" size={size * 0.2} color="#FFFFFF" />
                   </View>
                 </>
               )}
             </View>
-          </LinearGradient>
+          </View>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.uploadButton}
+        style={[
+          styles.uploadButton,
+          {
+            borderColor: theme.primary,
+            backgroundColor: isDarkMode ? 'transparent' : theme.background,
+          },
+        ]}
         onPress={showUploadOptions}
         disabled={loading}
       >
-        <Ionicons name="cloud-upload-outline" size={18} color="#7C2B86" />
-        <Text style={styles.uploadButtonText}>
+        <Ionicons name="cloud-upload-outline" size={18} color={theme.primary} />
+        <Text style={[styles.uploadButtonText, { color: theme.primary }]}>
           {loading ? 'Loading...' : currentImage ? 'Change Photo' : 'Add Photo'}
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.helperText}>
-        {currentImage ? 'Tap to change or remove' : 'Required - Add a profile picture'}
+      <Text
+        style={[
+          styles.helperText,
+          { color: isDarkMode ? theme.textSecondary : theme.textTertiary },
+        ]}
+      >
+        {currentImage ? 'Tap to change or remove' : 'You can add a profile picture now or later.'}
       </Text>
     </View>
   )
@@ -200,27 +230,24 @@ const styles = StyleSheet.create({
   },
   photoContainer: {
     overflow: 'hidden',
-    backgroundColor: '#F5F5F5',
-    borderWidth: 3,
-    borderColor: '#7C2B86',
+    borderWidth: 2,
     position: 'relative',
-    shadowColor: '#7C2B86',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   photo: {
     width: '100%',
     height: '100%',
   },
-  placeholderGradient: {
+  placeholderOuter: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderContainer: {
+  placeholderInner: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
@@ -231,14 +258,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: '15%',
     right: '15%',
-    backgroundColor: '#7C2B86',
     borderRadius: 20,
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   removeButton: {
     position: 'absolute',
@@ -258,18 +283,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#FFD6F2',
     borderRadius: 20,
     gap: 6,
+    borderWidth: 1,
   },
   uploadButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#7C2B86',
   },
   helperText: {
     fontSize: 11,
-    color: '#666',
     marginTop: 6,
     textAlign: 'center',
   },

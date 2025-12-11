@@ -28,17 +28,17 @@ const TEST_AD_UNITS = {
   },
 };
 
-// Production Ad Unit IDs (replace with your actual AdMob IDs)
+// Production Ad Unit IDs - Real AdMob IDs for Circle App
 const PRODUCTION_AD_UNITS = {
   ios: {
-    banner: process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER || TEST_AD_UNITS.ios.banner,
-    interstitial: process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL || TEST_AD_UNITS.ios.interstitial,
-    rewarded: process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED || TEST_AD_UNITS.ios.rewarded,
+    banner: 'ca-app-pub-7904629558122562/6437001476',
+    interstitial: 'ca-app-pub-7904629558122562/2215503678',
+    rewarded: 'ca-app-pub-7904629558122562/5546591635',
   },
   android: {
-    banner: process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER || TEST_AD_UNITS.android.banner,
-    interstitial: process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL || TEST_AD_UNITS.android.interstitial,
-    rewarded: process.env.EXPO_PUBLIC_ADMOB_ANDROID_REWARDED || TEST_AD_UNITS.android.rewarded,
+    banner: 'ca-app-pub-7904629558122562/9034368639',
+    interstitial: 'ca-app-pub-7904629558122562/1811125366',
+    rewarded: 'ca-app-pub-7904629558122562/7582326795',
   },
 };
 
