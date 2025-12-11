@@ -132,6 +132,13 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 5000,
+      "url": "https://your-backend-domain.com/api/updates/manifest"
+    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "router": {},
       "eas": {

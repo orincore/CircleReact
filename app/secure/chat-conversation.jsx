@@ -32,8 +32,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getSocket, socketService } from "@/src/api/socket";
 import { chatApi } from "@/src/api/chat";
-import { exploreApi } from "@/src/api/explore";
 import { reportsApi, REPORT_REASONS } from "@/src/api/reports";
+import { unreadCountService } from "@/src/services/unreadCountService";
 import { blindDatingApi } from "@/src/api/blindDating";
 import ReactionPicker from "@/src/components/ReactionPicker";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -246,7 +246,6 @@ function MessageBubble({
       onPress={handlePress}
       delayLongPress={300}
       onLongPress={() => {
-        console.log('LONG_PRESS_MESSAGE', message.id);
         if (onLongPress) onLongPress();
       }}
     >
@@ -637,6 +636,37 @@ export default function ChatConversationScreen() {
     socket.emit("chat:join", { chatId: conversationId });
     socketService.setCurrentChatId(conversationId);
 
+    // Mark all unread messages as read immediately when opening the chat
+    const markAllMessagesAsRead = () => {
+      if (!myUserId || !conversationId) return;
+      
+      // Get all messages from other users that we haven't marked as read yet
+      const messagesToMark = messages.filter(msg => {
+        if (!msg.id || msg.isOptimistic || String(msg.id).startsWith('temp-')) return false;
+        const senderIdStr = msg.senderId != null ? String(msg.senderId) : null;
+        return senderIdStr && myUserId && senderIdStr !== myUserId && !sentReceiptsRef.current.has(msg.id);
+      });
+
+      if (messagesToMark.length > 0) {
+        // Mark them immediately without debounce since this is on chat open
+        messagesToMark.forEach(msg => {
+          try {
+            socket.emit("chat:message:read", { messageId: msg.id, chatId: conversationId });
+            sentReceiptsRef.current.add(msg.id);
+          } catch {}
+        });
+        
+        // Update unread count service immediately for zero-delay navbar updates
+        unreadCountService.clearChatUnreadCount(conversationId);
+        
+        // Emit local event for other components that might be listening
+        socket.emit("chat:local:unread_cleared", { chatId: conversationId, clearedCount: messagesToMark.length });
+        
+        // Clear the unread banner immediately since we're reading all messages
+        setNewMessageCount(0);
+      }
+    };
+
     const handleHistory = (data) => {
       if (!data || !Array.isArray(data.messages)) return;
       const sorted = [...data.messages].sort((a, b) => {
@@ -847,7 +877,19 @@ export default function ChatConversationScreen() {
     socket.on("chat:reaction:removed", handleReactionRemoved);
     socket.on("chat:message:blocked", handleMessageBlocked);
 
+    // Listen for unread count updates to clear the banner when count becomes 0
+    const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
+      if (chatId === conversationId && unreadCount === 0) {
+        setNewMessageCount(0);
+      }
+    };
+    socket.on("chat:unread_count", handleUnreadCountUpdate);
+
+    // Mark messages as read after a short delay to ensure messages are loaded
+    const readTimeout = setTimeout(markAllMessagesAsRead, 500);
+
     return () => {
+      clearTimeout(readTimeout);
       try {
         socket.emit("chat:leave", { chatId: conversationId });
       } catch {}
@@ -861,9 +903,44 @@ export default function ChatConversationScreen() {
       socket.off("chat:reaction:added", handleReactionAdded);
       socket.off("chat:reaction:removed", handleReactionRemoved);
       socket.off("chat:message:blocked", handleMessageBlocked);
+      socket.off("chat:unread_count", handleUnreadCountUpdate);
       socketService.clearCurrentChatId();
     };
   }, [conversationId, myUserId, user]);
+
+  // Mark messages as read when they are loaded (separate from socket setup)
+  useEffect(() => {
+    if (!token || !conversationId || !myUserId || messages.length === 0) return;
+    
+    const socket = getSocket(token);
+    if (!socket) return;
+
+    // Get all messages from other users that we haven't marked as read yet
+    const messagesToMark = messages.filter(msg => {
+      if (!msg.id || msg.isOptimistic || String(msg.id).startsWith('temp-')) return false;
+      const senderIdStr = msg.senderId != null ? String(msg.senderId) : null;
+      return senderIdStr && myUserId && senderIdStr !== myUserId && !sentReceiptsRef.current.has(msg.id);
+    });
+
+    if (messagesToMark.length > 0) {
+      // Mark them immediately without debounce since this is on message load
+      messagesToMark.forEach(msg => {
+        try {
+          socket.emit("chat:message:read", { messageId: msg.id, chatId: conversationId });
+          sentReceiptsRef.current.add(msg.id);
+        } catch {}
+      });
+      
+      // Update unread count service immediately for zero-delay navbar updates
+      unreadCountService.reduceChatUnreadCount(conversationId, messagesToMark.length);
+      
+      // Emit local event for other components that might be listening
+      socket.emit("chat:local:unread_cleared", { chatId: conversationId, clearedCount: messagesToMark.length });
+      
+      // Clear the unread banner immediately since we're reading all messages
+      setNewMessageCount(0);
+    }
+  }, [messages, token, conversationId, myUserId]);
 
   // Mark this chat as active/inactive while the screen is mounted
   useEffect(() => {
@@ -913,7 +990,6 @@ export default function ChatConversationScreen() {
     
     // Handle status response from socket
     const handleStatusResponse = (data) => {
-      console.log('[BlindDate] Received status:', data);
       if (data?.match) {
         setBlindDateMatch(data.match);
         setHasRevealedSelf(data.hasRevealedSelf || false);
@@ -927,7 +1003,6 @@ export default function ChatConversationScreen() {
     
     // Handle reveal success (when I reveal)
     const handleRevealSuccess = (data) => {
-      console.log('[BlindDate] Reveal success:', data);
       setIsRevealSubmitting(false);
       
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
@@ -968,14 +1043,12 @@ export default function ChatConversationScreen() {
     
     // Handle reveal error
     const handleRevealError = (data) => {
-      console.log('[BlindDate] Reveal error:', data);
       setIsRevealSubmitting(false);
       Alert.alert('Error', data.error || 'Failed to request reveal.');
     };
     
     // When other user reveals their identity (I receive notification)
     const handleRevealRequested = (data) => {
-      console.log('[BlindDate] Other user revealed:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
         setOtherHasRevealed(true);
         // Show prompt immediately when other user reveals
@@ -987,7 +1060,6 @@ export default function ChatConversationScreen() {
     
     // When both users have revealed - LIVE UPDATE UI (received by both)
     const handleBothRevealed = (data) => {
-      console.log('[BlindDate] Both revealed:', data);
       if (data.chatId === conversationId || data.matchId === blindDateMatch?.id) {
         // Update all reveal states
         setBothRevealed(true);
@@ -1077,6 +1149,10 @@ export default function ChatConversationScreen() {
     if (!socket || !conversationId) return;
 
     setComposer("");
+
+    // When user sends a message, they are effectively at the bottom and have seen new messages
+    // Clear any pending new-message banner immediately
+    setNewMessageCount(0);
 
     // If editing a message, emit edit instead of new message
     if (editingMessage && editingMessage.id) {
@@ -1473,7 +1549,7 @@ export default function ChatConversationScreen() {
           setBlindDateMatch(data.match);
         }
       } catch (e) {
-        console.log('[BlindDate] Fallback status fetch failed:', e);
+        // Silent fail - fallback status fetch failed
       }
     }
     
@@ -1482,8 +1558,6 @@ export default function ChatConversationScreen() {
       setIsRevealSubmitting(false);
       return;
     }
-    
-    console.log('[BlindDate] Sending reveal request via socket:', { matchId, chatId: conversationId });
     
     // Send reveal request via socket for real-time response
     socket.emit('blind_date:request_reveal', { 
@@ -1826,7 +1900,6 @@ export default function ChatConversationScreen() {
         }
       } catch (error) {
         // Silent fail - verification badge just won't show
-        console.log('[ChatConversation] Could not fetch user verification status', error?.message);
       }
     };
     
@@ -1891,13 +1964,19 @@ export default function ChatConversationScreen() {
         const uniqueIds = [...new Set(receiptQueueRef.current)];
         receiptQueueRef.current = [];
         
-        // Send receipts in batch - only emit chat:read (which handles both)
+        // Send receipts in batch - only emit chat:message:read (which handles both)
         uniqueIds.forEach((messageId) => {
           try {
-            socket.emit("chat:read", { chatId: conversationId, messageId });
+            socket.emit("chat:message:read", { messageId, chatId: conversationId });
           } catch {}
         });
-      }, 300); // Debounce 300ms
+        
+        // Update unread count service immediately for zero-delay navbar updates
+        if (uniqueIds.length > 0) {
+          unreadCountService.reduceChatUnreadCount(conversationId, uniqueIds.length);
+          socket.emit("chat:local:unread_cleared", { chatId: conversationId, clearedCount: uniqueIds.length });
+        }
+      }, 100); // Debounce 100ms for faster response
     },
     [token, conversationId, myUserId]
   );

@@ -1,9 +1,9 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { chatApi } from '@/src/api/chat';
-import { getSocket } from '@/src/api/socket';
-import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
-import socketService from '@/src/services/socketService';
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getSocket, socketService } from "@/src/api/socket";
+import { chatApi } from "@/src/api/chat";
+import { useLocalNotificationCount } from "@/src/hooks/useLocalNotificationCount";
+import { unreadCountService } from "@/src/services/unreadCountService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from 'react';
 import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -27,10 +27,18 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   useEffect(() => {
     if (!token) return;
 
+    // Subscribe to the unread count service for instant updates
+    const unsubscribe = unreadCountService.subscribe(({ chatUnreadCounts, totalUnreadCount }) => {
+      setChatUnreadCounts(chatUnreadCounts);
+      setTotalUnreadMessages(totalUnreadCount);
+    });
+
+    // Load initial data and initialize the service
     loadTotalUnreadMessages();
     setupSocketListeners();
 
     return () => {
+      unsubscribe();
       cleanupSocketListeners();
     };
   }, [token]);
@@ -79,17 +87,8 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   const loadTotalUnreadMessages = async () => {
     try {
       const response = await chatApi.getInbox(token);
-      const totalUnread = response.inbox.reduce((sum, item) => sum + (item.unreadCount || 0), 0);
-      setTotalUnreadMessages(totalUnread);
-      
-      // Also initialize the chat unread counts map
-      const unreadMap = {};
-      response.inbox.forEach(item => {
-        if (item.chatId && item.unreadCount > 0) {
-          unreadMap[item.chatId] = item.unreadCount;
-        }
-      });
-      setChatUnreadCounts(unreadMap);
+      // Initialize the unread count service with the data
+      unreadCountService.initializeCounts(response.inbox);
     } catch (error) {
       console.error('Failed to load total unread messages:', error);
     }
@@ -127,55 +126,32 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     // Listen for chat message events to update total unread count
     socket.on('chat:message', ({ message }) => {
       //console.log('📨 New message received in tab bar, updating unread count');
-      // For new messages, increment the unread count for that chat
+      // For new messages, increment the unread count for that chat via service
       if (message && message.chatId) {
-        setChatUnreadCounts(prev => {
-          const newCounts = {
-            ...prev,
-            [message.chatId]: (prev[message.chatId] || 0) + 1
-          };
-          const newTotal = calculateTotalUnread(newCounts);
-          //console.log(`📊 Updated unread counts after new message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
-          setTotalUnreadMessages(newTotal);
-          return newCounts;
-        });
+        unreadCountService.incrementChatUnreadCount(message.chatId);
       }
     });
     
     // Listen for unread count updates (more reliable than reloading)
     socket.on('chat:unread_count', ({ chatId, unreadCount }) => {
       //console.log(`📊 Unread count update received in tab bar: chat ${chatId}, count ${unreadCount}`);
-      // Update the specific chat's unread count
-      setChatUnreadCounts(prev => {
-        const newCounts = {
-          ...prev,
-          [chatId]: unreadCount
-        };
-        // Remove chat from map if unread count is 0
-        if (unreadCount === 0) {
-          delete newCounts[chatId];
-        }
-        const newTotal = calculateTotalUnread(newCounts);
-        //console.log(`📊 Updated unread counts after count update: chat ${chatId} = ${unreadCount}, total = ${newTotal}`);
-        setTotalUnreadMessages(newTotal);
-        return newCounts;
-      });
+      // Update via the service for instant propagation
+      unreadCountService.setChatUnreadCount(chatId, unreadCount);
+    });
+    
+    // Listen for local unread clearing for instant updates
+    socket.on('chat:local:unread_cleared', ({ chatId, clearedCount }) => {
+      //console.log(`📊 Local unread cleared in tab bar: chat ${chatId}, cleared ${clearedCount}`);
+      // Update via the service for instant propagation
+      unreadCountService.reduceChatUnreadCount(chatId, clearedCount);
     });
     
     // Also listen for background message events (global handler)
     const handleBackgroundMessage = ({ message }) => {
       //console.log('📨 Background message received in tab bar:', message);
       if (message && message.chatId) {
-        setChatUnreadCounts(prev => {
-          const newCounts = {
-            ...prev,
-            [message.chatId]: (prev[message.chatId] || 0) + 1
-          };
-          const newTotal = calculateTotalUnread(newCounts);
-          //console.log(`📊 Updated unread counts after background message: chat ${message.chatId} = ${newCounts[message.chatId]}, total = ${newTotal}`);
-          setTotalUnreadMessages(newTotal);
-          return newCounts;
-        });
+        // Update via the service for instant propagation
+        unreadCountService.incrementChatUnreadCount(message.chatId);
       }
     };
     
@@ -191,6 +167,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     socket.off('friend:request:decline:confirmed');
     socket.off('chat:message');
     socket.off('chat:unread_count');
+    socket.off('chat:local:unread_cleared');
     
     // Remove global message handler
     socketService.removeMessageHandler('tab-bar-unread');

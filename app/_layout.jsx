@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import analyticsService from '@/src/services/analyticsService';
 import appVersionService from '@/src/services/appVersionService';
 // import crashReportingService from '@/src/services/crashReportingService';
+import { otaUpdateService } from '@/src/services/otaUpdateService';
 import { useUserConsent } from '@/components/UserConsentModal';
 
 export default function RootLayout() {
@@ -121,6 +122,11 @@ export default function RootLayout() {
           }
         });
 
+        // Check for app version updates
+        await appVersionService.checkForUpdates();
+        
+        // Initialize OTA updates
+        await otaUpdateService.initialize();
         await appVersionService.initialize();
         await appVersionService.trackInstallation();
         await appVersionService.trackUpgrade();

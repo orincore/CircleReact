@@ -6,9 +6,9 @@ import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { chatApi } from "@/src/api/chat";
 import { blindDatingApi } from "@/src/api/blindDating";
-import { getSocket } from "@/src/api/socket";
+import { getSocket, socketService } from "@/src/api/socket";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
-import socketService from "@/src/services/socketService";
+import { unreadCountService } from "@/src/services/unreadCountService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -512,6 +512,11 @@ export default function ChatListScreen() {
           console.error('[ChatList] Error processing conversation unread count:', err);
         }
       });
+      
+      // Initialize the unread count service with the data
+      unreadCountService.initializeCounts(sortedConversations);
+      
+      // Also update local state
       setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
     } catch (error) {
       console.error('[ChatList] Failed to load inbox:', error);
@@ -647,6 +652,10 @@ export default function ChatListScreen() {
 
       // Update unread count if message is not from current user
       if (message.senderId !== user.id) {
+        // Update via service for global consistency
+        unreadCountService.incrementChatUnreadCount(message.chatId);
+        
+        // Also update local state for immediate UI response
         setUnreadCounts(prev => {
           const newCount = (prev[message.chatId] || 0) + 1;
           //console.log(`📊 [ChatList] Updated unread count for chat ${message.chatId}: ${newCount}`);
@@ -703,6 +712,22 @@ export default function ChatListScreen() {
         ...prev,
         [chatId]: unreadCount
       }));
+    };
+
+    // Handle local unread clearing for instant updates
+    const handleLocalUnreadCleared = ({ chatId, clearedCount }) => {
+      // Update via service for consistency
+      unreadCountService.reduceChatUnreadCount(chatId, clearedCount);
+      
+      // Also update local state for immediate UI response
+      setUnreadCounts(prev => {
+        const currentCount = prev[chatId] || 0;
+        const newCount = Math.max(0, currentCount - clearedCount);
+        return {
+          ...prev,
+          [chatId]: newCount
+        };
+      });
     };
 
     // Handle message status updates for chat list
@@ -772,6 +797,7 @@ export default function ChatListScreen() {
         socket.on('chat:message:delivery_receipt', handleDeliveryReceipt);
         socket.on('chat:message:read_receipt', handleReadReceipt);
         socket.on('chat:unread_count', handleUnreadCountUpdate);
+        socket.on('chat:local:unread_cleared', handleLocalUnreadCleared);
         socket.on('friend:unfriended', handleUnfriended);
         socket.on('chat:list:changed', handleListChanged);
         
@@ -805,6 +831,7 @@ export default function ChatListScreen() {
           socket.off('chat:message:delivery_receipt', handleDeliveryReceipt);
           socket.off('chat:message:read_receipt', handleReadReceipt);
           socket.off('chat:unread_count', handleUnreadCountUpdate);
+          socket.off('chat:local:unread_cleared', handleLocalUnreadCleared);
           socket.off('friend:unfriended', handleUnfriended);
           socket.off('chat:list:changed', handleListChanged);
         }

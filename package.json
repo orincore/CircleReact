@@ -13,6 +13,9 @@
     "build:amplify": "npm run build:web && npm run postbuild",
     "postbuild": "node scripts/postbuild.js",
     "vercel-build": "expo export --platform web --output-dir dist",
+    "build:ota": "node ../scripts/build-ota-update.js",
+    "export:android": "expo export --platform android --output-dir dist-android",
+    "export:ios": "expo export --platform ios --output-dir dist-ios",
     "lint": "expo lint"
   },
   "dependencies": {
