@@ -62,19 +62,29 @@ class OTAUpdateService {
       this.lastCheckTime = now;
 
       console.log('🔍 Checking for updates...');
+      console.log('📱 Runtime version:', Updates.runtimeVersion);
+      console.log('🔗 Update URL:', Updates.updateUrl);
+      console.log('✅ Updates enabled:', Updates.isEnabled);
 
       // Check for updates
       const update = await Updates.checkForUpdateAsync();
       
+      console.log('📋 Update check result:', JSON.stringify(update, null, 2));
+      
       if (update.isAvailable) {
         console.log('📦 Update available!');
+        console.log('📋 Update manifest:', JSON.stringify(update.manifest, null, 2));
         this.updateAvailable = true;
         
         if (showUI) {
           this.promptUserForUpdate();
         } else {
           // Auto-download in background
-          await this.downloadUpdate(false);
+          const downloaded = await this.downloadUpdate(false);
+          if (downloaded) {
+            // Apply immediately so the UI reflects the new bundle without requiring a manual restart.
+            await this.restartApp();
+          }
         }
       } else {
         console.log('✅ App is up to date');
@@ -82,6 +92,7 @@ class OTAUpdateService {
       }
     } catch (error) {
       console.error('❌ Error checking for updates:', error);
+      console.error('❌ Error details:', error.message, error.code);
     } finally {
       this.isChecking = false;
     }
