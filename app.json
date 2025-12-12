@@ -149,7 +149,7 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 5000,
-      "url": "https://your-backend-domain.com/api/updates/manifest"
+      "url": "https://api.circle.orincore.com/api/updates/manifest"
     },
     "runtimeVersion": "1.0.0",
     "extra": {
