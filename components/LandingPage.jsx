@@ -14,12 +14,15 @@ import {
   Linking,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LandingPage({ onSignUp, onLogIn }) {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const mobileBottomPadding = !isLargeScreen && Platform.OS !== 'web' ? Math.max(insets.bottom, 16) + 80 : 0;
   const [scrollY, setScrollY] = useState(0);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   
@@ -217,10 +220,11 @@ export default function LandingPage({ onSignUp, onLogIn }) {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, !isLargeScreen && { flexGrow: 1, paddingBottom: mobileBottomPadding }]}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        scrollEnabled
       >
         {/* Inauguration Banner - Desktop Only */}
         {isLargeScreen && (
@@ -355,13 +359,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
                     <View style={styles.featureRow}>
                       
                       
-                      <View style={styles.premiumFeatureCard}>
-                        <View style={[styles.featureIconBg, { backgroundColor: 'rgba(93, 95, 239, 0.15)' }]}>
-                          <Ionicons name="location" size={20} color="#5D5FEF" />
-                        </View>
-                        <Text style={styles.premiumFeatureTitle}>Nearby Alerts</Text>
-                        <Text style={styles.premiumFeatureDesc}>Get notified when users are near</Text>
-                      </View>
+                      
                     </View>
 
                     <View style={styles.featureRow}>
@@ -415,8 +413,12 @@ export default function LandingPage({ onSignUp, onLogIn }) {
             </View>
             
             {!isLargeScreen && (
-              <TouchableOpacity style={styles.loginLink} onPress={onLogIn}>
-                <Text style={styles.loginLinkText}>Already have an account? <Text style={styles.loginLinkBold}>Log In</Text></Text>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { marginTop: 12 }]}
+                onPress={onLogIn}
+              >
+                <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.secondaryButtonText}>Log In</Text>
               </TouchableOpacity>
             )}
           </Animated.View>
@@ -637,7 +639,7 @@ export default function LandingPage({ onSignUp, onLogIn }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#5D5FEF', // Match gradient end color to prevent white space
+    backgroundColor: '#1a0b2e',
   },
   
   // Inauguration Banner
@@ -893,6 +895,7 @@ const styles = StyleSheet.create({
   // ScrollView
   scrollView: {
     flex: 1,
+    backgroundColor: '#1a0b2e',
   },
   scrollContent: {
     flexGrow: 1,

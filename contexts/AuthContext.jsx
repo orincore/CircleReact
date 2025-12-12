@@ -111,17 +111,12 @@ export function AuthProvider({ children }) {
     // Initialize socket service for background messaging
     socketService.initialize(resp.access_token);
     
-    // Save push notification token to database after authentication
+    // Refresh and save push notification token to database after authentication
+    // Use refreshAndSaveToken to get fresh token and save it reliably
     try {
       const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
       const notificationService = AndroidNotificationService.default;
-      const pushToken = notificationService.getPushToken();
-      
-      if (pushToken && pushToken !== 'undefined') {
-        //console.log('💾 Saving push token to database after authentication');
-        // Pass the auth token directly to avoid AsyncStorage timing issues
-        await notificationService.savePushTokenToDatabase(pushToken, resp.access_token);
-      }
+      await notificationService.refreshAndSaveToken(resp.access_token);
     } catch (error) {
       console.error('Failed to save push token:', error);
     }
@@ -130,7 +125,6 @@ export function AuthProvider({ children }) {
     try {
       const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
       if (trackingEnabled) {
-        //console.log('🔄 Resuming location tracking after authentication');
         await LocationTrackingService.startTracking(resp.access_token);
       }
     } catch (error) {
@@ -255,6 +249,15 @@ export function AuthProvider({ children }) {
     // Initialize socket service for background messaging
     socketService.initialize(resp.access_token);
     
+    // Refresh and save push notification token for new Google signup
+    try {
+      const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+      const notificationService = AndroidNotificationService.default;
+      await notificationService.refreshAndSaveToken(resp.access_token);
+    } catch (error) {
+      console.error('Failed to save push token:', error);
+    }
+    
     // Initialize location tracking if it was previously enabled
     try {
       const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
@@ -285,20 +288,26 @@ export function AuthProvider({ children }) {
   const completeEmailVerification = useCallback(async () => {
     // This function is called after successful email verification
     // It completes the authentication process
-    ;
     
     if (token && user) {
-      //console.log('✅ [Frontend] Email verified, completing authentication');
       setIsAuthenticated(true);
       
       // Initialize socket service for background messaging
       socketService.initialize(token);
       
+      // Refresh and save push notification token after email verification (new signup)
+      try {
+        const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+        const notificationService = AndroidNotificationService.default;
+        await notificationService.refreshAndSaveToken(token);
+      } catch (error) {
+        console.error('Failed to save push token:', error);
+      }
+      
       // Initialize location tracking if it was previously enabled
       try {
         const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
         if (trackingEnabled) {
-          //console.log('🔄 Resuming location tracking after email verification');
           await LocationTrackingService.startTracking(token);
         }
       } catch (error) {
@@ -318,6 +327,25 @@ export function AuthProvider({ children }) {
   }, [token, user, router]);
 
   const logOut = useCallback(async () => {
+    // IMPORTANT: Get the current token BEFORE clearing state
+    // We need it to unregister push notifications
+    const currentToken = token;
+    
+    // Unregister push token for this user on logout FIRST (before clearing auth)
+    // This ensures we can still make the API call with valid auth
+    if (currentToken) {
+      try {
+        const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+        const notificationService = AndroidNotificationService.default;
+        if (notificationService && typeof notificationService.unregisterPushTokenForCurrentUser === 'function') {
+          await notificationService.unregisterPushTokenForCurrentUser(currentToken);
+        }
+      } catch (error) {
+        console.error('Failed to unregister push token on logout:', error);
+      }
+    }
+    
+    // Now clear auth state
     setIsAuthenticated(false);
     setUser(null);
     setToken(null);
@@ -328,20 +356,8 @@ export function AuthProvider({ children }) {
     // Stop location tracking on logout
     try {
       await LocationTrackingService.stopTracking();
-      //console.log('🛑 Location tracking stopped on logout');
     } catch (error) {
       console.error('Failed to stop location tracking on logout:', error);
-    }
-
-    // Unregister push token for this user on logout
-    try {
-      const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
-      const notificationService = AndroidNotificationService.default;
-      if (notificationService && typeof notificationService.unregisterPushTokenForCurrentUser === 'function') {
-        await notificationService.unregisterPushTokenForCurrentUser();
-      }
-    } catch (error) {
-      console.error('Failed to unregister push token on logout:', error);
     }
     
     try {
@@ -416,27 +432,18 @@ export function AuthProvider({ children }) {
           // Initialize socket service for restored auth
           socketService.initialize(savedToken);
           
-          // Save push notification token after auth is restored
-          // Wait a bit for the notification service to initialize
-          setTimeout(async () => {
-            try {
-              const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
-              const notificationService = AndroidNotificationService.default;
-              const pushToken = notificationService.getPushToken();
-              
-              
-              
-              if (pushToken && pushToken !== 'undefined') {
-                //console.log('💾 Saving push token after auth restoration');
-                // Pass the auth token directly to avoid AsyncStorage timing issues
-                await notificationService.savePushTokenToDatabase(pushToken, savedToken);
-              } else {
-                //console.log('⏳ Push token not ready yet, will save on next login');
-              }
-            } catch (error) {
-              console.error('Failed to save push token after auth restoration:', error);
-            }
-          }, 2000); // Wait 2 seconds for notification service to initialize
+          // Refresh and save push notification token after auth is restored
+          // Use refreshAndSaveToken for reliable token capture
+          try {
+            const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+            const notificationService = AndroidNotificationService.default;
+            // Small delay to ensure notification service is initialized
+            setTimeout(async () => {
+              await notificationService.refreshAndSaveToken(savedToken);
+            }, 1000);
+          } catch (error) {
+            console.error('Failed to save push token after auth restoration:', error);
+          }
         } else {
           setIsAuthenticated(false);
         }
@@ -589,17 +596,27 @@ export function AuthProvider({ children }) {
     }
   }, [isAuthenticated, token, checkCurrentAccountStatus]);
 
-  // Check account status when app comes to foreground
+  // Check account status and refresh FCM token when app comes to foreground
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active' &&
         isAuthenticated &&
         token
       ) {
-        //console.log('📱 App came to foreground, checking account status');
+        // Check account status
         checkCurrentAccountStatus();
+        
+        // Refresh and update FCM token on app foreground
+        // This ensures the token is always up-to-date for this device
+        try {
+          const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+          const notificationService = AndroidNotificationService.default;
+          await notificationService.refreshAndSaveToken(token);
+        } catch (error) {
+          console.error('Failed to refresh push token on foreground:', error);
+        }
       }
       appStateRef.current = nextAppState;
     });

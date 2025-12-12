@@ -128,18 +128,65 @@ class AndroidNotificationService {
   async saveTokenIfAuthenticated() {
     try {
       const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-      const authToken = await AsyncStorage.getItem('token');
-      
-      
+      const authToken = await AsyncStorage.getItem('@circle:access_token');
       
       if (authToken && this.expoPushToken && this.expoPushToken !== 'undefined') {
-        //console.log('🔄 User already authenticated, saving push token now');
-        await this.savePushTokenToDatabase(this.expoPushToken);
-      } else {
-        
+        await this.savePushTokenToDatabase(this.expoPushToken, authToken);
       }
     } catch (error) {
       console.error('❌ Error checking authentication for token save:', error);
+    }
+  }
+
+  /**
+   * Refresh the push token and save to database
+   * Call this when app comes to foreground or on login/signup
+   * @param {string} authToken - The auth token to use for API call
+   * @returns {Promise<string|null>} The push token or null if failed
+   */
+  async refreshAndSaveToken(authToken) {
+    try {
+      if (Platform.OS === 'web') {
+        return null;
+      }
+
+      if (!Device.isDevice) {
+        console.warn('⚠️ Must use physical device for Push Notifications');
+        return null;
+      }
+
+      // Check permissions
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('⚠️ Push notification permissions not granted');
+        return null;
+      }
+
+      // Get fresh token from Expo
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      if (!projectId) {
+        console.error('❌ Project ID not found for push notifications');
+        return null;
+      }
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const token = tokenData.data;
+
+      if (token && token !== 'undefined') {
+        this.expoPushToken = token;
+        
+        // Save to database if we have auth token
+        if (authToken) {
+          await this.savePushTokenToDatabase(token, authToken);
+        }
+        
+        return token;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Error refreshing push token:', error);
+      return null;
     }
   }
 
@@ -606,10 +653,13 @@ class AndroidNotificationService {
       const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
       const { API_BASE_URL } = await import('../api/config');
       
-      const authToken = authTokenOverride || await AsyncStorage.getItem('token');
+      const authToken = authTokenOverride || await AsyncStorage.getItem('@circle:access_token');
       if (!authToken) {
-        //console.log('⚠️ No auth token, skipping push token save');
-        return;
+        return false;
+      }
+      
+      if (!token || token === 'undefined') {
+        return false;
       }
 
       const deviceType = Platform.OS;
@@ -632,14 +682,15 @@ class AndroidNotificationService {
       //console.log('📡 Response status:', response.status);
 
       if (response.ok) {
-        const data = await response.json();
-        //console.log('✅ Push token saved to database:', data);
+        return true;
       } else {
         const error = await response.text();
         console.error('❌ Failed to save push token. Status:', response.status, 'Error:', error);
+        return false;
       }
     } catch (error) {
       console.error('❌ Error saving push token to database:', error);
+      return false;
     }
   }
 
@@ -648,24 +699,31 @@ class AndroidNotificationService {
     return this.expoPushToken;
   }
 
-  // Unregister push token for current user
+  /**
+   * Unregister push token for current user
+   * IMPORTANT: Call this BEFORE clearing auth tokens from storage
+   * @param {string} authTokenOverride - The auth token to use (required since we call this before logout clears storage)
+   */
   async unregisterPushTokenForCurrentUser(authTokenOverride = null) {
     try {
       const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
       const { API_BASE_URL } = await import('../api/config');
 
-      const authToken = authTokenOverride || await AsyncStorage.getItem('token');
+      // Use override token or get from storage (but storage may already be cleared)
+      const authToken = authTokenOverride || await AsyncStorage.getItem('@circle:access_token');
       if (!authToken) {
-        return;
+        console.warn('⚠️ No auth token available for unregistering push token');
+        return false;
       }
 
       const token = this.expoPushToken;
 
+      // Always send the specific token if available, otherwise disable all tokens for user
       const body = token && token !== 'undefined'
         ? { token }
         : {};
 
-      await fetch(`${API_BASE_URL}/api/notifications/unregister-token`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/unregister-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -673,8 +731,16 @@ class AndroidNotificationService {
         },
         body: JSON.stringify(body),
       });
+
+      if (response.ok) {
+        return true;
+      } else {
+        console.error('❌ Failed to unregister push token:', response.status);
+        return false;
+      }
     } catch (error) {
       console.error('❌ Error unregistering push token:', error);
+      return false;
     }
   }
 
