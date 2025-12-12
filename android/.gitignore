@@ -6,7 +6,6 @@
 #
 build/
 .idea
-.gradle
 local.properties
 *.iml
 *.hprof
@@ -14,8 +13,3 @@ local.properties
 
 # Bundle artifacts
 *.jsbundle
-
-# Keystore files - NEVER commit these!
-*.keystore
-*.jks
-!debug.keystore
