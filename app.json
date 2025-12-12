@@ -21,8 +21,11 @@
         "NSPhotoLibraryUsageDescription": "Circle needs access to your photo library to save images and videos from chat messages.",
         "UIBackgroundModes": [
           "location",
+          "location",
+          "location",
           "location"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.orincore.Circle",
       "googleServicesFile": "./GoogleService-Info.plist"
@@ -50,7 +53,10 @@
         "android.permission.READ_MEDIA_VIDEO",
         "com.android.vending.BILLING",
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_AUDIO"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

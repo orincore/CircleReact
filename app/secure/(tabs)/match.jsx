@@ -387,7 +387,7 @@ export default function MatchScreen() {
   const dynamicStyles = {
     container: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: 'transparent',
     },
     headerTitle: {
       fontSize: 28,
@@ -504,7 +504,7 @@ export default function MatchScreen() {
     },
     mobileContainer: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: 'transparent',
     },
     sidebar: {
       backgroundColor: isDarkMode ? theme.surface : theme.backgroundSecondary,
@@ -1751,14 +1751,20 @@ export default function MatchScreen() {
     <View style={[styles.container, dynamicStyles.container]}>
       {/* Animated Background */}
       <LinearGradient
-        colors={[theme.background, theme.backgroundSecondary, theme.background]}
+        colors={[theme.background, theme.backgroundSecondary, theme.surface]}
         style={styles.backgroundGradient}
       >
         {/* Decorative Elements */}
-        <View style={dynamicStyles.decorativeShape1} />
-        <View style={dynamicStyles.decorativeShape2} />
+        <View style={[dynamicStyles.decorativeShape1, { backgroundColor: theme.decorative1 }]} />
+        <View style={[dynamicStyles.decorativeShape2, { backgroundColor: theme.decorative2 }]} />
+        <LinearGradient
+          colors={[theme.decorative1, theme.decorative2]}
+          style={styles.topAccent}
+        />
         {/* Floating orbs */}
         <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
+        <View style={[styles.floatingOrb, styles.orb2, { backgroundColor: theme.decorative2 }]} />
+        <View style={[styles.floatingOrb, styles.orb3, { backgroundColor: theme.decorative1 }]} />
 
       {isLargeScreen ? (
         // DESKTOP/WEB VIEW - Dashboard Style
@@ -3201,6 +3207,13 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+  },
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
   },
   floatingOrb: {
     position: 'absolute',
