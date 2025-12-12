@@ -68,6 +68,8 @@ react {
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
+def hermesEnabled = (findProperty('expo.jsEngine') ?: "hermes") == "hermes"
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -182,7 +184,7 @@ dependencies {
         }
     }
 
-    if (hermesEnabled.toBoolean()) {
+    if (hermesEnabled) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
