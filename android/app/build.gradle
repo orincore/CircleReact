@@ -4,6 +4,8 @@ apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
+ext.hermesEnabled = (findProperty('hermesEnabled') ?: "true").toBoolean()
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -68,7 +70,7 @@ react {
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
-def hermesEnabled = (findProperty('expo.jsEngine') ?: "hermes") == "hermes"
+def hermesEnabled = ext.hermesEnabled
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
