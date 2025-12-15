@@ -371,9 +371,10 @@ export default function ChatListScreen() {
   const [typingIndicators, setTypingIndicators] = useState({}); // chatId -> array of typing users
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> unread count
   const [showFriendsModal, setShowFriendsModal] = useState(false);
-  const [openMenuChatId, setOpenMenuChatId] = useState(null);
+  const [archivedChats, setArchivedChats] = useState([]);
   const [showArchived, setShowArchived] = useState(false);
   const [menuCoords, setMenuCoords] = useState(null); // { x, y }
+  const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
   const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'blind'
   const [otherVerificationCache, setOtherVerificationCache] = useState({}); // otherUserId -> boolean
@@ -382,6 +383,24 @@ export default function ChatListScreen() {
   // Cache key for chat list
   const CHAT_LIST_CACHE_KEY = `@circle:chat_list:${user?.id || 'unknown'}`;
   const UNREAD_COUNTS_CACHE_KEY = `@circle:unread_counts:${user?.id || 'unknown'}`;
+
+  const getLastMessagePreview = (lastMessage) => {
+    if (!lastMessage) return 'No messages yet';
+    const text = (lastMessage.text || '').trim();
+    if (text) return text;
+    const mediaUrl = lastMessage.mediaUrl || lastMessage.media_url;
+    const mediaType = lastMessage.mediaType || lastMessage.media_type;
+    if (mediaType) {
+      return mediaType === 'video' ? 'Video' : 'Photo';
+    }
+    if (mediaUrl) {
+      return 'Photo';
+    }
+    // If we have a lastMessage object but no text/media fields (e.g. legacy cache or backend omission),
+    // still show a non-empty preview so the user doesn't see "No messages yet".
+    if (lastMessage.id) return 'Media';
+    return 'No messages yet';
+  };
 
   // Load cached chat list on mount for instant display
   useEffect(() => {
@@ -606,6 +625,9 @@ export default function ChatListScreen() {
                     lastMessage: {
                       id: message.id || 'unknown',
                       text: message.text || '',
+                      mediaUrl: message.mediaUrl || message.media_url,
+                      mediaType: message.mediaType || message.media_type,
+                      thumbnail: message.thumbnail || message.thumb_url || message.thumbnail_url,
                       created_at: message.createdAt ? new Date(message.createdAt).toISOString() : new Date().toISOString(),
                       sender_id: message.senderId,
                       status: message.senderId === user.id ? (message.status || 'sent') : undefined,
@@ -1342,7 +1364,7 @@ export default function ChatListScreen() {
                     )}
                     <View style={styles.messageRow}>
                       <Text style={[styles.chatMessage, dynamicStyles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
-                        {isTyping ? 'typing...' : (item.lastMessage && item.lastMessage.text) || 'No messages yet'}
+                        {isTyping ? 'typing...' : getLastMessagePreview(item.lastMessage)}
                       </Text>
                       {item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
                         <Ionicons

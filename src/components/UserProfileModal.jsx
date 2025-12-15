@@ -1258,15 +1258,17 @@ export default function UserProfileModal({
                 )}
 
                 {/* Social Accounts */}
-                <View style={styles.section}>
-                  <LinkedSocialAccounts 
-                    userId={userId} 
-                    isOwnProfile={userId === user?.id}
-                    onUpgradeRequest={() => {
-                      router.push('/secure/profile/subscription');
-                    }}
-                  />
-                </View>
+                {!!profileData?.instagramUsername && (
+                  <View style={styles.section}>
+                    <LinkedSocialAccounts 
+                      userId={userId} 
+                      isOwnProfile={userId === user?.id}
+                      onUpgradeRequest={() => {
+                        router.push('/secure/profile/subscription');
+                      }}
+                    />
+                  </View>
+                )}
 
                 {/* Additional Info */}
                 <View style={styles.section}>

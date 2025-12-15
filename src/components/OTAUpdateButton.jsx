@@ -22,31 +22,65 @@ export default function OTAUpdateButton({ style }) {
       const status = await otaUpdateService.getUpdateStatus();
       setUpdateStatus(status);
       
-      if (!status?.isEnabled) {
+      // Check if OTA is available in this environment
+      if (!status?.otaAvailable) {
         Alert.alert(
-          'Updates Disabled',
-          'OTA updates are not available in this build.',
+          'OTA Updates Not Available',
+          `Over-the-air updates are only available in production builds.\n\nReason: ${status?.otaUnavailableReason || 'Development mode or Expo Go'}\n\nTo test OTA updates, please create a production build using EAS Build.`,
           [{ text: 'OK' }]
         );
         return;
       }
 
-      // Force check for updates
+      // Force check for updates (bypasses throttling)
+      // The service will show its own alerts
       await otaUpdateService.forceCheckForUpdates();
       
       // Get updated status
       const newStatus = await otaUpdateService.getUpdateStatus();
       setUpdateStatus(newStatus);
       
+      // Show result if no update was found (service handles update available case)
+      if (!newStatus.isUpdateAvailable) {
+        Alert.alert(
+          'Up to Date',
+          'You have the latest version of the app.',
+          [{ text: 'OK' }]
+        );
+      }
+      
     } catch (error) {
       console.error('Error checking for updates:', error);
       Alert.alert(
         'Update Check Failed',
-        'Failed to check for updates. Please try again later.',
+        `Failed to check for updates: ${error.message}`,
         [{ text: 'OK' }]
       );
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    try {
+      Alert.alert(
+        'Downloading Update',
+        'The update is being downloaded in the background...',
+        [{ text: 'OK' }]
+      );
+      
+      // The service will handle the download automatically
+      // Just refresh the status
+      const status = await otaUpdateService.getUpdateStatus();
+      setUpdateStatus(status);
+      
+    } catch (error) {
+      console.error('Error downloading update:', error);
+      Alert.alert(
+        'Download Failed',
+        `Failed to download update: ${error.message}`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -145,6 +179,18 @@ export default function OTAUpdateButton({ style }) {
       
       {updateStatus && (
         <View style={styles.statusInfo}>
+          {/* OTA Availability Status */}
+          <Text style={[styles.statusText, { 
+            color: updateStatus.otaAvailable ? (theme.colors.success || '#34C759') : (theme.colors.warning || '#FF9500'),
+            fontWeight: '600'
+          }]}>
+            OTA Available: {updateStatus.otaAvailable ? 'Yes' : 'No'}
+          </Text>
+          {!updateStatus.otaAvailable && updateStatus.otaUnavailableReason && (
+            <Text style={[styles.statusText, { color: theme.colors.warning || '#FF9500' }]}>
+              Reason: {updateStatus.otaUnavailableReason}
+            </Text>
+          )}
           <Text style={styles.statusText}>
             Runtime Version: {updateStatus.runtimeVersion}
           </Text>
@@ -157,9 +203,38 @@ export default function OTAUpdateButton({ style }) {
           <Text style={styles.statusText}>
             Updates Enabled: {updateStatus.isEnabled ? 'Yes' : 'No'}
           </Text>
+          <Text style={styles.statusText}>
+            Service Initialized: {updateStatus.isInitialized ? 'Yes' : 'No'}
+          </Text>
+          <Text style={styles.statusText}>
+            Platform: {updateStatus.platform}
+          </Text>
+          <Text style={styles.statusText}>
+            Development Mode: {updateStatus.isDevelopment ? 'Yes' : 'No'}
+          </Text>
+          {updateStatus.lastCheckTime > 0 && (
+            <Text style={styles.statusText}>
+              Last Check: {new Date(updateStatus.lastCheckTime).toLocaleTimeString()}
+            </Text>
+          )}
+          {updateStatus.retryCount > 0 && (
+            <Text style={[styles.statusText, { color: theme.colors.warning || '#FF9500' }]}>
+              Retry Count: {updateStatus.retryCount}
+            </Text>
+          )}
           {updateStatus.pendingUpdate && (
             <Text style={[styles.statusText, { color: theme.colors.primary }]}>
               Update pending - restart app to apply
+            </Text>
+          )}
+          {updateStatus.isUpdateAvailable && (
+            <Text style={[styles.statusText, { color: theme.colors.success || '#34C759' }]}>
+              Update available!
+            </Text>
+          )}
+          {updateStatus.recentLogs && updateStatus.recentLogs.length > 0 && (
+            <Text style={styles.statusText}>
+              Recent Activity: {updateStatus.recentLogs[0]?.activity || 'None'}
             </Text>
           )}
         </View>

@@ -364,7 +364,7 @@ export default function EditProfileScreen() {
         phoneNumber: fullPhoneNumber,
         about: form.about.trim() || null,
         profilePhotoUrl: photoUrl || undefined,
-        instagramUsername: form.instagram.trim() || null,
+        instagramUsername: form.instagram.trim() || "",
       };
 
       // Validate about field length
@@ -538,57 +538,7 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
-              <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Contact</Text>
-              <View style={styles.fieldRow}>
-                <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Phone Number</Text>
-                <View style={styles.phoneInputContainer}>
-                  <TouchableOpacity
-                    style={styles.countrySelector}
-                    onPress={() => setShowCountryPicker(true)}
-                  >
-                    <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
-                    <Text style={styles.countryCode}>{selectedCountry.dialCode}</Text>
-                    <Ionicons name="chevron-down" size={16} color="#94A3B8" />
-                  </TouchableOpacity>
-                  <TextInput
-                    value={phoneNumberInput}
-                    onChangeText={(text) => {
-                      // Only allow digits and limit to 10 characters
-                      const cleaned = text.replace(/\D/g, '');
-                      if (cleaned.length <= 10) {
-                        setPhoneNumberInput(cleaned);
-                      }
-                    }}
-                    placeholder="9876543210"
-                    placeholderTextColor="#94A3B8"
-                    style={styles.phoneInput}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                  />
-                </View>
-                {phoneNumberInput && (
-                  <View style={styles.phonePreview}>
-                    <Ionicons 
-                      name={phoneNumberInput.length === 10 ? "checkmark-circle" : "call"} 
-                      size={14} 
-                      color={phoneNumberInput.length === 10 ? "#10B981" : "#F59E0B"} 
-                    />
-                    <Text style={styles.phonePreviewText}>
-                      {selectedCountry.dialCode} {phoneNumberInput}
-                    </Text>
-                    <Text style={[
-                      styles.phoneCharCount, 
-                      phoneNumberInput.length === 10 && styles.phoneCharCountValid
-                    ]}>
-                      {phoneNumberInput.length}/10
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}> 
               <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>About you</Text>
               <View style={styles.fieldRow}>
                 <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Bio</Text>
@@ -719,7 +669,7 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}> 
               <Text style={[styles.sectionTitle, { color: isDarkMode ? '#FFFFFF' : '#000000' }]}>Social Media</Text>
               <View style={styles.fieldRow}>
                 <View style={styles.labelWithIcon}>
@@ -738,6 +688,21 @@ export default function EditProfileScreen() {
                     autoCorrect={false}
                   />
                 </View>
+              </View>
+              <View style={styles.instagramHelperRow}>
+                <Text style={[styles.instagramHelperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Leave blank to remove Instagram from your profile.
+                </Text>
+                {!!form.instagram && (
+                  <TouchableOpacity
+                    onPress={() => setField('instagram', '')}
+                    style={styles.instagramRemoveButton}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                    <Text style={styles.instagramRemoveText}>Remove</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               {form.instagram && (
                 <View style={styles.instagramPreview}>
@@ -1144,6 +1109,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.9)",
     fontWeight: "600",
+  },
+  instagramHelperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  instagramHelperText: {
+    flex: 1,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginRight: 10,
+  },
+  instagramRemoveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  instagramRemoveText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   modalBackdrop: {
     flex: 1,

@@ -253,6 +253,11 @@ export default function useAndroidNotifications() {
 
   // Activity notifications
   const handleUserJoinedActivity = (activity) => {
+    // Don't show notification for own join activity
+    if (activity.data.user_id === user?.id) {
+      console.log('👋 Skipping user joined notification for self');
+      return;
+    }
     
     androidNotificationService.showUserJoinedNotification({
       userName: activity.data.user_name,
@@ -262,6 +267,12 @@ export default function useAndroidNotifications() {
   };
 
   const handleFriendsConnectedActivity = (activity) => {
+    // Don't show notification if current user is one of the connected friends
+    // (they already know they connected)
+    if (activity.data.user1_id === user?.id || activity.data.user2_id === user?.id) {
+      console.log('🤝 Skipping friends connected notification for self');
+      return;
+    }
     
     androidNotificationService.showFriendsConnectedNotification({
       user1Name: activity.data.user1_name,
@@ -272,6 +283,12 @@ export default function useAndroidNotifications() {
   };
 
   const handleUserMatchedActivity = (activity) => {
+    // Don't show notification if current user is one of the matched users
+    // (they already get a separate match notification)
+    if (activity.data.user1_id === user?.id || activity.data.user2_id === user?.id) {
+      console.log('💕 Skipping user matched notification for self');
+      return;
+    }
     
     androidNotificationService.showUserMatchedNotification({
       user1Name: activity.data.user1_name,
@@ -282,6 +299,11 @@ export default function useAndroidNotifications() {
   };
 
   const handleLocationUpdatedActivity = (activity) => {
+    // Don't show notification for own location updates
+    if (activity.data.user_id === user?.id) {
+      console.log('📍 Skipping location notification for self');
+      return;
+    }
     
     androidNotificationService.showLocationUpdatedNotification({
       userName: activity.data.user_name,
@@ -291,6 +313,11 @@ export default function useAndroidNotifications() {
   };
 
   const handleInterestUpdatedActivity = (activity) => {
+    // Don't show notification for own interest updates
+    if (activity.data.user_id === user?.id) {
+      console.log('🎯 Skipping interest notification for self');
+      return;
+    }
     
     androidNotificationService.showInterestUpdatedNotification({
       userName: activity.data.user_name,

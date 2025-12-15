@@ -40,6 +40,9 @@ export interface ChatInboxItem {
     chat_id: string;
     sender_id: string;
     text: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    thumbnail?: string;
     created_at: string;
     status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   } | null;
@@ -75,6 +78,9 @@ export const chatApi = {
             chat_id: it.chatId,
             sender_id: it.lastMessage.senderId,
             text: it.lastMessage.text,
+            mediaUrl: it.lastMessage.mediaUrl ?? it.lastMessage.media_url,
+            mediaType: it.lastMessage.mediaType ?? it.lastMessage.media_type,
+            thumbnail: it.lastMessage.thumbnail ?? it.lastMessage.thumb_url ?? it.lastMessage.thumbnail_url,
             created_at: new Date(it.lastMessage.createdAt).toISOString(),
             status: it.lastMessage.status,
           }

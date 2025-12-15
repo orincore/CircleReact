@@ -491,11 +491,22 @@ export function AuthProvider({ children }) {
   const updateProfile = useCallback(async (input) => {
     if (!token) throw new Error("Not authenticated");
     const updated = await updateMeGql(input, token);
-    setUser(updated);
+    const normalizedUpdated =
+      input && Object.prototype.hasOwnProperty.call(input, 'instagramUsername')
+        ? {
+            ...updated,
+            instagramUsername:
+              input.instagramUsername == null || input.instagramUsername === ''
+                ? null
+                : updated?.instagramUsername,
+          }
+        : updated;
+
+    setUser(normalizedUpdated);
     try {
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(updated));
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(normalizedUpdated));
     } catch {}
-    return updated;
+    return normalizedUpdated;
   }, [token]);
 
   const refreshUser = useCallback(async () => {

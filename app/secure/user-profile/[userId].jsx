@@ -952,15 +952,17 @@ export default function UserProfileScreen() {
           )}
 
           {/* Social Accounts */}
-          <View style={dynamicStyles.interestsCard}>
-            <LinkedSocialAccounts 
-              userId={userId} 
-              isOwnProfile={false}
-              onUpgradeRequest={() => {
-                router.push('/secure/subscription');
-              }}
-            />
-          </View>
+          {!!profileData?.instagramUsername && (
+            <View style={dynamicStyles.interestsCard}>
+              <LinkedSocialAccounts 
+                userId={userId} 
+                isOwnProfile={false}
+                onUpgradeRequest={() => {
+                  router.push('/secure/subscription');
+                }}
+              />
+            </View>
+          )}
 
           {/* Info Section */}
           <View style={dynamicStyles.interestsCard}>
