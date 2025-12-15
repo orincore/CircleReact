@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Animated,
   Easing,
@@ -19,6 +20,7 @@ import { promptMatchingApi } from '@/src/api/promptMatching';
 import * as Notifications from 'expo-notifications';
 import { useBackgroundSearch } from '@/src/hooks/useBackgroundSearch';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 
 const HelpSearchingScreen = () => {
   const router = useRouter();
@@ -59,8 +61,6 @@ const HelpSearchingScreen = () => {
   };
 
   useEffect(() => {
-    if (!initialStatus) return;
-
     if (matchedGiverJson) {
       try {
         setMatchedGiver(JSON.parse(matchedGiverJson));
@@ -79,6 +79,53 @@ const HelpSearchingScreen = () => {
       setProgress(prev => Math.max(prev, 25));
     }
   }, [initialStatus, initialMessage, matchedGiverJson]);
+
+  // Fetch current request status on mount if resuming existing request
+  useEffect(() => {
+    const fetchCurrentStatus = async () => {
+      if (!requestId || initialStatus) return; // Skip if we already have initial status
+      
+      try {
+        const response = await promptMatchingApi.getHelpRequestStatus(requestId);
+        if (response) {
+          const reqStatus = response.status;
+          const chatRoomId = response.chatRoomId;
+          const matchedGiverId = response.matchedGiverId;
+          const matchedGiverData = response.matchedGiver;
+          
+          if (reqStatus === 'matched' && chatRoomId) {
+            // Already connected, navigate to chat
+            router.replace({
+              pathname: '/secure/chat-conversation',
+              params: { chatId: chatRoomId },
+            });
+          } else if (reqStatus === 'matched' && matchedGiverId) {
+            // Matched, waiting for giver response
+            setStatus('found');
+            setStatusMessage('Beacon found! Waiting for response...');
+            setProgress(80);
+            
+            // Set matchedGiver data if available
+            if (matchedGiverData) {
+              setMatchedGiver(matchedGiverData);
+            }
+          } else if (reqStatus === 'searching') {
+            // Still searching
+            setStatus('searching');
+            setStatusMessage('Looking for the best Beacon match...');
+            setProgress(40);
+          } else if (reqStatus === 'cancelled' || reqStatus === 'expired') {
+            setStatus('error');
+            setStatusMessage('Request was cancelled or expired');
+          }
+        }
+      } catch (error) {
+        console.log('Failed to fetch initial status:', error);
+      }
+    };
+
+    fetchCurrentStatus();
+  }, [requestId, initialStatus, router]);
   
   const { addBackgroundSearch, removeBackgroundSearch } = useBackgroundSearch();
   
@@ -415,6 +462,12 @@ const HelpSearchingScreen = () => {
   const displaySubtitle = currentMessage.subtitle;
   const maskedBeaconLabel = matchedGiver ? getMaskedBeaconLabel(matchedGiver) : null;
   const matchPercent = matchedGiver ? getMatchPercent(matchedGiver) : null;
+  const beaconPreview = matchedGiver?.beaconPreview || null;
+  const beaconMaskedName = beaconPreview?.maskedName || null;
+  const beaconAge = beaconPreview?.age;
+  const beaconGender = beaconPreview?.gender;
+  const beaconPhoto = beaconPreview?.profilePhotoUrl;
+  const beaconHelpTopics = Array.isArray(beaconPreview?.helpTopics) ? beaconPreview.helpTopics : [];
 
   // Get icon based on status
   const getStatusIcon = () => {
@@ -471,6 +524,54 @@ const HelpSearchingScreen = () => {
           {progress}%
         </Text>
       </View>
+
+      {(status === 'found' || status === 'waiting') && beaconPreview && (
+        <View style={[styles.beaconCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.beaconRow}>
+            <View style={styles.beaconAvatarContainer}>
+              {beaconPhoto ? (
+                <View style={styles.beaconAvatarWrapper}>
+                  <Image source={{ uri: beaconPhoto }} style={styles.beaconAvatar} />
+                  <BlurView intensity={35} tint="default" style={StyleSheet.absoluteFill} />
+                </View>
+              ) : (
+                <View style={[styles.beaconAvatarPlaceholder, { backgroundColor: theme.border }]}>
+                  <Ionicons name="person" size={26} color={theme.textSecondary} />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.beaconMeta}>
+              <Text style={[styles.beaconName, { color: theme.textPrimary }]} numberOfLines={1}>
+                {beaconMaskedName || 'Beacon Helper'}
+              </Text>
+              <Text style={[styles.beaconSub, { color: theme.textSecondary }]} numberOfLines={1}>
+                {[
+                  typeof beaconAge === 'number' ? `${beaconAge}` : null,
+                  beaconGender ? `${beaconGender}` : null,
+                ].filter(Boolean).join(' • ') || 'Details hidden until accepted'}
+              </Text>
+            </View>
+          </View>
+
+          {beaconHelpTopics.length > 0 && (
+            <View style={styles.helpTopicsContainer}>
+              <Text style={[styles.helpTopicsLabel, { color: theme.textSecondary }]}>
+                Can help with
+              </Text>
+              <View style={styles.helpTopicsChips}>
+                {beaconHelpTopics.slice(0, 6).map((topic, idx) => (
+                  <View key={`${topic}-${idx}`} style={[styles.helpChip, { backgroundColor: theme.primary + '15' }]}>
+                    <Text style={[styles.helpChipText, { color: theme.primary }]} numberOfLines={1}>
+                      {topic}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Animated Icon */}
       <Animated.View
@@ -581,7 +682,7 @@ const HelpSearchingScreen = () => {
       {/* Action Buttons */}
       {status !== 'connected' && (
         <View style={styles.actionButtons}>
-          {canGoBack && status !== 'found' && status !== 'waiting' && (
+          {canGoBack && (
             <TouchableOpacity
               style={[styles.backgroundButton, { 
                 backgroundColor: theme.primary,
@@ -590,7 +691,7 @@ const HelpSearchingScreen = () => {
             >
               <Ionicons name="notifications" size={20} color="#fff" />
               <Text style={styles.backgroundButtonText}>
-                Search in Background
+                Continue in Background
               </Text>
             </TouchableOpacity>
           )}

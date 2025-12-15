@@ -11,6 +11,7 @@ import { friendsApi } from "@/src/api/friends";
 import { nearbyUsersGql, updateLocationGql } from "@/src/api/graphql";
 import { matchmakingApi } from "@/src/api/matchmaking";
 import { blindDatingApi } from "@/src/api/blindDating";
+import { promptMatchingApi } from "@/src/api/promptMatching";
 import { getSocket } from "@/src/api/socket";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
@@ -382,6 +383,26 @@ export default function MatchScreen() {
   const [blindDateEnabled, setBlindDateEnabled] = useState(false);
   const [blindDateLoading, setBlindDateLoading] = useState(false);
   const newBadgePulse = useRef(new Animated.Value(1)).current;
+
+  const [activeHelpRequest, setActiveHelpRequest] = useState(null);
+  const [loadingActiveHelpRequest, setLoadingActiveHelpRequest] = useState(false);
+
+  const loadActiveHelpRequest = useCallback(async () => {
+    if (!token) return;
+    try {
+      setLoadingActiveHelpRequest(true);
+      const data = await promptMatchingApi.getActiveHelpRequest(token);
+      setActiveHelpRequest(data?.hasActiveRequest ? data.request : null);
+    } catch (e) {
+      setActiveHelpRequest(null);
+    } finally {
+      setLoadingActiveHelpRequest(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadActiveHelpRequest();
+  }, [loadActiveHelpRequest]);
   
   // Create dynamic styles based on theme
   const dynamicStyles = {
@@ -1370,12 +1391,12 @@ export default function MatchScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      await loadActiveHelpRequest();
       // Refresh Circle stats
-      await loadCircleStats();
-      
-      // Refresh friend requests
-      await loadFriendRequests();
-      
+      const statsResponse = await circleStatsApi.getStats(token);
+      if (statsResponse?.stats) {
+        setCircleStats(statsResponse);
+      }
       // Refresh friends list
       await loadFriendsList();
       
@@ -1391,7 +1412,8 @@ export default function MatchScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [token, loadCircleStats, loadFriendRequests]);
+  }, [token, loadActiveHelpRequest]);
+
 
   // Load public stats
   const loadPublicStats = async () => {
@@ -2244,6 +2266,71 @@ export default function MatchScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+
+            {activeHelpRequest && (
+              <View style={[dynamicStyles.sectionCard, { marginBottom: 16 }]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="pulse" size={18} color={theme.primary} />
+                    <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginLeft: 8 }]}>
+                      Ongoing Help Request
+                    </Text>
+                  </View>
+                  {loadingActiveHelpRequest && (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  )}
+                </View>
+
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary, marginTop: 8 }]} numberOfLines={2}>
+                  "{activeHelpRequest.prompt}"
+                </Text>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: theme.primary, flex: 1 }]}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/secure/help-searching',
+                        params: {
+                          requestId: activeHelpRequest.id,
+                          prompt: activeHelpRequest.prompt,
+                        },
+                      });
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>Resume Search</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surface, flex: 1 }]}
+                    onPress={() => {
+                      Alert.alert(
+                        'Cancel Help Request',
+                        'Are you sure you want to cancel this help request?',
+                        [
+                          { text: 'No', style: 'cancel' },
+                          {
+                            text: 'Yes',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await promptMatchingApi.cancelHelpRequest(activeHelpRequest.id, token);
+                                setActiveHelpRequest(null);
+                              } catch (e) {
+                                Alert.alert('Error', 'Failed to cancel request');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.textPrimary }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Prompt Matching Toggle - Help Mode */}
             <PromptMatchingWrapper />
@@ -5783,6 +5870,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 2,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 20,
+  },
+  primaryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  secondaryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   quickActionSubtitle: {
     fontSize: 14,
