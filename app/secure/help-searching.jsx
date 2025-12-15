@@ -25,7 +25,16 @@ const HelpSearchingScreen = () => {
   const { theme } = useTheme();
   const { token } = useAuth();
   const params = useLocalSearchParams();
-  const { requestId, prompt } = params;
+  const requestIdParam = params?.requestId;
+  const promptParam = params?.prompt;
+  const initialStatusParam = params?.initialStatus;
+  const initialMessageParam = params?.initialMessage;
+  const matchedGiverParam = params?.matchedGiver;
+  const requestId = Array.isArray(requestIdParam) ? requestIdParam[0] : requestIdParam;
+  const prompt = Array.isArray(promptParam) ? promptParam[0] : promptParam;
+  const initialStatus = Array.isArray(initialStatusParam) ? initialStatusParam[0] : initialStatusParam;
+  const initialMessage = Array.isArray(initialMessageParam) ? initialMessageParam[0] : initialMessageParam;
+  const matchedGiverJson = Array.isArray(matchedGiverParam) ? matchedGiverParam[0] : matchedGiverParam;
 
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [status, setStatus] = useState('analyzing'); // analyzing, searching, matching, found, waiting, connected, error
@@ -34,6 +43,28 @@ const HelpSearchingScreen = () => {
   const [canGoBack, setCanGoBack] = useState(false);
   const [backgroundSearch, setBackgroundSearch] = useState(false);
   const [matchedGiver, setMatchedGiver] = useState(null);
+
+  useEffect(() => {
+    if (!initialStatus) return;
+
+    if (matchedGiverJson) {
+      try {
+        setMatchedGiver(JSON.parse(matchedGiverJson));
+      } catch (e) {
+        // ignore malformed param
+      }
+    }
+
+    if (initialStatus === 'matched') {
+      setStatus('found');
+      setStatusMessage(initialMessage || 'Helper found! Waiting for response...');
+      setProgress(prev => Math.max(prev, 80));
+    } else if (initialStatus === 'searching') {
+      setStatus('searching');
+      setStatusMessage(initialMessage || 'Looking for the perfect helper...');
+      setProgress(prev => Math.max(prev, 25));
+    }
+  }, [initialStatus, initialMessage, matchedGiverJson]);
   
   const { addBackgroundSearch, removeBackgroundSearch } = useBackgroundSearch();
   
@@ -71,11 +102,13 @@ const HelpSearchingScreen = () => {
     const pollStatus = async () => {
       try {
         const response = await promptMatchingApi.getHelpRequestStatus(requestId);
-        if (response && response.request) {
-          const { status: reqStatus, chat_room_id } = response.request;
+        if (response) {
+          // Backend returns flat fields: { requestId, status, attemptsCount, chatRoomId, ... }
+          const reqStatus = response.status;
+          const chatRoomId = response.chatRoomId;
           
           // Update status based on HTTP response
-          if (reqStatus === 'matched' && chat_room_id) {
+          if (reqStatus === 'matched' && chatRoomId) {
             setStatus('connected');
             setStatusMessage('Connected! Opening chat...');
             setProgress(100);
@@ -84,9 +117,14 @@ const HelpSearchingScreen = () => {
             setTimeout(() => {
               router.replace({
                 pathname: '/secure/chat-conversation',
-                params: { chatId: chat_room_id },
+                params: { chatId: chatRoomId },
               });
             }, 1500);
+          } else if (reqStatus === 'matched') {
+            // Matched giver selected, waiting for giver accept -> show found/waiting state
+            setStatus('found');
+            setStatusMessage('Helper found! Waiting for response...');
+            setProgress(prev => Math.max(prev, 80));
           } else if (reqStatus === 'searching') {
             // Still searching - update progress if stuck
             if (progress < 50) {
@@ -202,11 +240,13 @@ const HelpSearchingScreen = () => {
     const handleSearchStatus = (data) => {
       console.log('🔍 Search status:', data);
       
-      if (data.requestId && data.requestId !== requestId) return;
+      if (data.requestId && requestId && data.requestId !== requestId) return;
       
       setStatus(data.status);
       setStatusMessage(data.message);
-      setProgress(data.progress || 0);
+      if (typeof data.progress === 'number') {
+        setProgress(data.progress);
+      }
       
       if (data.matchedGiver) {
         setMatchedGiver(data.matchedGiver);

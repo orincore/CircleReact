@@ -66,6 +66,9 @@ const HelpRequestScreen = () => {
           params: {
             requestId: response.requestId,
             prompt: prompt.trim(),
+            initialStatus: response.status,
+            initialMessage: response.message,
+            matchedGiver: response.matchedGiver ? JSON.stringify(response.matchedGiver) : undefined,
           },
         });
       } else {
