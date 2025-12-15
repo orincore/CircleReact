@@ -18,8 +18,24 @@ echo "📁 Project Directory: $PROJECT_DIR"
 rm -rf "$BUILD_DIR/Circle.xcarchive"
 rm -rf "$BUILD_DIR/Circle.ipa"
 rm -rf "$BUILD_DIR/Payload"
+mkdir -p "$BUILD_DIR"
 
-# Build the archive using xcodebuild
+# Clean Xcode derived data to avoid build issues
+echo "🧹 Cleaning Xcode derived data..."
+rm -rf ~/Library/Developer/Xcode/DerivedData/Circle-*
+
+# Clean iOS build folder
+echo "🧹 Cleaning iOS build folder..."
+rm -rf "$IOS_DIR/build"
+
+# Update pods to ensure compatibility
+echo "📦 Updating CocoaPods..."
+cd "$IOS_DIR"
+pod install --repo-update
+
+cd "$PROJECT_DIR"
+
+# Build the archive using xcodebuild with additional flags to handle Swift compilation
 echo "📦 Building archive..."
 xcodebuild archive \
     -workspace "$IOS_DIR/Circle.xcworkspace" \
@@ -30,7 +46,12 @@ xcodebuild archive \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGNING_ALLOWED=NO \
     -destination "generic/platform=iOS" \
-    ONLY_ACTIVE_ARCH=NO
+    ONLY_ACTIVE_ARCH=NO \
+    SWIFT_COMPILATION_MODE=wholemodule \
+    SWIFT_OPTIMIZATION_LEVEL="-O" \
+    GCC_OPTIMIZATION_LEVEL=s \
+    VALIDATE_PRODUCT=NO \
+    -allowProvisioningUpdates
 
 # Create IPA from archive
 echo "📱 Creating IPA..."

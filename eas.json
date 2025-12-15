@@ -21,7 +21,11 @@
         "buildType": "apk"
       },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "NODE_ENV": "production"
       }
     },
     "ios-simulator": {
@@ -35,6 +39,19 @@
       "ios": {
         "simulator": false,
         "enterpriseProvisioning": "adhoc"
+      },
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    "sideload": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk"
       },
       "env": {
         "NODE_ENV": "production"
