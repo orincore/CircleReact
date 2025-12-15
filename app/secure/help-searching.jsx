@@ -44,6 +44,20 @@ const HelpSearchingScreen = () => {
   const [backgroundSearch, setBackgroundSearch] = useState(false);
   const [matchedGiver, setMatchedGiver] = useState(null);
 
+  const getMaskedBeaconLabel = (giver) => {
+    const rawId = giver?.giver_user_id || giver?.giverUserId || giver?.id || '';
+    if (!rawId || typeof rawId !== 'string') return 'Beacon Helper';
+    const compact = rawId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const suffix = compact.slice(-4) || '0000';
+    return `Beacon Helper • #${suffix}`;
+  };
+
+  const getMatchPercent = (giver) => {
+    const score = giver?.similarityScore ?? giver?.similarity_score;
+    if (typeof score !== 'number' || Number.isNaN(score)) return null;
+    return Math.max(0, Math.min(100, Math.round(score * 100)));
+  };
+
   useEffect(() => {
     if (!initialStatus) return;
 
@@ -57,11 +71,11 @@ const HelpSearchingScreen = () => {
 
     if (initialStatus === 'matched') {
       setStatus('found');
-      setStatusMessage(initialMessage || 'Helper found! Waiting for response...');
+      setStatusMessage(initialMessage || 'Beacon found! Waiting for response...');
       setProgress(prev => Math.max(prev, 80));
     } else if (initialStatus === 'searching') {
       setStatus('searching');
-      setStatusMessage(initialMessage || 'Looking for the perfect helper...');
+      setStatusMessage(initialMessage || 'Looking for the best Beacon match...');
       setProgress(prev => Math.max(prev, 25));
     }
   }, [initialStatus, initialMessage, matchedGiverJson]);
@@ -77,10 +91,10 @@ const HelpSearchingScreen = () => {
   // Status-specific messages for fallback
   const statusMessages = {
     analyzing: { title: 'Analyzing with AI...', subtitle: 'Understanding your request' },
-    searching: { title: 'Searching for helpers...', subtitle: 'Finding the perfect match' },
-    matching: { title: 'AI Matching...', subtitle: 'Comparing with available helpers' },
-    found: { title: 'Helper Found!', subtitle: 'Waiting for their response...' },
-    waiting: { title: 'Waiting for response...', subtitle: 'Your helper is reviewing' },
+    searching: { title: 'Searching for Beacons...', subtitle: 'Finding the best match' },
+    matching: { title: 'AI Matching...', subtitle: 'Comparing with available Beacons' },
+    found: { title: 'Beacon Found!', subtitle: 'Waiting for their response...' },
+    waiting: { title: 'Waiting for response...', subtitle: 'Your Beacon is reviewing' },
     connected: { title: 'Connected!', subtitle: 'Opening chat...' },
     error: { title: 'Something went wrong', subtitle: 'Please try again' },
   };
@@ -123,14 +137,14 @@ const HelpSearchingScreen = () => {
           } else if (reqStatus === 'matched') {
             // Matched giver selected, waiting for giver accept -> show found/waiting state
             setStatus('found');
-            setStatusMessage('Helper found! Waiting for response...');
+            setStatusMessage('Beacon found! Waiting for response...');
             setProgress(prev => Math.max(prev, 80));
           } else if (reqStatus === 'searching') {
             // Still searching - update progress if stuck
             if (progress < 50) {
               setProgress(prev => Math.min(prev + 10, 50));
               setStatus('searching');
-              setStatusMessage('Looking for the perfect helper...');
+              setStatusMessage('Looking for the best Beacon match...');
             }
           } else if (reqStatus === 'cancelled' || reqStatus === 'expired') {
             setStatus('error');
@@ -399,6 +413,8 @@ const HelpSearchingScreen = () => {
   const currentMessage = statusMessages[status] || statusMessages.searching;
   const displayTitle = statusMessage || currentMessage.title;
   const displaySubtitle = currentMessage.subtitle;
+  const maskedBeaconLabel = matchedGiver ? getMaskedBeaconLabel(matchedGiver) : null;
+  const matchPercent = matchedGiver ? getMatchPercent(matchedGiver) : null;
 
   // Get icon based on status
   const getStatusIcon = () => {
@@ -532,10 +548,10 @@ const HelpSearchingScreen = () => {
           />
           <Text style={[styles.statusText, { color: theme.textSecondary }]}>
             {status === 'found' || status === 'waiting' 
-              ? 'Helper found! Waiting for response...' 
+              ? 'Beacon found! Waiting for response...' 
               : status === 'connected' 
                 ? 'Connected!' 
-                : 'AI is searching for the best match...'}
+                : 'AI is searching for the best Beacon match...'}
           </Text>
         </View>
         <View style={styles.statusRow}>
@@ -548,7 +564,7 @@ const HelpSearchingScreen = () => {
           <View style={[styles.matchInfoRow, { backgroundColor: '#4CAF50' + '10' }]}>
             <Ionicons name="person" size={18} color="#4CAF50" />
             <Text style={[styles.matchInfoText, { color: '#4CAF50' }]}>
-              {matchedGiver.displayName || 'Helper'} • {Math.round((matchedGiver.similarityScore || matchedGiver.similarity_score || 0) * 100)}% match
+              {maskedBeaconLabel}{matchPercent !== null ? ` • ${matchPercent}% match` : ''}
             </Text>
           </View>
         )}
@@ -556,7 +572,7 @@ const HelpSearchingScreen = () => {
           <View style={[styles.waitingBanner, { backgroundColor: theme.primary + '15' }]}>
             <Ionicons name="hourglass" size={16} color={theme.primary} />
             <Text style={[styles.waitingText, { color: theme.primary }]}>
-              Request sent! Waiting for helper's response...
+              Request sent! Waiting for Beacon response...
             </Text>
           </View>
         )}
