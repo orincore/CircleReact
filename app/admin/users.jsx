@@ -67,6 +67,34 @@ export default function AdminUsers() {
     loadUsers();
   };
 
+  const getVerificationChip = (user) => {
+    const status = (user?.verification_status || 'pending').toString();
+    const isVerified = status === 'verified';
+    return {
+      label: isVerified ? 'VERIFIED' : status.toUpperCase(),
+      style: isVerified ? styles.chipSuccess : styles.chipMuted,
+      textStyle: isVerified ? styles.chipSuccessText : styles.chipMutedText,
+      icon: isVerified ? 'checkmark-circle' : 'alert-circle'
+    };
+  };
+
+  const getAccountStateChips = (user) => {
+    const chips = [];
+    if (user?.deleted_at) {
+      chips.push({ label: 'DELETED', style: styles.chipDanger, textStyle: styles.chipDangerText, icon: 'trash' });
+      return chips;
+    }
+    if (user?.is_suspended) {
+      chips.push({ label: 'SUSPENDED', style: styles.chipWarning, textStyle: styles.chipWarningText, icon: 'ban' });
+    } else {
+      chips.push({ label: 'ACTIVE', style: styles.chipInfo, textStyle: styles.chipInfoText, icon: 'radio-button-on' });
+    }
+    if (user?.email_verified) {
+      chips.push({ label: 'EMAIL', style: styles.chipInfo, textStyle: styles.chipInfoText, icon: 'mail' });
+    }
+    return chips;
+  };
+
   const handleSuspendUser = async (userId, userName) => {
     Alert.alert(
       'Suspend User',
@@ -142,48 +170,65 @@ export default function AdminUsers() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient colors={['#1F1147', '#7C2B86']} style={styles.header}>
+      <LinearGradient colors={['#0D0524', '#1F1147', '#7C2B86']} style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFD6F2" />
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>User Management</Text>
+          <View style={styles.headerTitles}>
+            <Text style={styles.headerTitle}>Users</Text>
+            <Text style={styles.headerSubtitle}>Search, review, and manage accounts</Text>
+          </View>
+        </View>
+
+        <View style={styles.toolbar}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={18} color="rgba(255,255,255,0.75)" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search name, email, username, phone"
+              placeholderTextColor="rgba(255,255,255,0.55)"
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+            />
+            {search.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearch('');
+                  setPage(1);
+                  loadUsers();
+                }}
+                style={styles.iconButton}
+              >
+                <Ionicons name="close" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={handleSearch} style={styles.iconButton}>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {['all', 'active', 'suspended', 'deleted'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[styles.filterPill, statusFilter === status && styles.filterPillActive]}
+                onPress={() => {
+                  setStatusFilter(status);
+                  setPage(1);
+                }}
+              >
+                <Text style={[styles.filterPillText, statusFilter === status && styles.filterPillTextActive]}>
+                  {status.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </LinearGradient>
-
-      {/* Search and Filters */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name, email, username..."
-            value={search}
-            onChangeText={setSearch}
-            onSubmitEditing={handleSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => { setSearch(''); handleSearch(); }}>
-              <Ionicons name="close-circle" size={20} color="#666" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {['all', 'active', 'suspended', 'deleted'].map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[styles.filterChip, statusFilter === status && styles.filterChipActive]}
-              onPress={() => { setStatusFilter(status); setPage(1); }}
-            >
-              <Text style={[styles.filterChipText, statusFilter === status && styles.filterChipTextActive]}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
 
       {/* Users List */}
       <ScrollView
@@ -198,63 +243,72 @@ export default function AdminUsers() {
         ) : (
           users.map((user) => (
             <View key={user.id} style={styles.userCard}>
-              <TouchableOpacity
-                style={styles.userCardContent}
-                onPress={() => handleViewUser(user.id)}
-              >
+              <TouchableOpacity style={styles.userCardTop} onPress={() => handleViewUser(user.id)}>
                 <Image
-                  source={{ uri: user.profile_photo_url || 'https://via.placeholder.com/50' }}
+                  source={{ uri: user.profile_photo_url || 'https://via.placeholder.com/56' }}
                   style={styles.avatar}
                 />
+
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>
-                    {user.first_name} {user.last_name}
+                  <View style={styles.userTopRow}>
+                    <Text style={styles.userName} numberOfLines={1}>
+                      {user.first_name} {user.last_name}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </View>
+
+                  <Text style={styles.userEmail} numberOfLines={1}>{user.email}</Text>
+                  <Text style={styles.userMeta} numberOfLines={1}>
+                    {(user.age || 'N/A')} • {(user.gender || 'N/A')} • @{user.username}
                   </Text>
-                  <Text style={styles.userEmail}>{user.email}</Text>
-                  <Text style={styles.userMeta}>
-                    {user.age} • {user.gender} • @{user.username}
-                  </Text>
+
+                  <View style={styles.chipsRow}>
+                    {(() => {
+                      const v = getVerificationChip(user);
+                      return (
+                        <View style={[styles.chip, v.style]}>
+                          <Ionicons name={v.icon} size={14} color={v.textStyle.color} />
+                          <Text style={[styles.chipText, v.textStyle]}>{v.label}</Text>
+                        </View>
+                      );
+                    })()}
+                    {getAccountStateChips(user).map((c) => (
+                      <View key={c.label} style={[styles.chip, c.style]}>
+                        <Ionicons name={c.icon} size={14} color={c.textStyle.color} />
+                        <Text style={[styles.chipText, c.textStyle]}>{c.label}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                {user.is_suspended && (
-                  <View style={styles.suspendedBadge}>
-                    <Text style={styles.suspendedText}>Suspended</Text>
-                  </View>
-                )}
-                {user.deleted_at && (
-                  <View style={[styles.suspendedBadge, styles.deletedBadge]}>
-                    <Text style={styles.suspendedText}>Deleted</Text>
-                  </View>
-                )}
               </TouchableOpacity>
 
               <View style={styles.userActions}>
                 {!user.deleted_at && (
-                  <>
-                    {user.is_suspended ? (
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.unsuspendButton]}
-                        onPress={() => handleUnsuspendUser(user.id, user.first_name)}
-                      >
-                        <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                        <Text style={styles.unsuspendButtonText}>Unsuspend</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.suspendButton]}
-                        onPress={() => handleSuspendUser(user.id, user.first_name)}
-                      >
-                        <Ionicons name="ban" size={16} color="#FF9800" />
-                        <Text style={styles.suspendButtonText}>Suspend</Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
+                  <TouchableOpacity
+                    style={[styles.actionButton, user.is_suspended ? styles.actionPrimary : styles.actionWarning]}
+                    onPress={() =>
+                      user.is_suspended
+                        ? handleUnsuspendUser(user.id, user.first_name)
+                        : handleSuspendUser(user.id, user.first_name)
+                    }
+                  >
+                    <Ionicons
+                      name={user.is_suspended ? 'checkmark-circle' : 'ban'}
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {user.is_suspended ? 'Unsuspend' : 'Suspend'}
+                    </Text>
+                  </TouchableOpacity>
                 )}
+
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.viewButton]}
+                  style={[styles.actionButton, styles.actionNeutral]}
                   onPress={() => handleViewUser(user.id)}
                 >
-                  <Ionicons name="eye" size={16} color="#2196F3" />
-                  <Text style={styles.viewButtonText}>View</Text>
+                  <Ionicons name="eye" size={16} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>View</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -297,180 +351,237 @@ export default function AdminUsers() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#0B061C',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#0B061C',
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '700',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 48,
+    paddingBottom: 18,
     paddingHorizontal: 20,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  backButton: {
-    marginRight: 16,
-  },
+  backButton: { padding: 10 },
+  headerTitles: { flex: 1 },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '600',
   },
-  searchInputContainer: {
+  toolbar: {
+    marginTop: 16,
+    gap: 12,
+  },
+  searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    fontSize: 16,
-  },
-  filterScroll: {
-    flexDirection: 'row',
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-    marginRight: 8,
-  },
-  filterChipActive: {
-    backgroundColor: '#7C2B86',
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  filterChipTextActive: {
+    fontSize: 15,
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  filterRow: {
+    gap: 10,
+    paddingRight: 6,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  filterPillActive: {
+    backgroundColor: 'rgba(255, 214, 242, 0.18)',
+    borderColor: 'rgba(255, 214, 242, 0.28)',
+  },
+  filterPillText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  filterPillTextActive: {
+    color: '#FFD6F2',
+  },
   content: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingTop: 16,
   },
   userCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
   },
-  userCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  userCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
   },
   userInfo: {
     flex: 1,
   },
+  userTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   userName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F1147',
-    marginBottom: 4,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   userEmail: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
+    marginTop: 6,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '600',
   },
   userMeta: {
+    marginTop: 4,
     fontSize: 12,
-    color: '#999',
-  },
-  suspendedBadge: {
-    backgroundColor: '#FF9800',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  deletedBadge: {
-    backgroundColor: '#F44336',
-  },
-  suspendedText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
     fontWeight: '600',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  chipMuted: {
+    backgroundColor: 'rgba(156, 163, 175, 0.10)',
+    borderColor: 'rgba(156, 163, 175, 0.22)',
+  },
+  chipMutedText: {
+    color: '#9CA3AF',
+  },
+  chipSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.22)',
+  },
+  chipSuccessText: {
+    color: '#10B981',
+  },
+  chipWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+    borderColor: 'rgba(245, 158, 11, 0.22)',
+  },
+  chipWarningText: {
+    color: '#F59E0B',
+  },
+  chipDanger: {
+    backgroundColor: 'rgba(239, 68, 68, 0.14)',
+    borderColor: 'rgba(239, 68, 68, 0.22)',
+  },
+  chipDangerText: {
+    color: '#EF4444',
+  },
+  chipInfo: {
+    backgroundColor: 'rgba(96, 165, 250, 0.14)',
+    borderColor: 'rgba(96, 165, 250, 0.22)',
+  },
+  chipInfoText: {
+    color: '#60A5FA',
   },
   userActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
+    marginTop: 14,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 8,
   },
-  suspendButton: {
-    backgroundColor: '#FFF3E0',
+  actionNeutral: {
+    backgroundColor: 'rgba(156, 163, 175, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.22)',
   },
-  suspendButtonText: {
-    color: '#FF9800',
+  actionWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.26)',
+  },
+  actionPrimary: {
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.26)',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
-  },
-  unsuspendButton: {
-    backgroundColor: '#E8F5E9',
-  },
-  unsuspendButtonText: {
-    color: '#4CAF50',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  viewButton: {
-    backgroundColor: '#E3F2FD',
-  },
-  viewButtonText: {
-    color: '#2196F3',
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
     gap: 16,
   },
   paginationButton: {
@@ -481,15 +592,16 @@ const styles = StyleSheet.create({
   },
   paginationText: {
     fontSize: 16,
-    color: '#1F1147',
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '800',
   },
   totalCount: {
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 16,
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',
@@ -499,6 +611,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#999',
+    color: 'rgba(255,255,255,0.65)',
+    fontWeight: '700',
   },
 });

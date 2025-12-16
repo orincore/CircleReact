@@ -12,6 +12,7 @@ export default function UserDetailScreen() {
   const router = useRouter();
   
   const [user, setUser] = useState(null);
+  const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [userRefunds, setUserRefunds] = useState([]);
@@ -59,6 +60,7 @@ export default function UserDetailScreen() {
 
       const userData = await userResponse.json();
       setUser(userData.user);
+      setStats(userData.stats || null);
 
       // Fetch user activity
       const activityResponse = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/activity`, {
@@ -95,6 +97,154 @@ export default function UserDetailScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmUnverifyUser = async () => {
+    if (!userId) return;
+
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Remove verified badge and set status to pending?')
+      : await new Promise((resolve) => {
+          Alert.alert(
+            'Remove Verified Badge',
+            'Set this user verification status back to pending?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Set Pending', onPress: () => resolve(true) }
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    try {
+      setActionLoading(true);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unverify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update verification status');
+      }
+
+      if (Platform.OS === 'web') {
+        window.alert('Verification status set to pending');
+      } else {
+        Alert.alert('Success', 'Verification status set to pending');
+      }
+      await loadUserDetails();
+    } catch (error) {
+      console.error('Error unverifying user:', error);
+      const msg = error?.message || 'Failed to update verification status';
+      if (Platform.OS === 'web') {
+        window.alert('Error: ' + msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmVerifyUser = async () => {
+    if (!userId) return;
+
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Mark this user as verified?')
+      : await new Promise((resolve) => {
+          Alert.alert(
+            'Verify User',
+            'Mark this user as verified?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Verify', onPress: () => resolve(true) }
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    try {
+      setActionLoading(true);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to verify user');
+      }
+
+      if (Platform.OS === 'web') {
+        window.alert('User verified successfully');
+      } else {
+        Alert.alert('Success', 'User verified successfully');
+      }
+      await loadUserDetails();
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      const msg = error?.message || 'Failed to verify user';
+      if (Platform.OS === 'web') {
+        window.alert('Error: ' + msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return 'N/A';
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return String(value);
+    }
+  };
+
+  const renderChips = (items) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return <Text style={styles.emptyText}>None</Text>;
+    }
+
+    return (
+      <View style={styles.chipsWrap}>
+        {items.map((item, idx) => (
+          <View key={`${item}-${idx}`} style={styles.chip}>
+            <Text style={styles.chipText}>{String(item)}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderMultiline = (value) => {
+    if (!value) {
+      return <Text style={styles.emptyText}>N/A</Text>;
+    }
+    return <Text style={styles.paragraph}>{String(value)}</Text>;
   };
 
   const loadUserRefunds = async (token) => {
@@ -477,6 +627,22 @@ export default function UserDetailScreen() {
           />
           <Text style={styles.userName}>{user.first_name} {user.last_name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
+
+          <View style={styles.badgesRow}>
+            <View style={[styles.badge, user.verification_status === 'verified' ? styles.badgeSuccess : styles.badgeMuted]}>
+              <Ionicons name={user.verification_status === 'verified' ? 'checkmark-circle' : 'alert-circle'} size={14} color={user.verification_status === 'verified' ? '#10B981' : '#9CA3AF'} />
+              <Text style={[styles.badgeText, user.verification_status === 'verified' ? styles.badgeTextSuccess : styles.badgeTextMuted]}>
+                {(user.verification_status || 'pending').toString().toUpperCase()}
+              </Text>
+            </View>
+
+            <View style={[styles.badge, user.email_verified ? styles.badgeInfo : styles.badgeMuted]}>
+              <Ionicons name={user.email_verified ? 'mail' : 'mail-outline'} size={14} color={user.email_verified ? '#60A5FA' : '#9CA3AF'} />
+              <Text style={[styles.badgeText, user.email_verified ? styles.badgeTextInfo : styles.badgeTextMuted]}>
+                {user.email_verified ? 'EMAIL VERIFIED' : 'EMAIL UNVERIFIED'}
+              </Text>
+            </View>
+          </View>
           
           {user.is_suspended && (
             <View style={styles.suspendedBadge}>
@@ -493,42 +659,152 @@ export default function UserDetailScreen() {
           )}
         </View>
 
+        {stats && (
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats.friendsCount ?? 0}</Text>
+              <Text style={styles.statLabel}>Friends</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats.messagesCount ?? 0}</Text>
+              <Text style={styles.statLabel}>Messages</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats.reportsReceived ?? 0}</Text>
+              <Text style={styles.statLabel}>Reports Received</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats.reportsSent ?? 0}</Text>
+              <Text style={styles.statLabel}>Reports Sent</Text>
+            </View>
+          </View>
+        )}
+
         {/* User Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>User Information</Text>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>User ID:</Text>
-            <Text style={styles.infoValue}>{user.id}</Text>
+
+          <View style={styles.infoGrid}>
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>User ID</Text>
+              <Text style={styles.infoItemValue} numberOfLines={2}>{user.id}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Username</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>@{user.username}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Phone</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.phone_number || 'N/A'}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Instagram</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.instagram_username || 'N/A'}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Age</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.age || 'N/A'}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Gender</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.gender || 'N/A'}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Joined</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{formatDate(user.created_at)}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Last Seen</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.last_seen ? formatDate(user.last_seen) : 'Never'}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Verified At</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{formatDate(user.verified_at)}</Text>
+            </View>
+
+            <View style={styles.infoItemCard}>
+              <Text style={styles.infoItemLabel}>Verification Required</Text>
+              <Text style={styles.infoItemValue} numberOfLines={1}>{user.verification_required === true ? 'Yes' : user.verification_required === false ? 'No' : 'N/A'}</Text>
+            </View>
           </View>
-          
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bio</Text>
+          {renderMultiline(user.about)}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Interests</Text>
+          {renderChips(user.interests)}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Needs</Text>
+          {renderChips(user.needs)}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Username:</Text>
-            <Text style={styles.infoValue}>@{user.username}</Text>
+            <Text style={styles.infoLabel}>Address:</Text>
+            <Text style={styles.infoValue}>{user.location_address || 'N/A'}</Text>
           </View>
-          
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Age:</Text>
-            <Text style={styles.infoValue}>{user.age || 'N/A'}</Text>
+            <Text style={styles.infoLabel}>City:</Text>
+            <Text style={styles.infoValue}>{user.location_city || 'N/A'}</Text>
           </View>
-          
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Gender:</Text>
-            <Text style={styles.infoValue}>{user.gender || 'N/A'}</Text>
+            <Text style={styles.infoLabel}>Country:</Text>
+            <Text style={styles.infoValue}>{user.location_country || 'N/A'}</Text>
           </View>
-          
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Joined:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(user.created_at).toLocaleDateString()}
-            </Text>
+            <Text style={styles.infoLabel}>Latitude:</Text>
+            <Text style={styles.infoValue}>{user.latitude ?? 'N/A'}</Text>
           </View>
-          
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Last Seen:</Text>
-            <Text style={styles.infoValue}>
-              {user.last_seen ? new Date(user.last_seen).toLocaleString() : 'Never'}
-            </Text>
+            <Text style={styles.infoLabel}>Longitude:</Text>
+            <Text style={styles.infoValue}>{user.longitude ?? 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Updated At:</Text>
+            <Text style={styles.infoValue}>{formatDate(user.location_updated_at)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Location Preference:</Text>
+            <Text style={styles.infoValue}>{user.location_preference || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Age Preference:</Text>
+            <Text style={styles.infoValue}>{user.age_preference || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Friendship Location Priority:</Text>
+            <Text style={styles.infoValue}>{user.friendship_location_priority === true ? 'Yes' : user.friendship_location_priority === false ? 'No' : 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Relationship Distance Flexible:</Text>
+            <Text style={styles.infoValue}>{user.relationship_distance_flexible === true ? 'Yes' : user.relationship_distance_flexible === false ? 'No' : 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Preferences Updated At:</Text>
+            <Text style={styles.infoValue}>{formatDate(user.preferences_updated_at)}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Invisible Mode:</Text>
+            <Text style={styles.infoValue}>{user.invisible_mode === true ? 'On' : user.invisible_mode === false ? 'Off' : 'N/A'}</Text>
           </View>
         </View>
 
@@ -696,6 +972,28 @@ export default function UserDetailScreen() {
           {/* Debug info */}
        
           
+          {user.verification_status !== 'verified' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.verifyButton]}
+              onPress={confirmVerifyUser}
+              disabled={actionLoading}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Mark as Verified</Text>
+            </TouchableOpacity>
+          )}
+
+          {user.verification_status === 'verified' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.unverifyButton]}
+              onPress={confirmUnverifyUser}
+              disabled={actionLoading}
+            >
+              <Ionicons name="remove-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Remove Verified Badge</Text>
+            </TouchableOpacity>
+          )}
+
           {!user.is_suspended ? (
             <TouchableOpacity
               style={[styles.actionButton, styles.suspendButton]}
@@ -1091,6 +1389,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    gap: 6,
+  },
+  badgeMuted: {
+    backgroundColor: 'rgba(156, 163, 175, 0.12)',
+    borderColor: 'rgba(156, 163, 175, 0.25)',
+  },
+  badgeSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  badgeInfo: {
+    backgroundColor: 'rgba(96, 165, 250, 0.12)',
+    borderColor: 'rgba(96, 165, 250, 0.25)',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  badgeTextMuted: {
+    color: '#9CA3AF',
+  },
+  badgeTextSuccess: {
+    color: '#10B981',
+  },
+  badgeTextInfo: {
+    color: '#60A5FA',
+  },
   avatar: {
     width: 100,
     height: 100,
@@ -1128,6 +1467,63 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
   },
+  paragraph: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.95,
+  },
+  emptyText: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  chip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  chipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flexGrow: 1,
+    minWidth: 150,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  statNumber: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  statLabel: {
+    marginTop: 6,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -1140,6 +1536,34 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  infoItemCard: {
+    flexGrow: 1,
+    minWidth: 160,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  infoItemLabel: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  infoItemValue: {
+    marginTop: 8,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   infoLabel: {
     fontSize: 14,
@@ -1163,6 +1587,12 @@ const styles = StyleSheet.create({
   },
   suspendButton: {
     backgroundColor: '#FF9500',
+  },
+  verifyButton: {
+    backgroundColor: '#10B981',
+  },
+  unverifyButton: {
+    backgroundColor: '#6B7280',
   },
   unsuspendButton: {
     backgroundColor: '#22C55E',

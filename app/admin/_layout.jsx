@@ -41,20 +41,25 @@ export default function AdminLayout() {
     return <Slot />;
   }
 
+  const getPageTitle = () => {
+    const match = menuItems.find((m) => pathname === m.path);
+    if (match) return match.name;
+    if (pathname.startsWith('/admin/users/')) return 'User Details';
+    return 'Admin';
+  };
+
   return (
     <AdminAuthGuard>
       <View style={styles.container}>
       {/* Sidebar */}
       <View style={[styles.sidebar, sidebarCollapsed && styles.sidebarCollapsed]}>
         <LinearGradient
-          colors={['#1F1147', '#7C2B86']}
+          colors={['#0D0524', '#1F1147', '#7C2B86']}
           style={styles.sidebarGradient}
         >
           {/* Logo/Header */}
           <View style={styles.sidebarHeader}>
-            {!sidebarCollapsed && (
-              <Text style={styles.logo}>Circle Admin</Text>
-            )}
+            {!sidebarCollapsed && <Text style={styles.logo}>Circle</Text>}
             <TouchableOpacity
               onPress={() => setSidebarCollapsed(!sidebarCollapsed)}
               style={styles.collapseButton}
@@ -139,7 +144,23 @@ export default function AdminLayout() {
       </View>
 
       {/* Main Content */}
-      <View style={styles.mainContent}>
+      <View
+        style={[
+          styles.mainContent,
+          Platform.OS === 'web' && { marginLeft: sidebarCollapsed ? 80 : 250 }
+        ]}
+      >
+        <View style={styles.topBar}>
+          <Text style={styles.topBarTitle}>{getPageTitle()}</Text>
+          <View style={styles.topBarRight}>
+            <TouchableOpacity
+              style={styles.topBarIconButton}
+              onPress={() => router.push('/admin/settings')}
+            >
+              <Ionicons name="settings" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
         <Slot />
       </View>
     </View>
@@ -151,7 +172,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#0B061C',
   },
   sidebar: {
     width: 250,
@@ -170,7 +191,9 @@ const styles = StyleSheet.create({
   },
   sidebarGradient: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 18,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255, 255, 255, 0.10)',
   },
   sidebarHeader: {
     flexDirection: 'row',
@@ -182,42 +205,51 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   logo: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '900',
     color: '#FFFFFF',
+    letterSpacing: 0.4,
   },
   collapseButton: {
     padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
   },
   menuContainer: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 14,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     marginHorizontal: 10,
     marginVertical: 4,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   menuItemCollapsed: {
     justifyContent: 'center',
     paddingHorizontal: 0,
   },
   menuItemActive: {
-    backgroundColor: 'rgba(255, 214, 242, 0.15)',
+    backgroundColor: 'rgba(255, 214, 242, 0.14)',
+    borderColor: 'rgba(255, 214, 242, 0.22)',
   },
   menuItemText: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.7)',
     marginLeft: 16,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   menuItemTextActive: {
     color: '#FFD6F2',
-    fontWeight: '600',
+    fontWeight: '800',
   },
   logoutButton: {
     flexDirection: 'row',
@@ -227,24 +259,53 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     marginBottom: 20,
     borderRadius: 12,
-    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+    backgroundColor: 'rgba(239, 68, 68, 0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.22)',
   },
   logoutButtonCollapsed: {
     justifyContent: 'center',
     paddingHorizontal: 0,
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
     marginLeft: 16,
-    fontWeight: '500',
+    fontWeight: '800',
   },
   mainContent: {
     flex: 1,
-    ...Platform.select({
-      web: {
-        marginLeft: 250,
-      },
-    }),
+    backgroundColor: '#0B061C',
+  },
+  topBar: {
+    height: 64,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  topBarTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  topBarIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
   },
 });

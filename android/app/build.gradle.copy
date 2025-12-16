@@ -92,8 +92,8 @@ android {
         applicationId 'com.orincore.Circle'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 44
-        versionName "1.5.2"
+        versionCode 46
+        versionName "1.5.4"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
