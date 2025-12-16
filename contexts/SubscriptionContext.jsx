@@ -75,8 +75,17 @@ export const SubscriptionProvider = ({ children }) => {
   };
 
   // Show ads for free users
+  // CRITICAL: Default to showing ads if subscription data is unavailable
   const shouldShowAds = () => {
-    return !hasFeature('ad_free');
+    // If subscription is not loaded yet, show ads (safe default for revenue)
+    if (!subscription || loading) {
+      console.log('🎯 shouldShowAds: true (subscription not loaded, defaulting to show ads)');
+      return true;
+    }
+    
+    const showAds = !hasFeature('ad_free');
+    console.log('🎯 shouldShowAds:', showAds, '| Plan:', getPlan(), '| isPremium:', isPremium());
+    return showAds;
   };
 
   // Check match limit
@@ -117,11 +126,13 @@ export const SubscriptionProvider = ({ children }) => {
         setMatchLimit(data.match_limit || { canMatch: true, matchesUsed: 0, limit: 3 });
       } else {
         // Default to free plan if API fails
-        setSubscription({ plan: 'free', is_premium: false });
+        console.log('⚠️ Subscription API failed, defaulting to free plan (ads will show)');
+        setSubscription({ plan: 'free', is_premium: false, status: 'free' });
       }
     } catch (error) {
-      console.warn('Failed to fetch subscription:', error);
-      setSubscription({ plan: 'free', is_premium: false });
+      console.warn('❌ Failed to fetch subscription:', error);
+      // CRITICAL: Always default to free plan to ensure ads show
+      setSubscription({ plan: 'free', is_premium: false, status: 'free' });
     } finally {
       setLoading(false);
     }

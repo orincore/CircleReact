@@ -6,9 +6,11 @@
  */
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// Check if running in production
-const __DEV__ = 'production';
+// CRITICAL: Always use production ads in release builds
+// Check if running in Expo Go (development) vs standalone build (production)
+const __DEV__ = __DEV__ || Constants.appOwnership === 'expo';
 
 /**
  * AdMob Ad Unit IDs

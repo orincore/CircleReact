@@ -42,9 +42,22 @@ const PRODUCTION_AD_UNITS = {
   },
 };
 
-// Use test ads in development, production ads in production
-const __DEV__ = process.env.NODE_ENV === 'development';
-const AD_UNITS = __DEV__ ? TEST_AD_UNITS : PRODUCTION_AD_UNITS;
+// CRITICAL FIX: Always use production ads in release builds
+// Only use test ads in Expo Go or explicit development mode
+import Constants from 'expo-constants';
+const isExpoGo = Constants.appOwnership === 'expo';
+const isDevelopment = __DEV__ || isExpoGo;
+
+// Force production ads in standalone builds
+const AD_UNITS = isDevelopment ? TEST_AD_UNITS : PRODUCTION_AD_UNITS;
+
+console.log('🎯 AdMob Config:', {
+  isDevelopment,
+  isExpoGo,
+  usingTestAds: isDevelopment,
+  platform: Platform.OS,
+  bannerAdUnit: AD_UNITS[Platform.OS === 'ios' ? 'ios' : 'android'].banner
+});
 
 /**
  * Get AdMob Unit ID for specific ad type
