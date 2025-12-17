@@ -9,6 +9,7 @@ import { getSocket } from "@/src/api/socket";
 import { FriendRequestService } from "@/src/services/FriendRequestService";
 import LinkedSocialAccounts from "@/src/components/LinkedSocialAccounts";
 import SpotifyProfile from "@/src/components/SpotifyProfile";
+import { shareProfile } from "@/src/utils/shareProfile";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -701,7 +702,23 @@ export default function UserProfileScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
           <Text style={dynamicStyles.headerTitle}>Profile</Text>
-          <View style={styles.headerRight} />
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={async () => {
+              try {
+                await shareProfile({
+                  userId,
+                  username: profileData?.username,
+                  displayName
+                });
+              } catch (error) {
+                console.error('Error sharing profile:', error);
+                Alert.alert('Error', 'Failed to share profile');
+              }
+            }}
+          >
+            <Ionicons name="share-social" size={20} color={theme.textPrimary} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -1302,6 +1319,13 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,

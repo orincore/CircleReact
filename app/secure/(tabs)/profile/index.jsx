@@ -8,6 +8,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
 import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
+import { shareProfile } from "@/src/utils/shareProfile";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -570,6 +571,7 @@ export default function ProfileScreen() {
       elevation: 3,
     },
     editButton: {
+      flex: 1,
       backgroundColor: theme.surfaceSecondary,
       borderRadius: 12,
       paddingHorizontal: 16,
@@ -581,6 +583,24 @@ export default function ProfileScreen() {
       fontSize: 14,
       fontWeight: '600',
       color: theme.textSecondary,
+    },
+    shareButton: {
+      flex: 1,
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    shareButtonText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
     decorativeShape1: {
       position: 'absolute',
@@ -831,13 +851,33 @@ export default function ProfileScreen() {
                 <View style={dynamicStyles.onlineIndicator} />
               </TouchableOpacity>
               
-              {/* Edit Profile Button */}
-              <TouchableOpacity 
-                style={dynamicStyles.editButton}
-                onPress={() => router.push("/secure/(tabs)/profile/edit")}
-              >
-                <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
-              </TouchableOpacity>
+              <View style={styles.profileActionsRow}>
+                <TouchableOpacity 
+                  style={dynamicStyles.editButton}
+                  onPress={() => router.push("/secure/(tabs)/profile/edit")}
+                >
+                  <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={dynamicStyles.shareButton}
+                  onPress={async () => {
+                    try {
+                      await shareProfile({
+                        userId: user?.id,
+                        username: user?.username,
+                        displayName
+                      });
+                    } catch (error) {
+                      console.error('Error sharing profile:', error);
+                      Alert.alert('Error', 'Failed to share profile');
+                    }
+                  }}
+                >
+                  <Ionicons name="share-social" size={16} color="#FFFFFF" />
+                  <Text style={dynamicStyles.shareButtonText}>Share</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Profile Info */}
@@ -1269,6 +1309,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
+  },
+  profileActionsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   avatarContainer: {
     position: 'relative',

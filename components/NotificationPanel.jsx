@@ -531,15 +531,25 @@ export default function NotificationPanel({ visible, onClose }) {
       case 'new_user_suggestion':
         return 'just joined Circle';
       case 'message':
+      case 'new_message':
         return 'sent you a message';
       case 'match':
+      case 'new_match':
         return 'matched with you';
       case 'like':
         return 'liked your profile';
       case 'profile_visit':
         return 'visited your profile';
+      case 'incoming_call':
+        return 'is calling you';
+      case 'blind_date_match':
+        return 'found a blind date match with you';
+      case 'blind_date_reveal':
+        return 'revealed their identity';
+      case 'help_request':
+        return 'requested your help';
       default:
-        return 'sent you a notification';
+        return 'sent you an update';
     }
   };
 
