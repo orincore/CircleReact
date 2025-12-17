@@ -25,6 +25,7 @@ class OTAUpdateService {
     this.maxRetries = 3;
     this.isInitialized = false;
     this.isProductionBuild = false; // Track if this is a production build
+    this.updateNotificationHandler = null; // Custom notification handler
     this.config = {
       autoDownload: true,
       autoRestart: false,
@@ -289,6 +290,13 @@ class OTAUpdateService {
   }
 
   /**
+   * Set custom update notification handler
+   */
+  setUpdateNotificationHandler(handler) {
+    this.updateNotificationHandler = handler;
+  }
+
+  /**
    * Prompt user to install available update with enhanced consent handling
    */
   async promptUserForUpdate(updateInfo = null) {
@@ -297,6 +305,24 @@ class OTAUpdateService {
         updateId: updateInfo?.id,
       });
 
+      // Use custom notification handler if available
+      if (this.updateNotificationHandler) {
+        console.log('📱 Using custom notification handler for update prompt');
+        
+        // Format update info for the banner
+        const formattedUpdateInfo = {
+          id: updateInfo?.id,
+          version: updateInfo?.runtimeVersion || 'Latest',
+          size: updateInfo?.launchAsset?.size || 'unknown',
+          description: 'A new version with improvements and bug fixes is available.',
+          ...updateInfo,
+        };
+        
+        this.updateNotificationHandler(formattedUpdateInfo);
+        return;
+      }
+
+      // Fallback to system alert if no custom handler
       const updateSize = updateInfo?.launchAsset?.size || 'unknown';
       const sizeText = this.formatUpdateSize(updateSize);
       
