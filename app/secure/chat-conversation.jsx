@@ -3088,7 +3088,10 @@ export default function ChatConversationScreen() {
               <TextInput
                 style={[
                   styles.input,
-                  { color: isDarkMode ? '#FFFFFF' : '#000000' },
+                  { 
+                    color: theme.textPrimary || (isDarkMode ? '#FFFFFF' : '#000000'),
+                    backgroundColor: theme.surface || (isDarkMode ? '#2D2D3A' : '#F3F4F6'),
+                  },
                 ]}
                 value={composer}
                 onChangeText={handleComposerChange}
@@ -3794,7 +3797,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#F3F4F6",
     maxHeight: 120,
   },
   sendButton: {
