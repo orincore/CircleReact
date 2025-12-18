@@ -7,7 +7,6 @@ import BrowserNotificationProvider from "@/src/components/BrowserNotificationPro
 import ConnectionStatus from "@/src/components/ConnectionStatus";
 import NotificationManager from "@/src/components/NotificationManager";
 import ErrorBoundary from "@/src/components/ErrorBoundary";
-import UpdateNotificationBanner from "@/src/components/UpdateNotificationBanner";
 import { setupGlobalErrorHandlers } from "@/src/utils/crashPrevention";
 import { Stack } from "expo-router";
 import { useEffect, useState } from 'react';
@@ -17,15 +16,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import analyticsService from '@/src/services/analyticsService';
 import appVersionService from '@/src/services/appVersionService';
 // import crashReportingService from '@/src/services/crashReportingService';
-import { otaUpdateService } from '@/src/services/otaUpdateService';
 import { useUserConsent } from '@/components/UserConsentModal';
+import { useEASUpdate } from '@/src/hooks/useEASUpdate';
 
 export default function RootLayout() {
+  // Initialize EAS Update hook for silent background update checking
+  // Updates are downloaded automatically and applied on next app restart
+  useEASUpdate();
   const [showConsentModal, setShowConsentModal] = useState(false);
-  const [updateNotification, setUpdateNotification] = useState({
-    visible: false,
-    updateInfo: null,
-  });
   const { checkConsent, hasConsent } = useUserConsent();
 
   useEffect(() => {
@@ -130,17 +128,6 @@ export default function RootLayout() {
         // Check for app version updates
         await appVersionService.checkForUpdates();
         
-        // Initialize OTA updates with custom notification handler
-        await otaUpdateService.initialize();
-        
-        // Set up custom update notification handler
-        otaUpdateService.setUpdateNotificationHandler((updateInfo) => {
-          setUpdateNotification({
-            visible: true,
-            updateInfo: updateInfo,
-          });
-        });
-        
         await appVersionService.initialize();
         await appVersionService.trackInstallation();
         await appVersionService.trackUpgrade();
@@ -178,40 +165,6 @@ export default function RootLayout() {
     setShowConsentModal(false);
     const consent = await checkConsent();
     await initializeAppServices(consent);
-  };
-
-  // OTA Update notification handlers
-  const handleUpdateAccept = async () => {
-    try {
-      setUpdateNotification(prev => ({ ...prev, visible: false }));
-      
-      // Download and install the update
-      await otaUpdateService.downloadAndInstallUpdate();
-    } catch (error) {
-      console.error('Error accepting update:', error);
-      Alert.alert(
-        'Update Failed',
-        'Failed to download the update. Please try again later.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  const handleUpdateDecline = async () => {
-    try {
-      setUpdateNotification(prev => ({ ...prev, visible: false }));
-      
-      // Handle user decline in the service
-      if (updateNotification.updateInfo) {
-        await otaUpdateService.handleUserDecline(updateNotification.updateInfo);
-      }
-    } catch (error) {
-      console.error('Error declining update:', error);
-    }
-  };
-
-  const handleUpdateDismiss = () => {
-    setUpdateNotification(prev => ({ ...prev, visible: false }));
   };
 
   useEffect(() => {
@@ -349,15 +302,6 @@ export default function RootLayout() {
                   <ConnectionStatus />
                   <Stack screenOptions={{ headerShown: false }} />
                   <NotificationManager />
-                  
-                  {/* OTA Update Notification Banner */}
-                  <UpdateNotificationBanner
-                    visible={updateNotification.visible}
-                    updateInfo={updateNotification.updateInfo}
-                    onAccept={handleUpdateAccept}
-                    onDecline={handleUpdateDecline}
-                    onDismiss={handleUpdateDismiss}
-                  />
                   
                   {/* User Consent Modal for GDPR Compliance */}
                   <UserConsentModal

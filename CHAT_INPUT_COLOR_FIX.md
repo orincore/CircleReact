@@ -86,13 +86,18 @@ The fix ensures:
 - ✅ Theme colors are properly applied
 - ✅ Fallback colors work if theme is undefined
 
-## OTA Deployment
-This fix will be deployed via OTA update:
+## EAS Update Deployment
+This fix will be deployed via Expo EAS Update:
 - Version: 1.5.6
 - Build: 48
-- Runtime Version: 1.0.0 (unchanged - compatible with existing builds)
+- Runtime Version: Uses appVersion policy (compatible with existing builds)
 
-Users will receive this update automatically through the OTA system that was just integrated.
+Deploy using:
+```bash
+eas update --channel production --message "Fix chat input text visibility"
+```
+
+Users will receive this update automatically - it downloads silently and applies on next app restart.
 
 ## Verification
 To verify the fix works:
@@ -108,7 +113,7 @@ testChatInputColorFix();
 ```
 
 ## Related Issues
-- OTA Update Integration (completed in previous task)
+- EAS Update Migration (migrated from self-hosted OTA to Expo EAS Update)
 - Theme consistency across components
 - Text visibility in input fields
 
@@ -117,4 +122,4 @@ testChatInputColorFix();
 - **Affected Users**: All users in light mode
 - **Fix Type**: Bug fix
 - **Breaking Changes**: None
-- **OTA Compatible**: Yes ✅
+- **EAS Update Compatible**: Yes ✅

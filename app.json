@@ -154,10 +154,12 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 5000,
-      "url": "https://api.circle.orincore.com/api/updates/manifest"
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/c9234d97-8ff5-45bc-8f8f-8772ef0926a5"
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "router": {},
       "eas": {
