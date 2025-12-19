@@ -71,12 +71,10 @@
       "channel": "production",
       "android": {
         "buildType": "app-bundle",
-        "gradleCommand": ":app:bundleRelease",
-        "versionCode": 100
+        "gradleCommand": ":app:bundleRelease"
       },
       "ios": {
-        "simulator": false,
-        "buildNumber": 100
+        "simulator": false
       },
       "env": {
         "NODE_ENV": "production"
