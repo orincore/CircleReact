@@ -1,28 +1,46 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getSocket } from '@/src/api/socket';
+import { notificationApi } from '@/src/api/notifications';
+import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
-  SafeAreaView,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Animated,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
+
+const formatTimeAgo = (timestamp) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+};
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const { theme, isDarkMode } = useTheme();
+  const { resetCount: resetNotificationCount } = useLocalNotificationCount();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,11 +50,24 @@ export default function NotificationsPage() {
 
     loadNotifications();
     setupSocketListeners();
+    
+    // Reset local notification count and mark all as read when page is opened
+    resetNotificationCount();
+    markAllAsRead();
 
     return () => {
       cleanupSocketListeners();
     };
   }, [token]);
+
+  const markAllAsRead = async () => {
+    try {
+      await notificationApi.markAllAsRead(token);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
 
   const loadNotifications = async () => {
     if (refreshing) return;
@@ -52,10 +83,10 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadNotifications();
-  };
+  }, []);
 
   const setupSocketListeners = () => {
     const socket = getSocket(token);
@@ -70,6 +101,7 @@ export default function NotificationsPage() {
         senderName: `${request.sender?.first_name || ''} ${request.sender?.last_name || ''}`.trim(),
         timestamp: new Date(request.created_at),
         data: request,
+        read: false,
       }));
 
       setNotifications(notificationData);
@@ -87,12 +119,12 @@ export default function NotificationsPage() {
         senderName: `${sender?.first_name || ''} ${sender?.last_name || ''}`.trim(),
         timestamp: new Date(request.created_at),
         data: request,
+        read: false,
       };
 
       setNotifications(prev => [newNotification, ...prev]);
     });
 
-    // Listen for matchmaking proposals (message requests)
     socket.on('matchmaking:proposal', ({ id, other }) => {
       const newNotification = {
         id: id,
@@ -103,28 +135,21 @@ export default function NotificationsPage() {
         senderName: `${other?.first_name || ''} ${other?.last_name || ''}`.trim(),
         timestamp: new Date(),
         data: { id, other },
+        read: false,
       };
 
       setNotifications(prev => [newNotification, ...prev]);
     });
 
-    // Listen for cancelled friend requests
-    socket.on('friend:request:cancelled', ({ request, cancelledBy }) => {
-      //console.log('🚫 Friend request cancelled notification:', request);
-      // Remove the cancelled request from notifications
+    socket.on('friend:request:cancelled', ({ request }) => {
       setNotifications(prev => prev.filter(notif => notif.id !== request.id));
     });
 
-    // Listen for cancelled message requests
-    socket.on('message:request:cancelled', ({ proposal, cancelledBy }) => {
-      //console.log('🚫 Message request cancelled notification:', proposal);
-      // Remove the cancelled request from notifications
+    socket.on('message:request:cancelled', ({ proposal }) => {
       setNotifications(prev => prev.filter(notif => notif.id !== proposal.id));
     });
 
-    // Listen for new notifications (unified system)
     socket.on('notification:new', (notification) => {
-      //console.log('📱 New notification received:', notification);
       setNotifications(prev => [notification, ...prev]);
     });
 
@@ -142,15 +167,12 @@ export default function NotificationsPage() {
       Alert.alert('Error', error);
     });
 
-    // Listen for matchmaking events
-    socket.on('matchmaking:matched', ({ chatId, otherName }) => {
-      // Remove the proposal notification when matched
+    socket.on('matchmaking:matched', ({ otherName }) => {
       setNotifications(prev => prev.filter(notif => notif.type !== 'message_request'));
       Alert.alert('Success', `You matched with ${otherName}! Start chatting now.`);
     });
 
-    socket.on('matchmaking:cancelled', ({ reason }) => {
-      // Remove message request notifications when cancelled
+    socket.on('matchmaking:cancelled', () => {
       setNotifications(prev => prev.filter(notif => notif.type !== 'message_request'));
     });
   };
@@ -176,8 +198,8 @@ export default function NotificationsPage() {
         await FriendRequestService.acceptFriendRequest(notification.id, token);
         setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
       } catch (error) {
-        console.error('Failed to accept friend request from notifications:', error);
-        Alert.alert('Error', error.message || 'Failed to accept friend request. Please try again.');
+        console.error('Failed to accept friend request:', error);
+        Alert.alert('Error', error.message || 'Failed to accept friend request.');
       }
     } else if (notification.type === 'message_request') {
       const socket = getSocket(token);
@@ -188,27 +210,24 @@ export default function NotificationsPage() {
 
   const handleDeclineRequest = (notification) => {
     const requestType = notification.type === 'friend_request' ? 'Friend Request' : 'Message Request';
-    const actionType = notification.type === 'friend_request' ? 'friend request' : 'message request';
     
     Alert.alert(
       `Decline ${requestType}`,
-      `Are you sure you want to decline ${notification.senderName}'s ${actionType}?`,
+      `Are you sure you want to decline ${notification.senderName}'s request?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Decline',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             if (notification.type === 'friend_request') {
-              (async () => {
-                try {
-                  await FriendRequestService.declineFriendRequest(notification.id, token);
-                  setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
-                } catch (error) {
-                  console.error('Failed to decline friend request from notifications:', error);
-                  Alert.alert('Error', error.message || 'Failed to decline friend request. Please try again.');
-                }
-              })();
+              try {
+                await FriendRequestService.declineFriendRequest(notification.id, token);
+                setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
+              } catch (error) {
+                console.error('Failed to decline friend request:', error);
+                Alert.alert('Error', error.message || 'Failed to decline friend request.');
+              }
             } else if (notification.type === 'message_request') {
               const socket = getSocket(token);
               socket.emit('matchmaking:decide', { decision: 'pass' });
@@ -220,106 +239,179 @@ export default function NotificationsPage() {
     );
   };
 
-  const renderNotification = ({ item }) => {
-    if (item.type === 'friend_request' || item.type === 'message_request') {
-      const iconName = item.type === 'friend_request' ? 'person-add' : 'chatbubble-ellipses';
-      const iconColor = item.type === 'friend_request' ? '#7C2B86' : '#FF6B9D';
-      const cardBaseStyle = item.type === 'message_request' ? styles.messageRequestCard : styles.notificationCard;
-      
-      return (
-        <View
-          style={[
-            cardBaseStyle,
-            { backgroundColor: theme.surface },
-          ]}
-        >
-          <View style={styles.notificationContent}>
-            <View style={styles.avatarContainer}>
-              {item.avatar ? (
-                <Image source={{ uri: item.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={[styles.fallbackAvatar, item.type === 'message_request' && styles.messageRequestAvatar]}>
-                  <Ionicons name={iconName} size={24} color={iconColor} />
-                </View>
-              )}
-            </View>
-            
-            <View style={styles.textContent}>
-              <Text style={[styles.notificationTitle, { color: theme.textPrimary }]}>{item.title}</Text>
-              <Text style={[styles.notificationMessage, { color: theme.textSecondary }]}>{item.message}</Text>
-              <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
-                {item.timestamp.toLocaleDateString()} at {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, item.type === 'message_request' ? styles.connectButton : styles.acceptButton]}
-              onPress={() => handleAcceptRequest(item)}
-            >
-              <Ionicons name={item.type === 'message_request' ? 'heart' : 'checkmark'} size={18} color="white" />
-              <Text style={styles.acceptButtonText}>
-                {item.type === 'message_request' ? 'Connect' : 'Accept'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.declineButton,
-                { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#f0f0f0' },
-              ]}
-              onPress={() => handleDeclineRequest(item)}
-            >
-              <Ionicons name="close" size={18} color="#666" />
-              <Text style={[styles.declineButtonText, { color: theme.textSecondary }]}>
-                {item.type === 'message_request' ? 'Pass' : 'Decline'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'friend_request':
+        return { name: 'person-add', color: '#7C2B86', bg: 'rgba(124, 43, 134, 0.1)' };
+      case 'message_request':
+        return { name: 'chatbubble-ellipses', color: '#FF6B9D', bg: 'rgba(255, 107, 157, 0.1)' };
+      case 'match':
+        return { name: 'heart', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)' };
+      default:
+        return { name: 'notifications', color: '#7C2B86', bg: 'rgba(124, 43, 134, 0.1)' };
     }
-    
-    return null;
   };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <LinearGradient
-        colors={isDarkMode ? ['#1F1147', '#7C2B86'] : [theme.background, theme.backgroundSecondary]}
-        style={styles.header}
+  const handleNotificationPress = (notification) => {
+    // Get the user ID from the notification
+    const userId = notification.data?.sender?.id || 
+                   notification.data?.sender_id || 
+                   notification.data?.userId ||
+                   notification.data?.other?.id ||
+                   notification.sender?.id;
+    
+    if (userId) {
+      router.push(`/secure/user-profile/${userId}`);
+    }
+  };
+
+  const renderNotification = ({ item, index }) => {
+    const iconConfig = getNotificationIcon(item.type);
+    const isActionable = item.type === 'friend_request' || item.type === 'message_request';
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.notificationCard,
+          { 
+            backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
+            borderLeftColor: iconConfig.color,
+          },
+          !item.read && styles.unreadCard,
+        ]}
+        onPress={() => handleNotificationPress(item)}
+        activeOpacity={0.7}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.headerRight} />
-      </LinearGradient>
+        <View style={styles.notificationRow}>
+          {/* Avatar or Icon */}
+          <View style={styles.avatarSection}>
+            {item.avatar ? (
+              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.iconContainer, { backgroundColor: iconConfig.bg }]}>
+                <Ionicons name={iconConfig.name} size={22} color={iconConfig.color} />
+              </View>
+            )}
+            {!item.read && <View style={styles.unreadDot} />}
+          </View>
+          
+          {/* Content */}
+          <View style={styles.contentSection}>
+            <View style={styles.headerRow}>
+              <Text style={[styles.senderName, { color: theme.textPrimary }]} numberOfLines={1}>
+                {item.senderName || 'Circle'}
+              </Text>
+              <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
+                {formatTimeAgo(item.timestamp)}
+              </Text>
+            </View>
+            
+            <Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
+              {item.message}
+            </Text>
+            
+            {/* Action Buttons */}
+            {isActionable && (
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.acceptButton]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleAcceptRequest(item);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons 
+                    name={item.type === 'message_request' ? 'heart' : 'checkmark'} 
+                    size={16} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.acceptButtonText}>
+                    {item.type === 'message_request' ? 'Connect' : 'Accept'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.declineButton,
+                    { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F3F4F6' },
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDeclineRequest(item);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close" size={16} color={theme.textSecondary} />
+                  <Text style={[styles.declineButtonText, { color: theme.textSecondary }]}>
+                    {item.type === 'message_request' ? 'Pass' : 'Decline'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <View style={[styles.emptyIconContainer, { backgroundColor: isDarkMode ? 'rgba(124, 43, 134, 0.15)' : 'rgba(124, 43, 134, 0.08)' }]}>
+        <Ionicons name="notifications-outline" size={48} color="#7C2B86" />
+      </View>
+      <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>All Caught Up!</Text>
+      <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+        You don't have any notifications right now.{'\n'}We'll let you know when something happens.
+      </Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       
-      <View style={[styles.content, { backgroundColor: theme.background }] }>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Notifications</Text>
+        <View style={styles.headerRight}>
+          {notifications.length > 0 && (
+            <TouchableOpacity onPress={markAllAsRead} style={styles.markReadButton} activeOpacity={0.7}>
+              <Ionicons name="checkmark-done" size={20} color="#7C2B86" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      
+      {/* Content */}
+      <View style={[styles.content, { backgroundColor: theme.background }]}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#7C2B86" />
             <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
           </View>
         ) : notifications.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-outline" size={64} color="rgba(124, 43, 134, 0.3)" />
-            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No notifications</Text>
-            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>You're all caught up!</Text>
-          </View>
+          renderEmptyState()
         ) : (
           <FlatList
             data={notifications}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             renderItem={renderNotification}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContainer}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={['#7C2B86']}
+                tintColor="#7C2B86"
+              />
+            }
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
           />
         )}
       </View>
@@ -327,139 +419,157 @@ export default function NotificationsPage() {
   );
 }
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: StatusBar.currentHeight || 40,
-    paddingBottom: 16,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
   },
   backButton: {
-    padding: 8,
-    marginRight: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: 'white',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: 40,
+    letterSpacing: -0.3,
   },
   headerRight: {
     width: 40,
+    alignItems: 'flex-end',
+  },
+  markReadButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingBottom: 60,
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingHorizontal: 40,
+    paddingBottom: 60,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 16,
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 12,
+    letterSpacing: -0.3,
   },
   emptySubtext: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
+    fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
   },
   listContainer: {
-    padding: 16,
+    paddingVertical: 8,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginLeft: 76,
   },
   notificationCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
-  messageRequestCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B9D',
+  unreadCard: {
+    backgroundColor: 'rgba(124, 43, 134, 0.03)',
   },
-  notificationContent: {
+  notificationRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
   },
-  avatarContainer: {
+  avatarSection: {
+    position: 'relative',
     marginRight: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
-  fallbackAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#f0e6f6',
-    justifyContent: 'center',
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  messageRequestAvatar: {
-    backgroundColor: '#ffe6f0',
+  unreadDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#7C2B86',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
-  textContent: {
+  contentSection: {
     flex: 1,
   },
-  notificationTitle: {
-    fontSize: 16,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  senderName: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    flex: 1,
+    marginRight: 8,
+  },
+  timestamp: {
+    fontSize: 13,
+    fontWeight: '400',
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#555',
-    marginBottom: 4,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#888',
+    lineHeight: 20,
+    marginBottom: 12,
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
+    gap: 10,
   },
   actionButton: {
     flexDirection: 'row',
@@ -467,25 +577,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    marginLeft: 8,
+    gap: 6,
   },
   acceptButton: {
     backgroundColor: '#7C2B86',
   },
-  connectButton: {
-    backgroundColor: '#FF6B9D',
-  },
   declineButton: {
-    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   acceptButtonText: {
-    color: 'white',
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 4,
   },
   declineButtonText: {
-    color: '#666',
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 4,
   },
 });

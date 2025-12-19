@@ -1,12 +1,18 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+const APP_SCHEME = 'circle';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.orincore.Circle';
+const APP_STORE_URL = 'https://apps.apple.com/app/circle/id123456789'; // Update with actual App Store ID
+
 export default function PublicProfileScreen() {
   const router = useRouter();
   const { username } = useLocalSearchParams();
+  const [showAppBanner, setShowAppBanner] = useState(false);
 
   const cleanUsername = useMemo(() => {
     const raw = Array.isArray(username) ? username[0] : username;
@@ -16,6 +22,63 @@ export default function PublicProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [profile, setProfile] = useState(null);
+
+  // Check if we should show the "Open in App" banner on web
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Show banner on mobile web browsers
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      setShowAppBanner(isMobile);
+    }
+  }, []);
+
+  const handleOpenInApp = async () => {
+    const deepLink = `${APP_SCHEME}://${cleanUsername}`;
+    
+    if (Platform.OS === 'web') {
+      // Try to open the app via deep link
+      // If it fails, redirect to app store
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      
+      // Create a hidden iframe to try opening the app
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = deepLink;
+      document.body.appendChild(iframe);
+      
+      // Set a timeout to redirect to store if app doesn't open
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        if (isAndroid) {
+          window.location.href = PLAY_STORE_URL;
+        } else if (isIOS) {
+          window.location.href = APP_STORE_URL;
+        }
+      }, 2500);
+    } else {
+      // On native, try to open the deep link
+      try {
+        const canOpen = await Linking.canOpenURL(deepLink);
+        if (canOpen) {
+          await Linking.openURL(deepLink);
+        }
+      } catch (e) {
+        console.log('Could not open deep link:', e);
+      }
+    }
+  };
+
+  const handleGetApp = () => {
+    if (Platform.OS === 'web') {
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        window.location.href = PLAY_STORE_URL;
+      } else {
+        window.location.href = APP_STORE_URL;
+      }
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -146,6 +209,20 @@ export default function PublicProfileScreen() {
                 ? 'Open this profile in the Circle app for full features.'
                 : 'Log in to Circle to connect with this profile.'}
             </Text>
+            
+            {Platform.OS === 'web' && showAppBanner && (
+              <View style={styles.appButtonsRow}>
+                <TouchableOpacity style={styles.openAppButton} onPress={handleOpenInApp}>
+                  <Ionicons name="phone-portrait-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.openAppButtonText}>Open in App</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.getAppButton} onPress={handleGetApp}>
+                  <Ionicons name="download-outline" size={18} color="#7C2B86" />
+                  <Text style={styles.getAppButtonText}>Get the App</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -280,6 +357,45 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.60)',
     fontSize: 12,
     fontWeight: '600',
+  },
+  appButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+  },
+  openAppButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#7C2B86',
+  },
+  openAppButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  getAppButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 43, 134, 0.5)',
+  },
+  getAppButtonText: {
+    color: '#7C2B86',
+    fontSize: 14,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,

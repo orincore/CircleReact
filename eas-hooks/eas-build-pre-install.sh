@@ -1,22 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # EAS Build Pre-Install Hook
-# This script runs before npm install during EAS build
-# It ensures Play Billing Library 6.2.1 is used
+# This runs BEFORE npm install - just logs info
 
 set -e
 
-echo "🔧 Configuring Play Billing Library version 6.2.1..."
+echo "🔧 EAS Pre-Install: Starting build process..."
 
-# Create/update gradle.properties if it doesn't exist
-if [ ! -f "android/gradle.properties" ]; then
-    mkdir -p android
-    touch android/gradle.properties
+# Check build platform
+if [ "$EAS_BUILD_PLATFORM" = "android" ]; then
+    echo "📱 Android build detected"
+    echo "🔧 AndroidX configuration will be handled in post-install hook"
+else
+    echo "📱 Non-Android build detected"
 fi
 
-# Add billing version to gradle.properties
-echo "BILLING_VERSION=6.2.1" >> android/gradle.properties
-echo "android.useAndroidX=true" >> android/gradle.properties
-echo "android.enableJetifier=true" >> android/gradle.properties
-
-echo "✅ Play Billing Library configuration complete"
+echo "✅ EAS Pre-Install: Complete"

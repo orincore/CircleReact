@@ -736,7 +736,7 @@ export default function ProfileScreen() {
     subscriptionPillText: {
       fontSize: 11,
       fontWeight: '600',
-      color: isPremium ? theme.primaryDark : theme.textSecondary,
+      color: isPremium ? (isDarkMode ? '#FFFFFF' : '#000000') : theme.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.4,
     },

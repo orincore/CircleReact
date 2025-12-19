@@ -9,6 +9,7 @@ import { blindDatingApi } from "@/src/api/blindDating";
 import { getSocket, socketService } from "@/src/api/socket";
 import { useResponsiveDimensions } from "@/src/hooks/useResponsiveDimensions";
 import { unreadCountService } from "@/src/services/unreadCountService";
+import { getSearchbarPaddingConfig } from "@/src/utils/searchbarPaddingUtils";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -378,6 +379,7 @@ export default function ChatListScreen() {
   const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
   const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'blind'
   const [otherVerificationCache, setOtherVerificationCache] = useState({}); // otherUserId -> boolean
+  const [searchbarPaddingConfig, setSearchbarPaddingConfig] = useState(() => getSearchbarPaddingConfig());
   const buttonRefs = React.useRef({});
 
   // Cache key for chat list
@@ -554,6 +556,20 @@ export default function ChatListScreen() {
   useEffect(() => {
     loadBlindDateStatus();
   }, [token]);
+
+  // Update searchbar padding when dimensions change
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const config = getSearchbarPaddingConfig({
+        screenWidth: window.width,
+        screenHeight: window.height,
+        platform: Platform.OS,
+      });
+      setSearchbarPaddingConfig(config);
+    });
+
+    return () => subscription?.remove();
+  }, []);
 
   // Socket event handlers for real-time updates
   useEffect(() => {
@@ -1104,7 +1120,15 @@ export default function ChatListScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.searchBar, dynamicStyles.searchBar, { paddingHorizontal: responsive.spacing.lg }]}>
+        <View style={[
+          styles.searchBar, 
+          dynamicStyles.searchBar, 
+          { 
+            paddingHorizontal: responsive.spacing.lg,
+            paddingVertical: searchbarPaddingConfig.paddingVertical,
+            minHeight: searchbarPaddingConfig.containerMinHeight || searchbarPaddingConfig.minHeight,
+          }
+        ]}>
           <Ionicons name="search" size={20} color={theme.textMuted} />
           <TextInput
             placeholder="Search conversations"
@@ -1702,7 +1726,6 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 20,
-    paddingVertical: 16,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
     zIndex: 10,

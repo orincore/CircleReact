@@ -18,6 +18,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import PromptMatchingWrapper from "@/components/PromptMatchingWrapper";
 import HelpRequestsList from "@/components/HelpRequestsList";
 import NotificationPanel from "@/components/NotificationPanel";
+import { useLocalNotificationCount } from "@/src/hooks/useLocalNotificationCount";
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -330,6 +331,7 @@ export default function MatchScreen() {
   const { theme, isDarkMode } = useTheme();
   const { shouldShowAds } = useSubscription();
   const { showInterstitial } = useInterstitialAd('after_match'); // Auto-disabled in Expo Go
+  const { notificationCount, resetCount: resetNotificationCount } = useLocalNotificationCount();
   
   // Initialize browser notification testing (development only)
   useEffect(() => {
@@ -1441,7 +1443,8 @@ export default function MatchScreen() {
   // Handle share app
   const handleShareApp = async () => {
     const shareUrl = 'https://circle.orincore.com';
-    const shareMessage = `Join me on Circle! 🎉 Let's connect and meet amazing people together. ${shareUrl}`;
+    // Professional share message without duplicate URL
+    const shareMessage = `✨ Join me on Circle!\n\nDiscover meaningful connections on Circle – the dating & friendship app that matches you based on compatibility, not just looks.\n\n🔗 Download Now`;
     
     try {
       if (Platform.OS === 'web') {
@@ -1455,11 +1458,12 @@ export default function MatchScreen() {
           showToast('Shared successfully!', 'success');
         } else {
           // Fallback: copy to clipboard
-          await navigator.clipboard.writeText(shareMessage);
+          await navigator.clipboard.writeText(shareUrl);
           showToast('Link copied to clipboard!', 'success');
         }
       } else {
         // For mobile, use React Native Share
+        // Don't include URL in message to avoid duplication
         const result = await Share.share({
           message: shareMessage,
           url: shareUrl,
@@ -2216,6 +2220,13 @@ export default function MatchScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="notifications-outline" size={24} color={theme.textPrimary} />
+                {notificationCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {notificationCount > 99 ? '99+' : notificationCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -3947,6 +3958,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 214, 242, 0.4)',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   mobileFilterButton: {
     width: 48,

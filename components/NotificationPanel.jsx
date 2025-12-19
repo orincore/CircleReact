@@ -5,6 +5,7 @@ import { notificationApi } from '@/src/api/notifications';
 import { getSocket } from '@/src/api/socket';
 import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,6 +30,7 @@ const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 const isBrowser = Platform.OS === 'web';
 
 export default function NotificationPanel({ visible, onClose }) {
+  const router = useRouter();
   const { user, token } = useAuth();
   const { theme, isDarkMode } = useTheme();
   const { resetCount: resetNotificationCount } = useLocalNotificationCount();
@@ -81,6 +83,9 @@ export default function NotificationPanel({ visible, onClose }) {
 
     // Reset local notification count when panel is opened
     resetNotificationCount();
+    
+    // Auto-mark all notifications as read when panel is opened
+    markAllAsRead();
 
     return () => {
       cleanupSocketListeners();
@@ -431,8 +436,16 @@ export default function NotificationPanel({ visible, onClose }) {
   };
 
   const handleNotificationPress = (item) => {
-    // Handle notification press logic here
-    //console.log('Notification pressed:', item);
+    // Get the user ID from the notification
+    const userId = item.data?.userId || 
+                   item.data?.requestId?.sender_id ||
+                   item.sender?.id ||
+                   item.data?.sender?.id;
+    
+    if (userId) {
+      onClose(); // Close the panel first
+      router.push(`/secure/user-profile/${userId}`);
+    }
   };
 
   const handleAcceptRequest = async (item) => {
