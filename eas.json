@@ -1,9 +1,15 @@
 {
   "cli": {
     "version": ">= 16.20.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": false
   },
   "build": {
+    "base": {
+      "android": {
+        "gradleCommand": ":app:bundleRelease"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -61,14 +67,16 @@
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "channel": "production",
       "android": {
         "buildType": "app-bundle",
-        "gradleCommand": ":app:bundleRelease"
+        "gradleCommand": ":app:bundleRelease",
+        "versionCode": 100
       },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildNumber": 100
       },
       "env": {
         "NODE_ENV": "production"
