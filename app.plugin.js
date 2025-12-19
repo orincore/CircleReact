@@ -1,61 +1,90 @@
-const { withAppBuildGradle, withGradleProperties } = require('@expo/config-plugins');
+const { withAppBuildGradle, withGradleProperties, withProjectBuildGradle } = require('@expo/config-plugins');
 
 /**
- * Plugin to force Play Billing Library version 6.2.1
- * This ensures compliance with Google Play Store requirements
+ * FINAL AndroidX Fix Plugin + Version Code Override
+ * This ensures AndroidX is enabled and forces version code 100
  */
-const withPlayBillingLibrary = (config) => {
-  // Add to gradle.properties
+const withAndroidXAndVersionFix = (config) => {
+  // CRITICAL: Force AndroidX properties in gradle.properties
   config = withGradleProperties(config, (config) => {
-    config.modResults.push({
-      type: 'property',
-      key: 'android.billingclient.version',
-      value: '6.2.1',
-    });
+    // AndroidX properties that MUST be present
+    const androidXProps = [
+      { type: 'property', key: 'android.useAndroidX', value: 'true' },
+      { type: 'property', key: 'android.enableJetifier', value: 'true' },
+      { type: 'property', key: 'android.suppressUnsupportedCompileSdk', value: '36' },
+      { type: 'property', key: 'android.nonTransitiveRClass', value: 'true' },
+      { type: 'property', key: 'android.nonFinalResIds', value: 'true' }
+    ];
+    
+    // Remove existing AndroidX properties to avoid duplicates
+    const keysToRemove = androidXProps.map(p => p.key);
+    config.modResults = config.modResults.filter(
+      (item) => !keysToRemove.includes(item.key)
+    );
+    
+    // Add AndroidX properties at the BEGINNING (top of file)
+    config.modResults = [...androidXProps, ...config.modResults];
+    
+    console.log('✅ [Plugin] AndroidX properties configured');
+    
     return config;
   });
 
-  // Modify app/build.gradle to add billing library dependencies
+  // FORCE VERSION CODE 100 in build.gradle
   config = withAppBuildGradle(config, (config) => {
     if (config.modResults.language === 'groovy') {
       let buildGradle = config.modResults.contents;
       
-      // Only add if not already present
-      if (!buildGradle.includes('com.android.billingclient:billing:6.2.1')) {
-        // Find the dependencies block and add billing library
-        const dependenciesPattern = /dependencies\s*{/;
-        if (dependenciesPattern.test(buildGradle)) {
-          buildGradle = buildGradle.replace(
-            dependenciesPattern,
-            `dependencies {
-    // Force Play Billing Library 6.2.1 for Google Play compliance
-    implementation('com.android.billingclient:billing:6.2.1') {
-        force = true
-    }
-    implementation('com.android.billingclient:billing-ktx:6.2.1') {
-        force = true
-    }`
-          );
-        }
+      // Force version code to 100 - replace any existing versionCode
+      buildGradle = buildGradle.replace(
+        /versionCode\s+\d+/g,
+        'versionCode 100'
+      );
+      
+      // If no versionCode found, add it after applicationId
+      if (!buildGradle.includes('versionCode')) {
+        buildGradle = buildGradle.replace(
+          /(applicationId\s+['"][^'"]+['"])/,
+          '$1\n        versionCode 100'
+        );
       }
       
-      // Add configurations block at the end if not present
-      if (!buildGradle.includes('configurations.all')) {
-        buildGradle += `
-
-// Force Play Billing Library version for all configurations
-configurations.all {
-    resolutionStrategy {
-        force 'com.android.billingclient:billing:6.2.1'
-        force 'com.android.billingclient:billing-ktx:6.2.1'
-        eachDependency { details ->
-            if (details.requested.group == 'com.android.billingclient') {
-                details.useVersion '6.2.1'
-            }
-        }
+      // Also force version name
+      buildGradle = buildGradle.replace(
+        /versionName\s+["'][^"']+["']/g,
+        'versionName "2.0.0"'
+      );
+      
+      console.log('✅ [Plugin] Forced versionCode 100 and versionName 2.0.0');
+      
+      config.modResults.contents = buildGradle;
     }
+    return config;
+  });
+
+  // Ensure root build.gradle has proper AndroidX support
+  config = withProjectBuildGradle(config, (config) => {
+    if (config.modResults.language === 'groovy') {
+      let buildGradle = config.modResults.contents;
+      
+      // Add ext block if not present
+      if (!buildGradle.includes('ext {')) {
+        const buildscriptEnd = buildGradle.indexOf('buildscript {');
+        if (buildscriptEnd !== -1) {
+          const insertPoint = buildGradle.indexOf('}', buildscriptEnd) + 1;
+          const extBlock = `
+
+ext {
+    buildToolsVersion = "36.0.0"
+    minSdkVersion = 24
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    ndkVersion = "27.0.12077973"
+    kotlinVersion = "2.1.20"
 }
 `;
+          buildGradle = buildGradle.slice(0, insertPoint) + extBlock + buildGradle.slice(insertPoint);
+        }
       }
       
       config.modResults.contents = buildGradle;
@@ -66,4 +95,4 @@ configurations.all {
   return config;
 };
 
-module.exports = withPlayBillingLibrary;
+module.exports = withAndroidXAndVersionFix;
