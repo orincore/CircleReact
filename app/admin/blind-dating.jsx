@@ -196,6 +196,77 @@ export default function BlindDatingAdmin() {
     }
   };
 
+  const handleTestContinuousMatcher = async () => {
+    const confirmMessage = 'This will test the continuous blind matching service (runs one cycle). Continue?';
+    
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) return;
+    } else {
+      Alert.alert('Test Continuous Matcher', confirmMessage, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Test', onPress: () => {} },
+      ]);
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/test-continuous-matcher`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        const message = `${data.message}\n\nProcessed: ${data.result?.processed || 0}\nMatched: ${data.result?.matched || 0}\nErrors: ${data.result?.errors || 0}`;
+        Alert.alert('Success', message);
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to test matcher');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to test continuous matcher');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleTestReminderService = async () => {
+    const confirmMessage = 'This will test the inactive blind date reminder service. Continue?';
+    
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) return;
+    } else {
+      Alert.alert('Test Reminder Service', confirmMessage, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Test', onPress: () => {} },
+      ]);
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${API_BASE_URL}/api/admin/blind-dating/test-reminder-service`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        Alert.alert('Success', data.message);
+        loadData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to test reminder service');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to test reminder service');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleProcessDaily = async () => {
     setProcessing(true);
     try {
@@ -571,9 +642,41 @@ export default function BlindDatingAdmin() {
               </>
             )}
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
+            onPress={handleTestContinuousMatcher}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="flash" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Test Continuous Matcher</Text>
+              </>
+            )}
+          </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#9C27B0', marginTop: 8, flex: 1 }]}
+            style={[styles.actionButton, { backgroundColor: '#00BCD4' }]}
+            onPress={handleTestReminderService}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="mail" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Test Reminder Service</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#9C27B0' }]}
             onPress={handleRunDetailedMatching}
             disabled={processing}
           >

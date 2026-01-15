@@ -587,17 +587,18 @@ export function AuthProvider({ children }) {
     }
   }, [token, isAuthenticated, checkAccountStatus, logOut]);
 
-  // Periodic account status check (every 5 minutes - reduced from 30 seconds)
+  // Periodic account status check (every 30 minutes for better user experience)
   useEffect(() => {
     if (isAuthenticated && token) {
       // Check immediately on mount
       checkCurrentAccountStatus();
       
-      // Set up interval for periodic checks (5 minutes instead of 30 seconds)
-      // This reduces unnecessary network requests and prevents aggressive logouts
+      // Set up interval for periodic checks (30 minutes)
+      // This prevents unnecessary network requests and aggressive logouts
+      // Users stay logged in even if backend restarts or network is temporarily unavailable
       statusCheckIntervalRef.current = setInterval(() => {
         checkCurrentAccountStatus();
-      }, 300000); // Check every 5 minutes (300000ms)
+      }, 1800000); // Check every 30 minutes (1800000ms)
       
       return () => {
         if (statusCheckIntervalRef.current) {
