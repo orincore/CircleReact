@@ -36,13 +36,15 @@ export default function RootLayout() {
         // Check user consent first
         const consent = await checkConsent();
         
-        if (!consent) {
+        // Only show consent modal if user has never seen it (first install)
+        // Don't show for returning users or after login
+        if (!consent && !hasConsent()) {
           setShowConsentModal(true);
           return;
         }
 
-        // Initialize services based on consent
-        await initializeAppServices(consent);
+        // Initialize services based on consent (use default consent if not set)
+        await initializeAppServices(consent || { analytics: false, crashReporting: true });
       } catch (error) {
         console.error('Error initializing services:', error);
       }

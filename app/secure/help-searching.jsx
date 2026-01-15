@@ -10,6 +10,7 @@ import {
   Alert,
   AppState,
   Vibration,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -37,11 +38,12 @@ const HelpSearchingScreen = () => {
   const initialStatus = Array.isArray(initialStatusParam) ? initialStatusParam[0] : initialStatusParam;
   const initialMessage = Array.isArray(initialMessageParam) ? initialMessageParam[0] : initialMessageParam;
   const matchedGiverJson = Array.isArray(matchedGiverParam) ? matchedGiverParam[0] : matchedGiverParam;
+  const isResuming = params?.resume === 'true';
 
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [status, setStatus] = useState('analyzing'); // analyzing, searching, matching, found, waiting, connected, error
-  const [statusMessage, setStatusMessage] = useState('Analyzing your request with AI...');
-  const [progress, setProgress] = useState(10);
+  const [status, setStatus] = useState(isResuming ? 'found' : 'analyzing'); // analyzing, searching, matching, found, waiting, connected, error
+  const [statusMessage, setStatusMessage] = useState(isResuming ? 'Beacon found! Waiting for response...' : 'Analyzing your request with AI...');
+  const [progress, setProgress] = useState(isResuming ? 80 : 10);
   const [canGoBack, setCanGoBack] = useState(false);
   const [backgroundSearch, setBackgroundSearch] = useState(false);
   const [matchedGiver, setMatchedGiver] = useState(null);
@@ -69,7 +71,13 @@ const HelpSearchingScreen = () => {
       }
     }
 
-    if (initialStatus === 'matched') {
+    // Handle resume state
+    if (isResuming) {
+      setStatus('found');
+      setStatusMessage('Beacon found! Waiting for response...');
+      setProgress(80);
+      setCanGoBack(true); // Allow going back immediately when resuming
+    } else if (initialStatus === 'matched') {
       setStatus('found');
       setStatusMessage(initialMessage || 'Beacon found! Waiting for response...');
       setProgress(prev => Math.max(prev, 80));
@@ -78,7 +86,7 @@ const HelpSearchingScreen = () => {
       setStatusMessage(initialMessage || 'Looking for the best Beacon match...');
       setProgress(prev => Math.max(prev, 25));
     }
-  }, [initialStatus, initialMessage, matchedGiverJson]);
+  }, [initialStatus, initialMessage, matchedGiverJson, isResuming]);
 
   // Fetch current request status on mount if resuming existing request
   useEffect(() => {
@@ -130,10 +138,8 @@ const HelpSearchingScreen = () => {
   const { addBackgroundSearch, removeBackgroundSearch } = useBackgroundSearch();
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(10)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Status-specific messages for fallback
   const statusMessages = {
@@ -221,71 +227,31 @@ const HelpSearchingScreen = () => {
       setCanGoBack(true);
     }, 5000);
 
-    // Pulse animation
+    // Subtle pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.15,
-          duration: 800,
+          toValue: 1.05,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 800,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    // Rotate animation (slower when found)
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: status === 'found' || status === 'waiting' ? 6000 : 3000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Float animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Glow animation for 'found' status
-    if (status === 'found' || status === 'waiting') {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
-    }
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
 
     return () => {
       clearTimeout(backTimer);
@@ -436,20 +402,6 @@ const HelpSearchingScreen = () => {
     );
   };
 
-  const spin = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  const translateY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -15],
-  });
-
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.8],
-  });
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 100],
@@ -506,7 +458,11 @@ const HelpSearchingScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingBottom: 32 }]}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
         <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
@@ -525,89 +481,84 @@ const HelpSearchingScreen = () => {
         </Text>
       </View>
 
+      {/* Beacon Profile Card - Shown when found */}
       {(status === 'found' || status === 'waiting') && beaconPreview && (
-        <View style={[styles.beaconCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.beaconRow}>
-            <View style={styles.beaconAvatarContainer}>
-              {beaconPhoto ? (
-                <View style={styles.beaconAvatarWrapper}>
-                  <Image source={{ uri: beaconPhoto }} style={styles.beaconAvatar} />
-                  <BlurView intensity={35} tint="default" style={StyleSheet.absoluteFill} />
-                </View>
-              ) : (
-                <View style={[styles.beaconAvatarPlaceholder, { backgroundColor: theme.border }]}>
-                  <Ionicons name="person" size={26} color={theme.textSecondary} />
-                </View>
-              )}
-            </View>
+        <Animated.View style={{ opacity: fadeAnim, width: '100%' }}>
+          <View style={[styles.beaconCard, { backgroundColor: theme.surface, borderColor: '#4CAF50', borderWidth: 2 }]}>
+            <View style={styles.beaconHeader}>
+              <View style={styles.beaconAvatarContainer}>
+                {beaconPhoto ? (
+                  <View style={styles.beaconAvatarWrapper}>
+                    <Image source={{ uri: beaconPhoto }} style={styles.beaconAvatar} />
+                    <BlurView intensity={40} tint="default" style={StyleSheet.absoluteFill} />
+                  </View>
+                ) : (
+                  <View style={[styles.beaconAvatarPlaceholder, { backgroundColor: '#4CAF50' + '20' }]}>
+                    <Ionicons name="person" size={32} color="#4CAF50" />
+                  </View>
+                )}
+              </View>
 
-            <View style={styles.beaconMeta}>
-              <Text style={[styles.beaconName, { color: theme.textPrimary }]} numberOfLines={1}>
-                {beaconMaskedName || 'Beacon Helper'}
-              </Text>
-              <Text style={[styles.beaconSub, { color: theme.textSecondary }]} numberOfLines={1}>
-                {[
-                  typeof beaconAge === 'number' ? `${beaconAge}` : null,
-                  beaconGender ? `${beaconGender}` : null,
-                ].filter(Boolean).join(' • ') || 'Details hidden until accepted'}
-              </Text>
-            </View>
-          </View>
-
-          {beaconHelpTopics.length > 0 && (
-            <View style={styles.helpTopicsContainer}>
-              <Text style={[styles.helpTopicsLabel, { color: theme.textSecondary }]}>
-                Can help with
-              </Text>
-              <View style={styles.helpTopicsChips}>
-                {beaconHelpTopics.slice(0, 6).map((topic, idx) => (
-                  <View key={`${topic}-${idx}`} style={[styles.helpChip, { backgroundColor: theme.primary + '15' }]}>
-                    <Text style={[styles.helpChipText, { color: theme.primary }]} numberOfLines={1}>
-                      {topic}
+              <View style={styles.beaconInfo}>
+                <Text style={[styles.beaconName, { color: theme.textPrimary }]} numberOfLines={1}>
+                  {beaconMaskedName || 'Beacon Helper'}
+                </Text>
+                <Text style={[styles.beaconDetails, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {[
+                    typeof beaconAge === 'number' ? `${beaconAge}` : null,
+                    beaconGender ? beaconGender : null,
+                  ].filter(Boolean).join(' • ') || 'Details hidden'}
+                </Text>
+                {matchPercent !== null && (
+                  <View style={styles.matchBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                    <Text style={[styles.matchText, { color: '#4CAF50' }]}>
+                      {matchPercent}% match
                     </Text>
                   </View>
-                ))}
+                )}
               </View>
             </View>
-          )}
-        </View>
+
+            {beaconHelpTopics.length > 0 && (
+              <View style={styles.helpTopicsSection}>
+                <Text style={[styles.helpTopicsTitle, { color: theme.textSecondary }]}>
+                  Can help with:
+                </Text>
+                <View style={styles.helpTopicsWrap}>
+                  {beaconHelpTopics.slice(0, 4).map((topic, idx) => (
+                    <View key={`${topic}-${idx}`} style={[styles.topicChip, { backgroundColor: '#4CAF50' + '15', borderColor: '#4CAF50' + '30' }]}>
+                      <Text style={[styles.topicText, { color: '#4CAF50' }]} numberOfLines={1}>
+                        {topic}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        </Animated.View>
       )}
 
-      {/* Animated Icon */}
+      {/* Status Icon - Clean and Professional */}
       <Animated.View
         style={[
           styles.iconContainer,
           {
-            transform: [
-              { scale: pulseAnim },
-              { rotate: status === 'connected' ? '0deg' : spin },
-              { translateY },
-            ],
+            transform: [{ scale: pulseAnim }],
           },
         ]}
       >
-        {/* Glow effect for found status */}
-        {(status === 'found' || status === 'waiting') && (
-          <Animated.View 
-            style={[
-              styles.glowCircle, 
-              { 
-                backgroundColor: '#4CAF50',
-                opacity: glowOpacity 
-              }
-            ]} 
-          />
-        )}
-        <View style={[styles.iconCircle, { backgroundColor: getStatusColor() + '20' }]}>
+        <View style={[styles.iconCircle, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() + '30', borderWidth: 2 }]}>
           <Ionicons 
             name={getStatusIcon()} 
-            size={70} 
+            size={64} 
             color={getStatusColor()} 
           />
         </View>
       </Animated.View>
 
-      {/* Messages */}
+      {/* Status Messages */}
       <View style={styles.messageContainer}>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           {displayTitle}
@@ -641,38 +592,41 @@ const HelpSearchingScreen = () => {
 
       {/* Status Indicators */}
       <View style={styles.statusContainer}>
-        <View style={styles.statusRow}>
+        <View style={[styles.statusIndicator, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Ionicons 
             name={status === 'found' || status === 'waiting' || status === 'connected' ? 'checkmark-circle' : 'time'} 
             size={20} 
             color={status === 'found' || status === 'waiting' || status === 'connected' ? '#4CAF50' : theme.primary} 
           />
-          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
+          <Text style={[styles.statusText, { color: theme.textPrimary }]}>
             {status === 'found' || status === 'waiting' 
               ? 'Beacon found! Waiting for response...' 
               : status === 'connected' 
                 ? 'Connected!' 
-                : 'AI is searching for the best Beacon match...'}
+                : 'Searching for the best match...'}
           </Text>
         </View>
-        <View style={styles.statusRow}>
+        
+        <View style={[styles.statusIndicator, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Ionicons name="shield-checkmark" size={20} color={theme.primary} />
-          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
+          <Text style={[styles.statusText, { color: theme.textPrimary }]}>
             Identity protected until you both agree
           </Text>
         </View>
+        
         {matchedGiver && (status === 'found' || status === 'waiting') && (
-          <View style={[styles.matchInfoRow, { backgroundColor: '#4CAF50' + '10' }]}>
-            <Ionicons name="person" size={18} color="#4CAF50" />
-            <Text style={[styles.matchInfoText, { color: '#4CAF50' }]}>
-              {maskedBeaconLabel}{matchPercent !== null ? ` • ${matchPercent}% match` : ''}
+          <View style={[styles.statusIndicator, { backgroundColor: '#4CAF50' + '10', borderColor: '#4CAF50' + '30' }]}>
+            <Ionicons name="person" size={20} color="#4CAF50" />
+            <Text style={[styles.statusText, { color: '#4CAF50', fontWeight: '600' }]}>
+              {maskedBeaconLabel}
             </Text>
           </View>
         )}
+        
         {(status === 'found' || status === 'waiting') && (
-          <View style={[styles.waitingBanner, { backgroundColor: theme.primary + '15' }]}>
-            <Ionicons name="hourglass" size={16} color={theme.primary} />
-            <Text style={[styles.waitingText, { color: theme.primary }]}>
+          <View style={[styles.statusIndicator, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
+            <Ionicons name="hourglass-outline" size={20} color={theme.primary} />
+            <Text style={[styles.statusText, { color: theme.primary, fontWeight: '500' }]}>
               Request sent! Waiting for Beacon response...
             </Text>
           </View>
@@ -711,25 +665,29 @@ const HelpSearchingScreen = () => {
       )}
 
       {/* Info */}
-      <View style={[styles.infoBox, { 
-        backgroundColor: theme.surface,
-        borderWidth: 1,
-        borderColor: theme.border
-      }]}>
-        <Ionicons name="information-circle" size={18} color={theme.primary} />
-        <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-          {status === 'found' || status === 'waiting'
-            ? 'Your matched helper is reviewing your request. They\'ll respond shortly!'
-            : 'Our AI is analyzing your request and finding the perfect person to help you.'}
-        </Text>
-      </View>
+        <View style={[styles.infoBox, { 
+          backgroundColor: theme.surface,
+          borderWidth: 1,
+          borderColor: theme.border
+        }]}>
+          <Ionicons name="information-circle" size={18} color={theme.primary} />
+          <Text style={[styles.infoText, { color: theme.textSecondary }]}>
+            {status === 'found' || status === 'waiting'
+              ? 'Your matched helper is reviewing your request. They\'ll respond shortly!'
+              : 'Our AI is analyzing your request and finding the perfect person to help you.'}
+          </Text>
+        </View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
+  },
+  container: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 60,
     alignItems: 'center',
@@ -738,57 +696,135 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
     gap: 12,
   },
   progressTrack: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   progressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    minWidth: 40,
+    fontSize: 15,
+    fontWeight: '700',
+    minWidth: 45,
     textAlign: 'right',
   },
-  iconContainer: {
-    marginBottom: 30,
-    position: 'relative',
+  beaconCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  glowCircle: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    top: -10,
-    left: -10,
+  beaconHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  beaconAvatarContainer: {
+    marginRight: 12,
+  },
+  beaconAvatarWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  beaconAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  beaconAvatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  beaconInfo: {
+    flex: 1,
+  },
+  beaconName: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  beaconDetails: {
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  matchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  matchText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  helpTopicsSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  helpTopicsTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  helpTopicsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  topicChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  topicText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  iconContainer: {
+    marginBottom: 24,
+    marginTop: 8,
   },
   iconCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
   messageContainer: {
     alignItems: 'center',
     marginBottom: 20,
+    paddingHorizontal: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
     textAlign: 'center',
+    opacity: 0.8,
   },
   aiBadge: {
     flexDirection: 'row',
@@ -821,40 +857,20 @@ const styles = StyleSheet.create({
   statusContainer: {
     width: '100%',
     marginBottom: 20,
+    gap: 10,
   },
-  statusRow: {
+  statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
   },
   statusText: {
     fontSize: 14,
     flex: 1,
-  },
-  matchInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 4,
-    gap: 8,
-  },
-  matchInfoText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  waitingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    gap: 8,
-  },
-  waitingText: {
-    fontSize: 13,
-    fontWeight: '500',
+    lineHeight: 20,
   },
   actionButtons: {
     width: '100%',

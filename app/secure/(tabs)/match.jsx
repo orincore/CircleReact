@@ -405,6 +405,74 @@ export default function MatchScreen() {
   useEffect(() => {
     loadActiveHelpRequest();
   }, [loadActiveHelpRequest]);
+
+  const handleCancelActiveHelpRequest = useCallback(() => {
+    if (!activeHelpRequest) return;
+
+    Alert.alert(
+      'Cancel Help Request',
+      'Are you sure you want to cancel this help request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await promptMatchingApi.cancelHelpRequest(activeHelpRequest.id);
+              setActiveHelpRequest(null);
+              showToast('Help request cancelled', 'info');
+            } catch (error) {
+              console.error('Error cancelling help request:', error);
+              showToast('Failed to cancel request', 'error');
+            }
+          }
+        }
+      ]
+    );
+  }, [activeHelpRequest]);
+
+  // Socket listener for help request updates
+  useEffect(() => {
+    if (!token) return;
+    const s = getSocket(token);
+
+    const handleHelpSearchStatus = (data) => {
+      console.log('Help search status update:', data);
+      // Reload active help request to get latest status
+      loadActiveHelpRequest();
+    };
+
+    const handleHelpRequestAccepted = (data) => {
+      console.log('Help request accepted:', data);
+      // Clear active request and navigate to chat
+      setActiveHelpRequest(null);
+      if (data.chatId) {
+        setTimeout(() => {
+          router.push({
+            pathname: '/secure/chat-conversation',
+            params: { chatId: data.chatId }
+          });
+        }, 500);
+      }
+    };
+
+    const handleHelpRequestDeclined = (data) => {
+      console.log('Help request declined, searching continues:', data);
+      // Reload to get updated status
+      loadActiveHelpRequest();
+    };
+
+    s.on('help_search_status', handleHelpSearchStatus);
+    s.on('help_request_accepted', handleHelpRequestAccepted);
+    s.on('help_request_declined', handleHelpRequestDeclined);
+
+    return () => {
+      s.off('help_search_status', handleHelpSearchStatus);
+      s.off('help_request_accepted', handleHelpRequestAccepted);
+      s.off('help_request_declined', handleHelpRequestDeclined);
+    };
+  }, [token, loadActiveHelpRequest, router]);
   
   // Create dynamic styles based on theme
   const dynamicStyles = {
@@ -2306,6 +2374,10 @@ export default function MatchScreen() {
                         params: {
                           requestId: activeHelpRequest.id,
                           prompt: activeHelpRequest.prompt,
+                          initialStatus: 'matched',
+                          initialMessage: 'Beacon found! Waiting for response...',
+                          matchedGiver: activeHelpRequest.matchedGiver ? JSON.stringify(activeHelpRequest.matchedGiver) : undefined,
+                          resume: 'true'
                         },
                       });
                     }}
@@ -2315,27 +2387,7 @@ export default function MatchScreen() {
 
                   <TouchableOpacity
                     style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surface, flex: 1 }]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Cancel Help Request',
-                        'Are you sure you want to cancel this help request?',
-                        [
-                          { text: 'No', style: 'cancel' },
-                          {
-                            text: 'Yes',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await promptMatchingApi.cancelHelpRequest(activeHelpRequest.id, token);
-                                setActiveHelpRequest(null);
-                              } catch (e) {
-                                Alert.alert('Error', 'Failed to cancel request');
-                              }
-                            },
-                          },
-                        ]
-                      );
-                    }}
+                    onPress={handleCancelActiveHelpRequest}
                   >
                     <Text style={[styles.secondaryButtonText, { color: theme.textPrimary }]}>Cancel</Text>
                   </TouchableOpacity>
