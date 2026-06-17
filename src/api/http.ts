@@ -8,6 +8,10 @@ export interface ApiError extends Error {
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+// Paths that are reachable without an auth token (login, signup, public data).
+// Requests to anything else are skipped locally when no token is available.
+const PUBLIC_PATH_PREFIXES = ['/api/auth', '/api/public', '/health'];
+
 export interface RequestOptions<TBody = unknown> {
   method?: HttpMethod;
   body?: TBody;
@@ -43,6 +47,18 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
     const isValidToken = (t: any) => typeof t === 'string' && t.trim().length > 10 && t !== 'undefined' && t !== 'null';
     const useToken = isValidToken(effectiveToken) ? (effectiveToken as string) : undefined;
 
+    // Short-circuit protected requests when no usable token is available.
+    // Firing token-less requests at auth-protected endpoints (e.g. screens that
+    // mount before the token hydrates, or while logged out) makes the server
+    // treat each as a failed auth attempt and quickly rate-limits (429) the
+    // whole client. Bail out locally instead of hammering the server.
+    const isPublicPath = PUBLIC_PATH_PREFIXES.some((p) => path.startsWith(p));
+    if (!useToken && !isPublicPath) {
+      const err: ApiError = new Error('Not authenticated');
+      err.status = 401;
+      throw err;
+    }
+
     // Minimal diagnostics: log token validity for chat DELETE and warn if missing token on non-GET secure paths
     if ((method === 'DELETE' && path.startsWith('/chat/')) || (!useToken && method !== 'GET')) {
       const len = typeof effectiveToken === 'string' ? effectiveToken.length : 0;
@@ -64,6 +80,11 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
       }),
     });
   } catch (e: any) {
+    // Re-throw errors we raised intentionally (e.g. the no-token short-circuit);
+    // only wrap genuine fetch/network failures.
+    if (e && typeof e.status === 'number') {
+      throw e;
+    }
     const err: ApiError = new Error(`Network error while calling ${method} ${url}: ${e?.message || e}`);
     throw err;
   }

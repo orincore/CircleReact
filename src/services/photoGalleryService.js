@@ -1,8 +1,8 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
+import { API_BASE_URL } from '../config/api.js';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
 const MAX_PHOTOS = 5;
 const MAX_IMAGE_SIZE = 1920; // Max width/height
 const COMPRESSION_QUALITY = 0.8;

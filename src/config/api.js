@@ -1,6 +1,16 @@
 // API Configuration - Unified Environment Management
 import { safeEnv, safeNetwork } from '../utils/crashPrevention';
 
+// IMPORTANT: Expo's Babel transform only inlines `process.env.EXPO_PUBLIC_*`
+// when it is referenced STATICALLY (written out literally). A dynamic lookup
+// like `process.env[key]` (which safeEnv.get does) is NOT replaced and returns
+// undefined on native, causing the app to silently fall back to the production
+// default. So read these public overrides statically here.
+const cleanEnv = (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'undefined' ? v.trim() : undefined);
+const ENV_API_BASE_URL = cleanEnv(process.env.EXPO_PUBLIC_API_BASE_URL);
+const ENV_WS_BASE_URL = cleanEnv(process.env.EXPO_PUBLIC_WS_BASE_URL);
+const ENV_FRONTEND_URL = cleanEnv(process.env.EXPO_PUBLIC_FRONTEND_URL);
+
 const getApiBaseUrl = () => {
   // Check for development override first
   const forceDev = safeEnv.get('FORCE_DEV_MODE') === 'true';
@@ -25,9 +35,8 @@ const getApiBaseUrl = () => {
   }
 
   // Override with explicit EXPO_PUBLIC_API_BASE_URL if provided
-  const explicitUrl = safeEnv.get('EXPO_PUBLIC_API_BASE_URL');
-  if (explicitUrl) {
-    apiUrl = explicitUrl;
+  if (ENV_API_BASE_URL) {
+    apiUrl = ENV_API_BASE_URL;
     console.log('🔧 Using explicit API URL override:', apiUrl);
   }
 
@@ -50,11 +59,10 @@ export const getOAuthRedirectUrl = (platform) => {
   }
   
   // Override with explicit EXPO_PUBLIC_FRONTEND_URL if provided
-  const explicitUrl = safeEnv.get('EXPO_PUBLIC_FRONTEND_URL');
-  if (explicitUrl) {
-    baseUrl = explicitUrl;
+  if (ENV_FRONTEND_URL) {
+    baseUrl = ENV_FRONTEND_URL;
   }
-    
+
   return `${baseUrl}/auth/${platform}/callback`;
 };
 
@@ -83,11 +91,10 @@ export const getWebSocketUrl = () => {
   }
   
   // Override with explicit EXPO_PUBLIC_WS_BASE_URL if provided
-  const explicitUrl = safeEnv.get('EXPO_PUBLIC_WS_BASE_URL');
-  if (explicitUrl) {
-    wsUrl = explicitUrl;
+  if (ENV_WS_BASE_URL) {
+    wsUrl = ENV_WS_BASE_URL;
   }
-  
+
   return wsUrl;
 };
 

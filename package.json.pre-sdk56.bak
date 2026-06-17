@@ -35,7 +35,7 @@
     "@react-navigation/native": "^7.1.8",
     "@types/leaflet": "^1.9.20",
     "axios": "^1.12.2",
-    "expo": "^56.0.12",
+    "expo": "~54.0.10",
     "expo-auth-session": "~7.0.10",
     "expo-av": "~16.0.8",
     "expo-blur": "~15.0.8",
