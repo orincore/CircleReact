@@ -22,6 +22,19 @@ import { useLocalNotificationCount } from "@/src/hooks/useLocalNotificationCount
 import useBrowserNotifications from "@/src/hooks/useBrowserNotifications";
 import { debugNotificationSystem, forceEnableNotifications, simulateSocketNotification, testBackendProfileVisitNotification, testBrowserNotifications, testProfileVisitNotification, testSocketUserEvents } from "@/src/utils/testBrowserNotifications";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import LottieView from 'lottie-react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import nightVideo from "@/assets/lottie/night.mp4";
+import morningAfternoonVideo from "@/assets/lottie/morning-afternoon-sky.mp4";
+import eveningVideo from "@/assets/lottie/evening-sky.mp4";
+import sunnyWeatherLottie from "@/assets/lottie/sunny_weather.json";
+import cloudyWeatherLottie from "@/assets/lottie/cloudy_weather.json";
+import rainyWeatherLottie from "@/assets/lottie/rainy_weather.json";
+import snowWeatherLottie from "@/assets/lottie/snow_weather.json";
+import stormyWeatherLottie from "@/assets/lottie/lightening_weather.json";
+import windyWeatherLottie from "@/assets/lottie/Breezy_Weather .json";
+import { getTimeOfDayVideoBucket } from "@/src/utils/weatherMapping";
+import { useHeaderWeather } from "@/hooks/useHeaderWeather";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
@@ -305,6 +318,62 @@ const searchingStyles = StyleSheet.create({
   },
 });
 
+// Header video styles
+const headerStyles = StyleSheet.create({
+  headerVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
+  headerVideoGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // Fixed height matching z_headerFadeSpacer below, so the fade sits entirely
+    // in the reserved empty space under the text instead of overlapping it.
+    // Tall enough that the eased multi-stop ramp above reads as smooth instead
+    // of a compressed, seam-like band (most noticeable in light mode, where the
+    // video's navy tone has to cross much more contrast to reach the background).
+    height: 130,
+    zIndex: 1,
+  },
+});
+
+// Converts a '#rrggbb' color to 'rgba(r,g,b,alpha)'. Used to build eased,
+// intermediate stops for the header video's fade-to-background gradient —
+// a plain transparent->opaque 2-stop gradient reads as a visible seam when
+// the video's own (non-black) tone has to cross a lot of contrast to reach
+// a light background, since the eye perceives a linear alpha ramp over a
+// short distance as an abrupt band rather than a smooth fade.
+const hexToRgba = (hex, alpha) => {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.substring(0, 2), 16);
+  const g = parseInt(value.substring(2, 4), 16);
+  const b = parseInt(value.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const TIME_OF_DAY_VIDEOS = {
+  morningAfternoon: morningAfternoonVideo,
+  evening: eveningVideo,
+  night: nightVideo,
+};
+
+const WEATHER_ICONS = {
+  sunny: sunnyWeatherLottie,
+  cloudy: cloudyWeatherLottie,
+  rainy: rainyWeatherLottie,
+  snow: snowWeatherLottie,
+  stormy: stormyWeatherLottie,
+  windy: windyWeatherLottie,
+};
+
 const mockMatches = [
   { id: 1, name: "Ava", age: 27, location: "2 km away", compatibility: "92%" },
   { id: 2, name: "Noah", age: 29, location: "5 km away", compatibility: "88%" },
@@ -385,6 +454,44 @@ export default function MatchScreen() {
   const [passedMatchIds, setPassedMatchIds] = useState(new Set());
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const headerVideoPlayer = useVideoPlayer(
+    TIME_OF_DAY_VIDEOS[getTimeOfDayVideoBucket(new Date().getHours())],
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+    }
+  );
+
+  useEffect(() => {
+    // Seek to the middle of the clip once loaded for the cropped background effect
+    const subscription = headerVideoPlayer.addListener('sourceLoad', ({ duration }) => {
+      if (duration > 0) {
+        headerVideoPlayer.currentTime = duration / 2;
+      }
+      headerVideoPlayer.play();
+    });
+    return () => subscription.remove();
+  }, [headerVideoPlayer]);
+
+  useEffect(() => {
+    // Device clock only — no network dependency, so this never fails. Keeps
+    // a long-lived session's header video correct across bucket boundaries
+    // (e.g. 5pm) without requiring an app restart. Replacing the source
+    // re-triggers the 'sourceLoad' listener above, which re-seeks and plays.
+    let currentBucket = getTimeOfDayVideoBucket(new Date().getHours());
+    const intervalId = setInterval(() => {
+      const nextBucket = getTimeOfDayVideoBucket(new Date().getHours());
+      if (nextBucket !== currentBucket) {
+        currentBucket = nextBucket;
+        headerVideoPlayer.replaceAsync(TIME_OF_DAY_VIDEOS[nextBucket]);
+      }
+    }, 15 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [headerVideoPlayer]);
+
+  const { condition: headerWeatherCondition } = useHeaderWeather(userLocation);
+  const weatherIconSource = headerWeatherCondition ? WEATHER_ICONS[headerWeatherCondition] : null;
+
   const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
@@ -2337,38 +2444,91 @@ export default function MatchScreen() {
           >
             {/* Gen-Z Header */}
             <View style={styles.z_header}>
-              <View>
-                <Text style={styles.z_greeting}>{getGreeting()}</Text>
-                <Text style={[styles.z_name, { color: theme.textPrimary }]}>
-                  {getUserFirstName().toUpperCase()}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.z_notifBtn}
-                onPress={handleNotificationsPress}
-                activeOpacity={0.7}
-              >
-                {LIQUID_GLASS ? (
-                  <GlassView
-                    style={styles.settingsButtonGlass}
-                    glassEffectStyle="regular"
-                    isInteractive
-                  >
-                    <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
-                  </GlassView>
+                {/* Background video (cropped center) — fills the whole header, edge to edge.
+                    NOTE: this outer view must NOT have padding: RN insets absolutely
+                    positioned children by the parent's padding, which would shrink the
+                    video away from the edges it's meant to bleed into. */}
+                <VideoView
+                  player={headerVideoPlayer}
+                  style={headerStyles.headerVideo}
+                  contentFit="cover"
+                  nativeControls={false}
+                />
+                {/* Gradient overlay to blend bottom of video into header background.
+                    The end stop must be fully opaque and match the page background
+                    exactly (theme.background), and uses several eased mid-stops
+                    instead of a single linear ramp — a plain 2-stop gradient reads
+                    as a visible seam in light mode, where the video's own navy tone
+                    has to cross a lot of contrast to reach a near-white background. */}
+                <LinearGradient
+                  colors={[
+                    'transparent',
+                    hexToRgba(theme.background, 0.12),
+                    hexToRgba(theme.background, 0.4),
+                    hexToRgba(theme.background, 0.75),
+                    theme.background,
+                  ]}
+                  locations={[0, 0.35, 0.6, 0.82, 1]}
+                  style={headerStyles.headerVideoGradient}
+                  pointerEvents="none"
+                />
+              {/* Content sits in normal flow (on top of the absolute video/gradient) and
+                  carries the padding that used to live on the outer header view. */}
+              <View style={styles.z_headerContent}>
+                <View>
+                  <Text style={styles.z_greeting}>{getGreeting()}</Text>
+                  <Text style={[styles.z_name, { color: theme.textPrimary }]}>
+                    {getUserFirstName().toUpperCase()}
+                  </Text>
+                </View>
+                {Platform.OS !== 'web' ? (
+                  weatherIconSource ? (
+                    <View style={styles.z_lottieContainer}>
+                      <LottieView
+                        key={headerWeatherCondition}
+                        source={weatherIconSource}
+                        autoPlay
+                        loop
+                        speed={0.5}
+                        style={styles.z_lottie}
+                      />
+                    </View>
+                  ) : null
                 ) : (
-                  <View style={[styles.z_notifInner, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.06)' }]}>
-                    <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                  <View style={styles.z_lottieContainer}>
+                    <Ionicons name="sparkles" size={24} color={theme.textPrimary} />
                   </View>
                 )}
-                {notificationCount > 0 && (
-                  <View style={styles.z_notifBadge}>
-                    <Text style={styles.z_notifBadgeText}>
-                      {notificationCount > 9 ? '9+' : notificationCount}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.z_notifBtn}
+                  onPress={handleNotificationsPress}
+                  activeOpacity={0.7}
+                >
+                  {LIQUID_GLASS ? (
+                    <GlassView
+                      style={styles.settingsButtonGlass}
+                      glassEffectStyle="regular"
+                      isInteractive
+                    >
+                      <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                    </GlassView>
+                  ) : (
+                    <View style={[styles.z_notifInner, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.06)' }]}>
+                      <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                    </View>
+                  )}
+                  {notificationCount > 0 && (
+                    <View style={styles.z_notifBadge}>
+                      <Text style={styles.z_notifBadgeText}>
+                        {notificationCount > 9 ? '9+' : notificationCount}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {/* Empty space reserved purely for the video-to-background fade below the
+                  text, so the gradient never overlaps the greeting/name content above. */}
+              <View style={styles.z_headerFadeSpacer} />
             </View>
 
             {/* Announcement Banner - Hero Style (edge-to-edge) */}
@@ -6516,10 +6676,30 @@ const styles = StyleSheet.create({
 
   // ── Gen-Z Redesign ──────────────────────────────────────────────
   z_header: {
+    // Break out of the ScrollView's content padding (padding: 20, paddingTop: 60)
+    // so the video fills the full screen width and reaches behind the status bar.
+    // No padding here: RN insets absolutely positioned children by the parent's
+    // padding, which would shrink the video away from the edges. Padding for the
+    // visible content lives on z_headerContent instead.
+    marginTop: -60,
+    marginHorizontal: -20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  z_headerContent: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: 20,
     paddingBottom: 4,
+    // Explicit zIndex so this always paints above the gradient overlay below,
+    // regardless of RN's sibling paint-order rules.
+    zIndex: 2,
+    position: 'relative',
+  },
+  z_headerFadeSpacer: {
+    height: 130,
   },
   z_greeting: {
     fontSize: 11,
@@ -6538,6 +6718,17 @@ const styles = StyleSheet.create({
   z_notifBtn: {
     position: 'relative',
     marginBottom: 4,
+  },
+  z_lottieContainer: {
+    width: 52,
+    height: 52,
+    marginHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  z_lottie: {
+    width: '100%',
+    height: '100%',
   },
   z_notifInner: {
     width: 44,
@@ -6566,6 +6757,7 @@ const styles = StyleSheet.create({
   z_heroOuter: {
     borderRadius: 24,
     overflow: 'hidden',
+    marginTop: -85,
   },
   z_heroInnerWrap: {
     margin: 2,
