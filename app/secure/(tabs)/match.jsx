@@ -491,6 +491,11 @@ export default function MatchScreen() {
 
   const { condition: headerWeatherCondition } = useHeaderWeather(userLocation);
   const weatherIconSource = headerWeatherCondition ? WEATHER_ICONS[headerWeatherCondition] : null;
+  // The header's background video is dark at night regardless of app theme, so
+  // light mode's normal dark text/icon color becomes unreadable against it —
+  // force white for the name and notification icon in that one combination.
+  const isNightHeaderVideo = getTimeOfDayVideoBucket(new Date().getHours()) === 'night';
+  const headerTextColor = (!isDarkMode && isNightHeaderVideo) ? '#FFFFFF' : theme.textPrimary;
 
   const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
@@ -2477,7 +2482,7 @@ export default function MatchScreen() {
               <View style={styles.z_headerContent}>
                 <View>
                   <Text style={styles.z_greeting}>{getGreeting()}</Text>
-                  <Text style={[styles.z_name, { color: theme.textPrimary }]}>
+                  <Text style={[styles.z_name, { color: headerTextColor }]}>
                     {getUserFirstName().toUpperCase()}
                   </Text>
                 </View>
@@ -2510,11 +2515,11 @@ export default function MatchScreen() {
                       glassEffectStyle="regular"
                       isInteractive
                     >
-                      <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                      <Ionicons name="notifications-outline" size={22} color={headerTextColor} />
                     </GlassView>
                   ) : (
                     <View style={[styles.z_notifInner, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.06)' }]}>
-                      <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                      <Ionicons name="notifications-outline" size={22} color={headerTextColor} />
                     </View>
                   )}
                   {notificationCount > 0 && (
