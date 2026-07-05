@@ -64,7 +64,7 @@ function useHeaderWeather(userLocation) {
 ## Fallback Behavior
 
 - **Time-of-day video**: always applied — it has no failure mode (local clock only).
-- **Weather icon**: shows the real weather Lottie only when `useHeaderWeather` returns a non-null `condition`. Whenever it's `null` (location permission denied, all three providers failed and no usable cache), the icon slot silently reverts to today's sparkle `animationLottie` — no error message, no loading spinner, no visual difference from the current app.
+- **Weather icon**: shows the real weather Lottie only when `useHeaderWeather` returns a non-null `condition`. Whenever it's `null` (location permission denied, all three providers failed and no usable cache), the icon slot renders nothing — no error message, no loading spinner. (Amended post-implementation: the original `animationLottie` sparkle asset this was meant to fall back to no longer exists on disk — it was repurposed as `sunny_weather.json` — so there is no fallback icon at all now, per explicit direction.)
 
 ## Icon Mapping
 
