@@ -374,6 +374,17 @@ const WEATHER_ICONS = {
   windy: windyWeatherLottie,
 };
 
+// Extra caption lines mixed in with the plain time-of-day greeting when real
+// weather data is available, cycled every 5s (see the caption-rotation effect).
+const WEATHER_CAPTION_LINES = {
+  sunny: ['Sunny skies out there', 'Perfect day to shine'],
+  cloudy: ['A bit cloudy today', 'Overcast skies above'],
+  rainy: ["Rain's falling outside", 'Grab an umbrella today'],
+  snow: ['Snow is falling', "Bundle up, it's snowy"],
+  stormy: ['Storm brewing outside', 'Thunder in the air'],
+  windy: ["It's breezy out there", 'Windy skies today'],
+};
+
 const mockMatches = [
   { id: 1, name: "Ava", age: 27, location: "2 km away", compatibility: "92%" },
   { id: 2, name: "Noah", age: 29, location: "5 km away", compatibility: "88%" },
@@ -496,6 +507,8 @@ export default function MatchScreen() {
   // force white for the name and notification icon in that one combination.
   const isNightHeaderVideo = getTimeOfDayVideoBucket(new Date().getHours()) === 'night';
   const headerTextColor = (!isDarkMode && isNightHeaderVideo) ? '#FFFFFF' : theme.textPrimary;
+  const [captionIndex, setCaptionIndex] = useState(0);
+  const captionFade = useRef(new Animated.Value(1)).current;
 
   const [publicStats, setPublicStats] = useState({ totalUsers: 0, goal: 10000 });
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
@@ -786,6 +799,24 @@ export default function MatchScreen() {
   const getUserFirstName = () => {
     return user?.firstName || user?.first_name || 'there';
   };
+
+  // Small header caption cycles between the plain time-of-day greeting and a
+  // couple of weather-flavored lines (only when real weather data is
+  // available) every 5s, with a quick crossfade between messages.
+  const captionMessages = [getGreeting(), ...(headerWeatherCondition ? WEATHER_CAPTION_LINES[headerWeatherCondition] : [])];
+
+  useEffect(() => {
+    if (captionMessages.length <= 1) return;
+    const intervalId = setInterval(() => {
+      Animated.timing(captionFade, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
+        setCaptionIndex((prev) => prev + 1);
+        Animated.timing(captionFade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      });
+    }, 5000);
+    return () => clearInterval(intervalId);
+    // Re-run only when the set of messages actually changes (weather condition
+    // changing); captionMessages.length alone is enough to detect that.
+  }, [headerWeatherCondition, captionMessages.length]);
 
   // Notifications from Match screen header
   const handleNotificationsPress = () => {
@@ -2481,7 +2512,9 @@ export default function MatchScreen() {
                   carries the padding that used to live on the outer header view. */}
               <View style={styles.z_headerContent}>
                 <View>
-                  <Text style={styles.z_greeting}>{getGreeting()}</Text>
+                  <Animated.Text style={[styles.z_greeting, { opacity: captionFade }]}>
+                    {captionMessages[captionIndex % captionMessages.length]}
+                  </Animated.Text>
                   <Text style={[styles.z_name, { color: headerTextColor }]}>
                     {getUserFirstName().toUpperCase()}
                   </Text>
