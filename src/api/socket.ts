@@ -137,11 +137,20 @@ function createSocket(token?: string | null) {
           ? ["websocket", "polling"] // Web: prefer WebSocket, fall back to polling
           : ["websocket"],             // Native: WebSocket only
       auth: token ? { token } : undefined,
-      reconnection: false, // We handle reconnection manually
+      // Use socket.io's built-in reconnection so the SAME socket instance is
+      // reused across drops. Manually recreating the socket (the old approach)
+      // orphaned every `socket.on(...)` listener registered by screens (chat
+      // list, conversation, badge), which is why realtime silently stopped
+      // after a reconnect and only a manual refresh/remount fixed it.
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
       autoConnect: true,
       // Platform and environment-specific timeouts
       timeout: Platform.OS === 'ios' ? 45000 : (isProduction ? 30000 : 15000), // Longer timeout for iOS
-      forceNew: true,
+      forceNew: false,
       // Allow engine.io to manage upgrades normally so WebSocket can be used in production
       withCredentials: false,
     };
@@ -272,8 +281,9 @@ function createSocket(token?: string | null) {
           }
         }
       }
-      
-      attemptReconnection(token);
+
+      // socket.io reconnects automatically (reconnection:true) on the SAME
+      // instance, preserving all listeners. No manual recreation.
     });
 
     // Disconnection
@@ -284,21 +294,17 @@ function createSocket(token?: string | null) {
         isAppInBackground
       });
       clearIntervals();
-      
+
       // Don't notify disconnection if app is in background (normal behavior)
       if (!isAppInBackground) {
         socketService.notifyConnectionState('disconnected');
       }
-      
-      // Enhanced reconnection logic
-      // Don't reconnect if app is in background - will reconnect when app comes to foreground
-      const shouldReconnect = reason !== 'io client disconnect' && 
-                             reason !== 'io server disconnect' &&
-                             isInitialized && // Only reconnect if was previously connected
-                             !isAppInBackground; // Don't reconnect when app is backgrounded
-      
-      if (shouldReconnect) {
-        attemptReconnection(token);
+
+      // socket.io auto-reconnects on the same instance for transport drops. The
+      // one case it won't is an explicit server-side disconnect — reconnect that
+      // in place (socket.connect() reuses the instance, keeping every listener).
+      if (reason === 'io server disconnect' && !isAppInBackground) {
+        try { socket.connect(); } catch {}
       }
     });
 
@@ -349,10 +355,16 @@ function createSocket(token?: string | null) {
           const wasInBackground = isAppInBackground;
           isAppInBackground = false;
           
-          // Reconnect if we were disconnected while in background
-          if (wasInBackground && socket && !socket.connected && token) {
+          // Reconnect in place if we dropped while backgrounded. Reuse the
+          // existing socket (socket.connect()) so listeners survive; only fall
+          // back to a fresh socket if we somehow have none.
+          if (wasInBackground && token) {
             setTimeout(() => {
-              createSocket(token);
+              if (socket && !socket.connected) {
+                try { socket.connect(); } catch {}
+              } else if (!socket) {
+                createSocket(token);
+              }
             }, 500);
           }
         }
@@ -412,23 +424,29 @@ function startHeartbeat() {
 }
 
 export function getSocket(token?: string | null): any {
-  // Update token if provided and different
+  // Update token if provided and different (login/refresh) — this is the only
+  // case where we intentionally replace the socket instance.
   if (token && token !== currentToken) {
     closeSocket();
     createSocket(token);
     return socket;
   }
 
-  // Return existing connected socket
-  if (socket && socket.connected && connectionState === 'connected') {
+  // No socket yet — create one.
+  if (!socket) {
+    createSocket(token || currentToken);
     return socket;
   }
 
-  // Create new socket if none exists or connection is broken
-  if (!socket || !socket.connected || connectionState === 'disconnected') {
-    createSocket(token || currentToken);
+  // A socket already exists. Return the SAME instance even if it's mid-reconnect
+  // (disconnected) — socket.io will re-establish it and all listeners that
+  // screens attached remain valid. Recreating here would orphan those listeners
+  // and is exactly what broke realtime after a brief drop. Just nudge a
+  // reconnect if it's idle.
+  if (!socket.connected) {
+    try { socket.connect(); } catch {}
   }
-  
+
   return socket;
 }
 

@@ -62,8 +62,9 @@ export const chatApi = {
   getInbox: async (token?: string | null): Promise<{ inbox: ChatInboxItem[] }> => {
     // Use new chat list endpoint and map to legacy shape for UI compatibility
     const params = new URLSearchParams()
-    // Include archived so user can unarchive from list; counts not required
-    params.set('includeCounts', 'false')
+    // Include archived so user can unarchive from list. Request unread counts so
+    // badges are accurate on launch instead of 0 until the first realtime event.
+    params.set('includeCounts', 'true')
     params.set('includeArchived', 'true')
     const resp = await http.get<{ chats: any[] }>(`/api/chat-list?${params.toString()}`, token)
     const inbox: ChatInboxItem[] = (resp.chats || []).map((it: any) => ({

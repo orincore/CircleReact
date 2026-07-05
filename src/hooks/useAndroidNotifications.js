@@ -301,7 +301,6 @@ export default function useAndroidNotifications() {
   const handleLocationUpdatedActivity = (activity) => {
     // Don't show notification for own location updates
     if (activity.data.user_id === user?.id) {
-      console.log('📍 Skipping location notification for self');
       return;
     }
     

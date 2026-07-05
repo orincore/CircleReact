@@ -1,4 +1,3 @@
-import UserConsentModal from "@/components/UserConsentModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -9,48 +8,31 @@ import NotificationManager from "@/src/components/NotificationManager";
 import ErrorBoundary from "@/src/components/ErrorBoundary";
 import { setupGlobalErrorHandlers } from "@/src/utils/crashPrevention";
 import { Stack } from "expo-router";
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import analyticsService from '@/src/services/analyticsService';
 import appVersionService from '@/src/services/appVersionService';
 // import crashReportingService from '@/src/services/crashReportingService';
-import { useUserConsent } from '@/components/UserConsentModal';
 import { useEASUpdate } from '@/src/hooks/useEASUpdate';
 
 export default function RootLayout() {
   // Initialize EAS Update hook for silent background update checking
   // Updates are downloaded automatically and applied on next app restart
   useEASUpdate();
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const { checkConsent, hasConsent } = useUserConsent();
 
   useEffect(() => {
     // Set up global error handlers first
     setupGlobalErrorHandlers();
-    
-    // Initialize app services
-    const initializeServices = async () => {
-      try {
-        // Check user consent first
-        const consent = await checkConsent();
-        
-        // Only show consent modal if user has never seen it (first install)
-        // Don't show for returning users or after login
-        if (!consent && !hasConsent()) {
-          setShowConsentModal(true);
-          return;
-        }
 
-        // Initialize services based on consent (use default consent if not set)
-        await initializeAppServices(consent || { analytics: false, crashReporting: true });
-      } catch (error) {
-        console.error('Error initializing services:', error);
-      }
-    };
-
-    initializeServices();
+    // Initialize app services. Analytics/crash-reporting consent gating is
+    // not wired up yet (those services are commented out below), so there's
+    // no live behavior difference between "accepted" and "declined" today —
+    // just use the same default consent object both paths already used.
+    initializeAppServices({ analytics: false, crashReporting: true }).catch((error) => {
+      console.error('Error initializing services:', error);
+    });
   }, []);
 
   const initializeAppServices = async (consent) => {
@@ -155,18 +137,6 @@ export default function RootLayout() {
       console.error('Error initializing app services:', error);
       // await crashReportingService.reportError(error, { context: 'service_initialization' });
     }
-  };
-
-  const handleConsentAccept = async () => {
-    setShowConsentModal(false);
-    const consent = await checkConsent();
-    await initializeAppServices(consent);
-  };
-
-  const handleConsentDecline = async () => {
-    setShowConsentModal(false);
-    const consent = await checkConsent();
-    await initializeAppServices(consent);
   };
 
   useEffect(() => {
@@ -304,13 +274,6 @@ export default function RootLayout() {
                   <ConnectionStatus />
                   <Stack screenOptions={{ headerShown: false }} />
                   <NotificationManager />
-                  
-                  {/* User Consent Modal for GDPR Compliance */}
-                  <UserConsentModal
-                    visible={showConsentModal}
-                    onAccept={handleConsentAccept}
-                    onDecline={handleConsentDecline}
-                  />
                 </BrowserNotificationProvider>
                 </SubscriptionProvider>
               </VerificationProvider>

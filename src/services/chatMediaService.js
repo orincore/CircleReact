@@ -12,7 +12,11 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform, Alert } from 'react-native';
 import { API_BASE_URL } from '../api/config';
-import { Video } from 'expo-av';
+// Hardware-accelerated compression (AVAssetExportSession on iOS,
+// MediaCodec on Android) — already a project dependency but previously
+// unused, so video "compression" was a no-op that just warned when a video
+// was too large instead of actually shrinking it.
+import { Video as VideoCompressor, createVideoThumbnail } from 'react-native-compressor';
 
 // Compression targets
 const IMAGE_MAX_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
@@ -282,8 +286,11 @@ class ChatMediaService {
   }
 
   /**
-   * Compress video to target size (max 10MB)
-   * Note: Full video compression requires native modules. This provides basic optimization.
+   * Compress video to target size (max 10MB) using react-native-compressor,
+   * which drives the device's own hardware video encoder (AVAssetExportSession
+   * on iOS, MediaCodec on Android) — the same class of compression WhatsApp
+   * uses, not a JS-side re-encode. This used to be a no-op that only warned
+   * when a video was too large without actually shrinking it.
    */
   async compressVideo(uri, onProgress) {
     try {
@@ -298,56 +305,67 @@ class ChatMediaService {
 
       console.log(`🎥 Original video size: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
 
-      // Check if video is already under limit
+      // No native video compressor on web; send as-is.
+      if (Platform.OS === 'web') {
+        if (onProgress) onProgress(1, 'Video ready');
+        return { uri, wasCompressed: false, size: originalSize };
+      }
+
+      // Already small enough — skip re-encoding to save battery/time.
       if (originalSize > 0 && originalSize <= VIDEO_MAX_SIZE_BYTES) {
         if (onProgress) onProgress(1, 'Video ready');
         return { uri, wasCompressed: false, size: originalSize };
       }
 
-      // For videos over the limit, we need to warn the user
-      // Full video compression requires FFmpeg or native modules
-      if (originalSize > VIDEO_MAX_SIZE_BYTES) {
-        const sizeMB = (originalSize / 1024 / 1024).toFixed(1);
+      if (onProgress) onProgress(0.15, 'Compressing video...');
+
+      // 'auto' lets the hardware encoder pick resolution/bitrate the same
+      // way WhatsApp-style compression does (see react-native-compressor's
+      // own docs), rather than us guessing fixed numbers.
+      const compressedUri = await VideoCompressor.compress(
+        uri,
+        { compressionMethod: 'auto' },
+        (progress) => {
+          if (onProgress) onProgress(0.15 + progress * 0.7, 'Compressing video...');
+        }
+      );
+
+      const compressedInfo = await FileSystem.getInfoAsync(compressedUri);
+      const compressedSize = compressedInfo.size || 0;
+      console.log(`🎥 Compressed video size: ${(compressedSize / 1024 / 1024).toFixed(2)}MB`);
+
+      if (onProgress) onProgress(1, 'Done');
+
+      if (compressedSize > VIDEO_MAX_SIZE_BYTES) {
+        const sizeMB = (compressedSize / 1024 / 1024).toFixed(1);
         const maxMB = (VIDEO_MAX_SIZE_BYTES / 1024 / 1024).toFixed(0);
-        
-        // Try basic optimization first
-        if (onProgress) onProgress(0.5, 'Optimizing video...');
-        
-        // For now, return the original with a warning
-        // In production, you'd want to use expo-video-thumbnails or a native compression library
-        console.warn(`⚠️ Video is ${sizeMB}MB, exceeds ${maxMB}MB limit. Consider using a shorter clip.`);
-        
-        if (onProgress) onProgress(1, 'Done');
-        return { 
-          uri, 
-          wasCompressed: false, 
-          size: originalSize,
-          warning: `Video is ${sizeMB}MB. For best results, use videos under ${maxMB}MB.`
+        console.warn(`⚠️ Video is still ${sizeMB}MB after compression, exceeds ${maxMB}MB target.`);
+        return {
+          uri: compressedUri,
+          wasCompressed: true,
+          size: compressedSize,
+          warning: `Video is ${sizeMB}MB after compression. For best results, use videos under ${maxMB}MB.`,
         };
       }
 
-      if (onProgress) onProgress(1, 'Video ready');
-      return { uri, wasCompressed: false, size: originalSize };
+      return { uri: compressedUri, wasCompressed: true, size: compressedSize };
     } catch (error) {
-      console.error('❌ Video processing failed:', error);
+      console.error('❌ Video compression failed:', error);
       return { uri, wasCompressed: false, error: error.message };
     }
   }
 
   /**
-   * Generate thumbnail for video
-   * Returns the video URI itself which will display first frame in Video component
+   * Generate a real video thumbnail (an actual extracted frame), via the
+   * same hardware-backed react-native-compressor module — this used to just
+   * return the video URI itself with no actual thumbnail image.
    */
   async generateVideoThumbnail(videoUri) {
     try {
+      if (Platform.OS === 'web') return videoUri;
       console.log('🎬 Generating video thumbnail for:', videoUri);
-      
-      // For mobile apps, we use the video URI itself as thumbnail
-      // The Video component with poster or Image component can display the first frame
-      // This is the simplest approach without additional dependencies
-      
-      // Return the video URI as thumbnail - it will show the first frame
-      return videoUri;
+      const result = await createVideoThumbnail(videoUri);
+      return result?.path || videoUri;
     } catch (error) {
       console.error('❌ Video thumbnail generation failed:', error);
       return videoUri; // Fallback to video URI
@@ -391,55 +409,87 @@ class ChatMediaService {
       let fileName = `upload_${Date.now()}.${type === 'image' ? 'jpg' : 'mp4'}`;
       let fileType = type === 'image' ? 'image/jpeg' : 'video/mp4';
 
-      // Create form data
-      const formData = new FormData();
-
       if (Platform.OS === 'web') {
-        if (finalUri.startsWith('data:')) {
-          const response = await fetch(finalUri);
-          const blob = await response.blob();
-          formData.append('file', blob, fileName);
-        } else {
-          const response = await fetch(finalUri);
-          const blob = await response.blob();
-          formData.append('file', blob, fileName);
+        const formData = new FormData();
+        const response0 = await fetch(finalUri);
+        const blob = await response0.blob();
+        formData.append('file', blob, fileName);
+        formData.append('type', type);
+        if (type === 'video' && thumbnail) {
+          formData.append('thumbnail', thumbnail);
         }
-      } else {
-        formData.append('file', {
-          uri: finalUri,
-          type: fileType,
-          name: fileName,
+
+        const response = await fetch(`${API_BASE_URL}/api/upload/media`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
         });
+
+        if (onProgress) onProgress(0.9, 'Finalizing...');
+
+        if (!response.ok) {
+          let errorMessage = `Upload failed (${response.status})`;
+          try {
+            const error = await response.json();
+            errorMessage = error.message || errorMessage;
+          } catch {}
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+
+        if (onProgress) onProgress(1, 'Complete');
+
+        return {
+          url: data.url,
+          type,
+          thumbnail: data.thumbnail,
+          fileName,
+        };
       }
 
-      formData.append('type', type);
-      
-      // Add thumbnail for videos
-      if (type === 'video' && thumbnail) {
-        formData.append('thumbnail', thumbnail);
-      }
-
-      // Upload with progress tracking
-      const response = await fetch(`${API_BASE_URL}/api/upload/media`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      // Native (iOS/Android): use FileSystem.uploadAsync instead of
+      // fetch + FormData. Expo's global fetch override (installed by the
+      // `expo` package) converts FormData via winter/fetch/convertFormData.ts,
+      // which only recognizes RN FormData parts shaped with a nested
+      // .file/.blob/.string key — but RN's own FormData.getParts() returns
+      // uri-based parts as {uri, type, name, ...} directly (no .file
+      // wrapper), so that converter silently produced `undefined` for the
+      // file entry and threw "Unsupported FormDataPart implementation".
+      // uploadAsync bypasses fetch/FormData entirely via a native multipart
+      // upload task, so it isn't affected by that gap.
+      const uploadResult = await FileSystem.uploadAsync(
+        `${API_BASE_URL}/api/upload/media`,
+        finalUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          mimeType: fileType,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          parameters: {
+            type,
+            ...(type === 'video' && thumbnail ? { thumbnail } : {}),
+          },
+        }
+      );
 
       if (onProgress) onProgress(0.9, 'Finalizing...');
 
-      if (!response.ok) {
-        let errorMessage = `Upload failed (${response.status})`;
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        let errorMessage = `Upload failed (${uploadResult.status})`;
         try {
-          const error = await response.json();
+          const error = JSON.parse(uploadResult.body);
           errorMessage = error.message || errorMessage;
         } catch {}
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      const data = JSON.parse(uploadResult.body);
 
       if (onProgress) onProgress(1, 'Complete');
 

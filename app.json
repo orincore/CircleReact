@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "circle",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "buildNumber": "101",
@@ -26,7 +25,18 @@
           "location",
           "location"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIApplicationSceneManifest": {
+          "UIApplicationSupportsMultipleScenes": false,
+          "UISceneConfigurations": {
+            "UIWindowSceneSessionRoleApplication": [
+              {
+                "UISceneConfigurationName": "Default Configuration",
+                "UISceneDelegateClassName": "$(PRODUCT_MODULE_NAME).SceneDelegate"
+              }
+            ]
+          }
+        }
       },
       "bundleIdentifier": "com.orincore.Circle",
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -58,7 +68,10 @@
               "pathPrefix": "/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -83,7 +96,6 @@
         "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.READ_MEDIA_AUDIO"
       ],
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "versionCode": 101,
       "package": "com.orincore.Circle",
@@ -110,21 +122,30 @@
             "enableJetifier": true,
             "forceAndroidX": true,
             "ndkVersion": "27.0.12077973",
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "minSdkVersion": 24,
             "buildToolsVersion": "36.0.0",
             "extraProguardRules": "-keep class com.facebook.hermes.unicode.** { *; }\n-keep class com.facebook.jni.** { *; }",
-            "extraMavenRepos": ["https://www.jitpack.io"],
+            "extraMavenRepos": [
+              "https://www.jitpack.io"
+            ],
             "enableShrinkResourcesInReleaseBuilds": false,
             "enableProguardInReleaseBuilds": false,
             "packagingOptions": {
-              "pickFirst": ["**/libc++_shared.so", "**/libjsc.so"]
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libjsc.so"
+              ]
             }
+          },
+          "ios": {
+            "useFrameworks": "static"
           }
         }
       ],
       "expo-router",
+      "expo-video",
       [
         "expo-location",
         {
@@ -180,7 +201,9 @@
           "iosAppId": "ca-app-pub-7904629558122562~2514886576"
         }
       ],
-      "./app.plugin.js"
+      "./app.plugin.js",
+      "expo-status-bar",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -198,10 +221,6 @@
       "eas": {
         "projectId": "c9234d97-8ff5-45bc-8f8f-8772ef0926a5"
       }
-    },
-    "react-native-google-mobile-ads": {
-      "android_app_id": "ca-app-pub-7904629558122562~8832481283",
-      "ios_app_id": "ca-app-pub-7904629558122562~2514886576"
     }
   }
 }

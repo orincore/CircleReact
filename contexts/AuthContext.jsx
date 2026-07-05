@@ -2,6 +2,7 @@ import LocationTrackingService from "@/services/LocationTrackingService";
 import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
+import { onTokenRenewed } from "@/src/api/tokenStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useSegments } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -455,6 +456,19 @@ export function AuthProvider({ children }) {
       }
     })();
   }, [checkAccountStatus]);
+
+  // The server silently reissues an access token once the current one is past
+  // the midpoint of its 7-day life (there is no refresh-token endpoint — see
+  // src/api/tokenStore.ts). http.ts/graphql.ts persist it to storage; pick it
+  // up here so React state and the socket's auth handshake stay in sync,
+  // otherwise an active user's session would still hit the hard 7-day wall
+  // the next time checkCurrentAccountStatus ran with the stale in-memory token.
+  useEffect(() => {
+    return onTokenRenewed((newToken) => {
+      setToken(newToken);
+      socketService.updateToken(newToken);
+    });
+  }, []);
 
   useEffect(() => {
     if (isRestoring) {

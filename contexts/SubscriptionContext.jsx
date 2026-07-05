@@ -79,13 +79,10 @@ export const SubscriptionProvider = ({ children }) => {
   const shouldShowAds = () => {
     // If subscription is not loaded yet, show ads (safe default for revenue)
     if (!subscription || loading) {
-      console.log('🎯 shouldShowAds: true (subscription not loaded, defaulting to show ads)');
       return true;
     }
-    
-    const showAds = !hasFeature('ad_free');
-    console.log('🎯 shouldShowAds:', showAds, '| Plan:', getPlan(), '| isPremium:', isPremium());
-    return showAds;
+
+    return !hasFeature('ad_free');
   };
 
   // Check match limit

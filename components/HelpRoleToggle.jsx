@@ -4,112 +4,79 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-/**
- * Toggle component for selecting Giver/Receiver/Off mode
- * Matches the modern Circle app theme
- */
 const HelpRoleToggle = ({ selectedRole, onRoleChange }) => {
   const { theme, isDarkMode } = useTheme();
 
   const roles = [
-    { 
-      id: 'giver', 
-      label: 'Beacon', 
-      icon: 'hand-left',
-      description: 'Offer support',
-      gradient: ['#7C2B86', '#5D5FEF'],
-      color: '#7C2B86'
+    {
+      id: 'giver',
+      label: 'Beacon',
+      icon: 'hand-left-outline',
+      gradient: ['#6D28D9', '#5B21B6'],
+      color: '#8B5CF6',
     },
-    { 
-      id: 'receiver', 
-      label: 'Voyager', 
-      icon: 'hand-right',
-      description: 'Find support',
-      gradient: ['#FF6FB5', '#FF8E53'],
-      color: '#FF6FB5'
+    {
+      id: 'receiver',
+      label: 'Voyager',
+      icon: 'compass-outline',
+      gradient: ['#DB2777', '#BE185D'],
+      color: '#F472B6',
     },
-    { 
-      id: 'off', 
-      label: 'Off', 
-      icon: 'close-circle',
-      description: 'Disabled',
-      gradient: isDarkMode ? ['#2A2A2A', '#1A1A1A'] : ['#E0E0E0', '#BDBDBD'],
-      color: theme.textSecondary
-    }
+    {
+      id: 'off',
+      label: 'Off',
+      icon: 'close-circle-outline',
+      gradient: isDarkMode ? ['#27272A', '#18181B'] : ['#D4D4D8', '#A1A1AA'],
+      color: isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+    },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.surface,
+        borderColor: isDarkMode ? 'rgba(255,255,255,0.07)' : theme.border,
+      },
+    ]}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="people-circle" size={24} color={theme.primary} />
-          <Text style={[styles.title, { color: theme.textPrimary }]}>
-            Harmony
-          </Text>
-        </View>
+        <Text style={styles.eyebrow}>HARMONY</Text>
         {selectedRole !== 'off' && (
-          <View style={[styles.activeBadge, { backgroundColor: theme.primary + '20' }]}>
-            <View style={[styles.activeDot, { backgroundColor: theme.primary }]} />
-            <Text style={[styles.activeText, { color: theme.primary }]}>Active</Text>
+          <View style={styles.activeBadge}>
+            <View style={styles.activeDot} />
+            <Text style={styles.activeText}>Active</Text>
           </View>
         )}
       </View>
-      
-      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-        Choose how you want to be part of Harmony
-      </Text>
 
-      <View style={styles.toggleContainer}>
+      <View style={styles.pillRow}>
         {roles.map((role) => {
           const isSelected = selectedRole === role.id;
           return (
             <TouchableOpacity
               key={role.id}
-              style={styles.roleButtonWrapper}
+              style={styles.pillWrap}
               onPress={() => onRoleChange(role.id)}
-              activeOpacity={0.8}
+              activeOpacity={0.78}
             >
               {isSelected ? (
                 <LinearGradient
                   colors={role.gradient}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.roleButton}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.pillGrad}
                 >
-                  <View style={styles.iconContainer}>
-                    <Ionicons
-                      name={role.icon}
-                      size={28}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                  <Text style={styles.roleLabelSelected}>
-                    {role.label}
-                  </Text>
-                  <Text style={styles.roleDescriptionSelected}>
-                    {role.description}
-                  </Text>
+                  <Ionicons name={role.icon} size={15} color="#FFFFFF" />
+                  <Text style={styles.pillLabelOn}>{role.label}</Text>
                 </LinearGradient>
               ) : (
-                <View style={[styles.roleButton, { 
-                  backgroundColor: theme.card,
-                  borderWidth: 1,
-                  borderColor: theme.border
-                }]}>
-                  <View style={[styles.iconContainer, { 
-                    backgroundColor: role.color + '20' 
-                  }]}>
-                    <Ionicons
-                      name={role.icon}
-                      size={28}
-                      color={role.color}
-                    />
-                  </View>
-                  <Text style={[styles.roleLabel, { color: theme.textPrimary }]}>
+                <View style={[
+                  styles.pillOff,
+                  { borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.border },
+                ]}>
+                  <Ionicons name={role.icon} size={15} color={role.color} />
+                  <Text style={[styles.pillLabelOff, { color: theme.textSecondary }]}>
                     {role.label}
-                  </Text>
-                  <Text style={[styles.roleDescription, { color: theme.textSecondary }]}>
-                    {role.description}
                   </Text>
                 </View>
               )}
@@ -123,99 +90,73 @@ const HelpRoleToggle = ({ selectedRole, onRoleChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 20,
+    padding: 14,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 11,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  title: {
-    fontSize: 18,
+  eyebrow: {
+    fontSize: 11,
     fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-    lineHeight: 20,
+    letterSpacing: 1.5,
+    color: '#8B5CF6',
   },
   activeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
+    gap: 5,
   },
   activeDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
+    backgroundColor: '#34D399',
   },
   activeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+    color: '#34D399',
   },
-  toggleContainer: {
+  pillRow: {
     flexDirection: 'row',
-    gap: 10,
-    alignItems: 'stretch',
+    gap: 8,
   },
-  roleButtonWrapper: {
+  pillWrap: {
     flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
-  roleButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+  pillGrad: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    minHeight: 120,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    gap: 5,
   },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  pillOff: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 10,
   },
-  roleLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  roleLabelSelected: {
-    fontSize: 15,
+  pillLabelOn: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 4,
-    marginBottom: 4,
   },
-  roleDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  roleDescriptionSelected: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
+  pillLabelOff: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

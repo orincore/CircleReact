@@ -11,14 +11,15 @@ import Ionicons from '@expo/vector-icons/Ionicons';
  * Component to display a list of help requests
  * Supports filtering by status and pagination
  */
-const HelpRequestsList = ({ 
-  status = 'searching', 
+const HelpRequestsList = ({
+  status = 'searching',
   title = 'Help Requests',
   showHelpButton = true,
   onHelpOffer,
   maxItems = null,
   onRefresh = null,
-  externalRefreshing = false
+  externalRefreshing = false,
+  hideIfEmpty = false,
 }) => {
   const { theme, isDarkMode } = useTheme();
   const { token } = useAuth();
@@ -208,6 +209,10 @@ const HelpRequestsList = ({
         </Text>
       </View>
     );
+  }
+
+  if (!loading && requests.length === 0 && !error && hideIfEmpty) {
+    return null;
   }
 
   // Use simple View when maxItems is set to avoid nested VirtualizedList warning

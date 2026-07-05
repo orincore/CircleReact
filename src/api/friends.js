@@ -1,21 +1,13 @@
+import { http } from './http';
 import { API_BASE_URL } from './config';
 
-// Test function to check if the API is accessible
+// Test function to check if the API is accessible (no auth required)
 const testConnection = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/friends/test`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
+    const response = await fetch(`${API_BASE_URL}/api/friends/test`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
-    const data = await response.json();
-    //console.log('Friends API connection test:', data);
     return true;
   } catch (error) {
     console.error('Friends API connection failed:', error);
@@ -28,247 +20,45 @@ export const friendsApi = {
   testConnection,
 
   // Get friend status between current user and another user
-  getFriendStatus: async (userId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/status/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get friend status');
-    }
-
-    return response.json();
-  },
+  getFriendStatus: (userId, token) => http.get(`/api/friends/status/${userId}`, token),
 
   // Send friend request
-  sendFriendRequest: async (receiverId, message, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/request`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        receiverId,
-        message,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to send friend request');
-    }
-
-    return response.json();
-  },
+  sendFriendRequest: (receiverId, message, token) =>
+    http.post('/api/friends/request', { receiverId, message }, token),
 
   // Accept friend request
-  acceptFriendRequest: async (requestId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/accept/${requestId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to accept friend request');
-    }
-
-    return response.json();
-  },
+  acceptFriendRequest: (requestId, token) => http.post(`/api/friends/accept/${requestId}`, undefined, token),
 
   // Reject friend request
-  rejectFriendRequest: async (requestId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/reject/${requestId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to reject friend request');
-    }
-
-    return response.json();
-  },
+  rejectFriendRequest: (requestId, token) => http.post(`/api/friends/reject/${requestId}`, undefined, token),
 
   // Get pending friend requests
-  getPendingRequests: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/requests/pending`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get pending requests');
-    }
-
-    return response.json();
-  },
+  getPendingRequests: (token) => http.get('/api/friends/requests/pending', token),
 
   // Get friends list
-  getFriendsList: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/list`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get friends list');
-    }
-
-    return response.json();
-  },
+  getFriendsList: (token) => http.get('/api/friends/list', token),
 
   // Remove friend
-  removeFriend: async (friendId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/${friendId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to remove friend');
-    }
-
-    return response.json();
-  },
+  removeFriend: (friendId, token) => http.delete(`/api/friends/${friendId}`, token),
 
   // Check if user can message another user
-  canMessage: async (userId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/can-message/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to check message permission');
-    }
-
-    return response.json();
-  },
+  canMessage: (userId, token) => http.get(`/api/friends/can-message/${userId}`, token),
 
   // Debug endpoint to check friend requests table
-  debugRequests: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/debug/requests`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to debug requests');
-    }
-
-    return response.json();
-  },
+  debugRequests: (token) => http.get('/api/friends/debug/requests', token),
 
   // Create a test friend request for current user (for testing)
-  createTestRequest: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/debug/create-test-request`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create test request');
-    }
-
-    return response.json();
-  },
+  createTestRequest: (token) => http.post('/api/friends/debug/create-test-request', undefined, token),
 
   // Block user
-  blockUser: async (userId, reason, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/block/${userId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ reason }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to block user');
-    }
-
-    return response.json();
-  },
+  blockUser: (userId, reason, token) => http.post(`/api/friends/block/${userId}`, { reason }, token),
 
   // Unblock user
-  unblockUser: async (userId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/block/${userId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to unblock user');
-    }
-
-    return response.json();
-  },
+  unblockUser: (userId, token) => http.delete(`/api/friends/block/${userId}`, token),
 
   // Check block status
-  getBlockStatus: async (userId, token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/block-status/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get block status');
-    }
-
-    return response.json();
-  },
+  getBlockStatus: (userId, token) => http.get(`/api/friends/block-status/${userId}`, token),
 
   // Get blocked users list
-  getBlockedUsers: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/api/friends/blocked`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get blocked users');
-    }
-
-    return response.json();
-  },
+  getBlockedUsers: (token) => http.get('/api/friends/blocked', token),
 };

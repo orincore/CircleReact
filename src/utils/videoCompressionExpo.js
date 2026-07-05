@@ -2,30 +2,20 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 /**
- * Video Compression using Expo AV
- * Provides actual video compression functionality
+ * Video Compression helper
+ * Currently a FileSystem-based passthrough (no real transcoding); kept as the
+ * single entry point so a native compressor can be slotted in later. expo-av was
+ * removed in Expo SDK 56, so it is no longer referenced here.
  */
 
-let Video = null;
-try {
-  Video = require('expo-av').Video;
-} catch (error) {
-  console.warn('expo-av not available for video compression');
-}
-
 /**
- * Compress video using expo-av
+ * Compress video (passthrough)
  */
 export const compressVideo = async (videoUri, options = {}) => {
   try {
     if (Platform.OS === 'web') {
       //console.log('📹 Video compression not available on web');
       return videoUri; // Return original URI on web
-    }
-
-    if (!Video) {
-      //console.log('📹 expo-av not available, skipping compression');
-      return videoUri;
     }
 
     //console.log('📹 Starting video compression...');

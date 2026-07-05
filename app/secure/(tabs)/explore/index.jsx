@@ -5,11 +5,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnnouncementBanner from '@/components/AnnouncementBanner';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { usePullToRefreshHaptics } from '@/hooks/usePullToRefreshHaptics';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   FlatList,
   Image,
   Platform,
@@ -26,175 +29,21 @@ const isBrowser = Platform.OS === 'web';
 
 export default function ExploreScreen() {
   const router = useRouter();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const { theme, isDarkMode } = useTheme();
-  
-  // Create dynamic styles based on theme
-  const dynamicStyles = {
-    searchContainerPro: {
-      backgroundColor: theme.surface,
-      borderColor: 'transparent',
-      borderWidth: 0,
-      borderRadius: 16,
-      shadowColor: theme.shadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.1,
-      shadowRadius: 8,
-      elevation: 3,
-    },
-    searchDropdown: {
-      backgroundColor: theme.surface,
-      borderColor: theme.border,
-      shadowColor: theme.shadowColor,
-      shadowOpacity: isDarkMode ? 0.3 : 0.15,
-    },
-    searchResultName: {
-      color: theme.textPrimary,
-    },
-    searchResultUsername: {
-      color: theme.textTertiary,
-    },
-    professionalSection: {
-      backgroundColor: 'transparent',
-      shadowColor: 'transparent',
-      shadowOpacity: 0,
-      borderWidth: 0,
-      marginBottom: 24,
-    },
-    sectionTitlePro: {
-      color: theme.textPrimary,
-    },
-    countLabel: {
-      color: theme.textSecondary,
-    },
-    emptyTitlePro: {
-      color: theme.textPrimary,
-    },
-    emptyDescriptionPro: {
-      color: theme.textSecondary,
-    },
-    userCard: {
-      backgroundColor: theme.surface,
-      shadowColor: theme.shadowColor,
-      shadowOpacity: isDarkMode ? 0.3 : 0.1,
-      borderRadius: 16,
-      borderWidth: 0,
-      marginHorizontal: 0,
-      marginVertical: 8,
-      overflow: 'hidden',
-    },
-    cardContainer: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 20,
-      borderWidth: 0,
-      shadowColor: theme.shadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.4 : 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    userName: {
-      color: theme.textPrimary,
-    },
-    userMeta: {
-      color: theme.textTertiary,
-    },
-    interestLabel: {
-      color: theme.textSecondary,
-    },
-    interestChip: {
-      backgroundColor: theme.surfaceSecondary,
-      borderColor: 'transparent',
-      borderWidth: 0,
-      borderRadius: 20,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-    },
-    professionalName: {
-      color: theme.textPrimary,
-    },
-    genderText: {
-      color: theme.textTertiary,
-    },
-    ageChip: {
-      backgroundColor: theme.surfaceSecondary,
-      borderColor: 'transparent',
-      borderWidth: 0,
-      borderRadius: 12,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    compatibilityLabel: {
-      color: theme.textSecondary,
-    },
-    verifiedLabel: {
-      color: '#10B981',
-    },
-    friendLabel: {
-      color: '#3B82F6',
-    },
-    matchedLabel: {
-      color: '#10B981',
-    },
-    pendingLabel: {
-      color: '#F59E0B',
-    },
-    moreLabel: {
-      color: theme.textMuted,
-    },
-    searchSectionPro: {
-      backgroundColor: 'transparent',
-    },
-    searchFilterButton: {
-      backgroundColor: theme.surfaceSecondary,
-      borderColor: 'transparent',
-      borderWidth: 0,
-      borderRadius: 12,
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    authPromptContainer: {
-      backgroundColor: theme.surface,
-      borderColor: theme.border,
-    },
-    authPromptText: {
-      color: theme.textSecondary,
-    },
-    authPromptButton: {
-      backgroundColor: theme.primary,
-    },
-    moreChip: {
-      backgroundColor: theme.surfaceSecondary,
-      borderRadius: 20,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderWidth: 0,
-    },
-    compatibilityChip: {
-      backgroundColor: theme.primaryLight,
-      borderRadius: 12,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderWidth: 0,
-    },
-    verifiedChip: {
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      borderRadius: 12,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderWidth: 0,
-    },
-    friendChip: {
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      borderRadius: 12,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderWidth: 0,
-    },
-  };
+
+  const scanAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(scanAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scanAnim]);
   
   const [topUsers, setTopUsers] = useState([]);
   const [newUsers, setNewUsers] = useState([]);
@@ -208,15 +57,6 @@ export default function ExploreScreen() {
   const [matchStatuses, setMatchStatuses] = useState({}); // userId -> status
   const [processingMatch, setProcessingMatch] = useState(null); // userId being processed
 
-  // Debug authentication state
-  useEffect(() => {
-    console.log('[ExploreScreen] Auth state:', { 
-      hasToken: !!token, 
-      tokenLength: token?.length || 0,
-      hasUser: !!user,
-      userId: user?.id 
-    });
-  }, [token, user]);
 
   useEffect(() => {
     loadPassedUsers();
@@ -300,28 +140,20 @@ export default function ExploreScreen() {
   };
 
   const handleSearch = useCallback(async (query) => {
-    console.log('[ExploreScreen] Search initiated:', { query, hasToken: !!token, tokenLength: token?.length });
-    
     if (!token) {
       console.warn('[ExploreScreen] No token for search - user may not be authenticated');
       setSearchResults([]);
       return;
     }
-    
+
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
-      console.log('[ExploreScreen] Query too short or invalid:', query);
       setSearchResults([]);
       return;
     }
 
     try {
       setSearching(true);
-      console.log('[ExploreScreen] Making search API call:', query.trim());
       const response = await exploreApi.searchUsers(query.trim(), 20, token);
-      console.log('[ExploreScreen] Search response:', { 
-        users: response?.users?.length || 0, 
-        query: response?.query 
-      });
       setSearchResults(response.users || []);
     } catch (error) {
       console.error('[ExploreScreen] Search failed:', error);
@@ -463,369 +295,255 @@ export default function ExploreScreen() {
     const matchStatus = matchStatuses[user.id];
     const gender = user.gender || user.genderIdentity || user.sex || null;
     const normalizedGender = typeof gender === 'string' ? gender.toLowerCase() : null;
-    const genderLabel = normalizedGender
-      ? normalizedGender.charAt(0).toUpperCase() + normalizedGender.slice(1)
-      : null;
-    const genderIcon = normalizedGender === 'male'
-      ? 'male'
-      : normalizedGender === 'female'
-      ? 'female'
-      : normalizedGender
-      ? 'male-female'
-      : null;
+    const genderIcon = normalizedGender === 'male' ? 'male' : normalizedGender === 'female' ? 'female' : null;
+    const cardBg = isDarkMode ? 'rgba(255,255,255,0.04)' : theme.surface;
+    const cardBorder = isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
 
     return (
       <TouchableOpacity
-        style={[styles.professionalCard, dynamicStyles.userCard]}
+        style={[styles.xCard, { backgroundColor: cardBg, borderColor: cardBorder }]}
         onPress={() => handleUserPress(user)}
-        activeOpacity={0.9}
+        activeOpacity={0.82}
       >
-        <View style={[styles.cardContainer, dynamicStyles.cardContainer]}>
-          <View style={styles.cardContentRow}>
-            {/* Main content (avatar, text, badges, interests, status) */}
-            <View style={styles.cardMainContent}>
-              <View style={styles.cardHeader}>
-                <View style={styles.avatarSection}>
-                  {user.profilePhoto ? (
-                    <View style={styles.avatarWrapper}>
-                      <Image
-                        source={{ uri: user.profilePhoto }}
-                        style={styles.professionalAvatar}
-                      />
-                      <LinearGradient
-                        colors={[theme.primary, theme.primary]}
-                        style={styles.avatarBorder}
-                      />
-                    </View>
-                  ) : (
-                    <View style={styles.avatarWrapper}>
-                      <LinearGradient
-                        colors={[theme.primary, theme.primary]}
-                        style={styles.fallbackAvatarPro}
-                      >
-                        <Text style={[styles.fallbackTextPro, { color: '#FFFFFF' }]}>
-                          {user.name?.charAt(0)?.toUpperCase() || '?'}
-                        </Text>
-                      </LinearGradient>
-                    </View>
-                  )}
+        {/* Avatar */}
+        <View style={styles.xAvatarWrap}>
+          {user.profilePhoto ? (
+            <Image source={{ uri: user.profilePhoto }} style={styles.xAvatar} />
+          ) : (
+            <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.xAvatar, styles.xAvatarFallback]}>
+              <Text style={styles.xAvatarLetter}>{user.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+            </LinearGradient>
+          )}
+          {user.isOnline && (
+            <View style={[styles.xOnlineDot, { borderColor: cardBg }]} />
+          )}
+        </View>
 
-                  {user.isOnline && (
-                    <View style={styles.onlineStatusPro}>
-                      <View style={styles.onlineDot} />
-                    </View>
-                  )}
-                </View>
+        {/* Info */}
+        <View style={styles.xInfo}>
+          <View style={styles.xTopRow}>
+            <Text style={[styles.xName, { color: theme.textPrimary }]} numberOfLines={1}>
+              {user.name || 'Unknown'}
+            </Text>
+            {user.age && (
+              <Text style={[styles.xAge, { color: theme.textMuted }]}>{user.age}</Text>
+            )}
+            {genderIcon && (
+              <Ionicons name={genderIcon} size={11} color={theme.textMuted} />
+            )}
+          </View>
 
-                <View style={styles.userBasicInfo}>
-                  {/* Name and age */}
-                  <View style={styles.nameRow}>
-                    <Text style={[styles.professionalName, { color: theme.textPrimary }]} numberOfLines={1}>
-                      {user.name || 'Unknown User'}
-                    </Text>
-                    {user.age && (
-                      <View style={[styles.ageChip, dynamicStyles.ageChip]}>
-                        <Text style={[styles.ageText, { color: theme.textSecondary }]}>{user.age}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Gender row */}
-                  {genderIcon && genderLabel && (
-                    <View style={styles.genderRow}>
-                      <Ionicons
-                        name={genderIcon}
-                        size={12}
-                        color={theme.primary}
-                      />
-                      <Text style={[styles.genderText, { color: theme.textTertiary }]}>{genderLabel}</Text>
-                    </View>
-                  )}
-
-                  {/* Username */}
-                  {user.username && (
-                    <Text style={[styles.usernameText, { color: theme.textTertiary }]} numberOfLines={1}>
-                      @{user.username}
-                    </Text>
-                  )}
-
-                  {/* Status Badges */}
-                  <View style={styles.statusRow}>
-                    {showCompatibility && user.compatibilityScore && (
-                      <View style={[styles.compatibilityChip, dynamicStyles.compatibilityChip]}>
-                      {genderIcon && <Ionicons name={genderIcon} size={12} color={theme.textTertiary} />}
-                        <Text style={[styles.compatibilityLabel, { color: theme.textSecondary }]}>
-                          {user.compatibilityScore}% match
-                        </Text>
-                      </View>
-                    )}
-
-                    {user.verificationStatus === 'verified' && (
-                      <View style={[styles.verifiedChip, dynamicStyles.verifiedChip]}>
-                        <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                        <Text style={styles.verifiedLabel}>Verified</Text>
-                      </View>
-                    )}
-
-                    {user.isFriend && (
-                      <View style={[styles.friendChip, dynamicStyles.friendChip]}>
-                        <Ionicons name="people" size={12} color="#3B82F6" />
-                        <Text style={styles.friendLabel}>Friend</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
+          <View style={styles.xBottomRow}>
+            {user.username && (
+              <Text style={[styles.xUsername, { color: theme.textTertiary }]} numberOfLines={1}>
+                @{user.username}
+              </Text>
+            )}
+            {user.interests?.slice(0, 2).map((interest, i) => (
+              <View key={i} style={[styles.xChip, {
+                backgroundColor: isDarkMode ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.08)',
+                borderColor: 'rgba(139,92,246,0.22)',
+              }]}>
+                <Text style={[styles.xChipText, { color: '#8B5CF6' }]}>{interest}</Text>
               </View>
-
-              {/* Interests Section */}
-              {user.interests && user.interests.length > 0 && (
-                <View style={styles.interestsSection}>
-                  <View style={styles.interestsList}>
-                    {user.interests.slice(0, 3).map((interest, index) => (
-                      <View key={index} style={[styles.interestChip, dynamicStyles.interestChip]}>
-                        <Text style={[styles.interestLabel, dynamicStyles.interestLabel]}>{interest}</Text>
-                      </View>
-                    ))}
-                    {user.interests.length > 3 && (
-                      <View style={[styles.moreChip, dynamicStyles.moreChip]}>
-                        <Text style={[styles.moreLabel, { color: theme.textMuted }]}>+{user.interests.length - 3}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              {/* Match Status */}
-              {(matchStatus === 'matched' || matchStatus === 'pending') && (
-                <View style={styles.matchStatusSection}>
-                  {matchStatus === 'matched' && (
-                    <View style={styles.matchedIndicator}>
-                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      <Text style={styles.matchedLabel}>Matched</Text>
-                    </View>
-                  )}
-                  {matchStatus === 'pending' && (
-                    <View style={styles.pendingIndicator}>
-                      <Ionicons name="clock-outline" size={16} color="#F59E0B" />
-                      <Text style={styles.pendingLabel}>Request Sent</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-
-            {/* Arrow indicator - vertically centered relative to card */}
-            <View style={styles.actionIndicator}>
-              <Ionicons name="chevron-forward" size={18} color={theme.primary} />
-            </View>
+            ))}
+            {showCompatibility && user.compatibilityScore && (
+              <View style={[styles.xChip, { backgroundColor: 'rgba(219,39,119,0.12)', borderColor: 'rgba(219,39,119,0.22)' }]}>
+                <Text style={[styles.xChipText, { color: '#F472B6' }]}>{user.compatibilityScore}%</Text>
+              </View>
+            )}
+            {matchStatus === 'matched' && (
+              <View style={[styles.xChip, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.22)' }]}>
+                <Ionicons name="checkmark-circle" size={9} color="#10B981" />
+                <Text style={[styles.xChipText, { color: '#10B981' }]}>Matched</Text>
+              </View>
+            )}
+            {matchStatus === 'pending' && (
+              <View style={[styles.xChip, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.22)' }]}>
+                <Text style={[styles.xChipText, { color: '#F59E0B' }]}>Pending</Text>
+              </View>
+            )}
+            {user.verificationStatus === 'verified' && (
+              <View style={[styles.xChip, { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }]}>
+                <Ionicons name="checkmark-circle" size={9} color="#10B981" />
+                <Text style={[styles.xChipText, { color: '#10B981' }]}>Verified</Text>
+              </View>
+            )}
+            {user.isFriend && (
+              <View style={[styles.xChip, { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }]}>
+                <Ionicons name="people" size={9} color="#3B82F6" />
+                <Text style={[styles.xChipText, { color: '#3B82F6' }]}>Friend</Text>
+              </View>
+            )}
           </View>
         </View>
+
+        <Ionicons name="chevron-forward" size={15} color={isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'} />
       </TouchableOpacity>
     );
   };
 
-  const renderSection = (title, users, icon, showCompatibility = false) => {
-    // Filter out passed users
+  const renderSection = (title, users, icon, showCompatibility = false, accentColor = '#8B5CF6') => {
     const filteredUsers = users?.filter(user => !passedUserIds.has(user.id)) || [];
-    
+    if (filteredUsers.length === 0) return null;
+
     return (
-      <View style={[styles.professionalSection, dynamicStyles.professionalSection]}>
-        <View style={styles.sectionHeaderPro}>
-          <View style={styles.headerLeft}>
-            <View style={styles.iconContainerPro}>
-              <LinearGradient
-                colors={[theme.primary, theme.primary]}
-                style={styles.iconGradient}
-              >
-                <Ionicons name={icon} size={18} color="#FFFFFF" />
-              </LinearGradient>
+      <View style={styles.xSection}>
+        <Animated.View style={[
+          styles.xSectionHead,
+          {
+            borderLeftColor: accentColor,
+            opacity: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
+          },
+        ]}>
+          <Text style={[styles.xSectionLabel, { color: accentColor }]}>{title.toUpperCase()}</Text>
+          <View style={[styles.xCountPill, { backgroundColor: accentColor + '22' }]}>
+            <Text style={[styles.xCountText, { color: accentColor }]}>{filteredUsers.length}</Text>
+          </View>
+        </Animated.View>
+        <View style={styles.xCardList}>
+          {filteredUsers.map((user) => (
+            <View key={user.id}>
+              {renderUserCard({ item: user, showCompatibility })}
             </View>
-            <Text style={[styles.sectionTitlePro, dynamicStyles.sectionTitlePro]}>{title}</Text>
-          </View>
-          <View style={styles.countChip}>
-            <Text style={[styles.countLabel, dynamicStyles.countLabel]}>{filteredUsers?.length || 0}</Text>
-          </View>
+          ))}
         </View>
-        
-        {filteredUsers && filteredUsers.length > 0 ? (
-          <View style={styles.cardsGrid}>
-            {filteredUsers.map((user, index) => (
-              <View key={user.id} style={styles.cardItem}>
-                {renderUserCard({ item: user, showCompatibility })}
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyStatePro}>
-            <View style={styles.emptyIconContainer}>
-              <LinearGradient
-                colors={[theme.primary, theme.primary]}
-                style={styles.emptyIconGradient}
-              >
-                <Ionicons name="people-outline" size={32} color="#FFFFFF" />
-              </LinearGradient>
-            </View>
-            <Text style={[styles.emptyTitlePro, dynamicStyles.emptyTitlePro]}>
-              Discovering Amazing People
-            </Text>
-            <Text style={[styles.emptyDescriptionPro, dynamicStyles.emptyDescriptionPro]}>
-              New members join Circle every day. Check back soon for fresh connections!
-            </Text>
-          </View>
-        )}
       </View>
     );
   };
 
+  // iOS "scratch" haptics while pulling to refresh. Declared before the early
+  // `loading` return so the hook runs unconditionally on every render.
+  const { onScroll: onPullScroll, onScrollBeginDrag: onPullBegin, onScrollEndDrag: onPullEnd, onRefresh: onRefreshHaptic } = usePullToRefreshHaptics(() => loadExploreData(true));
+
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <LinearGradient
-          colors={[theme.background, theme.backgroundSecondary, theme.background]}
-          style={styles.backgroundGradient}
-        >
-          <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
-          <View style={[styles.floatingOrb, styles.orb2, { backgroundColor: theme.decorative2 }]} />
-          <View style={[styles.floatingOrb, styles.orb3, { backgroundColor: theme.decorative1 }]} />
-        </LinearGradient>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textPrimary }]}>Loading explore...</Text>
+      <View style={[styles.xContainer, { backgroundColor: theme.background }]}>
+        <View style={styles.xLoadingCenter}>
+          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Text style={[styles.xLoadingText, { color: theme.textMuted }]}>Finding people…</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.containerPro, { backgroundColor: theme.background }]}>
-      <LinearGradient
-        colors={[theme.background, theme.backgroundSecondary, theme.surface]}
-        style={styles.backgroundPro}
-      >
-        {/* Decorative Elements */}
-        <View style={[styles.decorativeShape1, { backgroundColor: theme.decorative1 }]} />
-        <View style={[styles.decorativeShape2, { backgroundColor: theme.decorative2 }]} />
-        <LinearGradient
-          colors={[theme.decorative1, theme.decorative2]}
-          style={styles.topAccent}
-        />
-      </LinearGradient>
-
+    <View style={[styles.xContainer, { backgroundColor: theme.background }]}>
       <ScrollView
-        style={styles.scrollViewPro}
-        contentContainerStyle={styles.contentPro}
+        style={styles.xScroll}
+        contentContainerStyle={styles.xContent}
+        onScroll={onPullScroll}
+        onScrollBeginDrag={onPullBegin}
+        onScrollEndDrag={onPullEnd}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadExploreData(true)}
-            tintColor={theme.primary}
-            colors={[theme.primary]}
+            onRefresh={onRefreshHaptic}
+            tintColor="#8B5CF6"
+            colors={['#8B5CF6']}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Professional Header */}
-        <View style={styles.headerPro}>
-          <View style={styles.headerContent}>
-            <View style={styles.titleSection}>
-              <Text style={[styles.mainTitle, { color: theme.textPrimary }]}>Explore</Text>
-              <LinearGradient
-                colors={[theme.primary, theme.primary]}
-                style={styles.titleUnderline}
-              />
-            </View>
-            <Text style={[styles.subtitlePro, { color: theme.textSecondary }]}>Discover meaningful connections</Text>
-          </View>
+        {/* Header */}
+        <View style={styles.xHeader}>
+          <Text style={styles.xEyebrow}>DISCOVER</Text>
+          <Text style={[styles.xTitle, { color: theme.textPrimary }]}>Find Your{'\n'}People.</Text>
         </View>
 
-
-        {/* Enhanced Search Bar */}
-        <View style={styles.searchSectionPro}>
-          <View style={[styles.searchContainerPro, dynamicStyles.searchContainerPro, !token && styles.searchDisabled]}>
-            <View style={styles.searchIconContainer}>
-              <Ionicons name="search" size={18} color={token ? theme.primary : theme.textMuted} />
-            </View>
+        {/* Search bar */}
+        <View style={styles.xSearchWrap}>
+          <View style={[
+            styles.xSearchBar,
+            {
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+              borderColor: isDarkMode ? 'rgba(139,92,246,0.22)' : 'rgba(139,92,246,0.18)',
+            },
+          ]}>
+            <Ionicons name="search-outline" size={16} color={isDarkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
             <TextInput
-              placeholder={!token ? "Please log in to search users" : "Search by name, username, or interests..."}
-              placeholderTextColor={theme.textMuted}
-              style={[styles.searchInputPro, { color: theme.textPrimary }, !token && styles.searchInputDisabled]}
+              placeholder={token ? 'Search people, interests…' : 'Sign in to search…'}
+              placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.28)'}
+              style={[styles.xSearchInput, { color: theme.textPrimary }]}
               value={searchQuery}
               onChangeText={token ? setSearchQuery : undefined}
               editable={!!token}
             />
-            {searching && (
-              <ActivityIndicator size="small" color={theme.primary} style={styles.searchLoader} />
-            )}
-            {!token && (
-              <Ionicons name="lock-closed" size={16} color={theme.textMuted} />
-            )}
+            {searching && <ActivityIndicator size="small" color="#8B5CF6" />}
+            {!token && <Ionicons name="lock-closed-outline" size={14} color={isDarkMode ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.28)'} />}
           </View>
 
-          {/* Search Results Dropdown */}
+          {/* Dropdown */}
           {searchQuery.length >= 2 && searchResults.length > 0 && (
-            <View style={[styles.searchDropdown, dynamicStyles.searchDropdown]}>
+            <View style={[
+              styles.xDropdown,
+              {
+                backgroundColor: isDarkMode ? '#16162A' : theme.surface,
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+              },
+            ]}>
               {searchResults.slice(0, 5).map((user, index) => (
                 <TouchableOpacity
                   key={user.id}
-                  style={styles.searchResultItem}
-                  onPress={() => {
-                    setSearchQuery('');
-                    handleUserPress(user);
-                  }}
+                  style={[
+                    styles.xDropItem,
+                    index < Math.min(searchResults.length, 5) - 1 && {
+                      borderBottomWidth: 0.5,
+                      borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                    },
+                  ]}
+                  onPress={() => { setSearchQuery(''); handleUserPress(user); }}
                 >
-                  <View style={styles.searchResultAvatar}>
-                    {user.profilePhoto ? (
-                      <Image source={{ uri: user.profilePhoto }} style={styles.searchAvatarImage} />
-                    ) : (
-                      <View style={styles.searchFallbackAvatar}>
-                        <Text style={styles.searchFallbackText}>
-                          {user.name?.charAt(0)?.toUpperCase() || '?'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.searchResultInfo}>
-                    <Text style={[styles.searchResultName, dynamicStyles.searchResultName]}>{user.name}</Text>
+                  {user.profilePhoto ? (
+                    <Image source={{ uri: user.profilePhoto }} style={styles.xDropAvatar} />
+                  ) : (
+                    <View style={[styles.xDropAvatar, styles.xDropAvatarFallback]}>
+                      <Text style={styles.xDropAvatarLetter}>{user.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+                    </View>
+                  )}
+                  <View style={styles.xDropInfo}>
+                    <Text style={[styles.xDropName, { color: theme.textPrimary }]}>{user.name}</Text>
                     {user.username && (
-                      <Text style={[styles.searchResultUsername, dynamicStyles.searchResultUsername]}>@{user.username}</Text>
+                      <Text style={[styles.xDropUsername, { color: theme.textTertiary }]}>@{user.username}</Text>
                     )}
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                  <Ionicons name="arrow-forward-outline" size={14} color={isDarkMode ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.22)'} />
                 </TouchableOpacity>
               ))}
             </View>
           )}
         </View>
 
-        {/* Authentication prompt */}
-        {!token && (
-          <View style={styles.authPromptContainer}>
-            <Ionicons name="person-outline" size={24} color="rgba(255, 255, 255, 0.6)" />
-            <Text style={styles.authPromptText}>
-              Please log in to search and connect with users
-            </Text>
-          </View>
-        )}
-
-        {/* Search Results */}
+        {/* No results */}
         {searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
-          <View style={styles.noResultsContainer}>
-            <View style={styles.noResultsIcon}>
-              <Ionicons name="search-outline" size={32} color="#8B5CF6" />
-            </View>
-            <Text style={styles.noResultsText}>No users found</Text>
-            <Text style={styles.noResultsSubtext}>
-              Try a different search term or check spelling
+          <View style={[styles.xNoResults, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
+            <Ionicons name="search-outline" size={18} color="#8B5CF6" />
+            <Text style={[styles.xNoResultsText, { color: theme.textSecondary }]}>
+              No one found for "{searchQuery}"
             </Text>
           </View>
         )}
 
-        {/* Explore Sections - always show all sections when not searching */}
+        {/* Auth prompt */}
+        {!token && (
+          <View style={[styles.xAuthPrompt, {
+            backgroundColor: isDarkMode ? 'rgba(139,92,246,0.06)' : 'rgba(139,92,246,0.04)',
+            borderColor: 'rgba(139,92,246,0.2)',
+          }]}>
+            <Ionicons name="lock-closed-outline" size={15} color="#8B5CF6" />
+            <Text style={[styles.xAuthText, { color: theme.textSecondary }]}>
+              Sign in to discover and connect with people
+            </Text>
+          </View>
+        )}
+
+        {/* Sections */}
         {searchQuery.length < 2 && (
           <>
-            {renderSection('Top Users', topUsers, 'star')}
-            {renderSection('New Members', newUsers, 'person-add')}
-            {renderSection('High Compatibility', compatibleUsers, 'heart', true)}
+            {renderSection('Top Picks', topUsers, 'star', false, '#8B5CF6')}
+            {renderSection('Fresh Faces', newUsers, 'person-add', false, '#22D3EE')}
+            {renderSection('Your Type', compatibleUsers, 'heart', true, '#F472B6')}
           </>
         )}
       </ScrollView>
@@ -2445,4 +2163,138 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 280,
   },
+
+  // ─── Gen-Z Compact Design ───────────────────────────────────────
+  xContainer: { flex: 1 },
+  xScroll: { flex: 1, paddingHorizontal: 16 },
+  xContent: { paddingTop: 52, paddingBottom: 110 },
+
+  xLoadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  xLoadingText: { fontSize: 13, fontWeight: '500' },
+
+  xHeader: { marginBottom: 22 },
+  xEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: '#8B5CF6', marginBottom: 7 },
+  xTitle: { fontSize: 36, fontWeight: '900', letterSpacing: -1.5, lineHeight: 42 },
+
+  xSearchWrap: { marginBottom: 20, position: 'relative', zIndex: 10 },
+  xSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  xSearchInput: { flex: 1, fontSize: 14, fontWeight: '500' },
+
+  xDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
+    overflow: 'hidden',
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  xDropItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  xDropAvatar: { width: 36, height: 36, borderRadius: 18, flexShrink: 0 },
+  xDropAvatarFallback: { backgroundColor: '#7C3AED', alignItems: 'center', justifyContent: 'center' },
+  xDropAvatarLetter: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  xDropInfo: { flex: 1 },
+  xDropName: { fontSize: 14, fontWeight: '600' },
+  xDropUsername: { fontSize: 12, marginTop: 1 },
+
+  xNoResults: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  xNoResultsText: { fontSize: 13 },
+
+  xAuthPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 16,
+  },
+  xAuthText: { flex: 1, fontSize: 13, lineHeight: 18 },
+
+  xSection: { marginBottom: 22 },
+  xSectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 3,
+    paddingLeft: 10,
+    marginBottom: 10,
+  },
+  xSectionLabel: { flex: 1, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
+  xCountPill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  xCountText: { fontSize: 11, fontWeight: '700' },
+
+  xCardList: { gap: 6 },
+  xCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  xAvatarWrap: { position: 'relative', flexShrink: 0 },
+  xAvatar: { width: 44, height: 44, borderRadius: 22 },
+  xAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  xAvatarLetter: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
+  xOnlineDot: {
+    position: 'absolute',
+    bottom: 1,
+    right: 1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#22D3EE',
+    borderWidth: 2,
+  },
+  xInfo: { flex: 1, gap: 4 },
+  xTopRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  xName: { fontSize: 15, fontWeight: '700', flex: 1 },
+  xAge: { fontSize: 12, fontWeight: '500' },
+  xBottomRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
+  xUsername: { fontSize: 11, fontWeight: '500' },
+  xChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  xChipText: { fontSize: 10, fontWeight: '600' },
 });

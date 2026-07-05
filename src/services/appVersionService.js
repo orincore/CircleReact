@@ -1,8 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../api/config';
+
+// expo-updates targets native OTA updates only; its web module extends
+// expo-modules-core's NativeModule class, which throws "Class extends value
+// undefined" when this file is evaluated during Expo Router's Node-side
+// static SSR pass (every route goes through the root layout, which reaches
+// this service). EAS Update also isn't a meaningful concept on web — there's
+// no app binary to OTA-update — so skip importing it there entirely.
+const Updates = Platform.OS !== 'web' ? require('expo-updates') : null;
 
 const VERSION_KEY = '@circle:app_version';
 const UPDATE_CHECK_KEY = '@circle:last_update_check';
@@ -212,8 +219,8 @@ class AppVersionService {
       // Store current check time
       await AsyncStorage.setItem(UPDATE_CHECK_KEY, now.toString());
 
-      // Check for Expo updates
-      if (Updates.isEnabled) {
+      // Check for Expo updates (native only, see import guard above)
+      if (Updates?.isEnabled) {
         const update = await Updates.checkForUpdateAsync();
         
         if (update.isAvailable) {
@@ -286,7 +293,7 @@ class AppVersionService {
    */
   async applyUpdate() {
     try {
-      if (Updates.isEnabled) {
+      if (Updates?.isEnabled) {
         await Updates.reloadAsync();
       }
     } catch (error) {

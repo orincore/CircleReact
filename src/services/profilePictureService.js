@@ -90,36 +90,41 @@ export class ProfilePictureService {
         //console.log('📱 Mobile platform: File appended with URI')
       }
 
-      //console.log('📤 Starting fetch upload...')
-
-      // Use fetch instead of XMLHttpRequest - more reliable on React Native
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // Don't set Content-Type - let fetch set it with boundary
-        },
-        body: formData,
+      // Send via XMLHttpRequest (React Native's native networking) rather than
+      // the global `fetch`. Expo SDK 54+ replaces global `fetch` with the
+      // "winter" implementation, whose multipart encoder does NOT support React
+      // Native's `{ uri, name, type }` file parts and throws
+      // "Unsupported FormDataPart implementation". XHR is unaffected by that
+      // override and uploads `{ uri }` file parts natively (works on web too,
+      // where the part is a File/Blob).
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', uploadUrl)
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        // Don't set Content-Type — XHR derives the multipart boundary from FormData.
+        xhr.onload = () => {
+          const { status, responseText } = xhr
+          if (status >= 200 && status < 300) {
+            try {
+              resolve(JSON.parse(responseText))
+            } catch (e) {
+              reject(new Error('Invalid server response'))
+            }
+            return
+          }
+          let errorMessage = `Upload failed with status ${status}`
+          try {
+            errorMessage = JSON.parse(responseText).error || errorMessage
+          } catch (e) {
+            // Response is not JSON
+          }
+          reject(new Error(errorMessage))
+        }
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.ontimeout = () => reject(new Error('Upload timed out'))
+        xhr.send(formData)
       })
 
-      
-
-      const responseText = await response.text()
-      //console.log('📥 Response body:', responseText)
-
-      if (!response.ok) {
-        let errorMessage = `Upload failed with status ${response.status}`
-        try {
-          const error = JSON.parse(responseText)
-          errorMessage = error.error || errorMessage
-        } catch (e) {
-          // Response is not JSON
-        }
-        throw new Error(errorMessage)
-      }
-
-      const result = JSON.parse(responseText)
-      //console.log('✅ Upload successful:', result)
       return result
 
     } catch (error) {

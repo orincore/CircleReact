@@ -17,25 +17,15 @@ const CircleBannerAd = ({ placement = 'default', style }) => {
   const [adError, setAdError] = useState(null);
 
   const adUnitId = getAdUnitId('banner');
-  
-  // Log ad configuration for debugging
-  console.log('🎯 BannerAd Component:', {
-    placement,
-    shouldShowAds: shouldShowAds(),
-    adUnitId,
-    isProductionAdUnit: adUnitId?.includes('7904629558122562'),
-  });
 
   // Don't show ads for premium users
   if (!shouldShowAds()) {
-    console.log('⭐ Skipping ad - premium user or shouldShowAds returned false');
     return null;
   }
 
   const handleAdLoaded = () => {
     setAdLoaded(true);
     setAdError(null);
-    console.log(`✅ Banner ad loaded successfully: ${placement}`);
   };
 
   const handleAdFailedToLoad = (error) => {

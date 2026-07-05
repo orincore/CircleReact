@@ -145,52 +145,53 @@ class PhotoGalleryService {
       }
 
       //console.log('📤 Sending upload request...');
-      const uploadResponse = await fetch(`${API_BASE_URL}/api/users/photos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+      // Send via XMLHttpRequest (React Native's native networking) instead of
+      // the global `fetch`. Expo SDK 54+ replaces `fetch` with the "winter"
+      // implementation, whose multipart encoder rejects React Native's
+      // `{ uri, name, type }` file parts with "Unsupported FormDataPart
+      // implementation". XHR handles them natively and is unaffected.
+      const data = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE_URL}/api/users/photos`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        // Don't set Content-Type — XHR derives the multipart boundary from FormData.
+        xhr.onload = () => {
+          const { status, responseText } = xhr;
+          if (status >= 200 && status < 300) {
+            try {
+              resolve(JSON.parse(responseText));
+            } catch (e) {
+              reject(new Error('Invalid server response'));
+            }
+            return;
+          }
+
+          let errorMessage;
+          if (status === 404) {
+            errorMessage = 'Photo upload endpoint not found. Backend needs to be set up.';
+          } else if (status === 522) {
+            errorMessage = 'Backend server is down or not responding. Please check if your server is running.';
+          } else if (status >= 500) {
+            errorMessage = 'Server error. Check if database table exists or if server is running properly.';
+          } else {
+            errorMessage = `Upload failed with status ${status}`;
+          }
+          try {
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+          } catch (e) {
+            // Non-JSON response; keep the status-based message.
+            console.error('❌ Server response (non-JSON):', String(responseText).substring(0, 200));
+          }
+          reject(new Error(errorMessage));
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.send(formData);
       });
 
-      //console.log('📤 Upload response status:', uploadResponse.status);
-
-      if (!uploadResponse.ok) {
-        // Try to get error message
-        const contentType = uploadResponse.headers.get('content-type');
-        //console.log('📤 Response content-type:', contentType);
-        
-        let errorMessage = 'Failed to upload photo';
-        
-        try {
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await uploadResponse.json();
-            errorMessage = errorData.message || errorData.error || errorMessage;
-          } else {
-            // Server returned HTML or plain text
-            const errorText = await uploadResponse.text();
-            console.error('❌ Server response (non-JSON):', errorText.substring(0, 200));
-            
-            if (uploadResponse.status === 404) {
-              errorMessage = 'Photo upload endpoint not found. Backend needs to be set up.';
-            } else if (uploadResponse.status === 522) {
-              errorMessage = 'Backend server is down or not responding. Please check if your server is running.';
-            } else if (uploadResponse.status >= 500) {
-              errorMessage = 'Server error. Check if database table exists or if server is running properly.';
-            } else {
-              errorMessage = `Upload failed with status ${uploadResponse.status}`;
-            }
-          }
-        } catch (parseError) {
-          console.error('❌ Error parsing response:', parseError);
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const data = await uploadResponse.json();
       //console.log('✅ Photo uploaded successfully:', data.photoUrl);
-      
+
       return data.photoUrl;
     } catch (error) {
       console.error('❌ Error uploading photo:', error);

@@ -8,15 +8,14 @@ function injectGoogleMapsConfig(config, apiKey) {
     return config;
   }
 
+  // NOTE: We intentionally do NOT set ios.config.googleMapsApiKey.
+  // The app never uses PROVIDER_GOOGLE, so iOS uses Apple Maps (MapKit), which
+  // needs no extra pod. Setting the iOS key makes Expo prebuild add the
+  // `react-native-google-maps` pod, which react-native-maps 1.27 doesn't ship a
+  // podspec for, breaking `pod install`. Android still needs the Google key, and
+  // `extra.googleMapsApiKey` remains for JS-side Places/geocoding usage.
   return {
     ...config,
-    ios: {
-      ...config.ios,
-      config: {
-        ...(config.ios?.config ?? {}),
-        googleMapsApiKey: apiKey,
-      },
-    },
     android: {
       ...config.android,
       config: {

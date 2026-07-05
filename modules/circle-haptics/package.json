@@ -1,0 +1,8 @@
+{
+  "name": "circle-haptics",
+  "version": "1.0.0",
+  "description": "Native Core Haptics continuous scratch for pull-to-refresh",
+  "main": "index.ts",
+  "private": true,
+  "platforms": ["apple"]
+}

@@ -7,21 +7,36 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSocket } from '../src/hooks/useSocket';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
+const LiveActivityFeed = ({ isVisible = true, maxItems = 5 }) => {
+  const { theme, isDarkMode } = useTheme();
   const [activities, setActivities] = useState([]);
-  const [isExpanded, setIsExpanded] = useState(true); // Keep opened by default
   const [displayedActivities, setDisplayedActivities] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const scrollViewRef = useRef(null);
+  const pulseDot = useRef(new Animated.Value(0)).current;
   const socket = useSocket();
-  
-  const ITEMS_PER_PAGE = 5; // Fixed 5 notifications per page
+
+  const ITEMS_PER_PAGE = maxItems;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseDot, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseDot, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseDot]);
 
   // Activity types and their configurations
   const activityConfig = {
@@ -256,290 +271,134 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 50 }) => {
   const renderActivity = (activity, index) => {
     const config = activityConfig[activity.type] || {
       icon: 'notifications',
-      color: '#999',
-      format: () => 'Unknown activity',
+      color: '#8B5CF6',
+      format: () => 'Something happened',
     };
 
     const avatarUrl = getAvatarUrl(activity);
+    const isLast = index === displayedActivities.length - 1;
 
     return (
       <View
         key={activity.id}
         style={[
           styles.activityItem,
-          activity.isNew && styles.newActivityItem, // Highlight new activities
+          !isLast && {
+            borderBottomWidth: 1,
+            borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+          },
         ]}
       >
         {avatarUrl ? (
-          <Image 
-            source={{ uri: avatarUrl }} 
-            style={styles.activityAvatar}
-          />
+          <Image source={{ uri: avatarUrl }} style={[styles.activityAvatar, { borderColor: config.color + '55' }]} />
         ) : (
-          <View style={[styles.activityIcon, { backgroundColor: config.color }]}>
-            <Ionicons name={config.icon} size={16} color="white" />
+          <View style={[styles.activityIcon, { backgroundColor: config.color + '22' }]}>
+            <Ionicons name={config.icon} size={13} color={config.color} />
           </View>
         )}
-        
-        <View style={styles.activityContent}>
-          <Text style={styles.activityText} numberOfLines={2}>
-            {config.format(activity.data)}
-          </Text>
-          <Text style={styles.activityTime}>
-            {formatTimeAgo(activity.timestamp)}
-          </Text>
-        </View>
-        
-        {activity.isNew && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>NEW</Text>
-          </View>
-        )}
+        <Text style={[styles.activityText, { color: isDarkMode ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.72)' }]} numberOfLines={1}>
+          {config.format(activity.data)}
+        </Text>
+        <Text style={[styles.activityTime, { color: isDarkMode ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.28)' }]}>
+          {formatTimeAgo(activity.timestamp)}
+        </Text>
       </View>
     );
   };
 
-  if (!isVisible) return null;
-
-  const totalPages = Math.max(1, Math.ceil(activities.length / ITEMS_PER_PAGE));
-  const hasNextPage = currentPage < totalPages - 1;
-  const hasPrevPage = currentPage > 0;
+  if (!isVisible || activities.length === 0) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: isDarkMode ? '#0C0C16' : '#F5F3FF',
+        borderColor: isDarkMode ? 'rgba(139,92,246,0.14)' : 'rgba(139,92,246,0.1)',
+      },
+    ]}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Ionicons name="pulse" size={20} color="#1F1147" />
-            <Text style={styles.headerTitle}>Live Activity</Text>
-          </View>
-          {activities.length > ITEMS_PER_PAGE && (
-            <View style={styles.paginationInfo}>
-              <Text style={styles.pageInfo}>
-                Page {currentPage + 1} of {totalPages}
-              </Text>
-            </View>
-          )}
-        </View>
+        <Animated.View style={[styles.liveDot, {
+          opacity: pulseDot.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
+          transform: [{ scale: pulseDot.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.2] }) }],
+        }]} />
+        <Text style={[styles.headerTitle, { color: isDarkMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.35)' }]}>
+          LIVE PULSE
+        </Text>
+        <View style={styles.headerFlex} />
+        <Text style={[styles.headerCount, { color: isDarkMode ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.2)' }]}>
+          {activities.length} events
+        </Text>
       </View>
 
-      <View style={styles.feedContainer}>
-        {activities.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="pulse-outline" size={32} color="#ccc" />
-            <Text style={styles.emptyText}>No recent activity</Text>
-            <Text style={styles.emptySubtext}>
-              Live updates will appear here as they happen
-            </Text>
-          </View>
-        ) : (
-          <>
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.scrollView}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {displayedActivities.map((activity, index) => renderActivity(activity, index))}
-            </ScrollView>
-            
-            {activities.length > ITEMS_PER_PAGE && (
-              <View style={styles.paginationContainer}>
-                <TouchableOpacity 
-                  style={[styles.paginationButton, !hasPrevPage && styles.paginationButtonDisabled]}
-                  onPress={goToPreviousPage}
-                  disabled={!hasPrevPage}
-                >
-                  <Ionicons name="chevron-back" size={16} color={hasPrevPage ? "#7C2B86" : "#ccc"} />
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.paginationButton}
-                  onPress={goToFirstPage}
-                >
-                  <Text style={styles.paginationText}>Latest</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.paginationButton, !hasNextPage && styles.paginationButtonDisabled]}
-                  onPress={goToNextPage}
-                  disabled={!hasNextPage}
-                >
-                  <Ionicons name="chevron-forward" size={16} color={hasNextPage ? "#7C2B86" : "#ccc"} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-      </View>
+      {/* Activity rows */}
+      {displayedActivities.map((activity, index) => renderActivity(activity, index))}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 22,
-    padding: 24,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 18,
-    marginBottom: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 16,
   },
   header: {
-    marginBottom: 14,
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 6,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22D3EE',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#1F1147',
-    marginLeft: 8,
+    letterSpacing: 1.6,
   },
-  activityCount: {
-    backgroundColor: '#7C2B86',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 8,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  activityCountText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  paginationInfo: {
-    alignItems: 'center',
-  },
-  pageInfo: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  feedContainer: {
-    height: 280, // Fixed height for exactly 5 items + pagination
-  },
-  scrollView: {
+  headerFlex: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 12,
+  headerCount: {
+    fontSize: 10,
+    fontWeight: '500',
   },
   activityItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    position: 'relative',
-  },
-  newActivityItem: {
-    backgroundColor: 'rgba(124, 43, 134, 0.05)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#7C2B86',
-    paddingLeft: 8,
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    gap: 10,
   },
   activityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    flexShrink: 0,
   },
   activityAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#7C2B86',
-  },
-  activityContent: {
-    flex: 1,
-    paddingRight: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    flexShrink: 0,
+    borderWidth: 1.5,
   },
   activityText: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
-    marginBottom: 2,
+    fontSize: 12,
+    lineHeight: 15,
+    flex: 1,
   },
   activityTime: {
-    fontSize: 12,
-    color: '#666',
-  },
-  newBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 4,
-    backgroundColor: '#FF6B9D',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  newBadgeText: {
-    color: 'white',
     fontSize: 10,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 16,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#666',
-    marginTop: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(124, 43, 134, 0.1)',
-    gap: 16,
-  },
-  paginationButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(124, 43, 134, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 40,
-  },
-  paginationButtonDisabled: {
-    backgroundColor: 'rgba(204, 204, 204, 0.1)',
-  },
-  paginationText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#7C2B86',
+    flexShrink: 0,
   },
 });
 

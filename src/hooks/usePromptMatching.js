@@ -130,7 +130,6 @@ export const usePromptMatching = () => {
 
     // Active help request snapshot from server (via socket)
     const handleActiveHelpRequestData = (data) => {
-      console.log('📡 Active help request data:', data);
       if (data?.hasActiveRequest) {
         setActiveRequest(data.request);
       } else {

@@ -7,7 +7,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -22,18 +21,26 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import Feather from "@expo/vector-icons/Feather";
 import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Video, ResizeMode } from "expo-av";
+import ChatVideoPlayer from "@/components/ChatVideoPlayer";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import * as MediaLibrary from "expo-media-library";
+// expo-media-library is native-only (saving to the device photo gallery,
+// which handleDownloadMedia below already skips on web via a browser
+// download-link fallback). Its web build extends expo-modules-core's
+// NativeModule class, which throws "Class extends value undefined" the
+// moment this module is evaluated — and Expo Router's static web output
+// evaluates every route's imports up front to validate the route tree, so
+// an unconditional import here broke every route, not just this screen.
+const MediaLibrary = Platform.OS !== "web" ? require("expo-media-library") : null;
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -45,6 +52,19 @@ import { blindDatingApi } from "@/src/api/blindDating";
 import ReactionPicker from "@/src/components/ReactionPicker";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { chatMediaService } from "@/src/services/chatMediaService";
+import { LinearGradient } from "expo-linear-gradient";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import AnimatedMessageBubble from "@/components/chat/AnimatedMessageBubble";
+import MediaSendingIndicator from "@/components/chat/MediaSendingIndicator";
+
+// Used for messageBubble's maxWidth below. A percentage maxWidth only
+// resolves correctly against a parent with a definite (non-auto) width —
+// the bubble's immediate parent is the swipe-gesture wrapper, which is
+// itself auto/shrink-to-fit, so "80%" had nothing definite to resolve
+// against and produced inconsistent results (sometimes stretching to fill,
+// sometimes wrapping text early). An absolute pixel value sidesteps that
+// entirely since it doesn't need to resolve against any ancestor.
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -52,10 +72,15 @@ const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 // This prevents keyboard from closing during swipe
 function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
   const translateX = useRef(new Animated.Value(0)).current;
-  const replyIconOpacity = useRef(new Animated.Value(0)).current;
+  // Separate opacity per side: previously both used one direction-agnostic
+  // value (based on Math.abs(translationX)), so swiping either way faded in
+  // BOTH the left and right reply icons at once. Each side now only reacts
+  // to swipes toward it.
+  const leftIconOpacity = useRef(new Animated.Value(0)).current;
+  const rightIconOpacity = useRef(new Animated.Value(0)).current;
   const SWIPE_THRESHOLD = 60;
   const hasTriggeredReply = useRef(false);
-  
+
   // Reset the trigger flag
   const resetTriggerFlag = useCallback(() => {
     hasTriggeredReply.current = false;
@@ -78,21 +103,29 @@ function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
         tension: 100,
         friction: 10,
       }),
-      Animated.timing(replyIconOpacity, {
+      Animated.timing(leftIconOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rightIconOpacity, {
         toValue: 0,
         duration: 150,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [translateX, replyIconOpacity]);
+  }, [translateX, leftIconOpacity, rightIconOpacity]);
 
   // Update animation values
   const updateAnimation = useCallback((translationXValue) => {
     const clampedX = Math.max(-SWIPE_THRESHOLD - 20, Math.min(SWIPE_THRESHOLD + 20, translationXValue));
     translateX.setValue(clampedX);
     const progress = Math.min(Math.abs(clampedX) / SWIPE_THRESHOLD, 1);
-    replyIconOpacity.setValue(progress);
-  }, [translateX, replyIconOpacity]);
+    // Dragging right (positive X) reveals the left indicator; dragging left
+    // (negative X) reveals the right one — never both at once.
+    leftIconOpacity.setValue(clampedX > 0 ? progress : 0);
+    rightIconOpacity.setValue(clampedX < 0 ? progress : 0);
+  }, [translateX, leftIconOpacity, rightIconOpacity]);
 
   // Handle gesture end with threshold check
   const handleGestureEnd = useCallback((translationXValue) => {
@@ -123,46 +156,61 @@ function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
       runOnJS(resetPosition)();
     });
 
+  // Every extra plain View/Animated.View wrapped around the bubble for the
+  // swipe gesture was another auto-width column container Yoga had to
+  // resolve, and each one was a chance for the "stretch to my own
+  // not-yet-determined width" ambiguity that caused short text to measure
+  // at an already-wrapped width (confirmed via on-screen debug
+  // measurements). Fix: don't wrap the bubble in anything extra at all.
+  // GestureDetector's one required child IS the bubble itself (transform
+  // passed straight into its style), and the reply icons are now rendered
+  // as siblings positioned against messageRow directly (which already has
+  // position:'relative') instead of against a removed middle wrapper.
   return (
-    <View style={styles.swipeableContainer}>
-      {/* Reply icon indicator - left side */}
+    <>
       <Animated.View
         style={[
           styles.replyIconContainer,
           styles.replyIconLeft,
-          { opacity: replyIconOpacity },
+          { opacity: leftIconOpacity },
         ]}
       >
         <View style={styles.replyIconCircle}>
           <Ionicons name="arrow-undo" size={18} color="#fff" />
         </View>
       </Animated.View>
-      
-      {/* Reply icon indicator - right side */}
+
       <Animated.View
         style={[
           styles.replyIconContainer,
           styles.replyIconRight,
-          { opacity: replyIconOpacity },
+          { opacity: rightIconOpacity },
         ]}
       >
         <View style={styles.replyIconCircle}>
           <Ionicons name="arrow-undo" size={18} color="#fff" />
         </View>
       </Animated.View>
-      
+
       <GestureDetector gesture={panGesture}>
-        <Animated.View style={{ transform: [{ translateX }] }}>
+        <Animated.View
+          style={{
+            transform: [{ translateX }],
+            alignSelf: isMine ? "flex-end" : "flex-start",
+            alignItems: isMine ? "flex-end" : "flex-start",
+          }}
+        >
           {children}
         </Animated.View>
       </GestureDetector>
-    </View>
+    </>
   );
 }
 
 function MessageBubble({
   message,
   isMine,
+  senderName,
   onReact,
   onDoubleTap,
   onLongPress,
@@ -177,6 +225,7 @@ function MessageBubble({
   isHighlighted,
   onMediaPress,
   viewedOnceMessages,
+  onSwipeReply,
 }) {
   const viewedOnceMessagesSet = viewedOnceMessages instanceof Set ? viewedOnceMessages : new Set();
   // Determine tick style based on message status
@@ -208,6 +257,16 @@ function MessageBubble({
   });
 
   const lastTapRef = useRef(0);
+
+  // Bubble backgrounds invert between light/dark mode via AnimatedMessageBubble
+  // (mine: near-black in light mode / white in dark mode; theirs: the reverse),
+  // so text color must invert right along with it to stay readable.
+  const bubbleTextStyle = isMine
+    ? [styles.myMessageText, isDarkMode && styles.myMessageTextDark]
+    : [styles.theirMessageText, isDarkMode && styles.theirMessageTextDark];
+  const bubbleIconColor = isMine
+    ? (isDarkMode ? "#111111" : "#fff")
+    : (isDarkMode ? "#E5E7EB" : "#374151");
 
   const handlePress = () => {
     // In selection mode, tapping toggles selection instead of reacting
@@ -260,7 +319,14 @@ function MessageBubble({
         if (onLongPress) onLongPress();
       }}
     >
-      <View
+      {/* Swipe-to-reply is scoped to just the bubble itself (not the full
+          row, which spans the whole screen width with empty space beside a
+          short message) — SwipeableMessage used to wrap the entire Pressable
+          row, so swiping anywhere in that empty space also triggered reply. */}
+      <SwipeableMessage isMine={isMine} message={message} onSwipeReply={onSwipeReply}>
+      <AnimatedMessageBubble
+        isMine={isMine}
+        isHighlighted={isHighlighted}
         style={[
           styles.messageBubble,
           isMine ? styles.myMessageBubble : styles.theirMessageBubble,
@@ -269,6 +335,27 @@ function MessageBubble({
           isHighlighted && styles.messageBubbleHighlighted,
         ]}
       >
+        {/* Sender name + time header row, "Room Chat" style */}
+        <View style={styles.bubbleHeaderRow}>
+          <Text style={[bubbleTextStyle, styles.bubbleSenderName]} numberOfLines={1}>
+            {senderName}
+          </Text>
+          <View style={styles.bubbleHeaderRight}>
+            {isMine && tickIconName ? (
+              <Ionicons
+                name={tickIconName}
+                size={13}
+                color={tickColor}
+                style={{ marginRight: 4 }}
+              />
+            ) : null}
+            <Text style={[styles.bubbleTimeText, { color: bubbleIconColor }]}>
+              {formatTime()}
+              {message.isEdited ? ' · edited' : ''}
+            </Text>
+          </View>
+        </View>
+
         {/* Reply preview inside bubble - tappable to scroll to original message */}
         {repliedMessage && (
           <TouchableOpacity 
@@ -283,17 +370,27 @@ function MessageBubble({
           >
             <View style={[
               styles.replyPreviewBar,
-              isMine ? styles.replyPreviewBarMine : styles.replyPreviewBarTheirs,
+              isMine
+                ? (isDarkMode ? styles.replyPreviewBarMineDark : styles.replyPreviewBarMine)
+                : styles.replyPreviewBarTheirs,
             ]} />
             <View style={styles.replyPreviewContent}>
-              <Text style={[
-                styles.replyPreviewName,
-                isMine 
-                  ? (isDarkMode ? styles.replyPreviewNameMineDark : styles.replyPreviewNameMine)
-                  : (isDarkMode ? styles.replyPreviewNameTheirsDark : styles.replyPreviewNameTheirs),
-              ]} numberOfLines={1}>
-                {repliedMessage.senderId === message.senderId ? 'You' : 'Them'}
-              </Text>
+              <View style={styles.replyPreviewNameRow}>
+                <Ionicons
+                  name="arrow-undo-outline"
+                  size={12}
+                  color={bubbleIconColor}
+                  style={styles.replyPreviewNameIcon}
+                />
+                <Text style={[
+                  styles.replyPreviewName,
+                  isMine
+                    ? (isDarkMode ? styles.replyPreviewNameMineDark : styles.replyPreviewNameMine)
+                    : (isDarkMode ? styles.replyPreviewNameTheirsDark : styles.replyPreviewNameTheirs),
+                ]} numberOfLines={1}>
+                  {repliedMessage.senderId === message.senderId ? 'You' : 'Them'}
+                </Text>
+              </View>
               <Text style={[
                 styles.replyPreviewText,
                 isMine 
@@ -341,27 +438,29 @@ function MessageBubble({
             )}
           </TouchableOpacity>
         )}
-        {/* View Once Media - Hidden preview, just text */}
-        {message.isViewOnce && message.mediaUrl && (
-          viewedOnceMessagesSet.has(message.id) ? (
+        {/* View Once Media - never render an actual preview; the real media_url
+            is server-stripped from history entirely (see chat.repo.ts) and only
+            ever handed out once, at tap time, via the view-once consume flow. */}
+        {message.isViewOnce && message.mediaType && (
+          (message.viewOnceViewed || viewedOnceMessagesSet.has(message.id)) ? (
             <Text style={[
-              isMine ? styles.myMessageText : styles.theirMessageText,
+              bubbleTextStyle,
               styles.viewOnceMessageText,
               { opacity: 0.6 }
             ]}>
-              <Ionicons name="eye-off-outline" size={14} color={isMine ? '#fff' : (isDarkMode ? '#E5E7EB' : '#374151')} />
+              <Ionicons name="eye-off-outline" size={14} color={bubbleIconColor} />
               {' '}Opened
             </Text>
           ) : (
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => onMediaPress && onMediaPress(message.mediaUrl, message.mediaType, message.isViewOnce, message.id)}
             >
               <Text style={[
-                isMine ? styles.myMessageText : styles.theirMessageText,
+                bubbleTextStyle,
                 styles.viewOnceMessageText
               ]}>
-                <Ionicons name="eye-off" size={14} color={isMine ? '#fff' : (isDarkMode ? '#E5E7EB' : '#374151')} />
+                <Ionicons name="eye-off" size={14} color={bubbleIconColor} />
                 {' '}{message.mediaType === 'video' ? 'View once video' : 'View once photo'}
               </Text>
             </TouchableOpacity>
@@ -369,7 +468,7 @@ function MessageBubble({
         )}
         {/* Text content */}
         {message.text ? (
-          <Text style={isMine ? styles.myMessageText : styles.theirMessageText}>
+          <Text style={bubbleTextStyle}>
             {message.text}
           </Text>
         ) : null}
@@ -385,21 +484,8 @@ function MessageBubble({
             ))}
           </View>
         )}
-        <View style={styles.statusRow}>
-          <Text style={styles.timeText}>{formatTime()}</Text>
-          {message.isEdited && (
-            <Text style={styles.editedLabel}> (edited)</Text>
-          )}
-          {isMine && tickIconName ? (
-            <Ionicons
-              name={tickIconName}
-              size={14}
-              color={tickColor}
-              style={{ marginLeft: 4 }}
-            />
-          ) : null}
-        </View>
-      </View>
+      </AnimatedMessageBubble>
+      </SwipeableMessage>
     </Pressable>
   );
 }
@@ -439,6 +525,16 @@ export default function ChatConversationScreen() {
   const [composer, setComposer] = useState("");
   const [typingUsers, setTypingUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
+  const onlineLabelOpacity = useRef(new Animated.Value(1)).current;
+  // Crossfade the "Online"/"Offline" label instead of an instant text swap.
+  useEffect(() => {
+    onlineLabelOpacity.setValue(0);
+    Animated.timing(onlineLabelOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isOnline]);
   const [isActive, setIsActive] = useState(false);
   const [reactionTarget, setReactionTarget] = useState(null);
   const [showAllReactions, setShowAllReactions] = useState(false);
@@ -451,7 +547,6 @@ export default function ChatConversationScreen() {
   // Media sharing state
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadProgressText, setUploadProgressText] = useState('');
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]); // Array of { uri, type, fileName, isViewOnce }
   const [showMediaPreview, setShowMediaPreview] = useState(false);
@@ -467,10 +562,16 @@ export default function ChatConversationScreen() {
       if (!raw) return raw;
       const normalizedIsDeleted = Boolean(raw.is_deleted ?? raw.isDeleted);
       const normalizedIsViewOnce = Boolean(raw.isViewOnce ?? raw.is_view_once ?? raw.view_once);
+      // Server-authoritative "already viewed" — the real gate. The client's
+      // own viewedOnceMessages Set (below) only smooths over the moment
+      // between consuming it and the next history refresh; it used to be the
+      // ONLY gate, which reset on every remount/app restart.
+      const normalizedViewOnceViewed = Boolean(raw.viewOnceViewed ?? raw.view_once_viewed_at);
       return {
         ...raw,
         is_deleted: normalizedIsDeleted,
         isViewOnce: normalizedIsViewOnce,
+        viewOnceViewed: normalizedViewOnceViewed,
       };
     },
     []
@@ -568,7 +669,59 @@ export default function ChatConversationScreen() {
     [cacheRemoteFileToDisk]
   );
 
-  // Handle view-once media viewing with screenshot protection
+  // The only path that ever obtains a view-once message's real media URL —
+  // the server strips media_url from all history/broadcast payloads for
+  // view-once messages (see chat.repo.ts) and only hands it out here, once,
+  // via an atomic server-side consume. This replaces the old approach of
+  // just opening the (locally-cached) mediaUrl and telling the server about
+  // it afterward — that couldn't actually enforce anything server-side.
+  const VIEW_ONCE_ERROR_MESSAGES = {
+    already_viewed: 'This view-once media has already been opened and can no longer be viewed.',
+    sender_cannot_view: "You already sent this — only the recipient can open it, and only once.",
+    not_found: 'This media is no longer available.',
+    invalid_request: 'Could not open this media. Please try again.',
+    server_error: 'Could not open this media. Please try again.',
+  };
+
+  const consumeViewOnceMedia = useCallback((messageId, type) => {
+    const socket = token ? getSocket(token) : null;
+    if (!socket || !conversationId) {
+      Alert.alert('Not Connected', 'Please check your connection and try again.');
+      return;
+    }
+
+    socket.emit('chat:message:viewed', { chatId: conversationId, messageId }, (response) => {
+      if (!response || response.error) {
+        if (response?.error === 'already_viewed') {
+          setViewedOnceMessages((prev) => new Set([...prev, messageId]));
+        }
+        Alert.alert(
+          'Unavailable',
+          VIEW_ONCE_ERROR_MESSAGES[response?.error] || 'Could not open this media.'
+        );
+        return;
+      }
+
+      setViewedOnceMessages((prev) => new Set([...prev, messageId]));
+      setViewingMedia({
+        url: response.mediaUrl,
+        type: response.mediaType || type,
+        isViewOnce: true,
+        messageId,
+      });
+      setMediaViewerVisible(true);
+    });
+  }, [token, conversationId]);
+
+  // Resolve the media viewer's URL and, for regular (non-view-once) videos,
+  // cache the remote file to disk for smoother playback. Screenshot
+  // protection is NOT toggled here — it's already active for this entire
+  // screen whenever it's mounted (see the screen-wide effect below), for
+  // every non-exempt user. Toggling it again here was actually a bug: its
+  // cleanup called allowScreenCaptureAsync() when the viewer closed, which
+  // would have lifted that screen-wide protection early. Marking a message
+  // as "viewed" also no longer happens here — consumeViewOnceMedia() already
+  // did that atomically on the server before the viewer ever opens.
   useEffect(() => {
     if (!mediaViewerVisible || !viewingMedia) return;
 
@@ -588,39 +741,7 @@ export default function ChatConversationScreen() {
         }
       })();
     }
-    
-    // Enable screenshot protection for view-once media
-    if (viewingMedia.isViewOnce && Platform.OS !== 'web') {
-      console.log('🔒 Enabling screenshot protection for view-once media');
-      ScreenCapture.preventScreenCaptureAsync().catch(err => {
-        console.warn('⚠️ Could not enable screenshot protection:', err);
-      });
-      
-      // Mark as viewed
-      if (viewingMedia.messageId) {
-        setViewedOnceMessages(prev => new Set([...prev, viewingMedia.messageId]));
-        
-        // Notify server that message was viewed
-        const socket = token ? getSocket(token) : null;
-        if (socket && conversationId) {
-          socket.emit('chat:message:viewed', {
-            chatId: conversationId,
-            messageId: viewingMedia.messageId,
-          });
-        }
-      }
-    }
-    
-    // Cleanup: disable screenshot protection when viewer closes
-    return () => {
-      if (viewingMedia?.isViewOnce && Platform.OS !== 'web') {
-        console.log('🔒 Disabling screenshot protection');
-        ScreenCapture.allowScreenCaptureAsync().catch(err => {
-          console.warn('⚠️ Could not disable screenshot protection:', err);
-        });
-      }
-    };
-  }, [mediaViewerVisible, viewingMedia, currentGalleryItem, token, conversationId, cacheRemoteFileToDisk]);
+  }, [mediaViewerVisible, viewingMedia, currentGalleryItem, cacheRemoteFileToDisk]);
 
   // Cache key for this conversation
   const cacheKey = `@circle:chat_messages:${conversationId}`;
@@ -691,9 +812,18 @@ export default function ChatConversationScreen() {
   const typingTimeoutRef = useRef(null);
   const processedMessageIdsRef = useRef(new Set());
   const listRef = useRef(null);
+  // Message id -> y-offset within the ScrollView's content, recorded via
+  // onLayout on each row. Needed because scrollToIndex (FlatList-only) never
+  // worked here — this screen renders messages via `.map()` inside a
+  // ScrollView, which has no index-based scrolling API.
+  const messagePositionsRef = useRef({});
   const typingIndicatorTimeoutRef = useRef(null);
   const isNearBottomRef = useRef(true); // Track if user is near bottom for auto-scroll
   const hasInitialScrollRef = useRef(false);
+  // Track in-flight optimistic sends so we can fail them loudly if the server
+  // never confirms (e.g. dropped/blocked) instead of leaving a silent clock.
+  const pendingSendTimeoutsRef = useRef(new Map()); // tempId -> setTimeout handle
+  const lastOptimisticTempIdRef = useRef(null);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
@@ -733,14 +863,47 @@ export default function ChatConversationScreen() {
   // Track local system messages like screenshot attempts (not sent to server)
   const [screenshotAttemptCount, setScreenshotAttemptCount] = useState(0);
 
-  const backgroundSource = isDarkMode
-    ? require("../../assets/images/dark-mode-bg.png")
-    : require("../../assets/images/light-mode-bg.png");
+  // Lavender-to-white (light) / near-black (dark) gradient, replacing the
+  // old doodle-pattern wallpaper image for a cleaner, modern look. Light
+  // mode starts from a noticeably deeper lavender (not just an off-white
+  // tint) so the gradient actually reads as a gradient rather than flat white.
+  const backgroundGradient = isDarkMode
+    ? ["#241E33", "#150F1F", "#0A0A0D"]
+    : ["#D9CCFF", "#EDE6FF", "#FFFFFF"];
 
-  const keyboardBehavior = Platform.select({ ios: "padding", android: "height" });
+  // The swipe-to-reply-vs-scroll gesture conflict this fixes is a mobile
+  // touch-arbitration issue; web has no such ambiguity (mouse/wheel scroll
+  // doesn't compete with the pan gesture the same way), so use the plain
+  // ScrollView there rather than gesture-handler's wrapper.
+  const MessageListScrollView = Platform.OS === "web" ? ScrollView : GestureScrollView;
+
+  // Neither KeyboardAvoidingView's "height" behavior nor the manifest's
+  // windowSoftInputMode="adjustResize" actually resize anything here —
+  // tuning keyboardVerticalOffset made zero observable difference either
+  // way, which only happens if the automatic resize path isn't running at
+  // all. This app now targets Android 15 (compileSdk/targetSdk 36), which
+  // enforces edge-to-edge display; that's a known breaker of the legacy
+  // adjustResize mechanism. Bypass it: track the keyboard's own height
+  // directly via Keyboard show/hide events and apply it as explicit padding
+  // on Android, instead of trusting KeyboardAvoidingView to compute it.
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+      setAndroidKeyboardHeight(e?.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setAndroidKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const keyboardBehavior = Platform.select({ ios: "padding", default: undefined });
   const keyboardOffset = Platform.select({
     ios: insets.top + 60,
-    android: 80 + insets.bottom,
     default: 0,
   });
 
@@ -975,10 +1138,11 @@ export default function ChatConversationScreen() {
             const updated = [...prev];
             updated[optimisticIndex] = { ...msg, isOptimistic: false };
             processedMessageIdsRef.current.add(msg.id);
+            clearPendingSendTimeout(tempId);
             return updated;
           }
         }
-        
+
         // For own messages, check if there's an optimistic message with same text (server didn't return tempId)
         const isMine = msg.senderId != null && String(msg.senderId) === myUserId;
         if (isMine) {
@@ -988,6 +1152,7 @@ export default function ChatConversationScreen() {
           if (optimisticIndex !== -1) {
             // Replace optimistic message with real one
             const updated = [...prev];
+            clearPendingSendTimeout(prev[optimisticIndex].id);
             updated[optimisticIndex] = { ...msg, isOptimistic: false };
             processedMessageIdsRef.current.add(msg.id);
             return updated;
@@ -1026,6 +1191,8 @@ export default function ChatConversationScreen() {
 
     const handlePresence = (data) => {
       if (!data || data.chatId !== conversationId) return;
+      // Presence is about the OTHER user; ignore any echo about ourselves.
+      if (data.userId != null && String(data.userId) === myUserId) return;
 
       let online = false;
       if (typeof data.isOnline === "boolean") {
@@ -1043,6 +1210,14 @@ export default function ChatConversationScreen() {
     const handleActivePresence = (data) => {
       if (!data || data.chatId !== conversationId) return;
       setIsActive(!!data.isActive);
+    };
+
+    // Sent to the sender's devices when the recipient consumes a view-once
+    // message, so the sender's own bubble flips to "Opened" in real time too
+    // (they never receive the media URL itself, just this notice).
+    const handleViewOnceConsumed = (data) => {
+      if (!data || data.chatId !== conversationId || !data.messageId) return;
+      setViewedOnceMessages((prev) => new Set([...prev, data.messageId]));
     };
 
     const handleReactionAdded = (data) => {
@@ -1090,12 +1265,44 @@ export default function ChatConversationScreen() {
     };
 
     const handleMessageBlocked = (data) => {
-      if (!isBlindDate || !data) return;
-      setBlockedInfoMessage(
-        data.message ||
-          "In Blind Connect chats, you can't send personal details like phone numbers, social media or email until both of you choose to reveal your profiles."
+      if (!data) return;
+      // The send didn't go through — surface it instead of leaving a silent clock.
+      failLastPendingSend();
+
+      if (isBlindDate) {
+        setBlockedInfoMessage(
+          data.message ||
+            "In Blind Connect chats, you can't send personal details like phone numbers, social media or email until both of you choose to reveal your profiles."
+        );
+        setShowBlockedInfoModal(true);
+        return;
+      }
+
+      // Regular chats: previously this was ignored entirely, so a blocked send
+      // looked like "nothing happened". Tell the user why.
+      const reason =
+        data.reason === "not_friends"
+          ? "You can only message people you're connected with."
+          : data.reason === "blocked"
+          ? "You can't message this user."
+          : data.message || "Your message couldn't be sent.";
+      Alert.alert("Message not sent", reason);
+    };
+
+    const handleMessageError = (data) => {
+      failLastPendingSend();
+      Alert.alert(
+        "Message not sent",
+        data?.error || "Something went wrong sending your message. Please try again."
       );
-      setShowBlockedInfoModal(true);
+    };
+
+    const handleMessageRateLimited = () => {
+      failLastPendingSend();
+      Alert.alert(
+        "Slow down",
+        "You're sending messages too quickly. Please wait a moment and try again."
+      );
     };
 
     const handleSocketMessage = (data) => {
@@ -1129,9 +1336,12 @@ export default function ChatConversationScreen() {
     socket.on("chat:typing", handleTyping);
     socket.on("chat:presence", handlePresence);
     socket.on("chat:presence:active", handleActivePresence);
+    socket.on("chat:message:view_once_consumed", handleViewOnceConsumed);
     socket.on("chat:reaction:added", handleReactionAdded);
     socket.on("chat:reaction:removed", handleReactionRemoved);
     socket.on("chat:message:blocked", handleMessageBlocked);
+    socket.on("chat:message:error", handleMessageError);
+    socket.on("chat:message:rate_limited", handleMessageRateLimited);
 
     // Listen for unread count updates to clear the banner when count becomes 0
     const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
@@ -1156,11 +1366,17 @@ export default function ChatConversationScreen() {
       socket.off("chat:typing", handleTyping);
       socket.off("chat:presence", handlePresence);
       socket.off("chat:presence:active", handleActivePresence);
+      socket.off("chat:message:view_once_consumed", handleViewOnceConsumed);
       socket.off("chat:reaction:added", handleReactionAdded);
       socket.off("chat:reaction:removed", handleReactionRemoved);
       socket.off("chat:message:blocked", handleMessageBlocked);
+      socket.off("chat:message:error", handleMessageError);
+      socket.off("chat:message:rate_limited", handleMessageRateLimited);
       socket.off("chat:unread_count", handleUnreadCountUpdate);
       socketService.clearCurrentChatId();
+      // Cancel any in-flight "no confirmation" timers so they don't fire after unmount.
+      pendingSendTimeoutsRef.current.forEach((handle) => clearTimeout(handle));
+      pendingSendTimeoutsRef.current.clear();
     };
   }, [conversationId, myUserId, user]);
 
@@ -1394,36 +1610,71 @@ export default function ChatConversationScreen() {
     };
   }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf, router]);
 
+  // Clear the "no confirmation" failure timer for an optimistic message once
+  // the server acknowledges/echoes it.
+  const clearPendingSendTimeout = (tempId) => {
+    if (!tempId) return;
+    const handle = pendingSendTimeoutsRef.current.get(tempId);
+    if (handle) {
+      clearTimeout(handle);
+      pendingSendTimeoutsRef.current.delete(tempId);
+    }
+  };
+
+  // Mark the most recent in-flight optimistic send as failed. Used when the
+  // server reports a block/error/rate-limit (those events don't carry a tempId,
+  // and there's only ever one send in flight at a time from this composer).
+  const failLastPendingSend = () => {
+    const tempId = lastOptimisticTempIdRef.current;
+    if (!tempId) return;
+    clearPendingSendTimeout(tempId);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === tempId && (m.status === "sending" || m.isOptimistic)
+          ? { ...m, status: "failed", isOptimistic: false }
+          : m
+      )
+    );
+  };
+
   const handleSend = () => {
     const trimmed = (composer || "").trim();
     if (!trimmed) return;
 
-    // For non-blind-date chats, enforce canMessage on frontend
-    if (!isBlindDate) {
-      const socket = token ? getSocket(token) : null;
-      if (
-        !token ||
-        !socket ||
-        !paramOtherUserId ||
-        !conversationId ||
-        user?.id == null ||
-        String(paramOtherUserId) === String(user.id)
-      ) {
-        return;
-      }
+    const socket = token ? getSocket(token) : null;
 
-      if (
-        paramOtherUserId &&
-        user?.id != null &&
-        String(paramOtherUserId) !== String(user.id) &&
-        !canMessage
-      ) {
-        return;
-      }
+    // Hard requirements to send. The recipient is resolved server-side from the
+    // chatId, so paramOtherUserId is NOT required here — some entry points open
+    // a chat without it. If we genuinely can't send, say so instead of silently
+    // doing nothing (which looked like "the button is broken").
+    if (
+      !token ||
+      !socket ||
+      !conversationId ||
+      conversationId === "chat" ||
+      user?.id == null
+    ) {
+      Alert.alert(
+        "Can't send message",
+        "You're not connected right now. Check your internet connection and try again."
+      );
+      return;
     }
 
-    const socket = token ? getSocket(token) : null;
-    if (!socket || !conversationId) return;
+    // Frontend friendship gate (UX only; the backend is authoritative and will
+    // return chat:message:blocked if messaging isn't allowed).
+    if (
+      !isBlindDate &&
+      !canMessage &&
+      paramOtherUserId &&
+      String(paramOtherUserId) !== String(user.id)
+    ) {
+      Alert.alert(
+        "Can't message yet",
+        "You can only message people you're connected with."
+      );
+      return;
+    }
 
     setComposer("");
 
@@ -1469,6 +1720,7 @@ export default function ChatConversationScreen() {
     // Add optimistic message immediately for instant UI feedback
     setMessages((prev) => [...prev, optimisticMessage]);
     processedMessageIdsRef.current.add(tempId);
+    lastOptimisticTempIdRef.current = tempId;
 
     // Clear reply state after sending
     const replyId = replyToMessage?.id || null;
@@ -1484,12 +1736,27 @@ export default function ChatConversationScreen() {
     }, 50);
 
     try {
-      socket.emit("chat:message", { 
-        chatId: conversationId, 
-        text: trimmed, 
+      socket.emit("chat:message", {
+        chatId: conversationId,
+        text: trimmed,
         tempId,
         replyToId: replyId, // Send reply reference to backend
       });
+
+      // If the server never echoes the message back (dropped, not connected,
+      // unauthenticated, etc.), don't leave it stuck on a clock forever — mark
+      // it failed so the user sees it didn't go through.
+      const failTimer = setTimeout(() => {
+        pendingSendTimeoutsRef.current.delete(tempId);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId && (msg.status === "sending" || msg.isOptimistic)
+              ? { ...msg, status: "failed", isOptimistic: false }
+              : msg
+          )
+        );
+      }, 10000);
+      pendingSendTimeoutsRef.current.set(tempId, failTimer);
     } catch (error) {
       // Mark message as failed if emit throws
       setMessages((prev) =>
@@ -1663,17 +1930,15 @@ export default function ChatConversationScreen() {
       for (let i = 0; i < selectedMedia.length; i++) {
         const media = selectedMedia[i];
         setUploadProgress(0);
-        setUploadProgressText(`Uploading ${i + 1}/${selectedMedia.length}...`);
 
         // Upload with compression
         const result = await chatMediaService.uploadMedia(
           media.uri,
           media.type,
           token,
-          (progress, text) => {
+          (progress) => {
             const overallProgress = (i + progress) / selectedMedia.length;
             setUploadProgress(overallProgress);
-            setUploadProgressText(`${text} (${i + 1}/${selectedMedia.length})`);
           }
         );
 
@@ -1735,7 +2000,6 @@ export default function ChatConversationScreen() {
     } finally {
       setIsUploadingMedia(false);
       setUploadProgress(0);
-      setUploadProgressText('');
     }
   };
 
@@ -1786,18 +2050,19 @@ export default function ChatConversationScreen() {
   // Handle tap on reply preview to scroll to and highlight the original message
   const handleReplyTap = useCallback((replyToId) => {
     if (!replyToId || !listRef.current) return;
-    
-    // Find the index of the replied message
+
+    // Find the replied message so we at least confirm it still exists
     const messageIndex = messages.findIndex(m => m.id === replyToId);
     if (messageIndex === -1) return;
-    
-    // Scroll to the message
-    listRef.current.scrollToIndex({
-      index: messageIndex,
-      animated: true,
-      viewPosition: 0.5, // Center the message on screen
-    });
-    
+
+    // This screen renders messages via `.map()` inside a ScrollView (not a
+    // FlatList), which has no index-based scrolling API — scroll to the
+    // y-offset recorded by that row's onLayout instead.
+    const y = messagePositionsRef.current[replyToId];
+    if (typeof y === "number") {
+      listRef.current.scrollTo({ y: Math.max(0, y - 80), animated: true });
+    }
+
     // Highlight the message
     setHighlightedMessageId(replyToId);
     
@@ -1886,6 +2151,12 @@ export default function ChatConversationScreen() {
 
     const senderIdStr = item.senderId != null ? String(item.senderId) : null;
     const isMine = senderIdStr && myUserId && senderIdStr === myUserId;
+    // Same reveal-aware display name the header uses, so the in-bubble
+    // "Room Chat" style header row shows the same name as the screen title.
+    const otherDisplayName =
+      (bothRevealed && otherUserProfile?.first_name) || (isBlindDate && otherUserProfile?.first_name)
+        ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
+        : conversationName;
     const isSelected = selectedMessageIds.includes(item.id);
     const isEditing = editingMessage && editingMessage.id === item.id;
     const isHighlighted = highlightedMessageId === item.id;
@@ -1921,14 +2192,11 @@ export default function ChatConversationScreen() {
           </View>
         )}
         
-        <SwipeableMessage
-          isMine={isMine}
-          message={item}
-          onSwipeReply={handleSwipeReply}
-        >
           <MessageBubble
             message={item}
             isMine={isMine}
+            senderName={isMine ? "You" : otherDisplayName}
+            onSwipeReply={handleSwipeReply}
             onReact={(emoji) => handleAddReaction(item.id, emoji)}
             onDoubleTap={() => setReactionTarget(item)}
             onLongPress={() => {
@@ -1944,9 +2212,7 @@ export default function ChatConversationScreen() {
             onReplyTap={handleReplyTap}
             isHighlighted={isHighlighted}
             onMediaPress={(url, type, isViewOnce, messageId) => {
-              // Check if view-once media
               if (isViewOnce) {
-                // Check if on web
                 if (Platform.OS === 'web') {
                   Alert.alert(
                     'App Only Feature',
@@ -1955,8 +2221,7 @@ export default function ChatConversationScreen() {
                   );
                   return;
                 }
-                
-                // Check if already viewed
+
                 if (viewedOnceMessages.has(messageId)) {
                   Alert.alert(
                     'Already Viewed',
@@ -1965,8 +2230,11 @@ export default function ChatConversationScreen() {
                   );
                   return;
                 }
+
+                consumeViewOnceMedia(messageId, type);
+                return;
               }
-              
+
               const idx = mediaItems.findIndex((m) => m.url === url || m.id === messageId);
               if (idx >= 0) setMediaViewerIndex(idx);
               setViewingMedia({ url, type, isViewOnce, messageId });
@@ -1974,7 +2242,6 @@ export default function ChatConversationScreen() {
             }}
             viewedOnceMessages={viewedOnceMessages}
           />
-        </SwipeableMessage>
       </View>
     );
   };
@@ -2455,16 +2722,21 @@ export default function ChatConversationScreen() {
     setTypingUsers((prev) => prev.filter((id) => id && id !== myUserId));
   }, [myUserId]);
 
-  // Also auto-scroll when typing indicator appears - only if user is near bottom
+  // Also auto-scroll when typing indicator appears - only if user is near bottom.
+  // scrollToEnd() here used to fire in the same tick as the state change that
+  // mounts <TypingIndicator>, before the ScrollView had actually re-measured
+  // its content to include the indicator's height — so it scrolled to the
+  // PREVIOUS bottom (last message), leaving the indicator just off-screen.
+  // A short delay lets that layout pass land first.
   useEffect(() => {
-    if (!listRef.current) return;
     if (typingUsers.length === 0) return;
-    // Only scroll if user is near bottom
-    if (isNearBottomRef.current) {
+    if (!isNearBottomRef.current) return;
+    const timeout = setTimeout(() => {
       try {
-        listRef.current.scrollToEnd({ animated: true });
+        listRef.current?.scrollToEnd({ animated: true });
       } catch {}
-    }
+    }, 80);
+    return () => clearTimeout(timeout);
   }, [typingUsers.length]);
 
   // Emit delivery/read receipts when other user's messages become visible
@@ -2623,10 +2895,12 @@ export default function ChatConversationScreen() {
   }, [messages.length]);
 
   return (
-    <ImageBackground
-      source={backgroundSource}
+    <LinearGradient
+      colors={backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      locations={[0, 0.35, 1]}
       style={styles.root}
-      resizeMode="cover"
     >
       <StatusBar
         barStyle={isDarkMode ? "light-content" : "dark-content"}
@@ -2634,22 +2908,22 @@ export default function ChatConversationScreen() {
         backgroundColor="transparent"
       />
 
-      {/* Top safe area for header, covers notch with solid background */}
+      {/* Top safe area for header - transparent so the gradient shows through */}
       <SafeAreaView
-        style={[styles.safeArea, { flex: 0, backgroundColor: theme.background }]}
+        style={[styles.safeArea, { flex: 0, backgroundColor: "transparent" }]}
         edges={['top']}
       >
         <View
           style={[
             styles.header,
             {
-              borderBottomColor: theme.border,
-              backgroundColor: theme.background,
+              borderBottomColor: "transparent",
+              backgroundColor: "transparent",
             },
           ]}
         >
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, { backgroundColor: theme.surface }]}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -2659,13 +2933,14 @@ export default function ChatConversationScreen() {
             }}
           >
             <Ionicons
-              name="chevron-back"
-              size={24}
+              name="arrow-back-outline"
+              size={20}
               color={theme.textPrimary}
             />
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={{ position: 'relative' }}
             onPress={() => {
               // Allow profile view if not blind date OR if both revealed
               const canViewProfile = !isBlindDate || bothRevealed;
@@ -2685,7 +2960,7 @@ export default function ChatConversationScreen() {
               
               if (displayAvatarUrl) {
                 return (
-                  <View style={{ overflow: 'hidden', borderRadius: 16 }}>
+                  <View style={{ overflow: 'hidden', borderRadius: 12 }}>
                     <Image
                       source={{ uri: displayAvatarUrl }}
                       style={styles.headerAvatarImage}
@@ -2775,12 +3050,22 @@ export default function ChatConversationScreen() {
                 Blind Connect • Anonymous Chat
               </Text>
             ) : (
-              <Text
-                style={[styles.headerSubtitle, { color: theme.textSecondary }]}
-                numberOfLines={1}
+              <Animated.View
+                style={{ flexDirection: "row", alignItems: "center", opacity: onlineLabelOpacity }}
               >
-                {isActive ? "Online" : "Offline"}
-              </Text>
+                {isOnline && (
+                  <View style={[styles.onlineStatusDotInline, { backgroundColor: theme.success }]} />
+                )}
+                <Text
+                  style={[
+                    styles.headerSubtitle,
+                    { color: isOnline ? theme.success : theme.textSecondary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {isOnline ? "Online" : "Offline"}
+                </Text>
+              </Animated.View>
             )}
           </View>
         </View>
@@ -2839,13 +3124,16 @@ export default function ChatConversationScreen() {
       </SafeAreaView>
 
       {/* Bottom area for messages + composer */}
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <SafeAreaView
+        style={[styles.safeArea, Platform.OS === "android" && { paddingBottom: androidKeyboardHeight }]}
+        edges={['bottom']}
+      >
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={keyboardBehavior}
           keyboardVerticalOffset={keyboardOffset}
         >
-          <ScrollView
+          <MessageListScrollView
             ref={listRef}
             contentContainerStyle={styles.messagesContainer}
             showsVerticalScrollIndicator={false}
@@ -2855,35 +3143,29 @@ export default function ChatConversationScreen() {
             scrollEventThrottle={16}
           >
             {messages.map((item, index) => (
-              <View key={item.id || index}>
+              <View
+                key={item.id || index}
+                onLayout={(e) => {
+                  if (item.id) messagePositionsRef.current[item.id] = e.nativeEvent.layout.y;
+                }}
+              >
                 {renderItem({ item, index })}
               </View>
             ))}
 
-            {typingUsers.length > 0 && (
-              <View style={styles.typingRow}>
-                <View style={styles.typingDotsContainer}>
-                  <View style={styles.typingDot} />
-                  <View style={styles.typingDot} />
-                  <View style={styles.typingDot} />
-                </View>
-                <Text style={[styles.typingText, { color: theme.textSecondary }]}>
-                  typing...
-                </Text>
-              </View>
-            )}
-          </ScrollView>
+            <TypingIndicator visible={typingUsers.length > 0} avatarUrl={avatarUrl} />
+          </MessageListScrollView>
 
           {/* Scroll to bottom floating button with new message badge */}
           {showScrollToBottom && (
             <TouchableOpacity
-              style={styles.scrollToBottomButton}
+              style={[styles.scrollToBottomButton, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }]}
               onPress={scrollToBottom}
               activeOpacity={0.8}
             >
-              <Ionicons name="chevron-down" size={24} color="#fff" />
+              <Ionicons name="chevron-down" size={22} color={isDarkMode ? '#111111' : '#FFFFFF'} />
               {newMessageCount > 0 && (
-                <View style={styles.newMessageBadge}>
+                <View style={[styles.newMessageBadge, { borderColor: isDarkMode ? '#0B0B0F' : '#FFFFFF' }]}>
                   <Text style={styles.newMessageBadgeText}>
                     {newMessageCount > 99 ? '99+' : newMessageCount}
                   </Text>
@@ -2893,7 +3175,7 @@ export default function ChatConversationScreen() {
           )}
 
           <View
-            style={[styles.composerContainer, { borderTopColor: theme.border }]}
+            style={[styles.composerContainer, { borderTopColor: "transparent" }]}
           >
             {selectionMode && selectedMessageIds.length > 0 && (
               <View style={styles.selectionToolbar}>
@@ -2981,17 +3263,9 @@ export default function ChatConversationScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            {/* Upload progress indicator */}
+            {/* Sending indicator - smooth animated fill, no percentage text */}
             {isUploadingMedia && (
-              <View style={[styles.uploadProgressContainer, { backgroundColor: isDarkMode ? '#2D2D3A' : '#F3F4F6' }]}>
-                <ActivityIndicator size="small" color={theme.primary} />
-                <Text style={[styles.uploadProgressText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                  {uploadProgressText || 'Uploading...'} {Math.round(uploadProgress * 100)}%
-                </Text>
-                <View style={[styles.uploadProgressBar, { backgroundColor: isDarkMode ? '#4B5563' : '#E5E7EB' }]}>
-                  <View style={[styles.uploadProgressFill, { width: `${uploadProgress * 100}%`, backgroundColor: theme.primary }]} />
-                </View>
-              </View>
+              <MediaSendingIndicator progress={uploadProgress} label="Sending..." />
             )}
             
             {/* Media preview section */}
@@ -3057,7 +3331,7 @@ export default function ChatConversationScreen() {
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <>
-                        <Ionicons name="send" size={18} color="#fff" />
+                        <Feather name="send" size={18} color="#fff" />
                         <Text style={styles.mediaPreviewSendText}>Send</Text>
                       </>
                     )}
@@ -3067,7 +3341,7 @@ export default function ChatConversationScreen() {
             )}
 
             <View style={styles.composerInner}>
-              {/* Media attachment button */}
+              {/* Media attachment button - black/white circular pill, "Room Chat" style */}
               <TouchableOpacity
                 style={[styles.attachButton, !canMessage && styles.attachButtonDisabled]}
                 onPress={() => setShowMediaOptions(true)}
@@ -3075,29 +3349,29 @@ export default function ChatConversationScreen() {
               >
                 <View style={[
                   styles.attachButtonInner,
-                  { backgroundColor: canMessage && !isUploadingMedia ? `${theme.primary}15` : '#F3F4F6' }
+                  { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }
                 ]}>
-                  <Ionicons 
-                    name="add" 
-                    size={22} 
-                    color={canMessage && !isUploadingMedia ? theme.primary : theme.textPlaceholder} 
+                  <Ionicons
+                    name="add"
+                    size={22}
+                    color={isDarkMode ? '#111111' : '#FFFFFF'}
                   />
                 </View>
               </TouchableOpacity>
-              
+
               <TextInput
                 style={[
                   styles.input,
-                  { 
-                    color: theme.textPrimary || (isDarkMode ? '#FFFFFF' : '#000000'),
-                    backgroundColor: theme.surface || (isDarkMode ? '#2D2D3A' : '#F3F4F6'),
+                  {
+                    color: theme.textPrimary,
+                    backgroundColor: theme.surfaceSecondary,
                   },
                 ]}
                 value={composer}
                 onChangeText={handleComposerChange}
                 placeholder={
                   canMessage
-                    ? "Type a message"
+                    ? "Type message..."
                     : "You can only message users you are friends with"
                 }
                 placeholderTextColor={theme.textPlaceholder}
@@ -3110,16 +3384,15 @@ export default function ChatConversationScreen() {
                 style={[
                   styles.sendButton,
                   (!composer.trim() || !canMessage || isUploadingMedia) && styles.sendButtonDisabled,
-                  { borderColor: theme.primary },
                 ]}
                 onPress={handleSend}
                 disabled={!composer.trim() || !canMessage || isUploadingMedia}
               >
-                <View style={[styles.sendButtonInner, { backgroundColor: theme.primary }]}>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={18}
-                    color="#fff"
+                <View style={[styles.sendButtonInner, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }]}>
+                  <Feather
+                    name="send"
+                    size={17}
+                    color={isDarkMode ? '#111111' : '#FFFFFF'}
                   />
                 </View>
               </TouchableOpacity>
@@ -3218,7 +3491,9 @@ export default function ChatConversationScreen() {
               onRequestClose={() => setMediaViewerVisible(false)}
             >
               <View style={styles.mediaViewerOverlay}>
-                {currentGalleryItem && (
+                {/* Never offer to save view-once media — the whole point is
+                    it's gone after this one viewing. */}
+                {currentGalleryItem && !viewingMedia?.isViewOnce && (
                   <TouchableOpacity
                     style={styles.mediaViewerDownloadButton}
                     onPress={() => handleDownloadMedia(currentGalleryItem.url, currentGalleryItem.type)}
@@ -3232,15 +3507,14 @@ export default function ChatConversationScreen() {
                 >
                   <Ionicons name="close" size={28} color="#fff" />
                 </TouchableOpacity>
-                {viewingMedia?.isViewOnce && (
-                  <View style={styles.viewOnceWarning}>
-                    <Ionicons name="eye-off" size={20} color="#fff" />
-                    <Text style={styles.viewOnceWarningText}>
-                      View Once • Screenshots blocked
-                    </Text>
-                  </View>
-                )}
-                {mediaItems.length > 0 ? (
+                {/* view-once media is deliberately excluded from mediaItems
+                    (it's not part of the swipeable gallery), and its viewer
+                    open never sets mediaViewerIndex — so gate on isViewOnce
+                    explicitly here, otherwise a chat with any regular media
+                    at all would render the FlatList gallery (showing some
+                    unrelated stale item) instead of the actual consumed
+                    view-once content. */}
+                {!viewingMedia?.isViewOnce && mediaItems.length > 0 ? (
                   <FlatList
                     data={mediaItems}
                     horizontal
@@ -3260,13 +3534,11 @@ export default function ChatConversationScreen() {
                     renderItem={({ item }) => (
                       <View style={[styles.mediaViewerPage, { width: mediaViewerWidth }]}>
                         {item.type === 'video' ? (
-                          <Video
-                            source={{ uri: (currentGalleryItem?.id === item.id ? (resolvedViewingMediaUrl || item.url) : item.url) }}
+                          <ChatVideoPlayer
+                            key={(currentGalleryItem?.id === item.id ? (resolvedViewingMediaUrl || item.url) : item.url)}
+                            uri={(currentGalleryItem?.id === item.id ? (resolvedViewingMediaUrl || item.url) : item.url)}
                             style={styles.mediaViewerVideo}
-                            useNativeControls
-                            resizeMode={ResizeMode.CONTAIN}
-                            shouldPlay={currentGalleryItem?.id === item.id}
-                            isLooping={false}
+                            autoPlay={currentGalleryItem?.id === item.id}
                           />
                         ) : (
                           <ExpoImage
@@ -3283,13 +3555,11 @@ export default function ChatConversationScreen() {
                   viewingMedia && (
                     <View style={styles.mediaViewerContent}>
                       {viewingMedia.type === 'video' ? (
-                        <Video
-                          source={{ uri: resolvedViewingMediaUrl || viewingMedia.url }}
+                        <ChatVideoPlayer
+                          key={resolvedViewingMediaUrl || viewingMedia.url}
+                          uri={resolvedViewingMediaUrl || viewingMedia.url}
                           style={styles.mediaViewerVideo}
-                          useNativeControls
-                          resizeMode={ResizeMode.CONTAIN}
-                          shouldPlay
-                          isLooping={false}
+                          autoPlay
                         />
                       ) : (
                         <ExpoImage
@@ -3626,7 +3896,7 @@ export default function ChatConversationScreen() {
           setReactionTarget(null);
         }}
       />
-    </ImageBackground>
+    </LinearGradient>
   );
 }
 
@@ -3648,9 +3918,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: {
-    padding: 6,
-    marginRight: 8,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   headerInfo: {
     flex: 1,
@@ -3658,16 +3936,22 @@ const styles = StyleSheet.create({
   headerAvatarImage: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 12,
     marginRight: 8,
   },
   headerAvatarFallback: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 12,
     marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
+  },
+  onlineStatusDotInline: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
   },
   headerAvatarFallbackText: {
     color: "#fff",
@@ -3694,6 +3978,7 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: "row",
     marginVertical: 4,
+    position: "relative",
   },
   messageRowMine: {
     justifyContent: "flex-end",
@@ -3702,26 +3987,71 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   messageBubble: {
-    maxWidth: "80%",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    maxWidth: SCREEN_WIDTH * 0.8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    // Without this, children (header row, message text) default to
+    // alignItems:'stretch' and get stretched to the bubble's shrink-to-fit
+    // width instead of measuring at their own natural size — that
+    // stretch-then-relayout round trip is what caused short text (e.g. a
+    // URL) to wrap onto a second line even though the bubble looked wide
+    // enough. flex-start makes every child size to its own content instead.
+    alignItems: "flex-start",
   },
   myMessageBubble: {
-    backgroundColor: "#E9D5FF",
-    borderTopRightRadius: 2,
+    // Background (near-black / white in dark mode) comes from AnimatedMessageBubble.
+    borderTopRightRadius: 4,
   },
   theirMessageBubble: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 2,
+    // Background (white / dark surface in dark mode) comes from AnimatedMessageBubble.
+    borderTopLeftRadius: 4,
   },
   myMessageText: {
     fontSize: 15,
-    color: "#000",
+    color: "#fff",
+  },
+  myMessageTextDark: {
+    color: "#111111",
   },
   theirMessageText: {
     fontSize: 15,
-    color: "#000",
+    color: "#111111",
+  },
+  theirMessageTextDark: {
+    color: "#F1F5F9",
+  },
+  bubbleHeaderRow: {
+    // Deliberately NOT justifyContent:'space-between' and NOT width:'100%'.
+    // This row sits inside a bubble that shrink-wraps to whichever is wider
+    // (header vs. message text). Both of those properties feed back into
+    // that shrink-to-fit sizing pass ambiguously — space-between alone made
+    // short messages wrap to two lines (bubble width got locked to the
+    // header's own ill-defined intrinsic size); adding width:'100%' to try
+    // to fix that instead made EVERY sent bubble stretch edge-to-edge
+    // (percentages on a child of an auto-sized parent make the whole
+    // ancestor chain's width indefinite, which flex-end resolves by
+    // stretching — received bubbles use justifyContent:'flex-start' and
+    // happened not to visibly hit this, but it's the same underlying
+    // ambiguity). A fixed gap (bubbleHeaderRight's marginLeft) makes the
+    // row's natural width a deterministic sum instead — no percentages,
+    // no space-between, no ambiguity.
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  bubbleHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+  bubbleSenderName: {
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  bubbleTimeText: {
+    fontSize: 11,
   },
   viewOnceMessageText: {
     fontStyle: 'italic',
@@ -3794,30 +4124,28 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16, // rounded-square, matching send/attach/avatar buttons
     maxHeight: 120,
   },
   sendButton: {
-    marginLeft: 6,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    marginLeft: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
-    backgroundColor: "transparent",
     shadowColor: "#000",
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.18,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   sendButtonInner: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3833,9 +4161,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   attachButtonInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3923,26 +4251,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
-  typingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  typingDotsContainer: {
-    flexDirection: "row",
-    marginRight: 8,
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#9CA3AF",
-    marginHorizontal: 2,
-  },
-  typingText: {
-    fontSize: 12,
-  },
   // Date and Unread Dividers - WhatsApp/Instagram style
   dividerContainer: {
     alignItems: 'center',
@@ -3983,8 +4291,7 @@ const styles = StyleSheet.create({
     bottom: 80, // Above the composer
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: '#7C3AED',
+    borderRadius: 16, // rounded-square, matching send/attach/avatar buttons
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
@@ -4006,7 +4313,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 5,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   newMessageBadgeText: {
     color: '#FFFFFF',
@@ -4181,10 +4487,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   // Swipe-to-reply styles
-  swipeableContainer: {
-    position: 'relative',
-    overflow: 'visible',
-  },
   replyIconContainer: {
     position: 'absolute',
     top: '50%',
@@ -4205,25 +4507,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Reply preview inside message bubble - WhatsApp style
+  // Reply preview inside message bubble - nested card, quoting the original
   replyPreviewInBubble: {
     flexDirection: 'row',
     marginBottom: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
+  // "Mine" bubble is near-black in light mode / white in dark mode (see
+  // AnimatedMessageBubble), so its reply-preview overlay/bar/text need to
+  // invert too - a dark overlay that worked on the old light lilac bubble
+  // would be invisible against black.
   replyPreviewInBubbleMine: {
-    backgroundColor: 'rgba(0, 0, 0, 0.06)', // Subtle overlay on light green bubble
+    backgroundColor: 'rgba(255, 255, 255, 0.14)', // light overlay on black bubble
   },
   replyPreviewInBubbleTheirs: {
-    backgroundColor: 'rgba(124, 58, 237, 0.08)', // Light purple tint
+    backgroundColor: 'rgba(124, 58, 237, 0.08)', // Light purple tint on white bubble
   },
-  // For dark mode - will be applied dynamically
   replyPreviewInBubbleMineDark: {
-    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Darker overlay for dark mode
+    backgroundColor: 'rgba(0, 0, 0, 0.08)', // dark overlay on white bubble (dark mode)
   },
   replyPreviewInBubbleTheirsDark: {
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    backgroundColor: 'rgba(124, 58, 237, 0.18)', // purple tint on dark surface bubble
   },
   replyPreviewBar: {
     width: 4,
@@ -4231,23 +4536,33 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 8,
   },
   replyPreviewBarMine: {
-    backgroundColor: '#075E54', // WhatsApp dark green accent
+    backgroundColor: 'rgba(255, 255, 255, 0.7)', // visible on black bubble (light mode)
+  },
+  replyPreviewBarMineDark: {
+    backgroundColor: 'rgba(0, 0, 0, 0.45)', // visible on white bubble (dark mode)
   },
   replyPreviewBarTheirs: {
-    backgroundColor: '#7C3AED', // Purple accent
+    backgroundColor: '#7C3AED', // Purple accent, visible on white/dark-surface bubble
   },
   replyPreviewContent: {
     flex: 1,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 10,
+  },
+  replyPreviewNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  replyPreviewNameIcon: {
+    marginRight: 4,
   },
   replyPreviewName: {
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 2,
   },
   replyPreviewNameMine: {
-    color: '#075E54', // Dark green for own messages
+    color: 'rgba(255, 255, 255, 0.85)', // light mode: on black bubble
   },
   replyPreviewNameTheirs: {
     color: '#7C3AED', // Purple for their messages
@@ -4256,23 +4571,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   replyPreviewTextMine: {
-    color: '#000000', // Black text always
+    color: 'rgba(255, 255, 255, 0.75)', // light mode: on black bubble
   },
   replyPreviewTextTheirs: {
-    color: '#000000', // Black text always
+    color: '#111111',
   },
-  // Dark mode text colors - keep black for readability
   replyPreviewNameMineDark: {
-    color: '#075E54', // Keep dark green
+    color: '#111111', // dark mode: on white bubble
   },
   replyPreviewNameTheirsDark: {
-    color: '#7C3AED', // Keep purple
+    color: '#C4B5FD', // lighter purple for legibility on dark surface
   },
   replyPreviewTextMineDark: {
-    color: '#000000', // Black text always
+    color: '#111111', // dark mode: on white bubble
   },
   replyPreviewTextTheirsDark: {
-    color: '#000000', // Black text always
+    color: '#F1F5F9', // light text on dark surface bubble
   },
   // Reply banner in composer
   replyBanner: {
@@ -4551,30 +4865,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   // Upload progress styles
-  uploadProgressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 4,
-    borderRadius: 8,
-    marginHorizontal: 8,
-  },
-  uploadProgressText: {
-    fontSize: 12,
-    marginLeft: 8,
-    flex: 1,
-  },
-  uploadProgressBar: {
-    height: 4,
-    borderRadius: 2,
-    width: 60,
-    overflow: 'hidden',
-  },
-  uploadProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
   // Media viewer styles
   mediaViewerOverlay: {
     flex: 1,
@@ -4595,25 +4885,6 @@ const styles = StyleSheet.create({
     right: 64,
     zIndex: 10,
     padding: 10,
-  },
-  viewOnceWarning: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 80,
-    backgroundColor: 'rgba(239, 68, 68, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    zIndex: 10,
-  },
-  viewOnceWarningText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   mediaViewerContent: {
     flex: 1,

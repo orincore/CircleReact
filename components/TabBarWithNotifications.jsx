@@ -169,10 +169,10 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   };
 
   const iconMap = {
-    match: "heart",
-    explore: "compass",
-    chat: "chatbubbles",
-    profile: "person",
+    match:   { active: "flash",                 inactive: "flash-outline" },
+    explore: { active: "planet",                inactive: "planet-outline" },
+    chat:    { active: "chatbubble-ellipses",   inactive: "chatbubble-ellipses-outline" },
+    profile: { active: "person",                inactive: "person-outline" },
   };
 
   // Calculate bottom padding - add extra for web mobile browsers
@@ -185,64 +185,77 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
     return basePadding;
   };
 
+  const activeColor = '#8B5CF6';
+
   return (
     <>
-      <View style={[styles.tabBarContainer, { paddingBottom: getBottomPadding() }]}>
-        <LinearGradient
-          colors={isDarkMode ? [theme.surface, theme.backgroundSecondary] : [theme.surface, theme.backgroundSecondary]}
-          style={styles.tabBarGradient}
-        />
-        <View style={[styles.tabBar, { backgroundColor: 'transparent' }]}>
-        {/* Regular tabs */}
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const label = options.tabBarLabel !== undefined ? options.tabBarLabel : options.title !== undefined ? options.title : route.name;
-          const isFocused = state.index === index;
+      <View style={[
+        styles.tabBarContainer,
+        {
+          paddingBottom: getBottomPadding(),
+          backgroundColor: isDarkMode ? '#0E0E16' : '#FFFFFF',
+          borderTopColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
+        },
+      ]}>
+        <View style={styles.tabBar}>
+          {state.routes.map((route, index) => {
+            const { options } = descriptors[route.key];
+            const label =
+              options.tabBarLabel !== undefined
+                ? options.tabBarLabel
+                : options.title !== undefined
+                ? options.title
+                : route.name;
+            const isFocused = state.index === index;
 
-          // Skip hidden routes
-          if (options.href === null) return null;
+            if (options.href === null) return null;
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+            const icons = iconMap[route.name] ?? { active: 'ellipse', inactive: 'ellipse-outline' };
+            const iconName = isFocused ? icons.active : icons.inactive;
+            const color = isFocused ? activeColor : theme.textMuted;
 
-          const iconName = iconMap[route.name] ?? "ellipse";
-          const adjustedSize = isFocused ? 26 : 24;
-          const color = isFocused ? theme.primary : theme.textMuted;
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              testID={options.tabBarTestID}
-              onPress={onPress}
-              style={[styles.tabItem, isFocused && { backgroundColor: theme.primaryLight, borderRadius: 16 }]}
-            >
-              <View style={styles.tabIconContainer}>
-                <Ionicons name={iconName} size={adjustedSize} color={color} />
-                {route.name === 'chat' && totalUnreadMessages > 0 && (
-                  <View style={[styles.chatBadge, { backgroundColor: theme.error, borderColor: theme.surface }]}>
-                    <Text style={styles.chatBadgeText}>
-                      {totalUnreadMessages > 99 ? '99+' : totalUnreadMessages}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.tabLabel, { color }]}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-
+            return (
+              <TouchableOpacity
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                testID={options.tabBarTestID}
+                onPress={onPress}
+                activeOpacity={0.7}
+                style={styles.tabItem}
+              >
+                <View style={styles.tabIconWrap}>
+                  {isFocused && (
+                    <View style={[
+                      styles.tabActivePill,
+                      { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.18)' : 'rgba(139,92,246,0.1)' },
+                    ]} />
+                  )}
+                  <Ionicons name={iconName} size={23} color={color} />
+                  {route.name === 'chat' && totalUnreadMessages > 0 && (
+                    <View style={[styles.chatBadge, { backgroundColor: theme.error, borderColor: isDarkMode ? '#0E0E16' : '#FFFFFF' }]}>
+                      <Text style={styles.chatBadgeText}>
+                        {totalUnreadMessages > 99 ? '99+' : totalUnreadMessages}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.tabLabel, { color }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     </>
@@ -251,63 +264,59 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
 const styles = StyleSheet.create({
   tabBarContainer: {
-    position: 'relative',
+    borderTopWidth: 0.5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  tabBarGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 12,
   },
   tabBar: {
     flexDirection: 'row',
-    minHeight: 72,
-    paddingTop: 10,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    minHeight: 60,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginHorizontal: 2,
-    minHeight: 52,
+    paddingVertical: 6,
   },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  tabIconContainer: {
+  tabIconWrap: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    width: 52,
+    height: 34,
+  },
+  tabActivePill: {
+    position: 'absolute',
+    width: 52,
+    height: 34,
+    borderRadius: 17,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
   chatBadge: {
     position: 'absolute',
-    top: -8,
-    right: -8,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    top: -2,
+    right: -2,
+    borderRadius: 9,
+    minWidth: 17,
+    height: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     borderWidth: 2,
   },
   chatBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 9,
+    fontWeight: '800',
   },
 });

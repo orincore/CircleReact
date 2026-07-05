@@ -5,6 +5,7 @@ import { notificationApi } from '@/src/api/notifications';
 import { getSocket } from '@/src/api/socket';
 import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
 import { Ionicons } from '@expo/vector-icons';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -28,6 +29,11 @@ import { FriendRequestService } from '@/src/services/FriendRequestService';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 const isBrowser = Platform.OS === 'web';
+
+// iOS 26+ Liquid Glass: render the filter chips with the native glass material
+// (matching the native tab bar / header bell) when supported.
+const LIQUID_GLASS = isLiquidGlassAvailable();
+const FILTER_ACCENT = '#A16AE8';
 
 export default function NotificationPanel({ visible, onClose }) {
   const router = useRouter();
@@ -692,17 +698,9 @@ export default function NotificationPanel({ visible, onClose }) {
             {['All', 'Friend Requests', 'Profile Visits', 'Suggestions'].map((tab) => {
               const count = getTabCounts()[tab];
               const isSelected = selectedTab === tab;
-              
-              return (
-                <TouchableOpacity
-                  key={tab}
-                  style={[
-                    styles.filterTab,
-                    isSelected && styles.filterTabActive,
-                    !isSelected && { backgroundColor: isDarkMode ? '#1C1C1E' : '#F8F9FA' },
-                  ]}
-                  onPress={() => setSelectedTab(tab)}
-                >
+
+              const tabInner = (
+                <>
                   <Text
                     style={[
                       styles.filterTabText,
@@ -718,6 +716,35 @@ export default function NotificationPanel({ visible, onClose }) {
                       </Text>
                     </View>
                   )}
+                </>
+              );
+
+              if (LIQUID_GLASS) {
+                return (
+                  <TouchableOpacity key={tab} onPress={() => setSelectedTab(tab)} activeOpacity={0.7}>
+                    <GlassView
+                      style={styles.filterTabGlass}
+                      glassEffectStyle={isSelected ? 'clear' : 'regular'}
+                      tintColor={isSelected ? FILTER_ACCENT : undefined}
+                      isInteractive
+                    >
+                      {tabInner}
+                    </GlassView>
+                  </TouchableOpacity>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[
+                    styles.filterTab,
+                    isSelected && styles.filterTabActive,
+                    !isSelected && { backgroundColor: isDarkMode ? '#1C1C1E' : '#F8F9FA' },
+                  ]}
+                  onPress={() => setSelectedTab(tab)}
+                >
+                  {tabInner}
                 </TouchableOpacity>
               );
             })}
@@ -860,6 +887,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F3F4F6',
     gap: 6,
+  },
+  filterTabGlass: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    overflow: 'hidden',
   },
   filterTabActive: {
     backgroundColor: '#A16AE8',

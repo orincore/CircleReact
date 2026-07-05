@@ -41,6 +41,18 @@ class SocketService {
     });
   }
 
+  // Called when the server silently reissues an access token (sliding
+  // renewal — see src/api/tokenStore.ts; there is no refresh-token endpoint).
+  // Unlike initialize(), this isn't a no-op on an already-connected socket:
+  // getSocket() only recreates the connection when the token actually
+  // differs from the one it's holding, so this just updates the handshake
+  // auth to use on the next (re)connect.
+  updateToken(token) {
+    if (!token) return;
+    this.socket = getSocket(token);
+    this.authToken = token;
+  }
+
   // Register a handler for background messages
   addMessageHandler(id, handler) {
     this.messageHandlers.set(id, handler);

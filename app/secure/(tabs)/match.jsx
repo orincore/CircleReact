@@ -26,6 +26,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -46,6 +48,11 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+
+// iOS 26+ Liquid Glass: render header controls with the native glass material
+// (matching the native bottom tab bar) when the OS supports it; otherwise fall
+// back to the themed solid background.
+const LIQUID_GLASS = isLiquidGlassAvailable();
 
 const { useInterstitialAd, AdMobService } = getAdComponents();
 
@@ -385,6 +392,8 @@ export default function MatchScreen() {
   const [blindDateEnabled, setBlindDateEnabled] = useState(false);
   const [blindDateLoading, setBlindDateLoading] = useState(false);
   const newBadgePulse = useRef(new Animated.Value(1)).current;
+  const shimmerAnim = useRef(new Animated.Value(-300)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   const [activeHelpRequest, setActiveHelpRequest] = useState(null);
   const [loadingActiveHelpRequest, setLoadingActiveHelpRequest] = useState(false);
@@ -595,7 +604,7 @@ export default function MatchScreen() {
     },
     mobileContainer: {
       flex: 1,
-      backgroundColor: 'transparent',
+      backgroundColor: theme.background,
     },
     sidebar: {
       backgroundColor: isDarkMode ? theme.surface : theme.backgroundSecondary,
@@ -915,11 +924,50 @@ export default function MatchScreen() {
       ])
     );
 
+    const badgePulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(newBadgePulse, {
+          toValue: 1.08,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(newBadgePulse, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
     loop.start();
+    badgePulseLoop.start();
     return () => {
       loop.stop();
+      badgePulseLoop.stop();
     };
-  }, [livePulse]);
+  }, [livePulse, newBadgePulse]);
+
+  useEffect(() => {
+    const shimmerLoop = Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 500,
+        duration: 2400,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    shimmerLoop.start();
+    glowLoop.start();
+    return () => { shimmerLoop.stop(); glowLoop.stop(); };
+  }, [shimmerAnim, glowAnim]);
 
   // Clean up any existing matchmaking state on app start
   const cleanupMatchmakingState = async () => {
@@ -1483,6 +1531,9 @@ export default function MatchScreen() {
       setRefreshing(false);
     }
   }, [token, loadActiveHelpRequest]);
+
+  // iOS "scratch" haptics while pulling to refresh.
+  const { onScroll: onPullScroll, onScrollBeginDrag: onPullBegin, onScrollEndDrag: onPullEnd, onRefresh: onRefreshHaptic } = usePullToRefreshHaptics(onRefresh);
 
 
   // Load public stats
@@ -2118,10 +2169,14 @@ export default function MatchScreen() {
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.mainPanelContent}
+              onScroll={onPullScroll}
+              onScrollBeginDrag={onPullBegin}
+              onScrollEndDrag={onPullEnd}
+              scrollEventThrottle={16}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={onRefresh}
+                  onRefresh={onRefreshHaptic}
                   colors={['#7C2B86', '#FF6FB5']}
                   tintColor="#7C2B86"
                 />
@@ -2267,31 +2322,49 @@ export default function MatchScreen() {
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.mobileContent}
+            onScroll={onPullScroll}
+            onScrollBeginDrag={onPullBegin}
+            onScrollEndDrag={onPullEnd}
+            scrollEventThrottle={16}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={onRefresh}
+                onRefresh={onRefreshHaptic}
                 colors={[theme.primary]}
                 tintColor={theme.primary}
               />
             }
           >
-            {/* Mobile Header - Modern Theme */}
-            <View style={styles.mobileHeader}>
-              <View style={styles.mobileHeaderLeft}>
-                <Text style={[styles.greetingText, dynamicStyles.greetingText]}>{getGreeting()}, {getUserFirstName()}!</Text>
-                <Text style={[styles.mobileSubtitle, dynamicStyles.headerSubtitle]}>Find your perfect match</Text>
+            {/* Gen-Z Header */}
+            <View style={styles.z_header}>
+              <View>
+                <Text style={styles.z_greeting}>{getGreeting()}</Text>
+                <Text style={[styles.z_name, { color: theme.textPrimary }]}>
+                  {getUserFirstName().toUpperCase()}
+                </Text>
               </View>
-              <TouchableOpacity 
-                style={[styles.settingsButton, { backgroundColor: theme.surfaceSecondary }]}
+              <TouchableOpacity
+                style={styles.z_notifBtn}
                 onPress={handleNotificationsPress}
                 activeOpacity={0.7}
               >
-                <Ionicons name="notifications-outline" size={24} color={theme.textPrimary} />
+                {LIQUID_GLASS ? (
+                  <GlassView
+                    style={styles.settingsButtonGlass}
+                    glassEffectStyle="regular"
+                    isInteractive
+                  >
+                    <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                  </GlassView>
+                ) : (
+                  <View style={[styles.z_notifInner, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.06)' }]}>
+                    <Ionicons name="notifications-outline" size={22} color={theme.textPrimary} />
+                  </View>
+                )}
                 {notificationCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>
-                      {notificationCount > 99 ? '99+' : notificationCount}
+                  <View style={styles.z_notifBadge}>
+                    <Text style={styles.z_notifBadgeText}>
+                      {notificationCount > 9 ? '9+' : notificationCount}
                     </Text>
                   </View>
                 )}
@@ -2306,43 +2379,160 @@ export default function MatchScreen() {
             {/* Browser Notification Banner */}
             <NotificationPermissionBanner />
 
-            {/* Quick Action Cards - Zepto Style */}
-            <View style={styles.quickActionsContainer}>
-              <TouchableOpacity 
-                style={[styles.quickActionCard, dynamicStyles.sectionCard]}
+            {/* Hero: Start Matching – animated gradient border */}
+            <Animated.View
+              style={[
+                styles.z_heroOuter,
+                {
+                  opacity: glowAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.72, 1],
+                  }),
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#DB2777', '#06B6D4', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <TouchableOpacity
                 onPress={handleStartMatch}
                 activeOpacity={0.9}
+                style={styles.z_heroInnerWrap}
               >
-                <View style={styles.quickActionContent}>
-                  <View style={styles.quickActionIcon}>
-                    <Ionicons name="flash" size={24} color="#FFD6F2" />
+                <View style={[styles.z_heroCard, !isDarkMode && styles.z_heroCardLight]}>
+                  {/* Shimmer sweep */}
+                  <Animated.View
+                    style={[styles.z_shimmerWrap, { transform: [{ translateX: shimmerAnim }] }]}
+                  >
+                    <LinearGradient
+                      colors={['transparent', 'rgba(255,255,255,0.07)', 'transparent']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.z_shimmerBar}
+                    />
+                  </Animated.View>
+
+                  {/* LIVE pill + count */}
+                  <View style={styles.z_livePill}>
+                    <Animated.View
+                      style={[
+                        styles.z_liveDot,
+                        {
+                          opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+                          transform: [{ scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }],
+                        },
+                      ]}
+                    />
+                    <Text style={styles.z_liveText}>LIVE</Text>
+                    {publicStats.totalUsers > 0 && (
+                      <Text style={styles.z_liveCount}>· {publicStats.totalUsers.toLocaleString()} in circle</Text>
+                    )}
                   </View>
-                  <View style={styles.quickActionText}>
-                    <Text style={[styles.quickActionTitle, { color: theme.textPrimary }]}>Live Match</Text>
-                    <Text style={[styles.quickActionSubtitle, { color: theme.textSecondary }]}>Find instantly</Text>
+
+                  {/* Big typography + GO button */}
+                  <View style={styles.z_heroBody}>
+                    <View style={styles.z_heroTextBlock}>
+                      <Text style={styles.z_heroLine1}>START</Text>
+                      <Text style={styles.z_heroLine2}>MATCHING.</Text>
+                    </View>
+                    <View style={styles.z_heroGoBtn}>
+                      <Ionicons name="arrow-forward" size={20} color="#080814" />
+                    </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
                 </View>
               </TouchableOpacity>
+            </Animated.View>
 
-              <TouchableOpacity 
-                style={[styles.quickActionCard, dynamicStyles.sectionCard, user?.invisibleMode && styles.disabledCard]}
+            {/* Bento Action Grid */}
+            <View style={styles.z_bentoRow}>
+              {/* Nearby */}
+              <TouchableOpacity
+                style={[styles.z_bentoCard, user?.invisibleMode && { opacity: 0.45 }]}
                 onPress={handleLocationSearch}
-                activeOpacity={user?.invisibleMode ? 1 : 0.9}
+                activeOpacity={user?.invisibleMode ? 1 : 0.82}
                 disabled={user?.invisibleMode}
               >
-                <View style={styles.quickActionContent}>
-                  <View style={styles.quickActionIcon}>
-                    <Ionicons name={user?.invisibleMode ? "eye-off" : "location"} size={24} color={user?.invisibleMode ? "rgba(255,255,255,0.5)" : "#FFD6F2"} />
+                <LinearGradient
+                  colors={user?.invisibleMode
+                    ? (isDarkMode ? ['#111827', '#1F2937'] : ['#94A3B8', '#64748B'])
+                    : (isDarkMode ? ['#0A1628', '#0E2154'] : ['#1E40AF', '#1D4ED8'])}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.z_bentoGrad}
+                >
+                  {/* Top row: icon + explore tag */}
+                  <View style={styles.z_bentoTopRow}>
+                    <View style={styles.z_bentoIconWrap}>
+                      <Ionicons
+                        name={user?.invisibleMode ? 'eye-off' : 'navigate'}
+                        size={22}
+                        color={user?.invisibleMode ? 'rgba(255,255,255,0.25)' : '#93C5FD'}
+                      />
+                    </View>
+                    {!user?.invisibleMode && (
+                      <View style={styles.z_exploreTag}>
+                        <Text style={styles.z_exploreTagText}>OPEN</Text>
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.quickActionText}>
-                    <Text style={[styles.quickActionTitle, { color: user?.invisibleMode ? theme.textMuted : theme.textPrimary }]}>Location Search</Text>
-                    <Text style={[styles.quickActionSubtitle, { color: user?.invisibleMode ? theme.textMuted : theme.textSecondary }]}>
-                      {user?.invisibleMode ? 'Disabled' : 'Explore nearby'}
+                  {/* Bottom text */}
+                  <View>
+                    <Text style={styles.z_bentoTitle}>
+                      {user?.invisibleMode ? 'HIDDEN' : 'NEARBY'}
+                    </Text>
+                    <Text style={styles.z_bentoSub}>
+                      {user?.invisibleMode ? 'invisible on' : 'people around you'}
                     </Text>
                   </View>
-                  <Ionicons name={user?.invisibleMode ? "lock-closed" : "chevron-forward"} size={20} color={user?.invisibleMode ? theme.textMuted : theme.textTertiary} />
-                </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Blind Date */}
+              <TouchableOpacity
+                style={styles.z_bentoCard}
+                onPress={handleToggleBlindDate}
+                activeOpacity={0.82}
+                disabled={blindDateLoading}
+              >
+                <LinearGradient
+                  colors={blindDateEnabled
+                    ? (isDarkMode ? ['#042016', '#065E30'] : ['#059669', '#047857'])
+                    : (isDarkMode ? ['#120720', '#1D0E38'] : ['#6D28D9', '#5B21B6'])}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.z_bentoGrad}
+                >
+                  {/* Top row: icon + NEW chip */}
+                  <View style={styles.z_bentoTopRow}>
+                    <View style={[styles.z_bentoIconWrap, blindDateEnabled && { backgroundColor: 'rgba(52,211,153,0.15)' }]}>
+                      {blindDateLoading ? (
+                        <ActivityIndicator size="small" color="#A78BFA" />
+                      ) : (
+                        <Ionicons
+                          name="eye-off"
+                          size={22}
+                          color={blindDateEnabled ? '#34D399' : '#A78BFA'}
+                        />
+                      )}
+                    </View>
+                    <Animated.View style={[styles.z_newChip, { transform: [{ scale: newBadgePulse }] }]}>
+                      <Text style={styles.z_newChipText}>NEW</Text>
+                    </Animated.View>
+                  </View>
+                  {/* Bottom: title + inline toggle */}
+                  <View style={styles.z_bentoBottomRow}>
+                    <View>
+                      <Text style={styles.z_bentoTitle}>BLIND DATE</Text>
+                      <Text style={styles.z_bentoSub}>anonymous match</Text>
+                    </View>
+                    <View style={[styles.z_miniToggle, blindDateEnabled && styles.z_miniToggleOn]}>
+                      <View style={[styles.z_miniKnob, blindDateEnabled && styles.z_miniKnobOn]} />
+                    </View>
+                  </View>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
 
@@ -2398,100 +2588,10 @@ export default function MatchScreen() {
             {/* Prompt Matching Toggle - Help Mode */}
             <PromptMatchingWrapper />
 
-            {/* Blind Date Feature Card - NEW */}
-            <TouchableOpacity 
-              style={[
-                styles.blindDateCard, 
-                dynamicStyles.sectionCard,
-                blindDateEnabled && styles.blindDateCardActive
-              ]}
-              onPress={handleToggleBlindDate}
-              activeOpacity={0.9}
-              disabled={blindDateLoading}
-            >
-              <LinearGradient
-                colors={
-                  blindDateEnabled
-                    ? ['#7C2B86', '#FF6FB5']
-                    : isDarkMode
-                      ? [theme.surface, theme.surface]
-                      : ['#C4B5FD', '#D8B4FE']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.blindDateGradient}
-              >
-                {/* NEW Badge */}
-                <Animated.View
-                  style={[
-                    styles.newFeatureBadge,
-                    {
-                      transform: [{ scale: newBadgePulse }],
-                    },
-                  ]}
-                >
-                  <Text style={styles.newFeatureBadgeText}>NEW</Text>
-                </Animated.View>
-                
-                <View style={styles.blindDateContent}>
-                  <View style={[styles.blindDateIconContainer, blindDateEnabled && styles.blindDateIconActive]}>
-                    <Ionicons 
-                      name="eye-off" 
-                      size={28} 
-                      color={blindDateEnabled ? "#FFFFFF" : "#7C2B86"} 
-                    />
-                  </View>
-                  
-                  <View style={styles.blindDateTextContainer}>
-                    <View style={styles.blindDateTitleRow}>
-                      <Text style={[
-                        styles.blindDateTitle, 
-                        { color: blindDateEnabled ? '#FFFFFF' : theme.textPrimary }
-                      ]}>
-                        Blind Date
-                      </Text>
-                      <View style={[
-                        styles.blindDateStatusBadge,
-                        blindDateEnabled ? styles.blindDateStatusOn : styles.blindDateStatusOff
-                      ]}>
-                        <Text style={[
-                          styles.blindDateStatusText,
-                          { color: blindDateEnabled ? '#00D4AA' : theme.textMuted }
-                        ]}>
-                          {blindDateEnabled ? 'ON' : 'OFF'}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[
-                      styles.blindDateSubtitle, 
-                      { color: blindDateEnabled ? 'rgba(255,255,255,0.8)' : theme.textSecondary }
-                    ]}>
-                      {blindDateEnabled 
-                        ? 'Chat anonymously until you reveal!' 
-                        : 'Match & chat without seeing profiles'}
-                    </Text>
-                  </View>
-                  
-                  {blindDateLoading ? (
-                    <ActivityIndicator size="small" color={blindDateEnabled ? "#FFFFFF" : theme.primary} />
-                  ) : (
-                    <View style={[
-                      styles.blindDateToggle,
-                      blindDateEnabled && styles.blindDateToggleActive
-                    ]}>
-                      <View style={[
-                        styles.blindDateToggleKnob,
-                        blindDateEnabled && styles.blindDateToggleKnobActive
-                      ]} />
-                    </View>
-                  )}
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
 
             {/* Friend Requests */}
             {friendRequests.length > 0 && (
-              <View style={styles.mobileFriendRequests}>
+              <View style={[styles.mobileFriendRequests, dynamicStyles.sectionCard, { gap: 10 }]}>
                 <Text style={[styles.mobileFriendRequestsTitle, dynamicStyles.sectionTitle]}>Friend Requests</Text>
                 {friendRequests.slice(0, 3).map((request) => {
                   const displayName = request.sender?.first_name 
@@ -2501,7 +2601,7 @@ export default function MatchScreen() {
                     ? getTimeAgo(new Date(request.created_at))
                     : '';
                   return (
-                    <View key={request.id} style={styles.mobileFriendRequestCard}>
+                    <View key={request.id} style={[styles.mobileFriendRequestCard, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : theme.backgroundSecondary }]}>
                       {/* Tappable Avatar */}
                       <TouchableOpacity 
                         style={styles.mobileFriendRequestAvatarContainer}
@@ -2568,61 +2668,74 @@ export default function MatchScreen() {
               </View>
             )}
 
-            {/* Circle Stats */}
+            {/* Your Circle Stats */}
             {circleStats && circleStats.stats && (
-              <View style={[styles.mobileStatsCard, dynamicStyles.mobileStatsCard]}>
-                <View style={styles.mobileStatsHeader}>
-                  <Text style={[styles.mobileStatsTitle, dynamicStyles.mobileStatsTitle]}>Your Circle Score</Text>
-                  <View
-                    style={[
-                      styles.mobileTierBadge,
-                      { backgroundColor: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color },
-                    ]}
-                  >
-                    <Text style={[styles.mobileTierBadgeText, dynamicStyles.mobileTierBadgeText]}>
-                      {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[styles.mobileStatsPoints, dynamicStyles.mobileStatsPoints]}>
-                  {circleStats.stats.circle_points || 0} points
-                </Text>
-                <View style={styles.mobileStatsGrid}>
-                  <View style={styles.mobileStatItem}>
-                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
+              <View style={[styles.z_statsBlock, {
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : theme.border,
+                backgroundColor: isDarkMode ? 'transparent' : theme.surface,
+              }]}>
+                <Text style={[styles.z_statsEyebrow, { color: theme.textTertiary }]}>YOUR CIRCLE</Text>
+                <View style={styles.z_statsRow}>
+                  <View style={styles.z_statCol}>
+                    <Text style={[styles.z_statNum, { color: theme.textPrimary }]}>
                       {circleStats.stats.total_matches || 0}
                     </Text>
-                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Matches</Text>
+                    <Text style={[styles.z_statLabel, { color: theme.textTertiary }]}>matches</Text>
                   </View>
-                  <View style={styles.mobileStatItem}>
-                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
+                  <Text style={[styles.z_statDot, { color: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }]}>·</Text>
+                  <View style={styles.z_statCol}>
+                    <Text style={[styles.z_statNum, { color: theme.textPrimary }]}>
                       {actualFriendsCount}
                     </Text>
-                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Friends</Text>
+                    <Text style={[styles.z_statLabel, { color: theme.textTertiary }]}>friends</Text>
                   </View>
-                  <View style={styles.mobileStatItem}>
-                    <Text style={[styles.mobileStatNumber, dynamicStyles.mobileStatNumber]}>
-                      {(circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)}
+                  <Text style={[styles.z_statDot, { color: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border }]}>·</Text>
+                  <View style={styles.z_statCol}>
+                    <Text style={[styles.z_statNum, { color: theme.textPrimary }]}>
+                      {((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) > 999
+                        ? Math.floor(((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0)) / 1000) + 'k'
+                        : ((circleStats.stats.messages_sent || 0) + (circleStats.stats.messages_received || 0))}
                     </Text>
-                    <Text style={[styles.mobileStatLabel, dynamicStyles.mobileStatLabel]}>Messages</Text>
+                    <Text style={[styles.z_statLabel, { color: theme.textTertiary }]}>messages</Text>
                   </View>
+                </View>
+                <View style={styles.z_scorePill}>
+                  <LinearGradient
+                    colors={['#7C2B86', '#C026D3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.z_scorePillGrad}
+                  >
+                    <Ionicons name="star" size={13} color="#FFFFFF" />
+                    <Text style={styles.z_scoreNum}>
+                      {(circleStats.stats.circle_points || 0).toLocaleString()} pts
+                    </Text>
+                    <View style={styles.z_scoreDivider} />
+                    <Text
+                      style={[
+                        styles.z_tierText,
+                        { color: CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).color },
+                      ]}
+                    >
+                      {CirclePointsHelper.getScoreTier(circleStats.stats.circle_points || 0).tier.toUpperCase()}
+                    </Text>
+                  </LinearGradient>
                 </View>
               </View>
             )}
 
-            {/* Help Requests Section */}
-            <View style={[dynamicStyles.sectionCard, { marginBottom: 20 }]}>
-              <HelpRequestsList 
-                status="searching"
-                title="People Looking for Help"
-                showHelpButton={true}
-                maxItems={8}
-                externalRefreshing={refreshing}
-              />
-            </View>
+            {/* Help Requests Section — hidden when empty */}
+            <HelpRequestsList
+              status="searching"
+              title="People Looking for Help"
+              showHelpButton={true}
+              maxItems={8}
+              externalRefreshing={refreshing}
+              hideIfEmpty={true}
+            />
 
             {/* Live Activity Feed */}
-            <LiveActivityFeed isVisible={true} maxItems={50} />
+            <LiveActivityFeed isVisible={true} maxItems={5} />
           </ScrollView>
         </View>
       )}
@@ -3972,7 +4085,7 @@ const styles = StyleSheet.create({
   },
   mobileContent: {
     padding: 20,
-    gap: 24,
+    gap: 20,
     paddingTop: 60,
   },
   mobileHeader: {
@@ -4011,6 +4124,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 214, 242, 0.4)',
     position: 'relative',
+  },
+  settingsButtonTouchable: {
+    width: 48,
+    height: 48,
+    position: 'relative',
+  },
+  settingsButtonGlass: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   notificationBadge: {
     position: 'absolute',
@@ -6148,5 +6274,536 @@ const styles = StyleSheet.create({
   sidebarToggleKnobActive: {
     backgroundColor: '#00D4AA',
     alignSelf: 'flex-end',
+  },
+
+  // ── HERO MATCH SECTION ───────────────────────────────────────────────────
+  heroSection: {
+    gap: 12,
+  },
+  liveMatchHero: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  liveMatchHeroGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroGlowCircle: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  liveIndicatorBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  liveDotInner: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#4ADE80',
+  },
+  liveIndicatorText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  liveMatchHeroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 4,
+  },
+  liveMatchIconWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  liveMatchHeroInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  liveMatchHeroTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  liveMatchHeroDesc: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.75)',
+  },
+  liveMatchCTA: {
+    opacity: 0.9,
+  },
+  secondaryCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryCard: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  secondaryCardGradient: {
+    padding: 18,
+    alignItems: 'flex-start',
+    gap: 6,
+    position: 'relative',
+    minHeight: 134,
+    justifyContent: 'flex-end',
+  },
+  secondaryCardIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  secondaryCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  secondaryCardDesc: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  smallNewBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#EC4899',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  smallNewBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  miniToggle: {
+    width: 42,
+    height: 23,
+    borderRadius: 11.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 2,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  miniToggleActive: {
+    backgroundColor: 'rgba(52, 211, 153, 0.35)',
+  },
+  miniToggleKnob: {
+    width: 19,
+    height: 19,
+    borderRadius: 9.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  miniToggleKnobActive: {
+    backgroundColor: '#34D399',
+    alignSelf: 'flex-end',
+  },
+
+  // ── REDESIGNED STATS CARD ────────────────────────────────────────────────
+  newStatsCard: {
+    borderRadius: 20,
+    padding: 20,
+  },
+  newStatsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  newStatsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statsIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newStatsTitles: {
+    gap: 4,
+  },
+  newStatsLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  newTierBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  newTierBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  newStatsPoints: {
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  newStatsDivider: {
+    height: 1,
+    marginBottom: 16,
+  },
+  newStatsMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  newStatMetric: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  newStatMetricDivider: {
+    width: 1,
+    height: 32,
+  },
+  newStatMetricNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  newStatMetricLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
+  // ── Gen-Z Redesign ──────────────────────────────────────────────
+  z_header: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingBottom: 4,
+  },
+  z_greeting: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#8B5CF6',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  z_name: {
+    fontSize: 40,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    lineHeight: 42,
+  },
+  z_notifBtn: {
+    position: 'relative',
+    marginBottom: 4,
+  },
+  z_notifInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  z_notifBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#DB2777',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  z_notifBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  z_heroOuter: {
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  z_heroInnerWrap: {
+    margin: 2,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  z_heroCard: {
+    backgroundColor: '#080814',
+    paddingTop: 22,
+    paddingHorizontal: 24,
+    paddingBottom: 26,
+    overflow: 'hidden',
+  },
+  z_heroCardLight: {
+    backgroundColor: '#0F0A24',
+  },
+  z_shimmerWrap: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 120,
+  },
+  z_shimmerBar: {
+    width: 120,
+    height: 400,
+  },
+  z_livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  z_liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22D3EE',
+  },
+  z_liveText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#22D3EE',
+    letterSpacing: 1.5,
+  },
+  z_liveCount: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.38)',
+    letterSpacing: 0.2,
+  },
+  z_heroBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  z_heroTextBlock: {
+    flex: 1,
+  },
+  z_heroLine1: {
+    fontSize: 38,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.42)',
+    letterSpacing: -1.2,
+    lineHeight: 40,
+  },
+  z_heroLine2: {
+    fontSize: 38,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -1.2,
+    lineHeight: 42,
+  },
+  z_heroGoBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  z_bentoRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'stretch',
+  },
+  z_bentoCard: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  z_bentoGrad: {
+    padding: 14,
+    minHeight: 128,
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  z_bentoTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  z_bentoBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  z_bentoIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  z_exploreTag: {
+    backgroundColor: 'rgba(96, 165, 250, 0.18)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  z_exploreTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#93C5FD',
+    letterSpacing: 1.2,
+  },
+  z_bentoTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+    lineHeight: 18,
+  },
+  z_bentoSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  z_newChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#7C3AED',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  z_newChipText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 1.4,
+  },
+  z_miniToggle: {
+    width: 36,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    padding: 3,
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  z_miniToggleOn: {
+    backgroundColor: '#34D399',
+  },
+  z_miniKnob: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    alignSelf: 'flex-start',
+  },
+  z_miniKnobOn: {
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'flex-end',
+  },
+  z_statsBlock: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 22,
+  },
+  z_statsEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    marginBottom: 18,
+  },
+  z_statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 18,
+  },
+  z_statCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  z_statNum: {
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: -1,
+    lineHeight: 38,
+  },
+  z_statLabel: {
+    fontSize: 12,
+    marginTop: 3,
+    letterSpacing: 0.1,
+  },
+  z_statDot: {
+    fontSize: 22,
+    fontWeight: '300',
+    paddingBottom: 14,
+  },
+  z_scorePill: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
+  z_scorePillGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  z_scoreNum: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  z_scoreDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  z_tierText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 });

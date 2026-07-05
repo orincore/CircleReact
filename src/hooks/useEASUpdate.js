@@ -10,7 +10,15 @@
  */
 
 import { useEffect, useCallback, useState } from 'react';
-import * as Updates from 'expo-updates';
+import { Platform } from 'react-native';
+
+// expo-updates targets native OTA updates only; its web module extends
+// expo-modules-core's NativeModule class, which throws "Class extends value
+// undefined" when evaluated during Expo Router's Node-side static SSR pass —
+// this hook is called unconditionally in the root layout, so every route
+// (including SSR of "/") hit this. EAS Update also isn't a meaningful concept
+// on web (there's no app binary to OTA-update), so skip it there entirely.
+const Updates = Platform.OS !== 'web' ? require('expo-updates') : null;
 
 /**
  * Hook to handle EAS Update checking and downloading
@@ -33,8 +41,8 @@ export function useEASUpdate() {
       return;
     }
 
-    // Skip if updates are not enabled
-    if (!Updates.isEnabled) {
+    // Skip if updates are not enabled (or not available, e.g. on web)
+    if (!Updates?.isEnabled) {
       console.log('[EAS Update] Updates not enabled');
       return;
     }
@@ -74,7 +82,7 @@ export function useEASUpdate() {
    * Only use this for critical fixes that require immediate application
    */
   const reloadToApplyUpdate = useCallback(async () => {
-    if (!updateDownloaded) {
+    if (!Updates || !updateDownloaded) {
       console.log('[EAS Update] No update downloaded to apply');
       return false;
     }

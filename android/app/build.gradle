@@ -4,8 +4,6 @@ apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
-ext.hermesEnabled = (findProperty('hermesEnabled') ?: "true").toBoolean()
-
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -13,7 +11,7 @@ ext.hermesEnabled = (findProperty('hermesEnabled') ?: "true").toBoolean()
 react {
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
-    hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
+    hermesCommand = new File(["node", "--print", "require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
 
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
@@ -70,8 +68,6 @@ react {
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
-def hermesEnabled = ext.hermesEnabled
-
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -96,18 +92,12 @@ android {
         applicationId 'com.orincore.Circle'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 101
-        versionName "2.0.1"
+        versionCode 100
+        versionName "2.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
         release {
             if (project.hasProperty('CIRCLE_UPLOAD_STORE_FILE')) {
                 storeFile file(CIRCLE_UPLOAD_STORE_FILE)
@@ -115,6 +105,12 @@ android {
                 keyAlias CIRCLE_UPLOAD_KEY_ALIAS
                 keyPassword CIRCLE_UPLOAD_KEY_PASSWORD
             }
+        }
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
         }
     }
     buildTypes {
@@ -186,14 +182,11 @@ dependencies {
         }
     }
 
-    if (hermesEnabled) {
+    if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
-
-    // Google Play Billing Library - Required for in-app purchases
-    implementation 'com.android.billingclient:billing:7.0.0'
 }
 
 apply plugin: 'com.google.gms.google-services'

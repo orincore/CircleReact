@@ -1,5 +1,6 @@
 import { withBase } from "./config";
 import { API_BASE_URL } from '../config/api.js';
+import { persistRenewedToken } from './tokenStore';
 
 export interface ApiError extends Error {
   status?: number;
@@ -11,6 +12,45 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 // Paths that are reachable without an auth token (login, signup, public data).
 // Requests to anything else are skipped locally when no token is available.
 const PUBLIC_PATH_PREFIXES = ['/api/auth', '/api/public', '/health'];
+
+const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function base64UrlDecode(input: string): string {
+  let str = input.replace(/-/g, '+').replace(/_/g, '/');
+  let output = '';
+  let buffer = 0;
+  let bits = 0;
+  for (const c of str) {
+    const val = BASE64_CHARS.indexOf(c);
+    if (val === -1) continue;
+    buffer = (buffer << 6) | val;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+  return output;
+}
+
+// Locally decodes the JWT payload to check `exp` without a network round-trip.
+// A stale token issued at login (no refresh-token flow exists) otherwise gets
+// sent by every screen that mounts on launch; the server rejects each one, but
+// enough land in the same second to trip the IP-level brute-force rate limiter
+// in the backend's auth middleware. Fail open (treat as "not expired") on any
+// decode error since the server is the authority on validity.
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(base64UrlDecode(parts[1]));
+    if (!payload || typeof payload.exp !== 'number') return false;
+    // 10s buffer for clock skew
+    return Date.now() >= payload.exp * 1000 - 10000;
+  } catch {
+    return false;
+  }
+}
 
 export interface RequestOptions<TBody = unknown> {
   method?: HttpMethod;
@@ -45,7 +85,9 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
 
     // Validate token formatting
     const isValidToken = (t: any) => typeof t === 'string' && t.trim().length > 10 && t !== 'undefined' && t !== 'null';
-    const useToken = isValidToken(effectiveToken) ? (effectiveToken as string) : undefined;
+    const rawToken = isValidToken(effectiveToken) ? (effectiveToken as string) : undefined;
+    const tokenExpired = !!rawToken && isJwtExpired(rawToken);
+    const useToken = rawToken && !tokenExpired ? rawToken : undefined;
 
     // Short-circuit protected requests when no usable token is available.
     // Firing token-less requests at auth-protected endpoints (e.g. screens that
@@ -54,7 +96,7 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
     // whole client. Bail out locally instead of hammering the server.
     const isPublicPath = PUBLIC_PATH_PREFIXES.some((p) => path.startsWith(p));
     if (!useToken && !isPublicPath) {
-      const err: ApiError = new Error('Not authenticated');
+      const err: ApiError = new Error(tokenExpired ? 'Session expired' : 'Not authenticated');
       err.status = 401;
       throw err;
     }
@@ -87,6 +129,11 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
     }
     const err: ApiError = new Error(`Network error while calling ${method} ${url}: ${e?.message || e}`);
     throw err;
+  }
+
+  const renewedToken = res.headers.get('X-Renewed-Token');
+  if (renewedToken) {
+    persistRenewedToken(renewedToken).catch(() => {});
   }
 
   const contentType = res.headers.get("content-type") || "";

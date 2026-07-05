@@ -54,9 +54,37 @@ const withAndroidXAndVersionFix = (config) => {
         /versionName\s+["'][^"']+["']/g,
         'versionName "2.0.0"'
       );
-      
+
       console.log('✅ [Plugin] Forced versionCode 100 and versionName 2.0.0');
-      
+
+      // Restore the release signing config (prebuild only generates a debug one).
+      // Credentials come from CIRCLE_UPLOAD_* Gradle properties injected at build
+      // time (CI/EAS), so nothing secret lives in the repo. This makes the signing
+      // config survive future `expo prebuild` runs.
+      if (!buildGradle.includes('CIRCLE_UPLOAD_STORE_FILE')) {
+        buildGradle = buildGradle.replace(
+          /signingConfigs\s*\{/,
+          (match) => `${match}
+        release {
+            if (project.hasProperty('CIRCLE_UPLOAD_STORE_FILE')) {
+                storeFile file(CIRCLE_UPLOAD_STORE_FILE)
+                storePassword CIRCLE_UPLOAD_STORE_PASSWORD
+                keyAlias CIRCLE_UPLOAD_KEY_ALIAS
+                keyPassword CIRCLE_UPLOAD_KEY_PASSWORD
+            }
+        }`
+        );
+
+        // Point the release build type at the release signing config (only the
+        // release block — leave the debug build type untouched).
+        buildGradle = buildGradle.replace(
+          /(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig\s+)signingConfigs\.debug/,
+          '$1signingConfigs.release'
+        );
+
+        console.log('✅ [Plugin] Restored release signing config');
+      }
+
       config.modResults.contents = buildGradle;
     }
     return config;

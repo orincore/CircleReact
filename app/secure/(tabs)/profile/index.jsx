@@ -9,6 +9,7 @@ import { circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
 import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
 import { shareProfile } from "@/src/utils/shareProfile";
+import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -191,6 +192,9 @@ export default function ProfileScreen() {
       setRefreshing(false);
     }
   };
+
+  // iOS "scratch" haptics while pulling to refresh.
+  const { onScroll: onPullScroll, onScrollBeginDrag: onPullBegin, onScrollEndDrag: onPullEnd, onRefresh: onRefreshHaptic } = usePullToRefreshHaptics(handleRefresh);
 
   // Load data on mount
   useEffect(() => {
@@ -807,10 +811,14 @@ export default function ProfileScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={onPullScroll}
+          onScrollBeginDrag={onPullBegin}
+          onScrollEndDrag={onPullEnd}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={handleRefresh}
+              onRefresh={onRefreshHaptic}
               tintColor={theme.primary}
               colors={[theme.primary]}
             />

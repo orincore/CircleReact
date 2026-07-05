@@ -12,6 +12,8 @@ import { unreadCountService } from "@/src/services/unreadCountService";
 import { getSearchbarPaddingConfig } from "@/src/utils/searchbarPaddingUtils";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
@@ -20,6 +22,10 @@ import { BlurView } from 'expo-blur';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { BannerAd } = getAdComponents();
+
+// iOS 26+ Liquid Glass: render the new-chat button and the Chats/Blind Connect
+// segmented control with the native glass material (matching the tab bar).
+const LIQUID_GLASS = isLiquidGlassAvailable();
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -365,6 +371,10 @@ export default function ChatListScreen() {
     return user?.firstName || user?.first_name || 'there';
   };
   const [conversations, setConversations] = useState([]);
+  // Always-current mirror of `conversations` so socket handlers (which close
+  // over a stale value) can check whether a chat is already in the list.
+  const conversationsRef = React.useRef([]);
+  React.useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
@@ -553,6 +563,22 @@ export default function ChatListScreen() {
     loadInbox();
   }, [token]);
 
+  // Safety net: when the socket (re)connects after a drop, reload the inbox so
+  // the list catches up on anything that happened while we were disconnected.
+  useEffect(() => {
+    if (!token) return;
+    let wasConnected = socketService.isConnected();
+    const onState = (state) => {
+      const nowConnected = state === 'connected';
+      if (nowConnected && !wasConnected) {
+        loadInbox(true);
+      }
+      wasConnected = nowConnected;
+    };
+    socketService.addConnectionListener(onState);
+    return () => socketService.removeConnectionListener(onState);
+  }, [token]);
+
   useEffect(() => {
     loadBlindDateStatus();
   }, [token]);
@@ -586,23 +612,6 @@ export default function ChatListScreen() {
         console.error('[ChatList] Failed to get socket instance');
         return;
       }
-      
-      // Monitor connection status
-      const handleConnect = () => {
-        //console.log('🟢 [ChatList] Socket connected');
-      };
-      
-      const handleDisconnect = (reason) => {
-        //console.log('🔴 [ChatList] Socket disconnected:', reason);
-      };
-      
-      const handleConnectError = (error) => {
-        //console.error('❌ [ChatList] Socket connection error:', error);
-      };
-      
-      socket.on('connect', handleConnect);
-      socket.on('disconnect', handleDisconnect);
-      socket.on('connect_error', handleConnectError);
     } catch (error) {
       console.error('[ChatList] Error getting socket:', error);
       return;
@@ -612,12 +621,25 @@ export default function ChatListScreen() {
     const handleNewMessage = ({ message }) => {
       try {
         //console.log('📨 [ChatList] New message received:', message);
-        
+
         if (!message || !message.chatId) {
           //console.error('[ChatList] Invalid message received:', message);
           return;
         }
-        
+
+        // First message of a brand-new conversation: it's not in the list yet,
+        // so map-over-existing would silently drop it. Pull the inbox so the new
+        // chat appears in real time instead of needing a manual refresh.
+        const known = conversationsRef.current.some(c => c?.chat?.id === message.chatId);
+        if (!known) {
+          loadInbox(true);
+          if (message.senderId !== user.id) {
+            unreadCountService.incrementChatUnreadCount(message.chatId);
+            setUnreadCounts(prev => ({ ...prev, [message.chatId]: (prev[message.chatId] || 0) + 1 }));
+          }
+          return;
+        }
+
         setConversations(prev => {
           try {
             if (!Array.isArray(prev)) {
@@ -855,12 +877,9 @@ export default function ChatListScreen() {
         }
         
         if (socket && typeof socket.off === 'function') {
-          // Remove connection monitoring
-          socket.off('connect');
-          socket.off('disconnect');
-          socket.off('connect_error');
-          
-          // Remove chat event listeners
+          // Remove chat event listeners (only our own named handlers — never
+          // socket.off(event) without a handler, which would also remove the
+          // socket module's core connect/disconnect/reconnect listeners).
           socket.off('chat:message', handleNewMessage);
           socket.off('chat:message:background', handleBackgroundMessage);
           socket.off('chat:typing', handleTyping);
@@ -1077,6 +1096,14 @@ export default function ChatListScreen() {
     handleChatPress(chatId, name, profilePhoto, otherUserId);
   };
 
+  // iOS "scratch" haptics while pulling to refresh.
+  const { onScroll: onPullScroll, onScrollBeginDrag: onPullBegin, onScrollEndDrag: onPullEnd, onRefresh: onRefreshHaptic } = usePullToRefreshHaptics(async () => {
+    await Promise.all([
+      loadInbox(true),
+      loadBlindDateStatus(),
+    ]);
+  });
+
   return (
     <View style={[styles.container, dynamicStyles.container]}>
       {/* Animated Background */}
@@ -1108,15 +1135,37 @@ export default function ChatListScreen() {
                 : `${activeTabCount} conversation${activeTabCount !== 1 ? 's' : ''}`}
             </Text>
           </View>
-          <TouchableOpacity 
-            style={[styles.newMessageButton, dynamicStyles.newMessageButton, { 
-              width: responsive.buttonHeight, 
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={{
+              width: responsive.buttonHeight,
               height: responsive.buttonHeight,
-              borderRadius: responsive.buttonHeight / 2 
-            }]}
+            }}
             onPress={() => setShowFriendsModal(true)}
           >
-            <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color="#FFFFFF" />
+            {LIQUID_GLASS ? (
+              <GlassView
+                style={[styles.newMessageButtonGlass, {
+                  width: responsive.buttonHeight,
+                  height: responsive.buttonHeight,
+                  borderRadius: responsive.buttonHeight / 2,
+                }]}
+                glassEffectStyle="regular"
+                isInteractive
+              >
+                <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color={theme.textPrimary} />
+              </GlassView>
+            ) : (
+              <View
+                style={[styles.newMessageButton, dynamicStyles.newMessageButton, {
+                  width: responsive.buttonHeight,
+                  height: responsive.buttonHeight,
+                  borderRadius: responsive.buttonHeight / 2,
+                }]}
+              >
+                <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color="#FFFFFF" />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -1139,40 +1188,52 @@ export default function ChatListScreen() {
           />
         </View>
 
-        <View style={styles.tabRow}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'chats' && styles.tabButtonActive,
-            ]}
-            onPress={() => setActiveTab('chats')}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'chats' && styles.tabLabelActive,
-              ]}
-            >
-              Chats
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'blind' && styles.tabButtonActive,
-            ]}
-            onPress={() => setActiveTab('blind')}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'blind' && styles.tabLabelActive,
-              ]}
-            >
-              Blind Connect
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {(() => {
+          const tabButtons = (
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  activeTab === 'chats' && styles.tabButtonActive,
+                ]}
+                onPress={() => setActiveTab('chats')}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === 'chats' && styles.tabLabelActive,
+                  ]}
+                >
+                  Chats
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  activeTab === 'blind' && styles.tabButtonActive,
+                ]}
+                onPress={() => setActiveTab('blind')}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === 'blind' && styles.tabLabelActive,
+                  ]}
+                >
+                  Blind Connect
+                </Text>
+              </TouchableOpacity>
+            </>
+          );
+
+          return LIQUID_GLASS ? (
+            <GlassView style={styles.tabRowGlass} glassEffectStyle="regular">
+              {tabButtons}
+            </GlassView>
+          ) : (
+            <View style={styles.tabRow}>{tabButtons}</View>
+          );
+        })()}
 
         {/* Daily Blind Connect status banner */}
         {blindDateStatus.enabled && !blindDateStatus.loading && (
@@ -1248,16 +1309,15 @@ export default function ChatListScreen() {
             contentContainerStyle={styles.listContent}
             removeClippedSubviews={false}
             style={{ flex: 1 }}
+            onScroll={onPullScroll}
+            onScrollBeginDrag={onPullBegin}
+            onScrollEndDrag={onPullEnd}
+            scrollEventThrottle={16}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={async () => {
-                  await Promise.all([
-                    loadInbox(true),
-                    loadBlindDateStatus(),
-                  ]);
-                }}
+                onRefresh={onRefreshHaptic}
                 tintColor={theme.primary}
                 colors={[theme.primary]}
               />
@@ -1720,6 +1780,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 214, 242, 0.4)",
   },
+  newMessageButtonGlass: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -1744,6 +1809,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
     padding: 2,
     zIndex: 10,
+  },
+  tabRowGlass: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 999,
+    padding: 2,
+    zIndex: 10,
+    overflow: 'hidden',
   },
   tabButton: {
     flex: 1,
