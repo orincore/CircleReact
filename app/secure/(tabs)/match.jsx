@@ -374,15 +374,23 @@ const WEATHER_ICONS = {
   windy: windyWeatherLottie,
 };
 
+// Emoji shown alongside the plain time-of-day greeting in the caption rotation.
+const GREETING_EMOJI = {
+  'Good Morning': '🌅',
+  'Good Afternoon': '☀️',
+  'Good Evening': '🌆',
+  'Good Night': '🌙',
+};
+
 // Extra caption lines mixed in with the plain time-of-day greeting when real
 // weather data is available, cycled every 5s (see the caption-rotation effect).
 const WEATHER_CAPTION_LINES = {
-  sunny: ['Sunny skies out there', 'Perfect day to shine'],
-  cloudy: ['A bit cloudy today', 'Overcast skies above'],
-  rainy: ["Rain's falling outside", 'Grab an umbrella today'],
-  snow: ['Snow is falling', "Bundle up, it's snowy"],
-  stormy: ['Storm brewing outside', 'Thunder in the air'],
-  windy: ["It's breezy out there", 'Windy skies today'],
+  sunny: ['Sunny skies out there ☀️', 'Perfect day to shine 🌞'],
+  cloudy: ['A bit cloudy today ☁️', 'Overcast skies above 🌥️'],
+  rainy: ["Rain's falling outside 🌧️", 'Grab an umbrella today ☔'],
+  snow: ['Snow is falling ❄️', "Bundle up, it's snowy ⛄"],
+  stormy: ['Storm brewing outside ⛈️', 'Thunder in the air ⚡'],
+  windy: ["It's breezy out there 🌬️", 'Windy skies today 🍃'],
 };
 
 const mockMatches = [
@@ -803,7 +811,11 @@ export default function MatchScreen() {
   // Small header caption cycles between the plain time-of-day greeting and a
   // couple of weather-flavored lines (only when real weather data is
   // available) every 5s, with a quick crossfade between messages.
-  const captionMessages = [getGreeting(), ...(headerWeatherCondition ? WEATHER_CAPTION_LINES[headerWeatherCondition] : [])];
+  const currentGreeting = getGreeting();
+  const captionMessages = [
+    `${currentGreeting} ${GREETING_EMOJI[currentGreeting] || ''}`.trim(),
+    ...(headerWeatherCondition ? WEATHER_CAPTION_LINES[headerWeatherCondition] : []),
+  ];
 
   useEffect(() => {
     if (captionMessages.length <= 1) return;
@@ -6740,12 +6752,11 @@ const styles = StyleSheet.create({
     height: 130,
   },
   z_greeting: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#8B5CF6',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 2,
+    letterSpacing: 0.2,
+    marginBottom: 4,
   },
   z_name: {
     fontSize: 40,
