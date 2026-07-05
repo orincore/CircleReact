@@ -2489,7 +2489,7 @@ export default function MatchScreen() {
                         source={weatherIconSource}
                         autoPlay
                         loop
-                        speed={0.5}
+                        speed={0.3}
                         style={styles.z_lottie}
                       />
                     </View>
