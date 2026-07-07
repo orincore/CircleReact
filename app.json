@@ -203,7 +203,8 @@
       ],
       "./app.plugin.js",
       "expo-status-bar",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "react-native-iap"
     ],
     "experiments": {
       "typedRoutes": true,

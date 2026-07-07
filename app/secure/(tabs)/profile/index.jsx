@@ -575,13 +575,16 @@ export default function ProfileScreen() {
       elevation: 3,
     },
     editButton: {
-      flex: 1,
+      minWidth: 130,
       backgroundColor: theme.surfaceSecondary,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderWidth: 1,
       borderColor: theme.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      flexShrink: 0,
     },
     editButtonText: {
       fontSize: 14,
@@ -955,6 +958,97 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {/* Photo Gallery - Instagram Style */}
+          <View style={dynamicStyles.photoSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={dynamicStyles.sectionTitle}>Photos ({photos.length}/{MAX_PHOTOS})</Text>
+              <TouchableOpacity 
+                style={dynamicStyles.addPhotoButton}
+                onPress={handleUploadPhoto}
+                disabled={uploadingPhoto}
+              >
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Ionicons name="add" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.photoGrid}>
+              {photos.map((photo, index) => {
+                // Ensure we have a valid photo URL
+                const photoUrl = photo.photo_url || photo.url || photo.image_url;
+                if (!photoUrl) {
+                  console.warn('Photo missing URL:', photo);
+                  return null;
+                }
+                
+                const hasError = imageErrors.has(photoUrl);
+                
+                return (
+                  <TouchableOpacity 
+                    key={`photo-${index}-${photo.id || photoUrl}`} 
+                    style={styles.photoItem}
+                    onLongPress={() => handleDeletePhoto(photoUrl, photo.id)}
+                  >
+                    {hasError ? (
+                      <PhotoPlaceholder 
+                        style={styles.photoImage}
+                        size="medium"
+                      />
+                    ) : (
+                      <Image 
+                        source={{ uri: photoUrl }} 
+                        style={styles.photoImage}
+                        onError={(error) => {
+                          console.error('Image load error for URL:', photoUrl, error?.nativeEvent);
+                          setImageErrors(prev => new Set([...prev, photoUrl]));
+                        }}
+                        onLoad={() => {
+                          // Remove from error set if it loads successfully
+                          setImageErrors(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(photoUrl);
+                            return newSet;
+                          });
+                        }}
+                        resizeMode="cover"
+                      />
+                    )}
+                    <View style={styles.photoOverlay}>
+                      <TouchableOpacity 
+                        style={styles.deletePhotoButton}
+                        onPress={() => handleDeletePhoto(photoUrl, photo.id)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }).filter(Boolean)}
+              
+              {/* Empty photo slots */}
+              {Array(Math.max(0, MAX_PHOTOS - photos.length)).fill(null).map((_, index) => (
+                <TouchableOpacity 
+                  key={`empty-${index}`} 
+                  style={dynamicStyles.emptyPhotoSlot}
+                  onPress={handleUploadPhoto}
+                  disabled={uploadingPhoto}
+                >
+                  {uploadingPhoto && index === 0 ? (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="add" size={24} color={theme.textMuted} />
+                      <Text style={dynamicStyles.emptyPhotoText}>Add Photo</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* Subscription Summary */}
           <View style={dynamicStyles.subscriptionCard}>
             <View style={dynamicStyles.subscriptionHeaderRow}>
@@ -1030,129 +1124,8 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* Photo Gallery - Instagram Style */}
-          <View style={dynamicStyles.photoSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={dynamicStyles.sectionTitle}>Photos ({photos.length}/{MAX_PHOTOS})</Text>
-              <TouchableOpacity 
-                style={dynamicStyles.addPhotoButton}
-                onPress={handleUploadPhoto}
-                disabled={uploadingPhoto}
-              >
-                {uploadingPhoto ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <Ionicons name="add" size={20} color={theme.primary} />
-                )}
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.photoGrid}>
-              {photos.map((photo, index) => {
-                // Ensure we have a valid photo URL
-                const photoUrl = photo.photo_url || photo.url || photo.image_url;
-                if (!photoUrl) {
-                  console.warn('Photo missing URL:', photo);
-                  return null;
-                }
-                
-                const hasError = imageErrors.has(photoUrl);
-                
-                return (
-                  <TouchableOpacity 
-                    key={`photo-${index}-${photo.id || photoUrl}`} 
-                    style={styles.photoItem}
-                    onLongPress={() => handleDeletePhoto(photoUrl, photo.id)}
-                  >
-                    {hasError ? (
-                      <PhotoPlaceholder 
-                        style={styles.photoImage}
-                        size="medium"
-                      />
-                    ) : (
-                      <Image 
-                        source={{ uri: photoUrl }} 
-                        style={styles.photoImage}
-                        onError={(error) => {
-                          console.error('Image load error for URL:', photoUrl, error?.nativeEvent);
-                          setImageErrors(prev => new Set([...prev, photoUrl]));
-                        }}
-                        onLoad={() => {
-                          // Remove from error set if it loads successfully
-                          setImageErrors(prev => {
-                            const newSet = new Set(prev);
-                            newSet.delete(photoUrl);
-                            return newSet;
-                          });
-                        }}
-                        resizeMode="cover"
-                      />
-                    )}
-                    <View style={styles.photoOverlay}>
-                      <TouchableOpacity 
-                        style={styles.deletePhotoButton}
-                        onPress={() => handleDeletePhoto(photoUrl, photo.id)}
-                      >
-                        <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }).filter(Boolean)}
-              
-              {/* Empty photo slots */}
-              {Array(Math.max(0, Math.min(6, MAX_PHOTOS) - photos.length)).fill(null).map((_, index) => (
-                <TouchableOpacity 
-                  key={`empty-${index}`} 
-                  style={dynamicStyles.emptyPhotoSlot}
-                  onPress={handleUploadPhoto}
-                  disabled={uploadingPhoto}
-                >
-                  {uploadingPhoto && index === 0 ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="add" size={24} color={theme.textMuted} />
-                      <Text style={dynamicStyles.emptyPhotoText}>Add Photo</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           {/* Action Buttons */}
           <View style={styles.actionSection}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push("/secure/(tabs)/profile/edit")}
-            >
-              <Ionicons name="create-outline" size={20} color="#8B5CF6" />
-              <Text style={styles.actionButtonText}>Edit Profile</Text>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => {
-                // Navigate to interests/preferences editing
-                router.push("/secure/(tabs)/profile/edit?section=interests");
-              }}
-            >
-              <Ionicons name="heart-outline" size={20} color="#8B5CF6" />
-              <Text style={styles.actionButtonText}>Interests & Preferences</Text>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push("/secure/(tabs)/profile/settings")}
-            >
-              <Ionicons name="settings-outline" size={20} color="#8B5CF6" />
-              <Text style={styles.actionButtonText}>Settings</Text>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-            
             <TouchableOpacity 
               style={[styles.actionButton, styles.logoutButton]}
               onPress={() => {
@@ -1554,14 +1527,16 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignContent: 'flex-start',
   },
   photoItem: {
-    width: (Dimensions.get('window').width - 56) / 3,
-    height: (Dimensions.get('window').width - 56) / 3,
+    width: '32%',
+    aspectRatio: 1,
     borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
+    marginBottom: 8,
   },
   photoImage: {
     width: '100%',
@@ -1587,8 +1562,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyPhotoSlot: {
-    width: (Dimensions.get('window').width - 56) / 3,
-    height: (Dimensions.get('window').width - 56) / 3,
+    width: '32%',
+    aspectRatio: 1,
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
     borderWidth: 2,
@@ -1596,6 +1571,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   
   // Action Section

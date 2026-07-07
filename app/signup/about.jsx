@@ -1,132 +1,33 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
-import { 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  View,
-  Animated,
-  useWindowDimensions,
-  Image,
-  ActivityIndicator,
-  StatusBar,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { SignupWizardContext } from "./_layout";
+import SignupScreenLayout, { PRIMARY_BUTTON_COLOR } from "@/components/signup/SignupScreenLayout";
+import { SignupPrimaryButton } from "@/components/signup/SignupButton";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { calculateAge } from "@/src/utils/age";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { useContext, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SignupWizardContext } from "./_layout";
 import axios from "axios";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.circle.orincore.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.circle.orincore.com';
 
 export default function SignupAbout() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 1024;
   const { data, setData } = useContext(SignupWizardContext);
   const { theme, isDarkMode } = useTheme();
   const [about, setAbout] = useState(data.about || "");
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState("");
+  const [signupError, setSignupError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { signUp } = useAuth();
 
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
   const onBack = () => {
     setData((prev) => ({ ...prev, about: about.trim() }));
     router.back();
-  };
-
-  const onSubmit = async () => {
-    if (isSubmitting) return;
-
-    const isValid = validateAbout();
-    if (!isValid) return;
-
-    // Button press animation
-    Animated.sequence([
-      Animated.spring(buttonScale, {
-        toValue: 0.95,
-        useNativeDriver: true,
-      }),
-      Animated.spring(buttonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Persist about in context
-    setData((prev) => ({ ...prev, about: about.trim() }));
-
-    try {
-      setIsSubmitting(true);
-
-      const payload = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        age: data.age,
-        gender: data.gender,
-        email: data.email,
-        username: data.username,
-        password: data.password,
-        phoneNumber: data.phoneNumber,
-        interests: data.interests || [],
-        needs: data.needs || [],
-        about: about.trim(),
-        instagramUsername: data.instagramUsername,
-        referralCode: data.referralCode,
-      };
-
-      await signUp(payload);
-
-      router.replace("/signup/summary");
-    } catch (e) {
-      console.error("Error during signup:", e);
-      setError(
-        e?.response?.data?.error ||
-          "Something went wrong while creating your account. Please try again."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const canContinue = about.trim().length >= 10 && !isSubmitting;
-
-  const getCharacterCountColor = () => {
-    const length = about.length;
-    if (length < 10) return '#EF4444'; // Red - too short
-    if (length < 100) return '#F59E0B'; // Orange - getting there
-    if (length < 300) return '#10B981'; // Green - good
-    return '#A16AE8'; // Purple - excellent
   };
 
   const validateAbout = () => {
@@ -142,6 +43,55 @@ export default function SignupAbout() {
     return true;
   };
 
+  const onSubmit = async () => {
+    if (isSubmitting) return;
+    if (!validateAbout()) return;
+
+    setData((prev) => ({ ...prev, about: about.trim() }));
+    setSignupError("");
+
+    try {
+      setIsSubmitting(true);
+
+      const payload = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
+        email: data.email,
+        username: data.username,
+        password: data.password,
+        phoneNumber: data.phoneNumber,
+        interests: data.interests || [],
+        needs: data.needs || [],
+        about: about.trim(),
+        instagramUsername: data.instagramUsername,
+        referralCode: data.referralCode,
+      };
+
+      await signUp(payload);
+      router.replace("/signup/summary");
+    } catch (e) {
+      console.error("Error during signup:", e);
+      // http.ts throws a plain Error with .message set to the server's
+      // error string directly (e.g. "Email already in use") - not an
+      // axios-shaped e.response.data.error, which this used to check.
+      setSignupError(e?.details?.error || e?.message || "Something went wrong while creating your account. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const canContinue = about.trim().length >= 10 && !isSubmitting;
+
+  const getCharacterCountColor = () => {
+    const length = about.length;
+    if (length < 10) return '#EF4444';
+    if (length < 100) return '#F59E0B';
+    if (length < 300) return '#10B981';
+    return PRIMARY_BUTTON_COLOR;
+  };
+
   const generateAboutMe = async () => {
     setIsGenerating(true);
     setError("");
@@ -150,17 +100,12 @@ export default function SignupAbout() {
         `${API_URL}/api/ai-support/generate-about-me`,
         {
           firstName: data.firstName || 'User',
-          age: data.age,
+          age: calculateAge(data.dateOfBirth),
           gender: data.gender,
           interests: data.interests || [],
           needs: data.needs || [],
         },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 15000,
-        }
+        { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
       );
 
       if (response.data?.success && response.data?.bio) {
@@ -176,307 +121,160 @@ export default function SignupAbout() {
     }
   };
 
-  const dynamicStyles = {
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    card: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 24,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      shadowColor: theme.shadowColor || '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.08,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-  };
-
   return (
-    <View style={dynamicStyles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, isLargeScreen && styles.scrollContentLarge]} showsVerticalScrollIndicator={false}>
-            <View style={[styles.contentWrapper, isLargeScreen && styles.contentWrapperLarge]}>
-              {/* Header */}
-              <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-                <View style={styles.headerLeft}>
-                  <TouchableOpacity style={styles.backButton} onPress={onBack}>
-                    <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
-                  </TouchableOpacity>
-                  <View style={styles.brandRow}>
-                    <Image 
-                      source={require('@/assets/logo/circle-logo.png')} 
-                      style={styles.brandLogo}
-                      resizeMode="contain"
-                    />
-                    <Text style={[styles.appName, { color: theme.textPrimary }]}>Circle</Text>
-                  </View>
-                </View>
-                <View style={[styles.stepIndicator, { backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.border }]}>
-                  <Text style={[styles.stepText, { color: theme.textSecondary }]}>Step 5 of 5</Text>
-                </View>
-              </Animated.View>
+    <SignupScreenLayout
+      onBack={onBack}
+      step={5}
+      totalSteps={5}
+      title="Tell us your story"
+      subtitle="Share a bit about who you are and what makes you unique. This helps others get to know the real you."
+    >
+      {!!signupError && (
+        <View style={[styles.signupErrorBanner, { backgroundColor: 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }]}>
+          <Ionicons name="alert-circle" size={20} color="#ef4444" />
+          <Text style={styles.signupErrorText}>{signupError}</Text>
+        </View>
+      )}
 
-              {/* Welcome block */}
-              <Animated.View 
-                style={[
-                  styles.welcomeBlock, 
-                  { 
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }]
-                  }
-                ]}
-              >
-                <Text style={[styles.title, { color: theme.textPrimary }]}>Tell us your story</Text>
-                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                  Share a bit about who you are and what makes you unique. This helps others get to know the real you.
-                </Text>
-              </Animated.View>
+      <View style={styles.inputGroup}>
+        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>About Me</Text>
+        <View
+          style={[
+            styles.textAreaWrapper,
+            {
+              backgroundColor: theme.background,
+              borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.border,
+            },
+            (isFocused || about.trim().length >= 10) && { borderColor: theme.primary },
+          ]}
+        >
+          <TextInput
+            value={about}
+            onChangeText={(text) => { setAbout(text); if (error) validateAbout(); }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => { setIsFocused(false); validateAbout(); }}
+            placeholder="I'm passionate about technology and love exploring new places. When I'm not coding, you can find me hiking or trying out new coffee shops..."
+            placeholderTextColor={theme.textPlaceholder}
+            style={[styles.textArea, { color: theme.textPrimary }]}
+            multiline
+            numberOfLines={8}
+            textAlignVertical="top"
+            maxLength={500}
+          />
+        </View>
 
-              {/* Main content card */}
-              <Animated.View 
-                style={[
-                  dynamicStyles.card,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  }
-                ]}
-              >
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: isDarkMode ? 'rgba(255,255,255,0.9)' : theme.textSecondary }]}>About Me</Text>
-                  <View style={[
-                    styles.textAreaWrapper,
-                    { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : theme.surfaceSecondary, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : theme.border },
-                    isFocused && { borderColor: theme.primary },
-                    about.trim().length >= 10 && { borderColor: theme.primary }
-                  ]}>
-                    <TextInput
-                      value={about}
-                      onChangeText={(text) => {
-                        setAbout(text);
-                        if (error) validateAbout();
-                      }}
-                      onFocus={() => setIsFocused(true)}
-                      onBlur={() => {
-                        setIsFocused(false);
-                        validateAbout();
-                      }}
-                      placeholder="I'm passionate about technology and love exploring new places. When I'm not coding, you can find me hiking or trying out new coffee shops. I believe in making meaningful connections and always up for a good conversation about life, dreams, and everything in between..."
-                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.4)' : theme.textTertiary}
-                      style={[styles.textArea, { color: isDarkMode ? '#FFFFFF' : theme.textPrimary }]}
-                      multiline
-                      numberOfLines={8}
-                      textAlignVertical="top"
-                      maxLength={500}
-                    />
-                  </View>
-                  {/* Character count and AI Generate button */}
-                  <View style={styles.characterCountRow}>
-                    <TouchableOpacity 
-                      style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
-                      onPress={generateAboutMe}
-                      disabled={isGenerating}
-                    >
-                      {isGenerating ? (
-                        <ActivityIndicator size="small" color="#A16AE8" />
-                      ) : (
-                        <>
-                          <Ionicons name="sparkles" size={16} color="#A16AE8" />
-                          <Text style={styles.generateButtonText}>AI Generate</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                    <Text style={[
-                      styles.characterCountText,
-                      { color: getCharacterCountColor() }
-                    ]}>
-                      {about.length}/500
-                    </Text>
-                  </View>
+        <View style={styles.characterCountRow}>
+          <TouchableOpacity
+            style={[
+              styles.generateButton,
+              { backgroundColor: isDarkMode ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)', borderColor: 'rgba(139, 92, 246, 0.3)' },
+              isGenerating && styles.generateButtonDisabled,
+            ]}
+            onPress={generateAboutMe}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <ActivityIndicator size="small" color={PRIMARY_BUTTON_COLOR} />
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={16} color={PRIMARY_BUTTON_COLOR} />
+                <Text style={[styles.generateButtonText, { color: PRIMARY_BUTTON_COLOR }]}>AI Generate</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Text style={[styles.characterCountText, { color: getCharacterCountColor() }]}>{about.length}/500</Text>
+        </View>
 
-                  {!!error && <Text style={styles.errorText}>{error}</Text>}
-                  
-                  {/* Tips */}
-                  <View style={[styles.tipsContainer, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 214, 242, 0.2)', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 214, 242, 0.3)' }]}>
-                    <Text style={[styles.tipsTitle, { color: isDarkMode ? '#FFFFFF' : '#7C2B86' }]}>Tips for a great profile</Text>
-                    <View style={styles.tipRow}>
-                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Share your interests and hobbies</Text>
-                    </View>
-                    <View style={styles.tipRow}>
-                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Mention what you're looking for</Text>
-                    </View>
-                    <View style={styles.tipRow}>
-                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Be authentic and genuine</Text>
-                    </View>
-                    <View style={styles.tipRow}>
-                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      <Text style={[styles.tipText, { color: isDarkMode ? 'rgba(255,255,255,0.85)' : theme.textSecondary }]}>Keep it positive and engaging</Text>
-                    </View>
-                  </View>
-                </View>
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-                {/* Create Account Button */}
-                <Animated.View style={{ transform: [{ scale: buttonScale }], marginTop: 8 }}>
-                  <TouchableOpacity 
-                    activeOpacity={0.85} 
-                    style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} 
-                    onPress={onSubmit} 
-                    disabled={!canContinue}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.primaryButtonText}>Create account</Text>
-                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </Animated.View>
-              </Animated.View>
+        <View
+          style={[
+            styles.tipsContainer,
+            {
+              backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.06)',
+              borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.18)',
+            },
+          ]}
+        >
+          <Text style={[styles.tipsTitle, { color: theme.textPrimary }]}>Tips for a great profile</Text>
+          {[
+            'Share your interests and hobbies',
+            "Mention what you're looking for",
+            'Be authentic and genuine',
+            'Keep it positive and engaging',
+          ].map((tip) => (
+            <View key={tip} style={styles.tipRow}>
+              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+              <Text style={[styles.tipText, { color: theme.textSecondary }]}>{tip}</Text>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
+          ))}
+        </View>
+      </View>
+
+      <SignupPrimaryButton
+        label={isSubmitting ? "Creating account..." : "Create account"}
+        onPress={onSubmit}
+        disabled={!canContinue}
+        loading={isSubmitting}
+      />
+    </SignupScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  flex: { flex: 1 },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
-  scrollContentLarge: {
-    paddingHorizontal: 60,
-    paddingTop: 40,
-    paddingBottom: 60,
-    alignItems: 'center',
-  },
-  contentWrapper: {
-    width: '100%',
-  },
-  contentWrapperLarge: {
-    maxWidth: 800,
-    width: '100%',
-  },
-  
-  header: { 
-    flexDirection: "row", 
-    justifyContent: "space-between", 
+  signupErrorBanner: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 20,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brandLogo: { 
-    width: 48, 
-    height: 48,
+  signupErrorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    fontFamily: "Poppins",
+    color: "#ef4444",
   },
-  appName: { fontSize: 26, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
-  
-  welcomeBlock: { marginBottom: 20, gap: 8 },
-  title: { 
-    fontSize: 32, 
-    fontWeight: "800", 
-    color: "#FFFFFF",
-    lineHeight: 38,
+  inputGroup: {
+    marginBottom: 8,
   },
-  subtitle: { 
-    fontSize: 16, 
-    color: "rgba(255, 255, 255, 0.9)",
-    lineHeight: 22,
-  },
-  nextStep: {
-    fontSize: 14,
-    color: "rgba(255, 214, 242, 0.95)",
+  inputLabel: {
+    fontSize: 13,
     fontWeight: "600",
-    marginTop: 4,
-  },
-  
-  glassCard: { 
-    backgroundColor: Platform.OS === 'web' 
-      ? "rgba(255, 255, 255, 0.15)" 
-      : "rgba(255, 255, 255, 0.92)", 
-    borderRadius: 28, 
-    padding: 24, 
-    gap: 20,
-    ...(Platform.OS === 'web' && {
-      backdropFilter: 'blur(20px)',
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-    }),
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-  },
-  inputGroup: { gap: 8 },
-  inputLabel: { 
-    fontSize: 13, 
-    fontWeight: "700", 
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.95)" : "#58468B",
-    letterSpacing: 0.3,
+    fontFamily: "Poppins",
+    marginBottom: 8,
+    letterSpacing: 0.2,
   },
   textAreaWrapper: {
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.2)" : "rgba(93, 95, 239, 0.2)",
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.1)" : "rgba(246, 245, 255, 0.9)",
-    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     minHeight: 140,
   },
-  textAreaWrapperFocused: {
-    borderColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.6)" : "rgba(161, 106, 232, 0.5)",
-  },
-  textAreaWrapperFilled: {
-    borderColor: Platform.OS === 'web' ? "rgba(255, 214, 242, 0.5)" : "rgba(161, 106, 232, 0.4)",
-    backgroundColor: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.15)" : "rgba(255, 255, 255, 1)",
-  },
   textArea: {
     fontSize: 16,
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#1F1147",
+    fontFamily: "Poppins",
     lineHeight: 22,
     minHeight: 120,
-    fontWeight: "500",
   },
   characterCountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 10,
   },
   generateButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: Platform.OS === 'web' ? "rgba(161, 106, 232, 0.2)" : "rgba(161, 106, 232, 0.15)",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Platform.OS === 'web' ? "rgba(161, 106, 232, 0.4)" : "rgba(161, 106, 232, 0.3)",
   },
   generateButtonDisabled: {
     opacity: 0.6,
@@ -484,25 +282,24 @@ const styles = StyleSheet.create({
   generateButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#A16AE8",
+    fontFamily: "Poppins",
   },
   characterCountText: {
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: "Poppins",
   },
   tipsContainer: {
-    backgroundColor: Platform.OS === 'web' ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 214, 242, 0.2)",
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 16,
-    marginTop: 8,
+    marginTop: 16,
     gap: 8,
     borderWidth: 1,
-    borderColor: Platform.OS === 'web' ? "rgba(16, 185, 129, 0.3)" : "rgba(255, 214, 242, 0.3)",
   },
   tipsTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: Platform.OS === 'web' ? "#FFFFFF" : "#7C2B86",
+    fontFamily: "Poppins",
     marginBottom: 4,
   },
   tipRow: {
@@ -512,38 +309,15 @@ const styles = StyleSheet.create({
   },
   tipText: {
     fontSize: 13,
-    color: Platform.OS === 'web' ? "rgba(255, 255, 255, 0.85)" : "rgba(31, 17, 71, 0.7)",
+    fontFamily: "Poppins",
     lineHeight: 18,
     flex: 1,
   },
-  primaryButton: { 
-    backgroundColor: "#A16AE8",
-    borderRadius: 999, 
-    paddingVertical: 18, 
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    shadowColor: "#A16AE8",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#D1C9FF",
-  },
-  primaryButtonText: { 
-    fontSize: 17, 
-    fontWeight: "800", 
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  errorText: { 
-    marginTop: 4, 
-    color: "#EF4444", 
-    fontSize: 12, 
-    fontWeight: "600" 
+  errorText: {
+    marginTop: 8,
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "600",
+    fontFamily: "Poppins",
   },
 });

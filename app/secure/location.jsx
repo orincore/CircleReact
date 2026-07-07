@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { nearbyUsersGql } from '@/src/api/graphql';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -28,10 +29,15 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isLargeScreen = screenWidth >= 768; // Tablet/Desktop breakpoint
 const isDesktop = screenWidth >= 1024; // Desktop breakpoint
 
+// Same brand gradient + squircle avatar radius as the chat list screen, so
+// this screen reads as part of the same design system.
+const BRAND_GRADIENT = ['#7C2B86', '#5D5FEF'];
+const AVATAR_RADIUS = 16;
+
 export default function LocationPage() {
   const router = useRouter();
   const { token, user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');

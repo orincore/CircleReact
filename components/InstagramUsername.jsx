@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import SubscriptionModal from './SubscriptionModal';
 
-export const InstagramUsername = ({ 
-  username, 
-  style = {}, 
+export const InstagramUsername = ({
+  username,
+  style = {},
   showUpgradePrompt = true,
-  size = 'medium' 
+  size = 'medium'
 }) => {
   const { hasFeature } = useSubscription();
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const router = useRouter();
   const canSeeInstagram = hasFeature('instagram_usernames');
 
   const sizes = {
@@ -67,7 +67,7 @@ export const InstagramUsername = ({
     <>
       <TouchableOpacity
         style={[styles.container, styles.lockedContainer, style]}
-        onPress={() => setShowSubscriptionModal(true)}
+        onPress={() => router.push('/secure/subscription')}
       >
         <LinearGradient
           colors={['#7C2B86', '#A16AE8']}
@@ -93,23 +93,17 @@ export const InstagramUsername = ({
           </Text>
         </LinearGradient>
       </TouchableOpacity>
-
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        initialPlan="premium"
-      />
     </>
   );
 };
 
-export const InstagramUsernameList = ({ 
-  usernames = [], 
+export const InstagramUsernameList = ({
+  usernames = [],
   style = {},
-  maxVisible = 3 
+  maxVisible = 3
 }) => {
   const { hasFeature } = useSubscription();
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const router = useRouter();
   const canSeeInstagram = hasFeature('instagram_usernames');
 
   if (!usernames.length) {
@@ -145,7 +139,7 @@ export const InstagramUsernameList = ({
     <>
       <TouchableOpacity
         style={[styles.listContainer, styles.lockedListContainer, style]}
-        onPress={() => setShowSubscriptionModal(true)}
+        onPress={() => router.push('/secure/subscription')}
       >
         <LinearGradient
           colors={['#7C2B86', '#A16AE8']}
@@ -163,12 +157,6 @@ export const InstagramUsernameList = ({
           </Text>
         </LinearGradient>
       </TouchableOpacity>
-
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        initialPlan="premium"
-      />
     </>
   );
 };

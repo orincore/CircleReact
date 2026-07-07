@@ -3,6 +3,8 @@ import { INTEREST_CATEGORIES, NEED_OPTIONS, searchInterests, ALL_INTERESTS } fro
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { ProfilePictureService } from '@/src/services/profilePictureService';
+import { MIN_AGE, calculateAge, formatDateOfBirth, isValidDateOfBirth, maxDateOfBirthFor, toDateOfBirthString } from "@/src/utils/age";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,8 +32,6 @@ const GENDER_OPTIONS = [
   "asexual",
   "prefer not to say",
 ];
-const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
-
 export default function EditProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -54,7 +54,7 @@ export default function EditProfileScreen() {
     return {
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
-      age: typeof user?.age === "number" ? String(user.age) : "",
+      dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth) : null,
       gender: user?.gender || "",
       phoneNumber: user?.phoneNumber || "",
       about: user?.about || "",
@@ -69,10 +69,10 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [localPhotoUri, setLocalPhotoUri] = useState(null);
-  const [showAgePicker, setShowAgePicker] = useState(false);
+  const [showDobPicker, setShowDobPicker] = useState(false);
+  const [tempDob, setTempDob] = useState(null);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [ageQuery, setAgeQuery] = useState("");
   const [genderQuery, setGenderQuery] = useState("");
   const [countryQuery, setCountryQuery] = useState("");
   const [interestSearch, setInterestSearch] = useState("");
@@ -95,7 +95,7 @@ export default function EditProfileScreen() {
       setForm({
         firstName: user?.firstName || "",
         lastName: user?.lastName || "",
-        age: typeof user?.age === "number" ? String(user.age) : "",
+        dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth) : null,
         gender: user?.gender || "",
         phoneNumber: user?.phoneNumber || "",
         about: user?.about || "",
@@ -209,7 +209,6 @@ export default function EditProfileScreen() {
     );
   };
 
-  const filteredAges = useMemo(() => AGE_OPTIONS.filter((a) => a.includes(ageQuery.trim())), [ageQuery]);
   const filteredGenders = useMemo(() => GENDER_OPTIONS.filter((g) => g.toLowerCase().includes(genderQuery.toLowerCase())), [genderQuery]);
 
   const formatTitleCase = (s) => {
@@ -377,8 +376,15 @@ export default function EditProfileScreen() {
         return;
       }
 
-      const ageNum = Number(form.age);
-      if (!Number.isNaN(ageNum) && ageNum > 0) payload.age = ageNum;
+      if (form.dateOfBirth) {
+        if (!isValidDateOfBirth(form.dateOfBirth)) {
+          const msg = `You must be at least ${MIN_AGE} years old`;
+          if (Platform.OS === 'web') window.alert("Validation Error\n\n" + msg);
+          else Alert.alert("Validation Error", msg);
+          return;
+        }
+        payload.dateOfBirth = toDateOfBirthString(form.dateOfBirth);
+      }
       if (form.interests.size > 0) payload.interests = Array.from(form.interests);
       if (form.needs.size > 0) payload.needs = Array.from(form.needs);
 
@@ -509,16 +515,16 @@ export default function EditProfileScreen() {
               <View style={styles.twoCol}>
                 <View style={[styles.fieldRow, styles.col]}>
                   <Text style={[styles.label, { color: isDarkMode ? '#FFFFFF' : theme.textSecondary }]}>
-                    Age
+                    Date of birth
                   </Text>
                   <TouchableOpacity
                     style={styles.pickerButton}
-                    onPress={() => setShowAgePicker(true)}
+                    onPress={() => { setTempDob(form.dateOfBirth || maxDateOfBirthFor(MIN_AGE)); setShowDobPicker(true); }}
                   >
-                    <Text style={[styles.pickerButtonText, !form.age && styles.pickerPlaceholder]}>
-                      {form.age || "Select age"}
+                    <Text style={[styles.pickerButtonText, !form.dateOfBirth && styles.pickerPlaceholder]} numberOfLines={1}>
+                      {form.dateOfBirth ? `${formatDateOfBirth(form.dateOfBirth)} (${calculateAge(form.dateOfBirth)})` : "Select date"}
                     </Text>
-                    <Ionicons name="chevron-down" size={20} color="rgba(255, 255, 255, 0.6)" />
+                    <Ionicons name="calendar-outline" size={20} color="rgba(255, 255, 255, 0.6)" />
                   </TouchableOpacity>
                 </View>
                 <View style={[styles.fieldRow, styles.col]}>
@@ -733,44 +739,45 @@ export default function EditProfileScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* Age Picker Modal */}
-      <Modal transparent visible={showAgePicker} animationType="slide" onRequestClose={() => setShowAgePicker(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowAgePicker(false)}>
-          <View style={styles.modalCard}>
+      {/* Date of Birth Picker Modal */}
+      <Modal transparent visible={showDobPicker} animationType="slide" onRequestClose={() => setShowDobPicker(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowDobPicker(false)}>
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select your age 🎂</Text>
-              <TouchableOpacity onPress={() => setShowAgePicker(false)}>
+              <Text style={styles.modalTitle}>Select your date of birth 🎂</Text>
+              <TouchableOpacity onPress={() => setShowDobPicker(false)}>
                 <Ionicons name="close" size={24} color="#1F1147" />
               </TouchableOpacity>
             </View>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#8880B6" />
-              <TextInput
-                value={ageQuery}
-                onChangeText={setAgeQuery}
-                placeholder="Search age"
-                style={styles.searchInput}
-                placeholderTextColor="#8880B6"
-                keyboardType="numeric"
-              />
-            </View>
-            <FlatList
-              data={filteredAges}
-              keyExtractor={(i) => i}
-              style={{ maxHeight: 300 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.optionRow}
-                  onPress={() => {
-                    setField("age", item);
-                    setShowAgePicker(false);
-                  }}
-                >
-                  <Text style={styles.optionText}>{item}</Text>
-                  {form.age === item && <Ionicons name="checkmark" size={20} color="#A16AE8" />}
-                </TouchableOpacity>
-              )}
+            <DateTimePicker
+              value={tempDob || maxDateOfBirthFor(MIN_AGE)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              maximumDate={maxDateOfBirthFor(MIN_AGE)}
+              minimumDate={new Date(1900, 0, 1)}
+              themeVariant={isDarkMode ? 'dark' : 'light'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setShowDobPicker(false);
+                  if (event.type === 'set' && selectedDate) {
+                    setField("dateOfBirth", selectedDate);
+                  }
+                } else if (selectedDate) {
+                  setTempDob(selectedDate);
+                }
+              }}
             />
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={styles.dobDoneButton}
+                onPress={() => {
+                  setField("dateOfBirth", tempDob);
+                  setShowDobPicker(false);
+                }}
+              >
+                <Text style={styles.dobDoneButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1195,6 +1202,20 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 15,
     color: "#1F2937",
+  },
+  dobDoneButton: {
+    backgroundColor: "#A16AE8",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  dobDoneButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   searchWrapper: {
     flexDirection: "row",

@@ -1215,7 +1215,7 @@ export default function UserProfileModal({
                             }
                           } else {
                             // Free user - redirect to subscription page
-                            router.push('/secure/profile/subscription');
+                            router.push('/secure/subscription');
                           }
                         }
                       }}
@@ -1264,7 +1264,7 @@ export default function UserProfileModal({
                       userId={userId} 
                       isOwnProfile={userId === user?.id}
                       onUpgradeRequest={() => {
-                        router.push('/secure/profile/subscription');
+                        router.push('/secure/subscription');
                       }}
                     />
                   </View>

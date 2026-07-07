@@ -7,7 +7,7 @@ export default function SignupLayout() {
   const [data, setData] = useState({
     firstName: "",
     lastName: "",
-    age: "",
+    dateOfBirth: "",
     gender: "",
     username: "",
     password: "",

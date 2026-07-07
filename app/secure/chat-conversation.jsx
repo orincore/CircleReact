@@ -31,6 +31,7 @@ import { Image as ExpoImage } from "expo-image";
 import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatVideoPlayer from "@/components/ChatVideoPlayer";
+import MemeSharePreview from "@/components/MemeSharePreview";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 // expo-media-library is native-only (saving to the device photo gallery,
@@ -407,6 +408,11 @@ function MessageBubble({
             </View>
           </TouchableOpacity>
         )}
+        {/* Shared meme preview -- takes priority over regular media/text since a
+            shared-meme message never has its own mediaUrl/text set. */}
+        {message.sharedMemeId && (
+          <MemeSharePreview memeId={message.sharedMemeId} />
+        )}
         {/* Media content (image or video) */}
         {message.mediaUrl && !message.isViewOnce && (
           <TouchableOpacity 
@@ -502,6 +508,7 @@ export default function ChatConversationScreen() {
     blindDateGender,
     blindDateAge,
     isOtherUserVerified: paramIsOtherUserVerified,
+    isMemeConnect: paramIsMemeConnect,
   } = useLocalSearchParams();
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
@@ -520,6 +527,49 @@ export default function ChatConversationScreen() {
     gender: blindDateGender || '',
     age: blindDateAge ? parseInt(blindDateAge, 10) : null,
   } : null;
+
+  // Anonymous meme-feed connect-request chat -- a separate, lighter-weight
+  // anonymity flow from Blind Dating (no auto-matching, no message filtering,
+  // just a reveal-request banner until both sides choose to reveal).
+  const isMemeConnect = paramIsMemeConnect === 'true';
+  const [memeConnectRequest, setMemeConnectRequest] = useState(null);
+  const [revealingMemeConnect, setRevealingMemeConnect] = useState(false);
+
+  useEffect(() => {
+    if (!isMemeConnect || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { feedApi } = await import('@/src/api/feed');
+        const res = await feedApi.getConnectRequests(token);
+        const all = [...(res?.incoming || []), ...(res?.outgoing || [])];
+        const match = all.find(r => r.chat_id === conversationId);
+        if (!cancelled) setMemeConnectRequest(match || null);
+      } catch (e) {
+        console.error('Failed to load meme connect request for chat:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isMemeConnect, token, conversationId]);
+
+  const memeConnectBothRevealed = !!memeConnectRequest?.revealed_at;
+  const memeConnectSelfRevealed = memeConnectRequest && user?.id
+    ? (memeConnectRequest.requester_id === user.id ? memeConnectRequest.requester_revealed : memeConnectRequest.target_revealed)
+    : false;
+
+  const handleMemeConnectReveal = async () => {
+    if (!memeConnectRequest || revealingMemeConnect) return;
+    try {
+      setRevealingMemeConnect(true);
+      const { feedApi } = await import('@/src/api/feed');
+      const res = await feedApi.requestReveal(memeConnectRequest.id, token);
+      if (res?.request) setMemeConnectRequest(res.request);
+    } catch (e) {
+      console.error('Failed to request reveal:', e);
+    } finally {
+      setRevealingMemeConnect(false);
+    }
+  };
 
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState("");
@@ -3070,6 +3120,31 @@ export default function ChatConversationScreen() {
           </View>
         </View>
         
+        {/* Anonymous meme-connect reveal banner -- separate from Blind Dating's
+            reveal system above; lighter weight (no message filtering, no
+            auto-unblur), just a status line + reveal button. */}
+        {isMemeConnect && !memeConnectBothRevealed && memeConnectRequest && (
+          <View style={[styles.revealStatusBanner, { backgroundColor: theme.primary }]}>
+            <Ionicons name="eye-off-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.revealStatusText}>
+              {memeConnectSelfRevealed
+                ? 'You revealed your identity. Waiting for them...'
+                : 'Anonymous connection. Reveal to see each other\'s identity.'}
+            </Text>
+            {!memeConnectSelfRevealed && (
+              <TouchableOpacity
+                onPress={handleMemeConnectReveal}
+                disabled={revealingMemeConnect}
+                style={styles.revealStatusButton}
+              >
+                <Text style={styles.revealStatusButtonText}>
+                  {revealingMemeConnect ? '...' : 'Reveal'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Blind Connect Reveal Status Banner */}
         {isBlindDate && !bothRevealed && (hasRevealedSelf || otherHasRevealed) && (
           <View style={[

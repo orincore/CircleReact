@@ -41,6 +41,7 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -417,6 +418,7 @@ const getTimeAgo = (date) => {
 
 export default function MatchScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
   
@@ -1560,7 +1562,7 @@ export default function MatchScreen() {
       }
     } catch (error) {
       console.error('Error toggling blind date:', error);
-      showToast('Failed to update Blind Date settings', 'error');
+      showToast('Failed to update Blind Connect settings', 'error');
     } finally {
       setBlindDateLoading(false);
     }
@@ -2198,7 +2200,7 @@ export default function MatchScreen() {
                 <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
 
-              {/* Blind Date Toggle - Desktop */}
+              {/* Blind Connect Toggle - Desktop */}
               <TouchableOpacity 
                 style={[
                   styles.sidebarButton,
@@ -2220,7 +2222,7 @@ export default function MatchScreen() {
                 </View>
                 <View style={styles.sidebarButtonContent}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.sidebarButtonTitle}>Blind Date</Text>
+                    <Text style={styles.sidebarButtonTitle}>Blind Connect</Text>
                     <View style={styles.sidebarNewBadge}>
                       <Text style={styles.sidebarNewBadgeText}>NEW</Text>
                     </View>
@@ -2476,7 +2478,7 @@ export default function MatchScreen() {
         <View style={[styles.mobileContainer, dynamicStyles.mobileContainer]}>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.mobileContent}
+            contentContainerStyle={[styles.mobileContent, { paddingBottom: insets.bottom + 90 }]}
             onScroll={onPullScroll}
             onScrollBeginDrag={onPullBegin}
             onScrollEndDrag={onPullEnd}
@@ -2700,7 +2702,7 @@ export default function MatchScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Blind Date */}
+              {/* Blind Connect */}
               <TouchableOpacity
                 style={styles.z_bentoCard}
                 onPress={handleToggleBlindDate}
@@ -2735,7 +2737,7 @@ export default function MatchScreen() {
                   {/* Bottom: title + inline toggle */}
                   <View style={styles.z_bentoBottomRow}>
                     <View>
-                      <Text style={styles.z_bentoTitle}>BLIND DATE</Text>
+                      <Text style={styles.z_bentoTitle}>BLIND CONNECT</Text>
                       <Text style={styles.z_bentoSub}>anonymous match</Text>
                     </View>
                     <View style={[styles.z_miniToggle, blindDateEnabled && styles.z_miniToggleOn]}>
@@ -6336,7 +6338,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   
-  // Blind Date Feature Card Styles
+  // Blind Connect Feature Card Styles
   blindDateCard: {
     borderRadius: 20,
     overflow: 'hidden',
@@ -6447,7 +6449,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   
-  // Desktop Sidebar Blind Date Styles
+  // Desktop Sidebar Blind Connect Styles
   sidebarButtonActive: {
     borderColor: 'rgba(0, 212, 170, 0.4)',
     backgroundColor: 'rgba(0, 212, 170, 0.1)',

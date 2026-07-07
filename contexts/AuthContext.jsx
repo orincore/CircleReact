@@ -189,12 +189,12 @@ export function AuthProvider({ children }) {
 
   const signUp = useCallback(
     async (payload) => {
-      // payload must include: firstName, lastName, age, gender, email, username, password
+      // payload must include: firstName, lastName, dateOfBirth, gender, email, username, password
       // and may include: phoneNumber, interests, needs
       const resp = await authApi.signup({
         firstName: payload.firstName,
         lastName: payload.lastName,
-        age: Number(payload.age),
+        dateOfBirth: payload.dateOfBirth,
         gender: payload.gender,
         email: payload.email.toLowerCase(),
         username: payload.username, // Added missing username field

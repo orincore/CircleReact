@@ -1,86 +1,64 @@
-import AnimatedBackground from "@/components/signup/AnimatedBackground";
-import CircularProgress from "@/components/signup/CircularProgress";
-import { GENDER_OPTIONS } from "@/constants/genders";
+import SignupScreenLayout from "@/components/signup/SignupScreenLayout";
+import SignupInput from "@/components/signup/SignupInput";
+import { SignupPrimaryButton, SignupSecondaryButton } from "@/components/signup/SignupButton";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { authApi } from "@/src/api/auth";
+import { MIN_AGE, calculateAge, formatDateOfBirth, isValidDateOfBirth, maxDateOfBirthFor, toDateOfBirthString } from "@/src/utils/age";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import {
-  Animated,
   FlatList,
-  Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupWizardContext } from "./_layout";
 
-const AGE_OPTIONS = Array.from({ length: 120 - 13 + 1 }, (_, i) => String(13 + i));
+const GENDER_OPTIONS = [
+  "female", "male", "non-binary", "transgender woman", "transgender man",
+  "genderqueer", "genderfluid", "agender", "gay", "lesbian", "bisexual",
+  "pansexual", "queer", "asexual", "prefer not to say",
+];
 
 export default function GoogleSignupCompletion() {
   const router = useRouter();
   const { googleCompleteSignup } = useAuth();
+  const { theme, isDarkMode } = useTheme();
   const { data, setData } = useContext(SignupWizardContext);
   const params = useLocalSearchParams();
-  
-  // Parse Google profile data from params
+
   const googleProfile = params.googleProfile ? JSON.parse(params.googleProfile) : null;
   const idToken = params.idToken;
 
   const [firstName, setFirstName] = useState(googleProfile?.firstName || data.firstName || "");
   const [lastName, setLastName] = useState(googleProfile?.lastName || data.lastName || "");
-  const [age, setAge] = useState(String(data.age || ""));
+  const [dateOfBirth, setDateOfBirth] = useState(data.dateOfBirth ? new Date(data.dateOfBirth) : null);
+  const [tempDob, setTempDob] = useState(null);
   const [gender, setGender] = useState(data.gender || "");
   const [username, setUsername] = useState(data.username || "");
   const [phoneNumber, setPhoneNumber] = useState(data.phoneNumber || "");
-  const [countryCode, setCountryCode] = useState(data.countryCode || "+1");
+  const [countryCode] = useState(data.countryCode || "+1");
   const [errors, setErrors] = useState({});
   const [usernameAvail, setUsernameAvail] = useState(null);
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-
-  // Modal states
-  const [showAgePicker, setShowAgePicker] = useState(false);
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
-  const [ageQuery, setAgeQuery] = useState("");
   const [genderQuery, setGenderQuery] = useState("");
 
-  // Entrance animation
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  // Check username availability
   useEffect(() => {
     if (!username || username.length < 3) {
       setUsernameAvail(null);
       return;
     }
-
     const timeoutId = setTimeout(async () => {
       try {
         setCheckingUsername(true);
@@ -93,21 +71,17 @@ export default function GoogleSignupCompletion() {
         setCheckingUsername(false);
       }
     }, 500);
-
     return () => clearTimeout(timeoutId);
   }, [username]);
 
-  const filteredAges = AGE_OPTIONS.filter((a) => a.includes(ageQuery.trim()));
-  const filteredGenders = GENDER_OPTIONS.filter((g) => 
-    g.toLowerCase().includes(genderQuery.toLowerCase())
+  const filteredGenders = useMemo(
+    () => GENDER_OPTIONS.filter((g) => g.toLowerCase().includes(genderQuery.toLowerCase())),
+    [genderQuery]
   );
 
   const formatTitleCase = (s) => {
     if (!s) return s;
-    return s
-      .split(' ')
-      .map(w => w.split('-').map(seg => seg ? seg[0].toUpperCase() + seg.slice(1) : seg).join('-'))
-      .join(' ');
+    return s.split(' ').map(w => w.split('-').map(seg => seg ? seg[0].toUpperCase() + seg.slice(1) : seg).join('-')).join(' ');
   };
 
   const handleSubmit = async () => {
@@ -117,42 +91,22 @@ export default function GoogleSignupCompletion() {
       return;
     }
 
-    // Validate required fields
-    if (!firstName.trim()) {
-      setErrors({ firstName: 'First name is required' });
-      return;
-    }
-    if (!lastName.trim()) {
-      setErrors({ lastName: 'Last name is required' });
-      return;
-    }
-    if (!age || Number(age) < 13 || Number(age) > 120) {
-      setErrors({ age: 'Please select a valid age (13-120)' });
-      return;
-    }
-    if (!gender) {
-      setErrors({ gender: 'Please select your gender' });
-      return;
-    }
-    if (!username || username.length < 3) {
-      setErrors({ username: 'Username must be at least 3 characters' });
-      return;
-    }
-    if (usernameAvail === false) {
-      setErrors({ username: 'Username is already taken' });
-      return;
-    }
+    if (!firstName.trim()) return setErrors({ firstName: 'First name is required' });
+    if (!lastName.trim()) return setErrors({ lastName: 'Last name is required' });
+    if (!isValidDateOfBirth(dateOfBirth)) return setErrors({ dateOfBirth: `You must be at least ${MIN_AGE} years old` });
+    if (!gender) return setErrors({ gender: 'Please select your gender' });
+    if (!username || username.length < 3) return setErrors({ username: 'Username must be at least 3 characters' });
+    if (usernameAvail === false) return setErrors({ username: 'Username is already taken' });
 
     setSubmitting(true);
     setErrors({});
 
     try {
-      // Prepare signup data
       const signupData = {
         idToken,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        age: Number(age),
+        dateOfBirth: toDateOfBirthString(dateOfBirth),
         gender: gender.trim(),
         username: username.trim().toLowerCase(),
         phoneNumber: phoneNumber ? `${countryCode}${phoneNumber.replace(/[^0-9]/g, '')}` : undefined,
@@ -163,11 +117,8 @@ export default function GoogleSignupCompletion() {
       };
 
       await googleCompleteSignup(signupData);
-      
-      // Success - user will be redirected by the auth context
     } catch (error) {
       console.error('Google signup completion failed:', error);
-      
       let errorMessage = 'Signup failed. Please try again.';
       if (error.message?.includes('Username already taken')) {
         setErrors({ username: 'Username is already taken' });
@@ -175,7 +126,6 @@ export default function GoogleSignupCompletion() {
       } else if (error.message?.includes('Email already in use')) {
         errorMessage = 'This email is already registered. Please sign in instead.';
       }
-      
       alert(errorMessage);
     } finally {
       setSubmitting(false);
@@ -184,520 +134,271 @@ export default function GoogleSignupCompletion() {
 
   if (!googleProfile || !idToken) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Invalid Google authentication data</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SignupScreenLayout title="Something went wrong" subtitle="Invalid Google authentication data.">
+        <SignupSecondaryButton label="Go Back" onPress={() => router.back()} />
+      </SignupScreenLayout>
     );
   }
 
   return (
-    <AnimatedBackground>
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: "padding", android: undefined })}>
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <Image 
-                  source={require('@/assets/logo/circle-logo.png')} 
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.appName}>Circle</Text>
-              </View>
-              <CircularProgress progress={60} currentStep={3} totalSteps={5} />
-            </Animated.View>
+    <SignupScreenLayout
+      onBack={() => router.back()}
+      title="Complete your profile"
+      subtitle={`We've got your basic info from Google (${googleProfile.email}). Just fill in a few more details to get started.`}
+    >
+      <View style={styles.row}>
+        <View style={styles.halfField}>
+          <SignupInput label="First name" error={errors.firstName}>
+            <TextInput
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="First name"
+              placeholderTextColor={theme.textPlaceholder}
+              style={[styles.input, { color: theme.textPrimary }]}
+            />
+          </SignupInput>
+        </View>
+        <View style={styles.halfField}>
+          <SignupInput label="Last name" error={errors.lastName}>
+            <TextInput
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Last name"
+              placeholderTextColor={theme.textPlaceholder}
+              style={[styles.input, { color: theme.textPrimary }]}
+            />
+          </SignupInput>
+        </View>
+      </View>
 
-            <Animated.View 
-              style={[
-                styles.welcomeBlock,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
+      <View style={styles.row}>
+        <View style={styles.halfField}>
+          <SignupInput label="Date of birth" error={errors.dateOfBirth}>
+            <TouchableOpacity
+              style={styles.pickerRow}
+              activeOpacity={0.7}
+              onPress={() => { setTempDob(dateOfBirth || maxDateOfBirthFor(MIN_AGE)); setShowDobPicker(true); }}
             >
-              <Text style={styles.title}>Complete Your Profile 🎉</Text>
-              <Text style={styles.subtitle}>
-                We've got your basic info from Google. Just fill in a few more details to get started!
+              <Text style={[styles.input, { color: dateOfBirth ? theme.textPrimary : theme.textPlaceholder }]} numberOfLines={1}>
+                {dateOfBirth ? `${formatDateOfBirth(dateOfBirth)} (${calculateAge(dateOfBirth)})` : "Select date"}
               </Text>
-              <Text style={styles.emailInfo}>
-                📧 {googleProfile.email}
+              <Ionicons name="calendar-outline" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </SignupInput>
+        </View>
+        <View style={styles.halfField}>
+          <SignupInput label="Gender" error={errors.gender}>
+            <TouchableOpacity style={styles.pickerRow} activeOpacity={0.7} onPress={() => setShowGenderPicker(true)}>
+              <Text style={[styles.input, { color: gender ? theme.textPrimary : theme.textPlaceholder }]} numberOfLines={1}>
+                {gender ? formatTitleCase(gender) : "Select gender"}
               </Text>
-            </Animated.View>
+              <Ionicons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </SignupInput>
+        </View>
+      </View>
 
-            <Animated.View 
-              style={[
-                styles.glassCard,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
-              {/* Name Fields */}
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.inputLabel}>First Name</Text>
-                  <View style={[styles.inputWrapper, errors.firstName && styles.inputError]}>
-                    <Ionicons name="person-outline" size={18} color="#8880B6" />
-                    <TextInput 
-                      value={firstName} 
-                      onChangeText={setFirstName} 
-                      placeholder="First name" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      style={styles.input} 
-                    />
-                  </View>
-                  {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-                </View>
+      <SignupInput label="Username" error={errors.username}>
+        <Ionicons name="at" size={18} color={theme.textMuted} />
+        <TextInput
+          value={username}
+          onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+          placeholder="Choose a unique username"
+          placeholderTextColor={theme.textPlaceholder}
+          style={[styles.input, { color: theme.textPrimary }]}
+          autoCapitalize="none"
+        />
+        {checkingUsername && <Ionicons name="hourglass-outline" size={18} color={theme.textMuted} />}
+        {!checkingUsername && usernameAvail === true && <Ionicons name="checkmark-circle" size={18} color="#10B981" />}
+        {!checkingUsername && usernameAvail === false && <Ionicons name="close-circle" size={18} color="#EF4444" />}
+      </SignupInput>
+      {usernameAvail === true && <Text style={styles.successText}>Username is available!</Text>}
 
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.inputLabel}>Last Name</Text>
-                  <View style={[styles.inputWrapper, errors.lastName && styles.inputError]}>
-                    <Ionicons name="person-outline" size={18} color="#8880B6" />
-                    <TextInput 
-                      value={lastName} 
-                      onChangeText={setLastName} 
-                      placeholder="Last name" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      style={styles.input} 
-                    />
-                  </View>
-                  {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-                </View>
-              </View>
+      <SignupInput label="Phone number (optional)">
+        <Ionicons name="call-outline" size={18} color={theme.textMuted} />
+        <TextInput
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          placeholder="1234567890"
+          placeholderTextColor={theme.textPlaceholder}
+          keyboardType="phone-pad"
+          style={[styles.input, { color: theme.textPrimary }]}
+        />
+      </SignupInput>
 
-              {/* Age and Gender */}
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.inputLabel}>Age</Text>
-                  <TouchableOpacity 
-                    style={[styles.inputWrapper, errors.age && styles.inputError]} 
-                    onPress={() => setShowAgePicker(true)}
-                  >
-                    <Ionicons name="calendar-outline" size={18} color="#8880B6" />
-                    <Text style={[styles.input, !age && styles.placeholder]}>
-                      {age || "Select age"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color="#8880B6" />
-                  </TouchableOpacity>
-                  {errors.age && <Text style={styles.errorText}>{errors.age}</Text>}
-                </View>
+      <SignupPrimaryButton
+        label={submitting ? "Creating account..." : "Complete Signup"}
+        onPress={handleSubmit}
+        disabled={submitting || usernameAvail === false}
+        loading={submitting}
+      />
+      <SignupSecondaryButton label="Skip for now, add interests" onPress={() => router.push('/signup/interests')} />
 
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.inputLabel}>Gender</Text>
-                  <TouchableOpacity 
-                    style={[styles.inputWrapper, errors.gender && styles.inputError]} 
-                    onPress={() => setShowGenderPicker(true)}
-                  >
-                    <Ionicons name="person-outline" size={18} color="#8880B6" />
-                    <Text style={[styles.input, !gender && styles.placeholder]}>
-                      {gender ? formatTitleCase(gender) : "Select gender"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color="#8880B6" />
-                  </TouchableOpacity>
-                  {errors.gender && <Text style={styles.errorText}>{errors.gender}</Text>}
-                </View>
-              </View>
-
-              {/* Username */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Username</Text>
-                <View style={[styles.inputWrapper, errors.username && styles.inputError]}>
-                  <Ionicons name="at" size={18} color="#8880B6" />
-                  <TextInput 
-                    value={username} 
-                    onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))} 
-                    placeholder="Choose a unique username" 
-                    placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                    style={styles.input}
-                    autoCapitalize="none"
-                  />
-                  {checkingUsername ? (
-                    <Ionicons name="hourglass-outline" size={18} color="#8880B6" />
-                  ) : usernameAvail === true ? (
-                    <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                  ) : usernameAvail === false ? (
-                    <Ionicons name="close-circle" size={18} color="#EF4444" />
-                  ) : null}
-                </View>
-                {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
-                {usernameAvail === false && <Text style={styles.errorText}>Username is already taken</Text>}
-                {usernameAvail === true && <Text style={styles.successText}>Username is available!</Text>}
-              </View>
-
-              {/* Phone Number (Optional) */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Phone Number (Optional)</Text>
-                <View style={styles.phoneInputWrapper}>
-                  <View style={styles.countryCodeWrapper}>
-                    <Text style={styles.countryCode}>{countryCode}</Text>
-                  </View>
-                  <View style={styles.phoneInputContainer}>
-                    <Ionicons name="call-outline" size={18} color="#8880B6" />
-                    <TextInput 
-                      value={phoneNumber} 
-                      onChangeText={setPhoneNumber} 
-                      placeholder="1234567890" 
-                      placeholderTextColor="rgba(31, 17, 71, 0.35)" 
-                      keyboardType="phone-pad" 
-                      style={styles.input} 
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={submitting || usernameAvail === false}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {submitting ? "Creating Account..." : "Complete Signup"}
-                </Text>
-                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.skipButton}
-                onPress={() => router.push('/signup/interests')}
-              >
-                <Text style={styles.skipButtonText}>Skip for now, add interests →</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-
-      {/* Age Picker Modal */}
-      <Modal visible={showAgePicker} transparent animationType="slide">
+      {/* Date of Birth Picker Modal */}
+      <Modal transparent visible={showDobPicker} animationType="slide" onRequestClose={() => setShowDobPicker(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Age</Text>
-              <TouchableOpacity onPress={() => setShowAgePicker(false)}>
-                <Ionicons name="close" size={24} color="#1F1147" />
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Select date of birth</Text>
+              <TouchableOpacity onPress={() => setShowDobPicker(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-            <TextInput
-              value={ageQuery}
-              onChangeText={setAgeQuery}
-              placeholder="Search age..."
-              style={styles.searchInput}
+            <DateTimePicker
+              value={tempDob || maxDateOfBirthFor(MIN_AGE)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              maximumDate={maxDateOfBirthFor(MIN_AGE)}
+              minimumDate={new Date(1900, 0, 1)}
+              themeVariant={isDarkMode ? 'dark' : 'light'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setShowDobPicker(false);
+                  if (event.type === 'set' && selectedDate) {
+                    setDateOfBirth(selectedDate);
+                    setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+                  }
+                } else if (selectedDate) {
+                  setTempDob(selectedDate);
+                }
+              }}
             />
-            <FlatList
-              data={filteredAges}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setAge(item);
-                    setShowAgePicker(false);
-                    setAgeQuery("");
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{item} years old</Text>
-                </TouchableOpacity>
-              )}
-            />
+            {Platform.OS === 'ios' && (
+              <SignupPrimaryButton
+                label="Done"
+                onPress={() => {
+                  setDateOfBirth(tempDob);
+                  setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+                  setShowDobPicker(false);
+                }}
+              />
+            )}
           </View>
         </View>
       </Modal>
 
       {/* Gender Picker Modal */}
-      <Modal visible={showGenderPicker} transparent animationType="slide">
+      <Modal transparent visible={showGenderPicker} animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Gender</Text>
-              <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                <Ionicons name="close" size={24} color="#1F1147" />
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Select gender</Text>
+              <TouchableOpacity onPress={() => setShowGenderPicker(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-            <TextInput
-              value={genderQuery}
-              onChangeText={setGenderQuery}
-              placeholder="Search gender..."
-              style={styles.searchInput}
-            />
+            <View style={[styles.searchContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Ionicons name="search" size={18} color={theme.textMuted} />
+              <TextInput
+                value={genderQuery}
+                onChangeText={setGenderQuery}
+                placeholder="Search"
+                style={[styles.searchInput, { color: theme.textPrimary }]}
+                placeholderTextColor={theme.textPlaceholder}
+              />
+            </View>
             <FlatList
               data={filteredGenders}
               keyExtractor={(item) => item}
+              style={styles.optionsList}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setGender(item);
-                    setShowGenderPicker(false);
-                    setGenderQuery("");
-                  }}
+                  style={[styles.optionItem, { borderBottomColor: theme.border }]}
+                  activeOpacity={0.6}
+                  onPress={() => { setGender(item); setShowGenderPicker(false); setErrors(prev => ({ ...prev, gender: '' })); }}
                 >
-                  <Text style={styles.modalItemText}>{formatTitleCase(item)}</Text>
+                  <Text style={[styles.optionText, { color: theme.textPrimary }]}>{formatTitleCase(item)}</Text>
+                  {gender === item && <Ionicons name="checkmark-circle" size={20} color={theme.primary} />}
                 </TouchableOpacity>
               )}
             />
           </View>
         </View>
       </Modal>
-    </AnimatedBackground>
+    </SignupScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  row: {
+    flexDirection: "row",
     gap: 12,
   },
-  brandLogo: {
-    width: 32,
-    height: 32,
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  welcomeBlock: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  emailInfo: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    alignSelf: 'center',
-  },
-  glassCard: {
-    marginHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  halfWidth: {
+  halfField: {
     flex: 1,
   },
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F1147',
-    marginBottom: 8,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FF',
-    borderWidth: 2,
-    borderColor: 'rgba(161, 106, 232, 0.2)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  inputError: {
-    borderColor: '#EF4444',
+  pickerRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#1F1147',
-    fontWeight: '500',
-  },
-  placeholder: {
-    color: 'rgba(31, 17, 71, 0.35)',
-  },
-  phoneInputWrapper: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  countryCodeWrapper: {
-    backgroundColor: '#F8F9FF',
-    borderWidth: 2,
-    borderColor: 'rgba(161, 106, 232, 0.2)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    justifyContent: 'center',
-  },
-  countryCode: {
-    fontSize: 16,
-    color: '#1F1147',
-    fontWeight: '600',
-  },
-  phoneInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FF',
-    borderWidth: 2,
-    borderColor: 'rgba(161, 106, 232, 0.2)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#EF4444',
-    marginTop: 4,
+    fontFamily: "Poppins",
+    padding: 0,
   },
   successText: {
+    marginTop: -10,
+    marginBottom: 16,
     fontSize: 12,
-    color: '#10B981',
-    marginTop: 4,
+    fontWeight: "600",
+    fontFamily: "Poppins",
+    color: "#10B981",
   },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#A16AE8',
-    borderRadius: 16,
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 8,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  primaryButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  skipButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  skipButtonText: {
-    fontSize: 14,
-    color: '#A16AE8',
-    fontWeight: '600',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  backButtonText: {
-    color: '#A16AE8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '70%',
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    paddingTop: 12,
+    maxHeight: '75%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F1147',
+    fontFamily: "Poppins",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
+    marginBottom: 12,
+    borderWidth: 1,
   },
   searchInput: {
-    margin: 20,
-    marginBottom: 10,
-    padding: 16,
-    backgroundColor: '#F8F9FF',
-    borderRadius: 12,
-    fontSize: 16,
-    color: '#1F1147',
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Poppins",
   },
-  modalItem: {
+  optionsList: {
+    maxHeight: 300,
+  },
+  optionItem: {
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
-  modalItemText: {
+  optionText: {
     fontSize: 16,
-    color: '#1F1147',
+    fontFamily: "Poppins",
     fontWeight: '500',
   },
 });

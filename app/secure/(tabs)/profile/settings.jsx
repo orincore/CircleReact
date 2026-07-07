@@ -436,51 +436,40 @@ export default function SettingsScreen() {
   };
 
   const handleCancelSubscription = async () => {
+    const doCancel = async () => {
+      const result = await subscriptionContext?.cancelSubscription?.();
+      if (!result) return;
+
+      if (result.success) {
+        const message = "Your subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period.";
+        if (Platform.OS === 'web') {
+          window.alert(`Subscription Cancelled\n\n${message}`);
+        } else {
+          Alert.alert("Subscription Cancelled", message);
+        }
+      } else if (result.error === 'store_managed_subscription') {
+        const message = result.message || 'Manage or cancel this subscription through the store.';
+        if (Platform.OS === 'web') {
+          window.alert(`Manage Subscription\n\n${message}`);
+        } else {
+          Alert.alert("Manage Subscription", message);
+        }
+      } else {
+        const message = result.error || 'Failed to cancel subscription';
+        if (Platform.OS === 'web') {
+          window.alert(`Error\n\n${message}`);
+        } else {
+          Alert.alert("Error", message);
+        }
+      }
+    };
+
     if (Platform.OS === 'web') {
       const confirmed = window.confirm(
         `Cancel Subscription\n\nAre you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`
       );
-      
-      if (!confirmed) {
-        return;
-      }
-      
-      try {
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
-        
-        if (!token) {
-          window.alert("Authentication Error\n\nNo authentication token found. Please log in again.");
-          return;
-        }
-
-        const response = await fetch(`${apiUrl}/api/cashfree/cancel-subscription`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          window.alert(
-            "Subscription Cancelled\n\nYour subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period."
-          );
-          // Refresh subscription data
-          subscriptionContext?.fetchSubscription?.();
-        } else {
-          const errorText = await response.text();
-          let errorMessage = "Failed to cancel subscription";
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error || errorJson.message || errorMessage;
-          } catch (e) {
-            errorMessage = errorText || errorMessage;
-          }
-          window.alert(`Error\n\n${errorMessage}`);
-        }
-      } catch (error) {
-        console.error('Cancel subscription error:', error);
-        window.alert("Network Error\n\nFailed to cancel subscription. Please check your internet connection and try again.");
+      if (confirmed) {
+        await doCancel();
       }
     } else {
       Alert.alert(
@@ -488,52 +477,7 @@ export default function SettingsScreen() {
         `Are you sure you want to cancel your ${plan.toUpperCase()} subscription? You'll lose access to premium features at the end of your current billing period.`,
         [
           { text: "Keep Subscription", style: "cancel" },
-          { 
-            text: "Cancel Subscription", 
-            style: "destructive", 
-            onPress: async () => {
-              try {
-                const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
-                
-                if (!token) {
-                  Alert.alert("Authentication Error", "No authentication token found. Please log in again.");
-                  return;
-                }
-
-                const response = await fetch(`${apiUrl}/api/cashfree/cancel-subscription`, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                });
-
-                if (response.ok) {
-                  Alert.alert(
-                    "Subscription Cancelled",
-                    "Your subscription has been cancelled. You'll continue to have access to premium features until the end of your current billing period.",
-                    [{ text: "OK", onPress: () => {
-                      // Refresh subscription data
-                      subscriptionContext?.fetchSubscription?.();
-                    }}]
-                  );
-                } else {
-                  const errorText = await response.text();
-                  let errorMessage = "Failed to cancel subscription";
-                  try {
-                    const errorJson = JSON.parse(errorText);
-                    errorMessage = errorJson.error || errorJson.message || errorMessage;
-                  } catch (e) {
-                    errorMessage = errorText || errorMessage;
-                  }
-                  Alert.alert("Error", errorMessage);
-                }
-              } catch (error) {
-                console.error('Cancel subscription error:', error);
-                Alert.alert("Network Error", "Failed to cancel subscription. Please check your internet connection and try again.");
-              }
-            }
-          }
+          { text: "Cancel Subscription", style: "destructive", onPress: doCancel }
         ]
       );
     }

@@ -3,20 +3,23 @@ import { View, Text, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function PhotoPlaceholder({ style, size = 'medium' }) {
-  const sizeStyles = {
-    small: { width: 60, height: 60 },
-    medium: { width: 100, height: 100 },
-    large: { width: 150, height: 150 }
-  };
+  const flattenedStyle = StyleSheet.flatten(style) || {};
+  const sizeStyles = (flattenedStyle.width || flattenedStyle.height)
+    ? {}
+    : {
+        small: { width: 60, height: 60 },
+        medium: { width: 100, height: 100 },
+        large: { width: 150, height: 150 },
+      }[size];
 
   const iconSizes = {
     small: 20,
     medium: 32,
-    large: 48
+    large: 48,
   };
 
   return (
-    <View style={[styles.container, sizeStyles[size], style]}>
+    <View style={[styles.container, sizeStyles, style]}>
       <Ionicons 
         name="image-outline" 
         size={iconSizes[size]} 

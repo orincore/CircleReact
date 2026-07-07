@@ -43,6 +43,7 @@ export interface ChatInboxItem {
     mediaUrl?: string;
     mediaType?: string;
     thumbnail?: string;
+    sharedMemeId?: string;
     created_at: string;
     status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   } | null;
@@ -82,6 +83,7 @@ export const chatApi = {
             mediaUrl: it.lastMessage.mediaUrl ?? it.lastMessage.media_url,
             mediaType: it.lastMessage.mediaType ?? it.lastMessage.media_type,
             thumbnail: it.lastMessage.thumbnail ?? it.lastMessage.thumb_url ?? it.lastMessage.thumbnail_url,
+            sharedMemeId: it.lastMessage.sharedMemeId ?? it.lastMessage.shared_meme_id,
             created_at: new Date(it.lastMessage.createdAt).toISOString(),
             status: it.lastMessage.status,
           }

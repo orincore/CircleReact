@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import * as ImagePicker from 'expo-image-picker'
-import { LinearGradient } from 'expo-linear-gradient'
+
+const PRIMARY_BUTTON_COLOR = '#8B5CF6'
 
 /**
  * Profile Picture Upload Component for Signup
@@ -21,28 +22,19 @@ import { LinearGradient } from 'expo-linear-gradient'
  */
 export default function ProfilePictureUpload({ currentImage, onImageSelected, size = 120 }) {
   const [loading, setLoading] = useState(false)
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
 
-  /**
-   * Request permissions
-   */
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Please grant camera roll permissions to upload photos.'
-        )
+        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload photos.')
         return false
       }
     }
     return true
   }
 
-  /**
-   * Pick image from gallery
-   */
   const pickImage = async () => {
     try {
       setLoading(true)
@@ -70,9 +62,6 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
     }
   }
 
-  /**
-   * Take photo with camera
-   */
   const takePhoto = async () => {
     try {
       setLoading(true)
@@ -106,9 +95,6 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
     }
   }
 
-  /**
-   * Show upload options
-   */
   const showUploadOptions = () => {
     if (Platform.OS === 'web') {
       pickImage()
@@ -121,104 +107,69 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
     }
   }
 
-  /**
-   * Remove current image
-   */
   const removeImage = () => {
     Alert.alert('Remove Photo', 'Are you sure you want to remove your profile picture?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => onImageSelected(null),
-      },
+      { text: 'Remove', style: 'destructive', onPress: () => onImageSelected(null) },
     ])
   }
 
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[
-          styles.photoContainer,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            borderColor: theme.primary,
-            backgroundColor: isDarkMode ? theme.surfaceSecondary : theme.surface,
-            shadowColor: theme.shadowColor || '#000',
-          },
-        ]}
+        style={[styles.avatarWrap, { width: size, height: size }]}
         onPress={showUploadOptions}
         disabled={loading}
+        activeOpacity={0.8}
       >
-        {currentImage ? (
-          <>
+        <View
+          style={[
+            styles.photoContainer,
+            {
+              width: size,
+              height: size,
+              // Squircle to match the app's avatar shape everywhere else
+              // (chat list, friends list) instead of a plain circle.
+              borderRadius: size * 0.32,
+              borderColor: currentImage ? PRIMARY_BUTTON_COLOR : theme.border,
+              backgroundColor: theme.surface,
+            },
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator size="large" color={PRIMARY_BUTTON_COLOR} />
+          ) : currentImage ? (
             <Image source={{ uri: currentImage }} style={styles.photo} />
-            {/* Remove button overlay */}
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={removeImage}
-              disabled={loading}
-            >
-              <Ionicons name="close-circle" size={28} color="#FF6B6B" />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <View style={styles.placeholderOuter}>
-            <View style={styles.placeholderInner}>
-              {loading ? (
-                <ActivityIndicator size="large" color={theme.primary} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={size * 0.45}
-                    color={isDarkMode ? theme.textSecondary : theme.textPrimary}
-                  />
-                  <View
-                    style={[
-                      styles.cameraIconContainer,
-                      {
-                        backgroundColor: theme.primary,
-                        borderColor: theme.surface,
-                      },
-                    ]}
-                  >
-                    <Ionicons name="camera" size={size * 0.2} color="#FFFFFF" />
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
-        )}
+          ) : (
+            <Ionicons name="person" size={size * 0.4} color={theme.textMuted} />
+          )}
+        </View>
+
+        {/* Single tap affordance - camera badge doubles as the only "add/change" action */}
+        <View
+          style={[
+            styles.cameraBadge,
+            {
+              width: size * 0.28,
+              height: size * 0.28,
+              borderRadius: size * 0.14,
+              backgroundColor: PRIMARY_BUTTON_COLOR,
+              borderColor: theme.background,
+            },
+          ]}
+        >
+          <Ionicons name="camera" size={size * 0.15} color="#FFFFFF" />
+        </View>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[
-          styles.uploadButton,
-          {
-            borderColor: theme.primary,
-            backgroundColor: isDarkMode ? 'transparent' : theme.background,
-          },
-        ]}
-        onPress={showUploadOptions}
-        disabled={loading}
-      >
-        <Ionicons name="cloud-upload-outline" size={18} color={theme.primary} />
-        <Text style={[styles.uploadButtonText, { color: theme.primary }]}>
-          {loading ? 'Loading...' : currentImage ? 'Change Photo' : 'Add Photo'}
-        </Text>
-      </TouchableOpacity>
-
-      <Text
-        style={[
-          styles.helperText,
-          { color: isDarkMode ? theme.textSecondary : theme.textTertiary },
-        ]}
-      >
-        {currentImage ? 'Tap to change or remove' : 'You can add a profile picture now or later.'}
-      </Text>
+      {currentImage ? (
+        <TouchableOpacity style={styles.removeButton} onPress={removeImage} disabled={loading} activeOpacity={0.7}>
+          <Ionicons name="trash-outline" size={14} color="#EF4444" />
+          <Text style={styles.removeButtonText}>Remove photo</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={[styles.helperText, { color: theme.textSecondary }]}>Add a profile photo (optional)</Text>
+      )}
     </View>
   )
 }
@@ -228,72 +179,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 16,
   },
-  photoContainer: {
-    overflow: 'hidden',
-    borderWidth: 2,
+  avatarWrap: {
     position: 'relative',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
+  },
+  photoContainer: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   photo: {
     width: '100%',
     height: '100%',
   },
-  placeholderOuter: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderInner: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  cameraIconContainer: {
+  cameraBadge: {
     position: 'absolute',
-    bottom: '15%',
-    right: '15%',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+    bottom: -6,
+    right: -6,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
   },
   removeButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  uploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
     gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
   },
-  uploadButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  removeButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+    color: '#EF4444',
   },
   helperText: {
-    fontSize: 11,
-    marginTop: 6,
+    fontSize: 13,
+    fontFamily: 'Poppins',
+    marginTop: 8,
     textAlign: 'center',
   },
 })

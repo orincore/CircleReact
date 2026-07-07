@@ -6,7 +6,8 @@ export interface UserDTO {
   username: string;
   firstName: string;
   lastName: string;
-  age: number;
+  age: number; // server-computed from date_of_birth, read-only
+  dateOfBirth?: string | null;
   gender: string;
   phoneNumber?: string | null;
   interests: string[];
@@ -17,6 +18,7 @@ export interface UserDTO {
 export interface AuthResponse {
   access_token: string;
   user: UserDTO;
+  needsDobMigration?: boolean;
 }
 
 export interface LoginBody {
@@ -27,7 +29,7 @@ export interface LoginBody {
 export interface SignupBody {
   firstName: string;
   lastName: string;
-  age: number; // 13-120
+  dateOfBirth: string; // ISO date, must be at least MIN_AGE years old
   gender: string;
   email: string;
   phoneNumber?: string;
@@ -56,7 +58,7 @@ export interface GoogleCompleteSignupBody {
   idToken: string;
   firstName: string;
   lastName: string;
-  age: number;
+  dateOfBirth: string;
   gender: string;
   username: string;
   phoneNumber?: string;

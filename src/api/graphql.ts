@@ -75,6 +75,8 @@ export async function meGql(token?: string | null) {
         firstName
         lastName
         age
+        dateOfBirth
+        needsDobMigration
         gender
         phoneNumber
         about
@@ -123,6 +125,8 @@ export async function updateMeGql(input: any, token?: string | null) {
         firstName
         lastName
         age
+        dateOfBirth
+        needsDobMigration
         gender
         phoneNumber
         about

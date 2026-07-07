@@ -107,6 +107,11 @@ export default function TabsLayoutIOS() {
           <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
+        <NativeTabs.Trigger name="memes">
+          <NativeTabs.Trigger.Icon sf={{ default: "face.smiling", selected: "face.smiling.fill" }} />
+          <NativeTabs.Trigger.Label>Memes</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+
         <NativeTabs.Trigger name="chat">
           <NativeTabs.Trigger.Icon
             sf={{ default: "ellipsis.bubble", selected: "ellipsis.bubble.fill" }}

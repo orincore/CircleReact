@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
 import { usePromptMatching } from "@/src/hooks/usePromptMatching";
 import GiverRequestModal from "@/components/GiverRequestModal";
+import DateOfBirthMigrationModal from "@/components/DateOfBirthMigrationModal";
 
 export default function SecureLayout() {
   // Initialize voice call service for all logged-in users
@@ -72,6 +73,9 @@ export default function SecureLayout() {
         onDecline={handleDeclineRequest}
         requestData={incomingRequest}
       />
+
+      {/* Blocking date-of-birth migration prompt for existing users */}
+      <DateOfBirthMigrationModal />
     </View>
   );
 }

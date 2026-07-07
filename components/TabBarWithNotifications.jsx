@@ -171,6 +171,7 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
   const iconMap = {
     match:   { active: "flash",                 inactive: "flash-outline" },
     explore: { active: "planet",                inactive: "planet-outline" },
+    memes:   { active: "happy",                  inactive: "happy-outline" },
     chat:    { active: "chatbubble-ellipses",   inactive: "chatbubble-ellipses-outline" },
     profile: { active: "person",                inactive: "person-outline" },
   };

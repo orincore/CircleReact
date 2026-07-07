@@ -1,7 +1,9 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { chatApi } from '@/src/api/chat';
 import { friendsApi } from '@/src/api/friends';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
+import { useResponsiveDimensions } from '@/src/hooks/useResponsiveDimensions';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
@@ -11,15 +13,25 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Same brand gradient + squircle avatar radius as the chat list screen, so
+// this modal reads as part of the same screen rather than a bolted-on sheet.
+const BRAND_GRADIENT = ['#7C2B86', '#5D5FEF'];
+const AVATAR_RADIUS = 16;
 
 export default function FriendsListModal({ visible, onClose, onChatCreated }) {
   const { token } = useAuth();
+  const { theme, isDarkMode } = useTheme();
+  const responsive = useResponsiveDimensions();
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,7 +50,7 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
 
   const loadFriends = async () => {
     if (!token) return;
-    
+
     try {
       setLoading(true);
       const response = await friendsApi.getFriendsList(token);
@@ -53,25 +65,25 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
 
   const handleStartChat = async (friend) => {
     if (!token || creatingChat) return;
-    
+
     try {
       setCreatingChat(friend.id);
       setShowOptionsFor(null); // Close options menu
-      
+
       const response = await chatApi.createChatWithUser(friend.id, token);
-      
+
       // Close modal and navigate to chat
       onClose();
       onChatCreated(response.chat.id, response.otherUser.name, response.otherUser.profilePhoto);
-      
+
     } catch (error) {
       console.error('Failed to create chat:', error);
       let errorMessage = 'Failed to start chat. Please try again.';
-      
+
       if (error.message?.includes('not_friends')) {
         errorMessage = 'You can only chat with friends. Please send a friend request first.';
       }
-      
+
       Alert.alert('Error', errorMessage);
     } finally {
       setCreatingChat(null);
@@ -80,7 +92,7 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
 
   const handleUnfriend = async (friend) => {
     if (!token || unfriendingUser) return;
-    
+
     Alert.alert(
       'Remove Friend',
       `Are you sure you want to remove ${friend.name} from your friends list? You will no longer be able to message each other.`,
@@ -93,24 +105,24 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
             try {
               setUnfriendingUser(friend.id);
               setShowOptionsFor(null); // Close options menu
-              
+
               await FriendRequestService.unfriendUser(friend.id, token);
-              
+
               // Remove friend from local state
               setFriends(prevFriends => prevFriends.filter(f => f.id !== friend.id));
-              
+
               Alert.alert('Friend Removed', `${friend.name} has been removed from your friends list.`);
-              
+
             } catch (error) {
               console.error('Failed to unfriend:', error);
-              
+
               let errorMessage = 'Failed to remove friend. Please try again.';
               if (error.message.includes('timeout')) {
                 errorMessage = 'Request timed out. Please check your connection and try again.';
               } else if (error.message.includes('Socket connection not available')) {
                 errorMessage = 'Connection issue. Please refresh the page and try again.';
               }
-              
+
               Alert.alert('Error', errorMessage);
             } finally {
               setUnfriendingUser(null);
@@ -121,80 +133,84 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
     );
   };
 
-  const filteredFriends = friends.filter(friend => 
+  const filteredFriends = friends.filter(friend =>
     friend.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const visibleFriends = filteredFriends.slice(0, visibleCount);
+
+  // Presented fullScreen (not pageSheet), so this behaves like any other
+  // full-screen route and needs the same top clearance as the chat list header.
+  const headerTopPadding = (insets.top || (Platform.OS === 'android' ? 24 : 0)) + (Platform.OS === 'web' ? 20 : 12);
 
   const renderFriend = ({ item }) => {
     const isCreating = creatingChat === item.id;
     const isUnfriending = unfriendingUser === item.id;
     const showOptions = showOptionsFor === item.id;
-    
+    const subtitle = isCreating ? 'Starting chat...' : isUnfriending ? 'Removing friend...' : 'Tap to start chat';
+
     return (
-      <View style={styles.friendCardContainer}>
+      <View style={styles.friendRowContainer}>
         <TouchableOpacity
-          style={[styles.friendCard, showOptions && styles.friendCardActive]}
+          style={[styles.chatRow, { paddingHorizontal: Math.max(16, responsive.horizontalPadding) }]}
+          activeOpacity={0.6}
           onPress={() => handleStartChat(item)}
           disabled={isCreating || isUnfriending}
         >
-          <View style={styles.avatar}>
+          <View style={styles.avatarContainer}>
             {item.profile_photo_url && item.profile_photo_url.trim() ? (
-              <Image 
-                source={{ uri: item.profile_photo_url }} 
-                style={styles.avatarImage}
-              />
+              <View style={{ overflow: 'hidden', borderRadius: AVATAR_RADIUS, borderWidth: 1.5, borderColor: theme.primary + '26' }}>
+                <Image
+                  source={{ uri: item.profile_photo_url }}
+                  style={{ width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: AVATAR_RADIUS }}
+                />
+              </View>
             ) : (
-              <View style={styles.fallbackAvatar}>
-                <Text style={styles.fallbackAvatarText}>
+              <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: AVATAR_RADIUS, backgroundColor: theme.primaryLight, borderWidth: 1.5, borderColor: theme.primary + '26' }]}>
+                <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20, color: theme.primary }]}>
                   {(item.name && item.name.charAt(0).toUpperCase()) || '?'}
                 </Text>
               </View>
             )}
           </View>
-          
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{item.name || 'Unknown'}</Text>
-            <Text style={styles.friendStatus}>
-              {isCreating ? 'Starting chat...' : 
-               isUnfriending ? 'Removing friend...' : 
-               'Tap to start chat'}
+
+          <View style={styles.chatInfo}>
+            <Text style={[styles.chatName, { color: theme.textPrimary, fontSize: responsive.fontSize.large }]} numberOfLines={1}>
+              {item.name || 'Unknown'}
+            </Text>
+            <Text style={[styles.chatMessage, { color: theme.textSecondary, fontSize: responsive.fontSize.medium }]} numberOfLines={1}>
+              {subtitle}
             </Text>
           </View>
-          
+
           <View style={styles.actionsContainer}>
-            <View style={styles.chatIcon}>
-              {isCreating ? (
-                <ActivityIndicator size="small" color="#7C2B86" />
-              ) : isUnfriending ? (
-                <ActivityIndicator size="small" color="#FF6B6B" />
-              ) : (
-                <Ionicons name="chatbubble" size={20} color="#7C2B86" />
-              )}
-            </View>
-            
+            {isCreating ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : isUnfriending ? (
+              <ActivityIndicator size="small" color="#FF4D4F" />
+            ) : (
+              <Ionicons name="chatbubble" size={20} color={theme.primary} />
+            )}
+
             <TouchableOpacity
-              style={styles.optionsButton}
+              style={[styles.rowMenuButton, { backgroundColor: theme.surfaceSecondary }]}
               onPress={() => setShowOptionsFor(showOptions ? null : item.id)}
               disabled={isCreating || isUnfriending}
+              hitSlop={6}
             >
-              <Ionicons 
-                name="ellipsis-vertical" 
-                size={18} 
-                color={showOptions ? "#7C2B86" : "rgba(31, 17, 71, 0.5)"} 
+              <Ionicons
+                name="ellipsis-vertical"
+                size={16}
+                color={showOptions ? theme.primary : theme.textMuted}
               />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        
+
         {showOptions && (
-          <View style={styles.optionsMenu}>
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => handleUnfriend(item)}
-            >
-              <Ionicons name="person-remove-outline" size={18} color="#FF6B6B" />
-              <Text style={styles.optionText}>Remove Friend</Text>
+          <View style={[styles.rowMenu, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnfriend(item)}>
+              <Ionicons name="person-remove-outline" size={16} color="#FF4D4F" />
+              <Text style={[styles.rowMenuItemText, { color: '#FF4D4F' }]}>Remove Friend</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -206,236 +222,254 @@ export default function FriendsListModal({ visible, onClose, onChatCreated }) {
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <LinearGradient
-        colors={["#FF6FB5", "#A16AE8", "#5D5FEF"]}
-        locations={[0, 0.55, 1]}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.blurCircleLarge} />
-        <View style={styles.blurCircleSmall} />
-
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.title}>Start New Chat</Text>
-            <View style={styles.placeholder} />
-          </View>
-
-          {/* Search Bar */}
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="rgba(31, 17, 71, 0.45)" />
-            <TextInput
-              placeholder="Search friends"
-              placeholderTextColor="rgba(31, 17, 71, 0.45)"
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          {/* Friends List */}
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FFE8FF" />
-              <Text style={styles.loadingText}>Loading friends...</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        {/* Header: same brand gradient chrome as the chat list screen. */}
+        <LinearGradient
+          colors={BRAND_GRADIENT}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: headerTopPadding }]}
+        >
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTitleTap}>
+              <Text style={[styles.headerTitle, { fontSize: responsive.isSmallScreen ? 26 : 30 }]}>
+                Start New Chat
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {friends.length} friend{friends.length !== 1 ? 's' : ''}
+              </Text>
             </View>
-          ) : (
-            <FlatList
-              data={visibleFriends}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.5)" />
-                  <Text style={styles.emptyText}>
-                    {searchQuery ? 'No friends found' : 'No friends yet'}
-                  </Text>
-                  <Text style={styles.emptySubtext}>
-                    {searchQuery 
-                      ? 'Try a different search term' 
-                      : 'Add friends to start chatting'
-                    }
-                  </Text>
-                </View>
-              }
-              renderItem={renderFriend}
-              showsVerticalScrollIndicator={false}
-              onEndReached={() => {
-                if (visibleCount < filteredFriends.length) {
-                  setVisibleCount(prev => Math.min(prev + 20, filteredFriends.length));
+            <TouchableOpacity activeOpacity={0.75} style={styles.headerIconButton} onPress={onClose}>
+              <Ionicons name="close" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+
+        {/* Content sheet: rounded top corners overlap the header, matching
+            the chat list's "card peeking out" transition. */}
+        <View style={styles.sheetShadowWrap}>
+          <View style={[styles.sheet, { backgroundColor: theme.background }]}>
+            <View style={[styles.searchBarWrap, { paddingHorizontal: Math.max(16, responsive.horizontalPadding) }]}>
+              <View
+                style={[
+                  styles.searchBar,
+                  {
+                    backgroundColor: theme.surface,
+                    borderWidth: isDarkMode ? 0 : 1,
+                    borderColor: isDarkMode ? 'transparent' : theme.border,
+                    shadowColor: theme.shadowColor,
+                    shadowOpacity: isDarkMode ? 0.25 : 0.06,
+                  },
+                ]}
+              >
+                <Ionicons name="search" size={18} color={theme.textMuted} />
+                <TextInput
+                  placeholder="Search friends"
+                  placeholderTextColor={theme.textPlaceholder}
+                  style={[styles.searchInput, { color: theme.textPrimary }]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading friends...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={visibleFriends}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.listContent}
+                ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.divider }]} />}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="people-outline" size={64} color={theme.textMuted} />
+                    <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+                      {searchQuery ? 'No friends found' : 'No friends yet'}
+                    </Text>
+                    <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+                      {searchQuery
+                        ? 'Try a different search term'
+                        : 'Add friends to start chatting'
+                      }
+                    </Text>
+                  </View>
                 }
-              }}
-              onEndReachedThreshold={0.3}
-            />
-          )}
+                renderItem={renderFriend}
+                showsVerticalScrollIndicator={false}
+                onEndReached={() => {
+                  if (visibleCount < filteredFriends.length) {
+                    setVisibleCount(prev => Math.min(prev + 20, filteredFriends.length));
+                  }
+                }}
+                onEndReachedThreshold={0.3}
+              />
+            )}
+          </View>
         </View>
-      </LinearGradient>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 24,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    shadowColor: '#3D1240',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    zIndex: 2,
   },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerTitleTap: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 2,
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    marginTop: 2,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  sheetShadowWrap: {
+    flex: 1,
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
   },
-  placeholder: {
-    width: 40,
+  sheet: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  searchBarWrap: {
+    paddingTop: 28,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginBottom: 24,
+    gap: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#1F1147',
+    fontSize: 15,
+    padding: 0,
   },
   listContent: {
+    paddingTop: 18,
     paddingBottom: 24,
   },
   separator: {
-    height: 12,
+    height: StyleSheet.hairlineWidth,
   },
-  friendCardContainer: {
+  friendRowContainer: {
     position: 'relative',
   },
-  friendCard: {
+  chatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 16,
+    paddingVertical: 12,
   },
-  friendCardActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 43, 134, 0.2)',
-  },
-  avatar: {
+  avatarContainer: {
     position: 'relative',
-  },
-  avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    marginRight: 12,
   },
   fallbackAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 214, 242, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   fallbackAvatarText: {
-    fontSize: 18,
     fontWeight: '700',
-    color: '#7C2B86',
   },
-  friendInfo: {
+  chatInfo: {
     flex: 1,
+    justifyContent: 'center',
+    marginRight: 8,
   },
-  friendName: {
-    fontSize: 16,
+  chatName: {
     fontWeight: '700',
-    color: '#1F1147',
-    marginBottom: 2,
+    letterSpacing: 0.1,
   },
-  friendStatus: {
-    fontSize: 14,
-    color: 'rgba(31, 17, 71, 0.65)',
+  chatMessage: {
+    marginTop: 2,
+    lineHeight: 18,
   },
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  chatIcon: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionsButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-  optionsMenu: {
-    position: 'absolute',
-    top: '100%',
-    right: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-    zIndex: 1000,
-    minWidth: 140,
-  },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+  rowMenuButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 8,
   },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FF6B6B',
+  rowMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 20,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 6,
+    minWidth: 160,
+    zIndex: 9999,
+    elevation: 8,
+    boxShadow: Platform.OS === 'web' ? '0 8px 24px rgba(0,0,0,0.2)' : undefined,
+  },
+  rowMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rowMenuItemText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -444,7 +478,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   loadingText: {
-    color: '#FFE8FF',
     fontSize: 16,
     marginTop: 16,
     fontWeight: '500',
@@ -456,33 +489,13 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#FFE8FF',
     fontSize: 20,
     fontWeight: '600',
     marginTop: 16,
   },
   emptySubtext: {
-    color: 'rgba(255, 232, 255, 0.7)',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  blurCircleLarge: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(255, 214, 242, 0.24)',
-    top: -120,
-    right: -60,
-  },
-  blurCircleSmall: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    bottom: 20,
-    left: -70,
   },
 });

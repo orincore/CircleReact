@@ -1,4 +1,3 @@
-import { getAdComponents } from "@/components/ads/AdWrapper";
 import FriendsListModal from "@/components/FriendsListModal";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,20 +11,27 @@ import { unreadCountService } from "@/src/services/unreadCountService";
 import { getSearchbarPaddingConfig } from "@/src/utils/searchbarPaddingUtils";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
-import { ActivityIndicator, Alert, Animated, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View, Dimensions, Modal } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, Image, LayoutAnimation, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, Dimensions, Modal } from "react-native";
 import { BlurView } from 'expo-blur';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
-const { BannerAd } = getAdComponents();
+// Circle brand gradient, used for the header chrome across the app
+// (login, buttons, etc.) so the chat header stays on-brand in both themes.
+const BRAND_GRADIENT = ['#7C2B86', '#5D5FEF'];
 
-// iOS 26+ Liquid Glass: render the new-chat button and the Chats/Blind Connect
-// segmented control with the native glass material (matching the tab bar).
-const LIQUID_GLASS = isLiquidGlassAvailable();
+// Rounded-square ("squircle") avatar corner radius, used instead of a full
+// circle (avatarSize / 2) per design direction.
+const AVATAR_RADIUS = 16;
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -33,108 +39,56 @@ export default function ChatListScreen() {
   const { theme, isDarkMode } = useTheme();
   const responsive = useResponsiveDimensions();
   const { shouldShowAds } = useSubscription();
-  
+  const insets = useSafeAreaInsets();
+
   // Create dynamic styles based on theme
   const dynamicStyles = {
     container: {
       flex: 1,
       backgroundColor: theme.background,
     },
-    headerTitle: {
-      fontSize: 28,
-      fontWeight: '700',
-      color: theme.textPrimary,
+    sheet: {
+      backgroundColor: theme.background,
     },
     headerSubtitle: {
-      fontSize: 14,
-      color: theme.textTertiary,
+      fontSize: 13,
+      color: 'rgba(255, 255, 255, 0.75)',
       marginTop: 2,
     },
     searchBar: {
       backgroundColor: theme.surface,
-      borderRadius: 16,
+      borderRadius: 14,
       borderWidth: isDarkMode ? 0 : 1,
       borderColor: isDarkMode ? 'transparent' : theme.border,
       shadowColor: theme.shadowColor,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.08,
-      shadowRadius: 8,
-      elevation: 3,
+      shadowOpacity: isDarkMode ? 0.25 : 0.06,
+      shadowRadius: 6,
+      elevation: 2,
     },
     searchInput: {
       color: theme.textPrimary,
     },
-    chatItem: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginVertical: 4,
-      shadowColor: theme.shadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.06,
-      shadowRadius: 8,
-      elevation: 3,
-      borderWidth: isDarkMode ? 0 : 1,
-      borderColor: isDarkMode ? 'transparent' : theme.border,
-    },
     chatName: {
-      fontSize: 16,
-      fontWeight: '600',
       color: theme.textPrimary,
     },
     chatMessage: {
-      fontSize: 14,
       color: theme.textSecondary,
     },
     chatTime: {
-      fontSize: 12,
       color: theme.textTertiary,
     },
-    newMessageButton: {
+    unreadBadge: {
       backgroundColor: theme.primary,
-      shadowColor: theme.shadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.4 : 0.2,
-      shadowRadius: 8,
-      elevation: 4,
     },
     emptyText: {
-      fontSize: 18,
-      fontWeight: '600',
       color: theme.textPrimary,
-      textAlign: 'center',
-      marginTop: 16,
     },
     emptySubtext: {
-      fontSize: 14,
       color: theme.textSecondary,
-      textAlign: 'center',
-      marginTop: 8,
     },
     loadingText: {
-      fontSize: 16,
       color: theme.textSecondary,
-      marginTop: 16,
-    },
-    decorativeShape1: {
-      position: 'absolute',
-      width: 200,
-      height: 200,
-      borderRadius: 100,
-      backgroundColor: theme.decorative1,
-      top: -50,
-      right: -50,
-      opacity: isDarkMode ? 1 : 0.3,
-    },
-    decorativeShape2: {
-      position: 'absolute',
-      width: 150,
-      height: 150,
-      borderRadius: 75,
-      backgroundColor: theme.decorative2,
-      bottom: 100,
-      left: -30,
-      opacity: isDarkMode ? 1 : 0.3,
     },
   };
 
@@ -400,6 +354,11 @@ export default function ChatListScreen() {
     if (!lastMessage) return 'No messages yet';
     const text = (lastMessage.text || '').trim();
     if (text) return text;
+    // A shared meme has no text and no media_url/media_type of its own (it
+    // carries shared_meme_id instead), so without this check it fell through
+    // to the generic "Media" fallback below.
+    const sharedMemeId = lastMessage.sharedMemeId || lastMessage.shared_meme_id;
+    if (sharedMemeId) return 'Shared a meme';
     const mediaUrl = lastMessage.mediaUrl || lastMessage.media_url;
     const mediaType = lastMessage.mediaType || lastMessage.media_type;
     if (mediaType) {
@@ -666,6 +625,7 @@ export default function ChatListScreen() {
                       mediaUrl: message.mediaUrl || message.media_url,
                       mediaType: message.mediaType || message.media_type,
                       thumbnail: message.thumbnail || message.thumb_url || message.thumbnail_url,
+                      sharedMemeId: message.sharedMemeId || message.shared_meme_id,
                       created_at: message.createdAt ? new Date(message.createdAt).toISOString() : new Date().toISOString(),
                       sender_id: message.senderId,
                       status: message.senderId === user.id ? (message.status || 'sent') : undefined,
@@ -1104,142 +1064,147 @@ export default function ChatListScreen() {
     ]);
   });
 
+  // --- Presentation-only animation state (header/list content fade-in,
+  // sliding tab indicator, collapsible search bar). No data/logic here.
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [tabRowWidth, setTabRowWidth] = useState(0);
+  const contentFadeAnim = React.useRef(new Animated.Value(0)).current;
+  const tabIndicatorAnim = React.useRef(new Animated.Value(activeTab === 'blind' ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(contentFadeAnim, {
+      toValue: 1,
+      duration: 380,
+      useNativeDriver: true,
+    }).start();
+  }, [contentFadeAnim]);
+
+  useEffect(() => {
+    Animated.timing(tabIndicatorAnim, {
+      toValue: activeTab === 'blind' ? 1 : 0,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, tabIndicatorAnim]);
+
+  const toggleSearch = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSearchVisible((prev) => {
+      if (prev) setSearchQuery("");
+      return !prev;
+    });
+  };
+
+  const switchTab = (tab) => {
+    if (tab === activeTab) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setActiveTab(tab);
+  };
+
+  const tabIndicatorTranslateX = tabIndicatorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, Math.max(tabRowWidth / 2 - 4, 0)],
+  });
+
+  const headerTopPadding = (insets.top || (Platform.OS === 'android' ? 24 : 0)) + (Platform.OS === 'web' ? 20 : 12);
+
   return (
     <View style={[styles.container, dynamicStyles.container]}>
-      {/* Animated Background */}
+      {/* Header: brand gradient chrome with rounded bottom corners, title,
+          search/compose actions and the Chats / Blind Connect switch. */}
       <LinearGradient
-        colors={[theme.background, theme.backgroundSecondary, theme.background]}
-        style={styles.backgroundGradient}
+        colors={BRAND_GRADIENT}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: headerTopPadding }]}
       >
-        {/* Decorative Elements */}
-        <View style={dynamicStyles.decorativeShape1} />
-        <View style={dynamicStyles.decorativeShape2} />
-        {/* Floating orbs */}
-        <View style={[styles.floatingOrb, styles.orb1, { backgroundColor: theme.decorative1 }]} />
-        <View style={[styles.floatingOrb, styles.orb2, { backgroundColor: theme.decorative2 }]} />
-        <View style={[styles.floatingOrb, styles.orb3, { backgroundColor: theme.decorative1 }]} />
-      </LinearGradient>
-      {/* Lock messaging for unverified users */}
-      <View style={[styles.contentContainer, { paddingHorizontal: Math.max(12, responsive.horizontalPadding / 2) }]}>
-        <View style={styles.header}>
-          <View style={styles.headerIconContainer}>
-            <Ionicons name="chatbubbles" size={28} color={theme.primary} />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setShowArchived(prev => !prev)}>
-              <Text style={[styles.messagesTitle, dynamicStyles.headerTitle, { fontSize: responsive.isSmallScreen ? 28 : 32 }]}>Messages</Text>
-            </TouchableOpacity>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.headerTitleTap}
+            onPress={() => setShowArchived((prev) => !prev)}
+          >
+            <Text style={[styles.headerTitle, { fontSize: responsive.isSmallScreen ? 26 : 30 }]}>
+              {showArchived ? 'Archived' : 'Chat'}
+            </Text>
             <Text style={[styles.headerSubtitle, dynamicStyles.headerSubtitle]}>
               {showArchived
                 ? `${activeTabCount} archived`
                 : `${activeTabCount} conversation${activeTabCount !== 1 ? 's' : ''}`}
             </Text>
+          </TouchableOpacity>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[styles.headerIconButton, searchVisible && styles.headerIconButtonActive]}
+              onPress={toggleSearch}
+            >
+              <Ionicons name={searchVisible ? 'close' : 'search'} size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={styles.headerIconButton}
+              onPress={() => setShowFriendsModal(true)}
+            >
+              <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={{
-              width: responsive.buttonHeight,
-              height: responsive.buttonHeight,
-            }}
-            onPress={() => setShowFriendsModal(true)}
-          >
-            {LIQUID_GLASS ? (
-              <GlassView
-                style={[styles.newMessageButtonGlass, {
-                  width: responsive.buttonHeight,
-                  height: responsive.buttonHeight,
-                  borderRadius: responsive.buttonHeight / 2,
-                }]}
-                glassEffectStyle="regular"
-                isInteractive
-              >
-                <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color={theme.textPrimary} />
-              </GlassView>
-            ) : (
-              <View
-                style={[styles.newMessageButton, dynamicStyles.newMessageButton, {
-                  width: responsive.buttonHeight,
-                  height: responsive.buttonHeight,
-                  borderRadius: responsive.buttonHeight / 2,
-                }]}
-              >
-                <Ionicons name="create-outline" size={responsive.isSmallScreen ? 20 : 22} color="#FFFFFF" />
-              </View>
-            )}
+        </View>
+
+        <View style={styles.tabRow} onLayout={(e) => setTabRowWidth(e.nativeEvent.layout.width)}>
+          {tabRowWidth > 0 && (
+            <Animated.View
+              style={[
+                styles.tabIndicator,
+                {
+                  width: tabRowWidth / 2 - 4,
+                  transform: [{ translateX: tabIndicatorTranslateX }],
+                },
+              ]}
+            />
+          )}
+          <TouchableOpacity style={styles.tabButton} activeOpacity={0.8} onPress={() => switchTab('chats')}>
+            <Text style={[styles.tabLabel, activeTab === 'chats' && styles.tabLabelActive]}>Chats</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabButton} activeOpacity={0.8} onPress={() => switchTab('blind')}>
+            <Text style={[styles.tabLabel, activeTab === 'blind' && styles.tabLabelActive]}>Blind Connect</Text>
           </TouchableOpacity>
         </View>
+      </LinearGradient>
 
-        <View style={[
-          styles.searchBar, 
-          dynamicStyles.searchBar, 
-          { 
-            paddingHorizontal: responsive.spacing.lg,
-            paddingVertical: searchbarPaddingConfig.paddingVertical,
-            minHeight: searchbarPaddingConfig.containerMinHeight || searchbarPaddingConfig.minHeight,
-          }
-        ]}>
-          <Ionicons name="search" size={20} color={theme.textMuted} />
-          <TextInput
-            placeholder="Search conversations"
-            placeholderTextColor={theme.textPlaceholder}
-            style={[styles.searchInput, dynamicStyles.searchInput]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {(() => {
-          const tabButtons = (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.tabButton,
-                  activeTab === 'chats' && styles.tabButtonActive,
-                ]}
-                onPress={() => setActiveTab('chats')}
-              >
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'chats' && styles.tabLabelActive,
-                  ]}
-                >
-                  Chats
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.tabButton,
-                  activeTab === 'blind' && styles.tabButtonActive,
-                ]}
-                onPress={() => setActiveTab('blind')}
-              >
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'blind' && styles.tabLabelActive,
-                  ]}
-                >
-                  Blind Connect
-                </Text>
-              </TouchableOpacity>
-            </>
-          );
-
-          return LIQUID_GLASS ? (
-            <GlassView style={styles.tabRowGlass} glassEffectStyle="regular">
-              {tabButtons}
-            </GlassView>
-          ) : (
-            <View style={styles.tabRow}>{tabButtons}</View>
-          );
-        })()}
+      {/* Content sheet: rounded top corners overlap the header for a
+          seamless "card peeking out" transition, like the reference design. */}
+      <Animated.View style={[styles.sheetShadowWrap, dynamicStyles.sheet, { opacity: contentFadeAnim }]}>
+      <View style={styles.sheet}>
+        {searchVisible && (
+          <View style={[styles.searchBarWrap, { paddingHorizontal: Math.max(16, responsive.horizontalPadding) }]}>
+            <View style={[styles.searchBar, dynamicStyles.searchBar]}>
+              <Ionicons name="search" size={18} color={theme.textMuted} />
+              <TextInput
+                autoFocus
+                placeholder="Search conversations"
+                placeholderTextColor={theme.textPlaceholder}
+                style={[styles.searchInput, dynamicStyles.searchInput]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Daily Blind Connect status banner */}
         {blindDateStatus.enabled && !blindDateStatus.loading && (
           <View
             style={[
               styles.blindDateDailyBanner,
+              { marginHorizontal: Math.max(12, responsive.horizontalPadding / 2) },
               blindDateStatus.foundToday
                 ? styles.blindDateDailyBannerSuccess
                 : styles.blindDateDailyBannerSearching,
@@ -1252,39 +1217,16 @@ export default function ChatListScreen() {
               style={{ marginRight: 8 }}
             />
             <View style={{ flex: 1 }}>
-              <Text
-                style={[
-                  styles.blindDateBannerTitle,
-                  { color: theme.textPrimary },
-                ]}
-                numberOfLines={1}
-              >
+              <Text style={[styles.blindDateDailyTitle, { color: theme.textPrimary }]} numberOfLines={1}>
                 {blindDateStatus.foundToday
                   ? 'Blind Connect match found today!'
                   : 'No Blind Connect match found today yet'}
               </Text>
-              {!blindDateStatus.foundToday && (
-                <Text
-                  style={[
-                    styles.blindDateDailySubtitle,
-                    { color: isDarkMode ? 'rgba(226, 232, 240, 0.85)' : theme.textSecondary },
-                  ]}
-                  numberOfLines={2}
-                >
-                  We are still searching. Come back soon – we will also email you once we find your match.
-                </Text>
-              )}
-              {blindDateStatus.foundToday && (
-                <Text
-                  style={[
-                    styles.blindDateDailySubtitle,
-                    { color: isDarkMode ? 'rgba(226, 232, 240, 0.85)' : theme.textSecondary },
-                  ]}
-                  numberOfLines={2}
-                >
-                  Check your messages to chat with your mystery match.
-                </Text>
-              )}
+              <Text style={[styles.blindDateDailySubtitle, { color: theme.textSecondary }]} numberOfLines={2}>
+                {blindDateStatus.foundToday
+                  ? 'Check your messages to chat with your mystery match.'
+                  : 'We are still searching. Come back soon – we will also email you once we find your match.'}
+              </Text>
             </View>
           </View>
         )}
@@ -1313,7 +1255,7 @@ export default function ChatListScreen() {
             onScrollBeginDrag={onPullBegin}
             onScrollEndDrag={onPullEnd}
             scrollEventThrottle={16}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.divider }]} />}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1340,13 +1282,13 @@ export default function ChatListScreen() {
                   console.warn('[ChatList] Invalid item in renderItem:', item);
                   return null;
                 }
-                
+
                 const chatId = item.chat.id;
                 const isBlindDateOngoing = !!item.isBlindDateOngoing;
                 const blindDateInfo = item.blindDateInfo;
                 // Use masked name for blind dates, otherwise use real name
-                const displayName = isBlindDateOngoing && blindDateInfo?.maskedName 
-                  ? blindDateInfo.maskedName 
+                const displayName = isBlindDateOngoing && blindDateInfo?.maskedName
+                  ? blindDateInfo.maskedName
                   : (item.otherName || 'Unknown');
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
@@ -1357,195 +1299,168 @@ export default function ChatListScreen() {
                   item.otherVerificationStatus === 'verified' ||
                   item.otherVerificationStatus === true ||
                   item.other_verification_status === 'verified';
-                
+
                 // Build blind date subtitle: "Looking for Friendship • Female • 25"
                 const blindDateSubtitle = isBlindDateOngoing && blindDateInfo ? [
                   blindDateInfo.matchReason ? `Looking for ${blindDateInfo.matchReason}` : null,
                   blindDateInfo.gender ? blindDateInfo.gender.charAt(0).toUpperCase() + blindDateInfo.gender.slice(1) : null,
                   blindDateInfo.age ? `${blindDateInfo.age} yrs` : null,
                 ].filter(Boolean).join(' • ') : null;
-              
-              const row = (
-                <TouchableOpacity
-                  style={[
-                    styles.chatRow,
-                    dynamicStyles.chatItem,
-                    { paddingHorizontal: Math.max(10, (responsive.spacing?.md ?? 12)), paddingVertical: 12 },
-                    openMenuChatId === chatId && styles.chatRowElevated,
-                  ]}
-                  onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified)}
-                  onLongPress={() => {
-                    if (Platform.OS !== 'web') {
-                      setOpenMenuChatId(chatId);
-                    }
-                  }}
-                  delayLongPress={500}
-                >
-                  <View style={styles.avatarContainer}>
-                    {displayAvatar ? (
-                      <View style={{ overflow: 'hidden', borderRadius: responsive.avatarSize / 2 }}>
-                        <Image
-                          source={{ uri: displayAvatar }}
-                          style={[
-                            styles.avatarImage,
-                            {
-                              width: responsive.avatarSize,
-                              height: responsive.avatarSize,
-                              borderRadius: responsive.avatarSize / 2,
-                            },
-                          ]}
-                          blurRadius={isBlindDateOngoing && Platform.OS === 'android' ? 50 : 0}
-                        />
-                        {isBlindDateOngoing && (
-                          <BlurView
-                            intensity={40}
-                            tint={isDarkMode ? 'dark' : 'light'}
-                            style={StyleSheet.absoluteFill}
+
+                // Read-receipt tick, shown only for the current user's own last message
+                const isOwnLastMessage = !!(item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status);
+                const statusIconName = isOwnLastMessage ? (
+                  item.lastMessage.status === 'read' ? 'checkmark-done' :
+                  item.lastMessage.status === 'delivered' ? 'checkmark-done' :
+                  item.lastMessage.status === 'sent' ? 'checkmark' :
+                  item.lastMessage.status === 'sending' ? 'time-outline' :
+                  item.lastMessage.status === 'failed' ? 'alert-circle-outline' :
+                  'checkmark'
+                ) : null;
+                const statusIconColor = !isOwnLastMessage ? theme.textMuted :
+                  item.lastMessage.status === 'read' ? theme.primary :
+                  item.lastMessage.status === 'failed' ? '#FF4444' :
+                  theme.textMuted;
+
+                const row = (
+                  <TouchableOpacity
+                    style={[
+                      styles.chatRow,
+                      { paddingHorizontal: Math.max(16, responsive.horizontalPadding) },
+                      openMenuChatId === chatId && styles.chatRowElevated,
+                    ]}
+                    activeOpacity={0.6}
+                    onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified)}
+                    onLongPress={() => {
+                      if (Platform.OS !== 'web') {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                        setOpenMenuChatId(chatId);
+                      }
+                    }}
+                    delayLongPress={500}
+                  >
+                    <View style={styles.avatarContainer}>
+                      {displayAvatar ? (
+                        <View style={{ overflow: 'hidden', borderRadius: AVATAR_RADIUS, borderWidth: 1.5, borderColor: theme.primary + '26' }}>
+                          <Image
+                            source={{ uri: displayAvatar }}
+                            style={[
+                              styles.avatarImage,
+                              {
+                                width: responsive.avatarSize,
+                                height: responsive.avatarSize,
+                                borderRadius: AVATAR_RADIUS,
+                              },
+                            ]}
+                            blurRadius={isBlindDateOngoing && Platform.OS === 'android' ? 50 : 0}
                           />
-                        )}
-                      </View>
-                    ) : (
-                      <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: responsive.avatarSize / 2, backgroundColor: theme.surfaceSecondary }]}> 
-                        <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20, color: theme.textPrimary }]}> 
-                          {(displayName && displayName.charAt(0).toUpperCase()) || '?'}
-                        </Text>
-                      </View>
-                    )}
-                    {isTyping && (
-                      <View style={styles.typingIndicator}><View style={styles.typingDot} /></View>
-                    )}
-                  </View>
-                  <View style={styles.chatInfo}>
-                    <View style={styles.chatHeader}>
-                      <View style={styles.chatNameRow}>
-                        <Text
-                          style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}
-                          numberOfLines={1}
-                        >
-                          {displayName}
-                        </Text>
-                        {isOtherUserVerified && !isBlindDateOngoing && (
-                          <VerifiedBadge size={16} style={{ marginLeft: 4 }} />
-                        )}
-                        {item.pinned && <Text style={styles.pinnedIcon}>📌</Text>}
-                      </View>
-                      <View style={styles.chatMetaColumn}>
+                          {isBlindDateOngoing && (
+                            <BlurView
+                              intensity={40}
+                              tint={isDarkMode ? 'dark' : 'light'}
+                              style={StyleSheet.absoluteFill}
+                            />
+                          )}
+                        </View>
+                      ) : (
+                        <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: AVATAR_RADIUS, backgroundColor: theme.primaryLight, borderWidth: 1.5, borderColor: theme.primary + '26' }]}>
+                          <Text style={[styles.fallbackAvatarText, { fontSize: responsive.isSmallScreen ? 18 : 20, color: theme.primary }]}>
+                            {(displayName && displayName.charAt(0).toUpperCase()) || '?'}
+                          </Text>
+                        </View>
+                      )}
+                      {isTyping && (
+                        <View style={styles.typingIndicator}><View style={styles.typingDot} /></View>
+                      )}
+                    </View>
+                    <View style={styles.chatInfo}>
+                      <View style={styles.chatLine1}>
+                        <View style={styles.chatNameRow}>
+                          <Text
+                            style={[styles.chatName, dynamicStyles.chatName, { fontSize: responsive.fontSize.large }]}
+                            numberOfLines={1}
+                          >
+                            {displayName}
+                          </Text>
+                          {isOtherUserVerified && !isBlindDateOngoing && (
+                            <VerifiedBadge size={15} style={{ marginLeft: 4 }} />
+                          )}
+                          {item.pinned && (
+                            <Ionicons name="bookmark" size={12} color={theme.primary} style={styles.pinnedIcon} />
+                          )}
+                        </View>
                         <Text
                           style={[styles.chatTime, dynamicStyles.chatTime, { fontSize: responsive.fontSize.small }]}
                           numberOfLines={1}
                         >
                           {formatTime((item.lastMessage && item.lastMessage.created_at) || item.chat.last_message_at)}
                         </Text>
-                        {currentUnreadCount > 0 && (
-                          <View style={styles.unreadBadge}>
-                            <Text style={styles.unreadText}>{currentUnreadCount}</Text>
-                          </View>
-                        )}
+                      </View>
+                      {isBlindDateOngoing && blindDateSubtitle && (
+                        <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>{blindDateSubtitle}</Text>
+                      )}
+                      <View style={styles.chatLine2}>
+                        <Text
+                          style={[
+                            styles.chatMessage,
+                            dynamicStyles.chatMessage,
+                            { fontSize: responsive.fontSize.medium },
+                            isTyping && { color: theme.success, fontStyle: 'italic', fontWeight: '500' },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {isTyping ? 'typing...' : getLastMessagePreview(item.lastMessage)}
+                        </Text>
+                        <View style={styles.chatLine2Right}>
+                          {currentUnreadCount > 0 ? (
+                            <View style={[styles.unreadBadge, dynamicStyles.unreadBadge]}>
+                              <Text style={styles.unreadText}>{currentUnreadCount > 99 ? '99+' : currentUnreadCount}</Text>
+                            </View>
+                          ) : statusIconName ? (
+                            <Ionicons name={statusIconName} size={15} color={statusIconColor} style={styles.messageStatus} />
+                          ) : null}
+                        </View>
                       </View>
                     </View>
-                    {isBlindDateOngoing && blindDateSubtitle && (
-                      <Text style={styles.blindDateTag}>{blindDateSubtitle}</Text>
-                    )}
-                    <View style={styles.messageRow}>
-                      <Text style={[styles.chatMessage, dynamicStyles.chatMessage, { fontSize: responsive.fontSize.medium }, isTyping && styles.typingText]} numberOfLines={1}>
-                        {isTyping ? 'typing...' : getLastMessagePreview(item.lastMessage)}
-                      </Text>
-                      {item.lastMessage && user && item.lastMessage.sender_id === user.id && item.lastMessage.status && (
-                        <Ionicons
-                          name={
-                            item.lastMessage.status === 'read' ? 'checkmark-done' : 
-                            item.lastMessage.status === 'delivered' ? 'checkmark' : 
-                            item.lastMessage.status === 'sent' ? 'checkmark' :
-                            item.lastMessage.status === 'sending' ? 'time-outline' :
-                            item.lastMessage.status === 'failed' ? 'alert-circle-outline' :
-                            'ellipse-outline'
-                          }
-                          size={12}
-                          color={
-                            item.lastMessage.status === 'read' ? theme.primary : 
-                            item.lastMessage.status === 'delivered' ? theme.primary + '70' : 
-                            item.lastMessage.status === 'sent' ? theme.primary + '50' :
-                            item.lastMessage.status === 'sending' ? theme.primary + '40' :
-                            item.lastMessage.status === 'failed' ? '#FF4444' :
-                            theme.primary + '30'
-                          }
-                          style={styles.messageStatus}
-                        />
-                      )}
-                    </View>
-                  </View>
-                  {Platform.OS === 'web' && (
-                    <View style={styles.rowMenuContainer}>
-                      <TouchableOpacity
-                        ref={(r) => { buttonRefs.current[chatId] = r; }}
-                        style={styles.rowMenuButton}
-                        onPress={() => {
-                          if (Platform.OS === 'web') {
+                    {Platform.OS === 'web' && (
+                      <View style={styles.rowMenuContainer}>
+                        <TouchableOpacity
+                          ref={(r) => { buttonRefs.current[chatId] = r; }}
+                          style={[styles.rowMenuButton, { backgroundColor: theme.surfaceSecondary }]}
+                          onPress={() => {
                             if (openMenuChatId === chatId) {
                               setOpenMenuChatId(null);
                               setMenuCoords(null);
                             } else {
                               openWebMenu(chatId);
                             }
-                          } else {
-                            setOpenMenuChatId(prev => prev === chatId ? null : chatId)
-                          }
-                        }}
-                      >
-                        <Ionicons name="ellipsis-vertical" size={18} color={theme.textPrimary} />
-                      </TouchableOpacity>
-                      {openMenuChatId === chatId && Platform.OS !== 'web' && (
-                        <View style={styles.rowMenu}>
-                          <TouchableOpacity style={styles.rowMenuItem} onPress={() => { setOpenMenuChatId(null); handleDeleteChat(chatId); }}>
-                            <Ionicons name="trash" size={14} color="#FF4D4F" />
-                            <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Delete</Text>
-                          </TouchableOpacity>
-                          {item.archived ? (
-                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnarchiveChat(chatId)}>
-                              <Ionicons name="archive" size={14} color="#FFFFFF" />
-                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unarchive</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleArchiveChat(chatId)}>
-                              <Ionicons name="archive" size={14} color="#FFFFFF" />
-                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Archive</Text>
-                            </TouchableOpacity>
-                          )}
-                          {item.pinned ? (
-                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handleUnpinChat(chatId)}>
-                              <Ionicons name="pin" size={14} color="#FFFFFF" />
-                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unpin</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <TouchableOpacity style={styles.rowMenuItem} onPress={() => handlePinChat(chatId)}>
-                              <Ionicons name="pin" size={14} color="#FFFFFF" />
-                              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Pin</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-              if (Platform.OS === 'web') return row;
-              return (
-                <Swipeable renderRightActions={() => (
-                  <TouchableOpacity style={styles.rightAction} onPress={() => handleDeleteChat(chatId)}>
-                    <Ionicons name="trash" size={18} color="#FFFFFF" />
+                          }}
+                        >
+                          <Ionicons name="ellipsis-vertical" size={18} color={theme.textMuted} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </TouchableOpacity>
-                )}>
-                  {row}
-                </Swipeable>
-              );
+                );
+                if (Platform.OS === 'web') return row;
+                return (
+                  <Swipeable renderRightActions={() => (
+                    <TouchableOpacity style={styles.rightAction} onPress={() => handleDeleteChat(chatId)}>
+                      <Ionicons name="trash" size={18} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  )}>
+                    {row}
+                  </Swipeable>
+                );
               } catch (error) {
                 console.error('[ChatList] Error rendering chat item:', error, item);
                 return null;
               }
             }}
           />
-          )}
-        </View>
+        )}
+      </View>
+      </Animated.View>
 
       {/* Friends List Modal */}
       <FriendsListModal
@@ -1554,40 +1469,36 @@ export default function ChatListScreen() {
         onChatCreated={handleChatCreated}
       />
 
-      {/* Banner Ad for Free Users - Auto-disabled in Expo Go */}
-      {BannerAd && shouldShowAds() && (
-        <BannerAd placement="chat_list_bottom" />
-      )}
       {/* Web-only menu portal to avoid underlapping */}
       {Platform.OS === 'web' && openMenuChatId && (
         <View style={styles.menuPortal} pointerEvents="auto">
           {/* Click-away overlay */}
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => { setOpenMenuChatId(null); setMenuCoords(null); }} />
-          <View style={[styles.rowMenu, { position: 'absolute', left: (menuCoords?.x ?? 0), top: (menuCoords?.y ?? 0) }]}>
+          <View style={[styles.rowMenu, { backgroundColor: theme.surface, borderColor: theme.border, position: 'absolute', left: (menuCoords?.x ?? 0), top: (menuCoords?.y ?? 0) }]}>
             <TouchableOpacity style={styles.rowMenuItem} onPress={() => { setOpenMenuChatId(null); setMenuCoords(null); handleDeleteChat(openMenuChatId); }}>
               <Ionicons name="trash" size={14} color="#FF4D4F" />
-              <Text style={styles.rowMenuItemText}>Delete</Text>
+              <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Delete</Text>
             </TouchableOpacity>
             {visibleConversations.find(c => c.chat.id === openMenuChatId)?.archived ? (
               <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleUnarchiveChat(openMenuChatId); }}>
-                <Ionicons name="archive" size={14} color="#FFFFFF" />
-                <Text style={styles.rowMenuItemText}>Unarchive</Text>
+                <Ionicons name="archive" size={14} color={theme.textPrimary} />
+                <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unarchive</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleArchiveChat(openMenuChatId); }}>
-                <Ionicons name="archive" size={14} color="#FFFFFF" />
-                <Text style={styles.rowMenuItemText}>Archive</Text>
+                <Ionicons name="archive" size={14} color={theme.textPrimary} />
+                <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Archive</Text>
               </TouchableOpacity>
             )}
             {visibleConversations.find(c => c.chat.id === openMenuChatId)?.pinned ? (
               <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handleUnpinChat(openMenuChatId); }}>
-                <Ionicons name="pin" size={14} color="#FFFFFF" />
-                <Text style={styles.rowMenuItemText}>Unpin</Text>
+                <Ionicons name="pin" size={14} color={theme.textPrimary} />
+                <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Unpin</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.rowMenuItem} onPress={() => { handlePinChat(openMenuChatId); }}>
-                <Ionicons name="pin" size={14} color="#FFFFFF" />
-                <Text style={styles.rowMenuItemText}>Pin</Text>
+                <Ionicons name="pin" size={14} color={theme.textPrimary} />
+                <Text style={[styles.rowMenuItemText, { color: theme.textPrimary }]}>Pin</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1602,19 +1513,19 @@ export default function ChatListScreen() {
           animationType="fade"
           onRequestClose={() => setOpenMenuChatId(null)}
         >
-          <TouchableOpacity 
-            style={styles.mobileMenuOverlay} 
-            activeOpacity={1} 
+          <TouchableOpacity
+            style={styles.mobileMenuOverlay}
+            activeOpacity={1}
             onPress={() => setOpenMenuChatId(null)}
           >
             <View style={[styles.mobileMenuContainer, { backgroundColor: theme.surface }]}>
               <View style={styles.mobileMenuHandle} />
               <Text style={[styles.mobileMenuTitle, { color: theme.textPrimary }]}>Chat Options</Text>
-              
+
               {/* Pin/Unpin option */}
               {visibleConversations.find(c => c.chat.id === openMenuChatId)?.pinned ? (
-                <TouchableOpacity 
-                  style={styles.mobileMenuItem} 
+                <TouchableOpacity
+                  style={styles.mobileMenuItem}
                   onPress={() => handleUnpinChat(openMenuChatId)}
                 >
                   <View style={[styles.mobileMenuIconContainer, { backgroundColor: theme.primary + '20' }]}>
@@ -1623,8 +1534,8 @@ export default function ChatListScreen() {
                   <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Unpin Chat</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity 
-                  style={styles.mobileMenuItem} 
+                <TouchableOpacity
+                  style={styles.mobileMenuItem}
                   onPress={() => handlePinChat(openMenuChatId)}
                 >
                   <View style={[styles.mobileMenuIconContainer, { backgroundColor: theme.primary + '20' }]}>
@@ -1636,8 +1547,8 @@ export default function ChatListScreen() {
 
               {/* Archive/Unarchive option */}
               {visibleConversations.find(c => c.chat.id === openMenuChatId)?.archived ? (
-                <TouchableOpacity 
-                  style={styles.mobileMenuItem} 
+                <TouchableOpacity
+                  style={styles.mobileMenuItem}
                   onPress={() => handleUnarchiveChat(openMenuChatId)}
                 >
                   <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#22C55E20' }]}>
@@ -1646,8 +1557,8 @@ export default function ChatListScreen() {
                   <Text style={[styles.mobileMenuItemText, { color: theme.textPrimary }]}>Unarchive Chat</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity 
-                  style={styles.mobileMenuItem} 
+                <TouchableOpacity
+                  style={styles.mobileMenuItem}
                   onPress={() => handleArchiveChat(openMenuChatId)}
                 >
                   <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#F59E0B20' }]}>
@@ -1658,8 +1569,8 @@ export default function ChatListScreen() {
               )}
 
               {/* Delete option */}
-              <TouchableOpacity 
-                style={styles.mobileMenuItem} 
+              <TouchableOpacity
+                style={styles.mobileMenuItem}
                 onPress={() => { setOpenMenuChatId(null); handleDeleteChat(openMenuChatId); }}
               >
                 <View style={[styles.mobileMenuIconContainer, { backgroundColor: '#EF444420' }]}>
@@ -1669,8 +1580,8 @@ export default function ChatListScreen() {
               </TouchableOpacity>
 
               {/* Cancel button */}
-              <TouchableOpacity 
-                style={[styles.mobileMenuCancelButton, { backgroundColor: theme.surfaceSecondary }]} 
+              <TouchableOpacity
+                style={[styles.mobileMenuCancelButton, { backgroundColor: theme.surfaceSecondary }]}
                 onPress={() => setOpenMenuChatId(null)}
               >
                 <Text style={[styles.mobileMenuCancelText, { color: theme.textPrimary }]}>Cancel</Text>
@@ -1681,211 +1592,138 @@ export default function ChatListScreen() {
       )}
     </View>
   );
- }
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a0b2e',
   },
-  backgroundGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    shadowColor: '#3D1240',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    zIndex: 2,
   },
-  floatingOrb: {
-    position: 'absolute',
-    borderRadius: 9999,
-    opacity: 0.15,
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  orb1: {
-    width: 300,
-    height: 300,
-    backgroundColor: '#7C2B86',
-    top: -100,
-    right: -50,
-  },
-  orb2: {
-    width: 250,
-    height: 250,
-    backgroundColor: '#5D5FEF',
-    bottom: 100,
-    left: -80,
-  },
-  orb3: {
-    width: 200,
-    height: 200,
-    backgroundColor: '#FF6FB5',
-    top: '40%',
-    right: '10%',
-  },
-  contentContainer: {
+  headerTitleTap: {
     flex: 1,
-    paddingTop: Platform.OS === 'web' ? 32 : 42,
-    paddingBottom: 24,
+  },
+  headerTitle: {
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 2,
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  headerIconButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    padding: 4,
+    position: 'relative',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    bottom: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  tabLabelActive: {
+    color: '#5D5FEF',
+    fontWeight: '700',
+  },
+  sheetShadowWrap: {
+    flex: 1,
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
     ...(Platform.OS === 'web' && {
       maxWidth: 600,
       alignSelf: 'center',
       width: '100%',
     }),
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 20,
-    zIndex: 10,
-  },
-  headerIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255, 214, 242, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 214, 242, 0.3)',
-  },
-  headerTextContainer: {
+  sheet: {
     flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
   },
-  messagesTitle: {
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -1,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greetingText: {
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.6)",
-    marginTop: 2,
-  },
-  title: {
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  newMessageButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(124, 43, 134, 0.3)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 214, 242, 0.4)",
-  },
-  newMessageButtonGlass: {
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+  searchBarWrap: {
+    paddingTop: 24,
   },
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: "#FFFFFF",
-  },
-  tabRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    padding: 2,
-    zIndex: 10,
-  },
-  tabRowGlass: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 4,
-    borderRadius: 999,
-    padding: 2,
-    zIndex: 10,
-    overflow: 'hidden',
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabButtonActive: {
-    backgroundColor: 'rgba(124, 43, 134, 0.9)',
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(248, 250, 252, 0.8)',
-  },
-  tabLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingVertical: 12,
-    paddingBottom: 100,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginLeft: 72,
-  },
-  chatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    position: 'relative',
-  },
-  chatRowElevated: {
-    zIndex: 10000,
-    elevation: 12,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  avatarImage: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)'
-  },
-  fallbackAvatar: {
-    backgroundColor: "rgba(255, 214, 242, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)'
-  },
-  fallbackAvatarText: {
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 15,
+    padding: 0,
   },
   blindDateDailyBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
-    marginTop: 12,
-    marginBottom: 4,
-    zIndex: 10,
+    marginTop: 14,
   },
   blindDateDailyBannerSuccess: {
     backgroundColor: 'rgba(34, 197, 94, 0.12)',
@@ -1900,12 +1738,41 @@ const styles = StyleSheet.create({
   blindDateDailyTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   blindDateDailySubtitle: {
     fontSize: 12,
     marginTop: 2,
-    color: 'rgba(226, 232, 240, 0.85)',
+    lineHeight: 16,
+  },
+  listContent: {
+    paddingTop: 18,
+    paddingBottom: 100,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+  },
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    position: 'relative',
+    paddingVertical: 12,
+  },
+  chatRowElevated: {
+    zIndex: 10000,
+    elevation: 12,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  avatarImage: {},
+  fallbackAvatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackAvatarText: {
+    fontWeight: '700',
   },
   typingIndicator: {
     position: 'absolute',
@@ -1928,57 +1795,70 @@ const styles = StyleSheet.create({
   },
   chatInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
-  chatHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 2,
+  chatLine1: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chatNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
   },
   chatName: {
     fontWeight: '700',
-    color: '#FFFFFF',
     letterSpacing: 0.1,
+    flexShrink: 1,
   },
   chatTime: {
-    color: "rgba(255, 255, 255, 0.45)",
+    marginLeft: 8,
   },
   blindDateTag: {
     fontSize: 11,
-    color: 'rgba(124, 43, 134, 0.9)',
-    fontWeight: '500',
-    marginBottom: 2,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 1,
   },
-  messageRow: {
+  pinnedIcon: {
+    marginLeft: 6,
+  },
+  chatLine2: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    marginTop: 2,
   },
   chatMessage: {
-    color: "rgba(255, 255, 255, 0.65)",
     flex: 1,
+    marginRight: 8,
+    lineHeight: 18,
   },
-  messageStatus: {
-    marginLeft: 4,
+  chatLine2Right: {
+    minWidth: 20,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
-  typingText: {
-    fontStyle: 'italic',
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
+  messageStatus: {},
   unreadBadge: {
     minWidth: 20,
     height: 20,
     borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#7C2B86",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 1,
   },
   unreadText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   rowMenuContainer: {
     marginLeft: 8,
@@ -1990,21 +1870,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)'
   },
   rowMenu: {
     position: 'absolute',
     top: 32,
-    right: 8, // add tiny gap from screen edge on native
-    backgroundColor: '#1F1147',
+    right: 50,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
     borderRadius: 10,
     paddingVertical: 6,
     minWidth: 140,
     zIndex: 9999,
     elevation: 8,
-    boxShadow: Platform.OS === 'web' ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
+    boxShadow: Platform.OS === 'web' ? '0 8px 24px rgba(0,0,0,0.2)' : undefined,
   },
   menuPortal: {
     ...StyleSheet.absoluteFillObject,
@@ -2020,7 +1897,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   rowMenuItemText: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -2040,7 +1916,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   loadingText: {
-    color: '#FFE8FF',
     fontSize: 16,
     marginTop: 16,
     fontWeight: '500',
@@ -2052,26 +1927,14 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#FFE8FF',
     fontSize: 20,
     fontWeight: '600',
     marginTop: 16,
   },
   emptySubtext: {
-    color: 'rgba(255, 232, 255, 0.7)',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  // Chat name row with verified badge
-  chatNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  pinnedIcon: {
-    marginLeft: 4,
-    fontSize: 12,
   },
   // Mobile long-press menu styles
   mobileMenuOverlay: {

@@ -18,17 +18,21 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Animated,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
+
+// Same brand gradient + squircle avatar radius as the chat list screen, so
+// this reads as part of the same design system.
+const BRAND_GRADIENT = ['#7C2B86', '#5D5FEF'];
+const AVATAR_RADIUS = 16;
 
 const formatTimeAgo = (timestamp) => {
   const date = new Date(timestamp);
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);
-  
+
   if (diffInSeconds < 60) return 'Just now';
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
@@ -40,6 +44,7 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { token } = useAuth();
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const { resetCount: resetNotificationCount } = useLocalNotificationCount();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,8 +55,7 @@ export default function NotificationsPage() {
 
     loadNotifications();
     setupSocketListeners();
-    
-    // Reset local notification count and mark all as read when page is opened
+
     resetNotificationCount();
     markAllAsRead();
 
@@ -71,7 +75,7 @@ export default function NotificationsPage() {
 
   const loadNotifications = async () => {
     if (refreshing) return;
-    
+
     setLoading(true);
     try {
       const socket = getSocket(token);
@@ -90,7 +94,7 @@ export default function NotificationsPage() {
 
   const setupSocketListeners = () => {
     const socket = getSocket(token);
-    
+
     socket.on('notifications:list', ({ notifications: serverNotifications }) => {
       const notificationData = (serverNotifications || []).map(request => ({
         id: request.id,
@@ -108,7 +112,7 @@ export default function NotificationsPage() {
       setLoading(false);
       setRefreshing(false);
     });
-    
+
     socket.on('friend:request:received', ({ request, sender }) => {
       const newNotification = {
         id: request.id,
@@ -210,7 +214,7 @@ export default function NotificationsPage() {
 
   const handleDeclineRequest = (notification) => {
     const requestType = notification.type === 'friend_request' ? 'Friend Request' : 'Message Request';
-    
+
     Alert.alert(
       `Decline ${requestType}`,
       `Are you sure you want to decline ${notification.senderName}'s request?`,
@@ -242,115 +246,100 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'friend_request':
-        return { name: 'person-add', color: '#7C2B86', bg: 'rgba(124, 43, 134, 0.1)' };
+        return { name: 'person-add', color: theme.primary, bg: theme.primaryLight };
       case 'message_request':
-        return { name: 'chatbubble-ellipses', color: '#FF6B9D', bg: 'rgba(255, 107, 157, 0.1)' };
+        return { name: 'chatbubble-ellipses', color: '#FF6B9D', bg: 'rgba(255, 107, 157, 0.12)' };
       case 'match':
-        return { name: 'heart', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)' };
+        return { name: 'heart', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' };
       default:
-        return { name: 'notifications', color: '#7C2B86', bg: 'rgba(124, 43, 134, 0.1)' };
+        return { name: 'notifications', color: theme.primary, bg: theme.primaryLight };
     }
   };
 
   const handleNotificationPress = (notification) => {
-    // Get the user ID from the notification
-    const userId = notification.data?.sender?.id || 
-                   notification.data?.sender_id || 
+    const userId = notification.data?.sender?.id ||
+                   notification.data?.sender_id ||
                    notification.data?.userId ||
                    notification.data?.other?.id ||
                    notification.sender?.id;
-    
+
     if (userId) {
       router.push(`/secure/user-profile/${userId}`);
     }
   };
 
-  const renderNotification = ({ item, index }) => {
+  const renderNotification = ({ item }) => {
     const iconConfig = getNotificationIcon(item.type);
     const isActionable = item.type === 'friend_request' || item.type === 'message_request';
-    
+
     return (
       <TouchableOpacity
-        style={[
-          styles.notificationCard,
-          { 
-            backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
-            borderLeftColor: iconConfig.color,
-          },
-          !item.read && styles.unreadCard,
-        ]}
+        style={styles.notificationRow}
         onPress={() => handleNotificationPress(item)}
-        activeOpacity={0.7}
+        activeOpacity={0.6}
       >
-        <View style={styles.notificationRow}>
-          {/* Avatar or Icon */}
-          <View style={styles.avatarSection}>
-            {item.avatar ? (
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.iconContainer, { backgroundColor: iconConfig.bg }]}>
-                <Ionicons name={iconConfig.name} size={22} color={iconConfig.color} />
-              </View>
-            )}
-            {!item.read && <View style={styles.unreadDot} />}
-          </View>
-          
-          {/* Content */}
-          <View style={styles.contentSection}>
-            <View style={styles.headerRow}>
-              <Text style={[styles.senderName, { color: theme.textPrimary }]} numberOfLines={1}>
-                {item.senderName || 'Circle'}
-              </Text>
-              <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
-                {formatTimeAgo(item.timestamp)}
-              </Text>
+        <View style={styles.avatarContainer}>
+          {item.avatar ? (
+            <View style={{ overflow: 'hidden', borderRadius: AVATAR_RADIUS, borderWidth: 1.5, borderColor: theme.primary + '26' }}>
+              <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
             </View>
-            
-            <Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
-              {item.message}
+          ) : (
+            <View style={[styles.iconContainer, { backgroundColor: iconConfig.bg, borderColor: theme.primary + '26' }]}>
+              <Ionicons name={iconConfig.name} size={22} color={iconConfig.color} />
+            </View>
+          )}
+          {!item.read && <View style={[styles.unreadDot, { borderColor: theme.background }]} />}
+        </View>
+
+        <View style={styles.contentSection}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.senderName, { color: theme.textPrimary }]} numberOfLines={1}>
+              {item.senderName || 'Circle'}
             </Text>
-            
-            {/* Action Buttons */}
-            {isActionable && (
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.acceptButton]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleAcceptRequest(item);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons 
-                    name={item.type === 'message_request' ? 'heart' : 'checkmark'} 
-                    size={16} 
-                    color="#FFFFFF" 
-                  />
-                  <Text style={styles.acceptButtonText}>
-                    {item.type === 'message_request' ? 'Connect' : 'Accept'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    styles.declineButton,
-                    { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F3F4F6' },
-                  ]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDeclineRequest(item);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="close" size={16} color={theme.textSecondary} />
-                  <Text style={[styles.declineButtonText, { color: theme.textSecondary }]}>
-                    {item.type === 'message_request' ? 'Pass' : 'Decline'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <Text style={[styles.timestamp, { color: theme.textMuted }]}>
+              {formatTimeAgo(item.timestamp)}
+            </Text>
           </View>
+
+          <Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
+            {item.message}
+          </Text>
+
+          {isActionable && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleAcceptRequest(item);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={item.type === 'message_request' ? 'heart' : 'checkmark'}
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.acceptButtonText}>
+                  {item.type === 'message_request' ? 'Connect' : 'Accept'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.declineButton, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleDeclineRequest(item);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="close" size={16} color={theme.textSecondary} />
+                <Text style={[styles.declineButtonText, { color: theme.textSecondary }]}>
+                  {item.type === 'message_request' ? 'Pass' : 'Decline'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -358,214 +347,232 @@ export default function NotificationsPage() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <View style={[styles.emptyIconContainer, { backgroundColor: isDarkMode ? 'rgba(124, 43, 134, 0.15)' : 'rgba(124, 43, 134, 0.08)' }]}>
-        <Ionicons name="notifications-outline" size={48} color="#7C2B86" />
-      </View>
-      <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>All Caught Up!</Text>
+      <Ionicons name="notifications-outline" size={64} color={theme.textMuted} />
+      <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>All caught up!</Text>
       <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
         You don't have any notifications right now.{'\n'}We'll let you know when something happens.
       </Text>
     </View>
   );
 
+  const headerTopPadding = (insets.top || (Platform.OS === 'android' ? 24 : 0)) + (Platform.OS === 'web' ? 20 : 12);
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Notifications</Text>
-        <View style={styles.headerRight}>
-          {notifications.length > 0 && (
-            <TouchableOpacity onPress={markAllAsRead} style={styles.markReadButton} activeOpacity={0.7}>
-              <Ionicons name="checkmark-done" size={20} color="#7C2B86" />
+
+      {/* Header: same brand gradient chrome as the chat list screen. */}
+      <LinearGradient
+        colors={BRAND_GRADIENT}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: headerTopPadding }]}
+      >
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity activeOpacity={0.75} style={styles.headerIconButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleTap}>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            <Text style={styles.headerSubtitle}>
+              {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          {notifications.length > 0 ? (
+            <TouchableOpacity activeOpacity={0.75} style={styles.headerIconButton} onPress={markAllAsRead}>
+              <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
             </TouchableOpacity>
+          ) : (
+            <View style={styles.headerIconButton} />
+          )}
+        </View>
+      </LinearGradient>
+
+      {/* Content sheet: rounded top corners overlap the header, matching
+          the chat list's "card peeking out" transition. */}
+      <View style={styles.sheetShadowWrap}>
+        <View style={[styles.sheet, { backgroundColor: theme.background }]}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
+            </View>
+          ) : notifications.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            <FlatList
+              data={notifications}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={renderNotification}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 40 }]}
+              ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.divider }]} />}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={[theme.primary]}
+                  tintColor={theme.primary}
+                />
+              }
+            />
           )}
         </View>
       </View>
-      
-      {/* Content */}
-      <View style={[styles.content, { backgroundColor: theme.background }]}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#7C2B86" />
-            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
-          </View>
-        ) : notifications.length === 0 ? (
-          renderEmptyState()
-        ) : (
-          <FlatList
-            data={notifications}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={renderNotification}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={['#7C2B86']}
-                tintColor="#7C2B86"
-              />
-            }
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   header: {
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    shadowColor: '#3D1240',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    zIndex: 2,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerTitleTap: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
-  headerRight: {
-    width: 40,
-    alignItems: 'flex-end',
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 2,
   },
-  markReadButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
-  content: {
+  sheetShadowWrap: {
     flex: 1,
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+  },
+  sheet: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  listContent: {
+    paddingTop: 18,
+    paddingHorizontal: 16,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 60,
+    paddingTop: 60,
   },
   loadingText: {
+    fontSize: 16,
     marginTop: 16,
-    fontSize: 15,
     fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: 60,
-  },
-  emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
+    paddingTop: 80,
+    paddingHorizontal: 32,
   },
   emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-    letterSpacing: -0.3,
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 16,
   },
   emptySubtext: {
-    fontSize: 15,
+    fontSize: 14,
+    marginTop: 8,
     textAlign: 'center',
-    lineHeight: 22,
-  },
-  listContainer: {
-    paddingVertical: 8,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    marginLeft: 76,
-  },
-  notificationCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
-  },
-  unreadCard: {
-    backgroundColor: 'rgba(124, 43, 134, 0.03)',
+    lineHeight: 20,
   },
   notificationRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: 12,
   },
-  avatarSection: {
+  avatarContainer: {
     position: 'relative',
     marginRight: 12,
   },
-  avatar: {
+  avatarImage: {
     width: 48,
     height: 48,
-    borderRadius: 24,
   },
   iconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: AVATAR_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
   },
   unreadDot: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#7C2B86',
+    top: -2,
+    right: -2,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#5D5FEF',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   contentSection: {
     flex: 1,
+    justifyContent: 'center',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   senderName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     flex: 1,
     marginRight: 8,
+    letterSpacing: 0.1,
   },
   timestamp: {
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 12,
   },
   notificationMessage: {
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 19,
+    marginBottom: 10,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -579,20 +586,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
   },
-  acceptButton: {
-    backgroundColor: '#7C2B86',
-  },
   declineButton: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
   },
   acceptButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   declineButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../config/api.js';
 
-const MAX_PHOTOS = 5;
+const MAX_PHOTOS = 6;
 const MAX_IMAGE_SIZE = 1920; // Max width/height
 const COMPRESSION_QUALITY = 0.8;
 

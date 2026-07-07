@@ -8,6 +8,7 @@ import AnnouncementBanner from '@/components/AnnouncementBanner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { usePullToRefreshHaptics } from '@/hooks/usePullToRefreshHaptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +30,7 @@ const isBrowser = Platform.OS === 'web';
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const { theme, isDarkMode } = useTheme();
 
@@ -431,7 +433,7 @@ export default function ExploreScreen() {
     <View style={[styles.xContainer, { backgroundColor: theme.background }]}>
       <ScrollView
         style={styles.xScroll}
-        contentContainerStyle={styles.xContent}
+        contentContainerStyle={[styles.xContent, { paddingBottom: insets.bottom + 90 }]}
         onScroll={onPullScroll}
         onScrollBeginDrag={onPullBegin}
         onScrollEndDrag={onPullEnd}
