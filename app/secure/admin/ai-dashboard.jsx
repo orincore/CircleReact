@@ -12,15 +12,21 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useAuth } from '@/contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import AdminAuthGuard from '@/components/admin/AdminAuthGuard';
+import { API_BASE_URL } from '@/src/api/config';
 
 const { width } = Dimensions.get('window');
 
+// This component is always rendered inside app/admin (either as the
+// /admin/ai-dashboard route, or embedded in app/admin/dashboard.jsx), which
+// is already protected end-to-end by AdminAuthGuard in app/admin/_layout.jsx.
+// It uses the admin session's own token (AsyncStorage 'authToken'), not the
+// main app's AuthContext token, since a pure admin-panel login never
+// populates AuthContext.
 const AIDashboard = () => {
-  const { token, logout } = useAuth();
   const router = useRouter();
+  const [token, setToken] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [realTimeMetrics, setRealTimeMetrics] = useState(null);
@@ -33,11 +39,15 @@ const AIDashboard = () => {
   const [languageStats, setLanguageStats] = useState([]);
   const [agents, setAgents] = useState([]);
 
-  const API_BASE_URL = 'https://api.circle.orincore.com';
+  useEffect(() => {
+    AsyncStorage.getItem('authToken').then(setToken);
+  }, []);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (token) {
+      loadDashboardData();
+    }
+  }, [token]);
 
   const loadDashboardData = async () => {
     try {
@@ -200,14 +210,20 @@ const AIDashboard = () => {
     }
   };
 
+  const clearAdminSession = async () => {
+    await AsyncStorage.removeItem('authToken');
+    await AsyncStorage.removeItem('isAdmin');
+    await AsyncStorage.removeItem('adminRole');
+  };
+
   const handleLogout = async () => {
     try {
       if (Platform.OS === 'web') {
         // Browser-compatible confirmation
         const confirmed = window.confirm('Are you sure you want to logout?');
         if (confirmed) {
-          await logout();
-          window.location.href = '/login';
+          await clearAdminSession();
+          window.location.href = '/admin/login';
         }
       } else {
         // Native Alert
@@ -216,12 +232,12 @@ const AIDashboard = () => {
           'Are you sure you want to logout?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Logout', 
+            {
+              text: 'Logout',
               style: 'destructive',
               onPress: async () => {
-                await logout();
-                router.replace('/login');
+                await clearAdminSession();
+                router.replace('/admin/login');
               }
             }
           ]
@@ -665,8 +681,7 @@ const AIDashboard = () => {
   ];
 
   return (
-    <AdminAuthGuard>
-      <View style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={['#7C2B86', '#5D5FEF']} style={styles.header}>
         <Text style={styles.headerTitle}>AI Customer Service Dashboard</Text>
@@ -712,7 +727,6 @@ const AIDashboard = () => {
         {activeTab === 'settings' && renderSettingsTab()}
       </View>
     </View>
-    </AdminAuthGuard>
   );
 };
 

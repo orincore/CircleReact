@@ -33,32 +33,17 @@ function AdminDashboard() {
   const [aiMetrics, setAiMetrics] = useState(null);
   const [blindDatingStats, setBlindDatingStats] = useState(null);
 
+  // AdminAuthGuard (app/admin/_layout.jsx) already guarantees a valid admin
+  // session exists before this component ever mounts, so there's no need to
+  // re-check isAdmin/authToken or redirect here.
   useEffect(() => {
-    checkAdminAccess();
     loadDashboardData();
   }, []);
-
-  const checkAdminAccess = async () => {
-    try {
-      const isAdmin = await AsyncStorage.getItem('isAdmin');
-      if (isAdmin !== 'true') {
-        router.replace('/admin/login');
-      }
-    } catch (error) {
-      console.error('Error checking admin access:', error);
-      router.replace('/admin/login');
-    }
-  };
 
   const loadDashboardData = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        router.replace('/admin/login');
-        return;
-      }
 
-      // Load all stats
       await Promise.all([
         loadRegularStats(token),
         loadAIMetrics(token),

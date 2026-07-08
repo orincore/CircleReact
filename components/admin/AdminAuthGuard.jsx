@@ -1,157 +1,110 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { API_BASE_URL } from '@/src/api/config';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   StyleSheet,
   Text,
   View
 } from 'react-native';
 
+// Single source of truth for admin access, wrapping every route under
+// app/admin/_layout.jsx - including /admin/login itself. Admin sessions are
+// independent of the main app's AuthContext: the token, isAdmin flag and
+// role all live under their own AsyncStorage keys, set by app/admin/login.jsx
+// and verified here against /api/admin/verify.
+//
+// Being pathname-aware lets this one component own both redirect directions
+// (unauthenticated -> /admin/login, and already-authenticated visitor on
+// /admin/login -> /admin/dashboard) instead of each page independently
+// deciding to redirect, which previously raced and produced an infinite
+// reload loop.
 const AdminAuthGuard = ({ children }) => {
-  const { user, token, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const isLoginRoute = pathname === '/admin/login';
   const [authState, setAuthState] = useState({
     isVerifying: true,
     isAuthorized: false,
-    hasChecked: false
   });
 
-  const API_BASE_URL = 'https://api.circle.orincore.com';
-
-  // Note: Admin verification now uses admin_roles table in database
-  // No hardcoded admin list needed - all verification done via API
-
-  useEffect(() => {
-    if (!authState.hasChecked) {
-      //console.log('🔄 AdminAuthGuard - useEffect triggered');
-      checkAdminStatus();
-    }
-  }, [authState.hasChecked]);
-
-  const checkAdminStatus = useCallback(async () => {
-    try {
-      //console.log('🔍 AdminAuthGuard - Checking admin status...');
-      
-      // Check AsyncStorage for admin credentials
-      const storedToken = await AsyncStorage.getItem('authToken');
-      const isAdmin = await AsyncStorage.getItem('isAdmin');
-      
-      //console.log('🔍 AdminAuthGuard - Stored token:', storedToken ? 'Present' : 'Missing');
-      //console.log('🔍 AdminAuthGuard - Stored isAdmin:', isAdmin);
-      
-      if (!storedToken || isAdmin !== 'true') {
-        //console.log('❌ AdminAuthGuard - No admin credentials found, redirecting to login');
-        setAuthState({
-          isVerifying: false,
-          isAuthorized: false,
-          hasChecked: true
-        });
-        redirectToLogin();
-        return;
-      }
-      
-      // Verify token with backend API
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/verify`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${storedToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.isAdmin) {
-            //console.log('✅ AdminAuthGuard - Admin verified by backend, allowing access');
-            setAuthState({
-              isVerifying: false,
-              isAuthorized: true,
-              hasChecked: true
-            });
-            return;
-          }
-        }
-        
-        // If verification fails, clear credentials and redirect
-        //console.log('❌ AdminAuthGuard - Backend verification failed');
-        await AsyncStorage.removeItem('authToken');
-        await AsyncStorage.removeItem('isAdmin');
-        await AsyncStorage.removeItem('adminRole');
-        setAuthState({
-          isVerifying: false,
-          isAuthorized: false,
-          hasChecked: true
-        });
-        redirectToLogin();
-      } catch (apiError) {
-        // If API call fails, allow access but log warning (for offline scenarios)
-        console.warn('⚠️ AdminAuthGuard - Could not verify with backend, allowing cached access');
-        setAuthState({
-          isVerifying: false,
-          isAuthorized: true,
-          hasChecked: true
-        });
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setAuthState({
-        isVerifying: false,
-        isAuthorized: false,
-        hasChecked: true
-      });
-      redirectToLogin();
-    }
-  }, []);
-
-  const redirectToLogin = () => {
-    // Don't redirect if already on login page
-    if (Platform.OS === 'web' && window.location.pathname === '/admin/login') {
-      //console.log('🔍 AdminAuthGuard - Already on login page, skipping redirect');
-      return;
-    }
-    
+  const goToLogin = useCallback(() => {
+    if (isLoginRoute) return;
+    // Small delay so the "Access Denied" state is readable rather than an
+    // instant flash before the redirect.
     setTimeout(() => {
-      //console.log('🔄 AdminAuthGuard - Redirecting to admin login');
       if (Platform.OS === 'web') {
         window.location.href = '/admin/login';
       } else {
         router.replace('/admin/login');
       }
-    }, 1000);
-  };
+    }, 800);
+  }, [isLoginRoute, router]);
 
-  const showUnauthorizedAndRedirect = () => {
-    setTimeout(() => {
-      if (Platform.OS === 'web') {
-        alert('Access Denied: You do not have permission to access the admin panel.');
-        window.location.href = '/secure/(tabs)/profile';
-      } else {
-        Alert.alert(
-          'Access Denied',
-          'You do not have permission to access the admin panel.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/secure/(tabs)/profile')
-            }
-          ]
-        );
+  const goToDashboard = useCallback(() => {
+    if (!isLoginRoute) return;
+    router.replace('/admin/dashboard');
+  }, [isLoginRoute, router]);
+
+  const checkAdminStatus = useCallback(async () => {
+    try {
+      const storedToken = await AsyncStorage.getItem('authToken');
+      const isAdmin = await AsyncStorage.getItem('isAdmin');
+
+      if (!storedToken || isAdmin !== 'true') {
+        setAuthState({ isVerifying: false, isAuthorized: false });
+        goToLogin();
+        return;
       }
-    }, 1000);
-  };
 
-  //console.log('🔍 AdminAuthGuard - Render state:', authState);
+      const response = await fetch(`${API_BASE_URL}/api/admin/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${storedToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-  // Loading state
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isAdmin) {
+          setAuthState({ isVerifying: false, isAuthorized: true });
+          goToDashboard();
+          return;
+        }
+      }
+
+      // Verification failed (bad/expired token, or role revoked)
+      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem('isAdmin');
+      await AsyncStorage.removeItem('adminRole');
+      setAuthState({ isVerifying: false, isAuthorized: false });
+      goToLogin();
+    } catch (error) {
+      // Network/API failure: allow cached access rather than lock out an
+      // admin whose session is fine but whose backend is briefly unreachable.
+      console.warn('AdminAuthGuard - could not verify with backend, allowing cached access:', error);
+      setAuthState({ isVerifying: false, isAuthorized: true });
+    }
+  }, [goToLogin, goToDashboard]);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, [checkAdminStatus]);
+
+  // On the login route itself we never block the form behind a spinner or
+  // an "Access Denied" screen - an unauthenticated visitor should just see
+  // the form immediately. If a valid session IS found, checkAdminStatus
+  // above already kicked off the redirect to the dashboard.
+  if (isLoginRoute) {
+    return <View style={{ flex: 1 }}>{children}</View>;
+  }
+
   if (authState.isVerifying) {
-    //console.log('🔄 AdminAuthGuard - Rendering loading state');
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#7C2B86', '#5D5FEF']} style={styles.loadingContainer}>
@@ -162,9 +115,7 @@ const AdminAuthGuard = ({ children }) => {
     );
   }
 
-  // Unauthorized state
   if (!authState.isAuthorized) {
-    //console.log('❌ AdminAuthGuard - Rendering unauthorized state');
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#FF5722', '#F44336']} style={styles.unauthorizedContainer}>
@@ -179,10 +130,6 @@ const AdminAuthGuard = ({ children }) => {
     );
   }
 
-  // Authorized - render admin content
-  //console.log('✅ AdminAuthGuard - Rendering authorized admin content');
-  //console.log('✅ AdminAuthGuard - Children type:', typeof children);
-  //console.log('✅ AdminAuthGuard - Children:', children);
   return (
     <View style={{ flex: 1 }}>
       {children}

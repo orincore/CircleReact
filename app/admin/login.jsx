@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,80 +17,17 @@ import {
   View,
 } from 'react-native';
 
+// This screen only submits credentials and stores the resulting token.
+// It does not attempt to detect an existing session and auto-redirect -
+// that responsibility belongs solely to AdminAuthGuard (which wraps every
+// route under app/admin/_layout.jsx). Two independent redirect mechanisms
+// here previously raced each other and produced an infinite reload loop.
 export default function AdminLogin() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  // Check if user is already authenticated on component mount
-  useEffect(() => {
-    let fallbackTimeout;
-    
-    const runAuthCheck = async () => {
-      // Fallback timeout to prevent infinite loading
-      fallbackTimeout = setTimeout(() => {
-        //console.log('⚠️ AdminLogin - Fallback timeout reached, showing login form');
-        setCheckingAuth(false);
-      }, 3000); // 3 second fallback
-      
-      await checkExistingAuth();
-      
-      // Clear the fallback timeout if auth check completes
-      if (fallbackTimeout) {
-        clearTimeout(fallbackTimeout);
-      }
-    };
-    
-    runAuthCheck();
-    
-    return () => {
-      if (fallbackTimeout) {
-        clearTimeout(fallbackTimeout);
-      }
-    };
-  }, []);
-
-  const checkExistingAuth = async () => {
-    try {
-      //console.log('🔍 AdminLogin - Checking existing authentication...');
-      
-      // Check if we're already on dashboard to prevent redirect loop
-      if (Platform.OS === 'web' && window.location.pathname.includes('/admin/dashboard')) {
-        //console.log('🔍 AdminLogin - Already on dashboard, skipping auth check');
-        setCheckingAuth(false);
-        return;
-      }
-      
-      const storedToken = await AsyncStorage.getItem('authToken');
-      const isAdmin = await AsyncStorage.getItem('isAdmin');
-      
-      //console.log('🔍 AdminLogin - Stored token:', storedToken ? 'Present' : 'Missing');
-      //console.log('🔍 AdminLogin - Stored isAdmin:', isAdmin);
-      
-      if (storedToken && isAdmin === 'true') {
-        //console.log('✅ AdminLogin - User already authenticated, redirecting to dashboard');
-        
-        // Force redirect using both router and window.location for web
-        if (Platform.OS === 'web') {
-          window.location.href = '/admin/dashboard';
-        } else {
-          router.replace('/admin/dashboard');
-        }
-        return;
-      }
-      
-      //console.log('❌ AdminLogin - No valid authentication found, showing login form');
-    } catch (error) {
-      console.error('Error checking existing auth:', error);
-    }
-    
-    // Always set checkingAuth to false, regardless of redirect
-    //console.log('🔄 AdminLogin - Setting checkingAuth to false');
-    setCheckingAuth(false);
-  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -100,42 +37,26 @@ export default function AdminLogin() {
 
     setLoading(true);
     try {
-      // First, authenticate the user
       const authResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: email, password }),
       });
-
       const authData = await authResponse.json();
 
       if (!authResponse.ok) {
         throw new Error(authData.error || 'Login failed');
       }
 
-      // Store the token (backend returns 'access_token')
       const token = authData.access_token || authData.token;
       await AsyncStorage.setItem('authToken', token);
 
-      // Check if user is an admin
-      //console.log('🔍 Checking admin status for:', email);
-      //console.log('🔍 Using API URL:', `${API_BASE_URL}/api/admin/check`);
-      //console.log('🔍 Using token:', token ? 'Token present' : 'No token');
-      
       const adminCheckResponse = await fetch(`${API_BASE_URL}/api/admin/check`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      //console.log('🔍 Admin check status:', adminCheckResponse.status);
       const adminData = await adminCheckResponse.json();
-      //console.log('🔍 Admin check response:', adminData);
 
       if (!adminCheckResponse.ok) {
-        // API error, show specific error message
         await AsyncStorage.removeItem('authToken');
         Alert.alert(
           'Authentication Error',
@@ -146,7 +67,6 @@ export default function AdminLogin() {
       }
 
       if (!adminData.isAdmin) {
-        // Not an admin, clear token and show error
         await AsyncStorage.removeItem('authToken');
         Alert.alert(
           'Access Denied',
@@ -156,18 +76,22 @@ export default function AdminLogin() {
         return;
       }
 
-      // Store admin info
       await AsyncStorage.setItem('adminRole', adminData.role);
       await AsyncStorage.setItem('isAdmin', 'true');
 
-      // Navigate to admin dashboard
-      router.replace('/admin/dashboard');
+      // A client-side router.replace() between two routes under the same
+      // /admin layout can unreliably resolve back to /admin/login (an
+      // expo-router web segments race). A hard navigation lands on the
+      // target URL unambiguously.
+      if (Platform.OS === 'web') {
+        window.location.href = '/admin/dashboard';
+      } else {
+        router.replace('/admin/dashboard');
+      }
     } catch (error) {
       console.error('Admin login error:', error);
-      
-      // More detailed error handling
+
       let errorMessage = 'An error occurred during login';
-      
       if (error.message.includes('Invalid credentials')) {
         errorMessage = 'Invalid email or password. Please check your credentials and try again.';
       } else if (error.message.includes('Network')) {
@@ -175,27 +99,11 @@ export default function AdminLogin() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert('Login Failed', errorMessage);
-    } finally {
       setLoading(false);
     }
   };
-
-  // Show loading screen while checking existing authentication
-  if (checkingAuth) {
-    return (
-      <LinearGradient
-        colors={['#1F1147', '#7C2B86', '#E94B8B']}
-        style={styles.container}
-      >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFD6F2" />
-          <Text style={styles.loadingText}>Checking authentication...</Text>
-        </View>
-      </LinearGradient>
-    );
-  }
 
   return (
     <LinearGradient
@@ -307,17 +215,6 @@ export default function AdminLogin() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    color: '#FFD6F2',
-    fontSize: 16,
-    fontWeight: '500',
   },
   keyboardView: {
     flex: 1,

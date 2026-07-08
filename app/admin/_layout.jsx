@@ -38,7 +38,11 @@ export default function AdminLayout() {
 
   // Don't show sidebar on login page
   if (pathname === '/admin/login' || pathname === '/admin') {
-    return <Slot />;
+    return (
+      <AdminAuthGuard>
+        <Slot />
+      </AdminAuthGuard>
+    );
   }
 
   const getPageTitle = () => {

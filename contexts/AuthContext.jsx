@@ -479,6 +479,7 @@ export function AuthProvider({ children }) {
     const isSecureRoute = firstSegment === "secure";
     const isSignupFlow = firstSegment === "signup"; // allow viewing summary even when authed
     const isAuthFlow = firstSegment === "auth"; // allow email verification even when authed
+    const isAdminRoute = firstSegment === "admin"; // admin panel has its own auth (AdminAuthGuard), independent of this context
     // Public marketing pages that should remain accessible on web even when authenticated
     const publicWebFirstSegments = new Set([
       undefined, // home route
@@ -497,7 +498,7 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    if (isAuthenticated && !isSecureRoute && !isSignupFlow && !isAuthFlow && !isPublicWebRoute) {
+    if (isAuthenticated && !isSecureRoute && !isSignupFlow && !isAuthFlow && !isAdminRoute && !isPublicWebRoute) {
       router.replace("/secure/match");
     }
   }, [isAuthenticated, isRestoring, router, segments]);
