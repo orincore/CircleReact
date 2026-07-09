@@ -5,6 +5,8 @@ import TypingDots from "@/components/chat/TypingDots";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useJamSession } from "@/contexts/JamSessionContext";
+import JamMiniPlayerBar from "@/src/components/jam/JamMiniPlayerBar";
 import { chatApi } from "@/src/api/chat";
 import { blindDatingApi } from "@/src/api/blindDating";
 import { getSocket, socketService } from "@/src/api/socket";
@@ -41,6 +43,7 @@ export default function ChatListScreen() {
   const responsive = useResponsiveDimensions();
   const { shouldShowAds } = useSubscription();
   const insets = useSafeAreaInsets();
+  const { session: jamSession } = useJamSession();
 
   // Create dynamic styles based on theme
   const dynamicStyles = {
@@ -1045,6 +1048,11 @@ export default function ChatListScreen() {
       if (!Array.isArray(conversations)) return 0;
       return conversations.filter(item => {
         if (!item) return false;
+        // Must match the same validity check filteredConversations applies
+        // below -- otherwise this count includes rows (missing otherId/name,
+        // e.g. an unresolved other user) that never actually render in the
+        // list, so the header count doesn't match what's visible.
+        if (!item.otherId || !(item.otherName || '').trim()) return false;
         const isBlind = !!item.isBlindDateOngoing || !!item.isMemeConnectOngoing;
         if (activeTab === 'blind' && !isBlind) return false;
         if (activeTab === 'chats' && isBlind) return false;
@@ -1245,8 +1253,18 @@ export default function ChatListScreen() {
           </View>
         )}
 
-        {/* Daily Blind Connect status banner */}
-        {blindDateStatus.enabled && !blindDateStatus.loading && (
+        {/* Daily Blind Connect status banner — while a jam session is active, its "no
+            match found yet" state gives way to the now-playing bar here instead (the
+            "found today" success banner is good news worth keeping regardless). */}
+        {blindDateStatus.enabled && !blindDateStatus.loading && jamSession && !blindDateStatus.foundToday ? (
+          <JamMiniPlayerBar
+            style={{
+              marginTop: 30,
+              marginBottom: 12,
+              marginHorizontal: Math.max(12, responsive.horizontalPadding / 2),
+            }}
+          />
+        ) : blindDateStatus.enabled && !blindDateStatus.loading && (
           <View
             style={[
               styles.blindDateDailyBanner,
@@ -1450,11 +1468,6 @@ export default function ChatListScreen() {
                           </Text>
                         </View>
                       )}
-                      {isTyping && (
-                        <View style={styles.typingIndicator}>
-                          <TypingDots color="white" size={3} bounceHeight={2} duration={220} style={styles.typingDots} />
-                        </View>
-                      )}
                     </View>
                     <View style={styles.chatInfo}>
                       <View style={styles.chatLine1}>
@@ -1493,17 +1506,9 @@ export default function ChatListScreen() {
                       <View style={styles.chatLine2}>
                         {isTyping ? (
                           <View style={styles.typingPreviewRow}>
-                            <TypingDots color={theme.success} size={4} bounceHeight={3} duration={260} />
-                            <Text
-                              style={[
-                                styles.chatMessage,
-                                dynamicStyles.chatMessage,
-                                { fontSize: responsive.fontSize.medium, color: theme.success, fontStyle: 'italic', fontWeight: '500', marginLeft: 6 },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              typing...
-                            </Text>
+                            <View style={[styles.typingBubble, { backgroundColor: theme.surface, shadowColor: theme.shadowColor }]}>
+                              <TypingDots color={theme.textMuted} />
+                            </View>
                           </View>
                         ) : (
                           <Text
@@ -1892,27 +1897,26 @@ const styles = StyleSheet.create({
   fallbackAvatarText: {
     fontWeight: '700',
   },
-  typingIndicator: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#4CAF50',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  typingDots: {
-    marginHorizontal: 0,
-  },
   typingPreviewRow: {
     flex: 1,
     marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // Mirrors components/chat/TypingIndicator.jsx's bubble so the chat list
+  // preview shows the exact same dots-in-a-bubble treatment as the inner
+  // chat screen, instead of a separate "typing..." text style.
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 1,
   },
   chatInfo: {
     flex: 1,

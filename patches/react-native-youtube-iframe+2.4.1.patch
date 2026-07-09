@@ -1,0 +1,69 @@
+diff --git a/node_modules/react-native-youtube-iframe/lib/commonjs/YoutubeIframe.js b/node_modules/react-native-youtube-iframe/lib/commonjs/YoutubeIframe.js
+index 0be2dad..4747696 100644
+--- a/node_modules/react-native-youtube-iframe/lib/commonjs/YoutubeIframe.js
++++ b/node_modules/react-native-youtube-iframe/lib/commonjs/YoutubeIframe.js
+@@ -50,11 +50,25 @@ const YoutubeIframe = (props, ref) => {
+     if (!playerReady) {
+       return;
+     }
+-    const message = JSON.stringify({
+-      eventName,
+-      meta
+-    });
+-    webViewRef.current.postMessage(message);
++    // patch-package (patches/react-native-youtube-iframe+2.4.1.patch):
++    // v2.4.x sends these commands as JSON via webview.postMessage(), but the hosted
++    // iframe_v2.html page this library loads by default matches event.data against plain
++    // strings ('playVideo', ...) — so play/pause/mute/volume commands are silently dropped
++    // and the player never starts (upstream issues #376/#377; fix PR #383 unmerged).
++    // seekTo/loadVideoById work because they use injectJavaScript. Do the same here:
++    // inject the equivalent player.* call directly against the page's global `player`,
++    // which exists in both the hosted page and the useLocalHTML inline page.
++    const script = {
++      playVideo: _PlayerScripts.PLAYER_FUNCTIONS.playVideo,
++      pauseVideo: _PlayerScripts.PLAYER_FUNCTIONS.pauseVideo,
++      muteVideo: _PlayerScripts.PLAYER_FUNCTIONS.muteVideo,
++      unMuteVideo: _PlayerScripts.PLAYER_FUNCTIONS.unMuteVideo,
++      setVolume: meta ? _PlayerScripts.PLAYER_FUNCTIONS.setVolume(meta.volume) : null,
++      setPlaybackRate: meta ? _PlayerScripts.PLAYER_FUNCTIONS.setPlaybackRate(meta.playbackRate) : null
++    }[eventName];
++    if (script) {
++      webViewRef.current.injectJavaScript(script);
++    }
+   }, [playerReady]);
+   (0, _react.useImperativeHandle)(ref, () => ({
+     getVideoUrl: () => {
+diff --git a/node_modules/react-native-youtube-iframe/src/YoutubeIframe.js b/node_modules/react-native-youtube-iframe/src/YoutubeIframe.js
+index 4bbf487..0c4f368 100644
+--- a/node_modules/react-native-youtube-iframe/src/YoutubeIframe.js
++++ b/node_modules/react-native-youtube-iframe/src/YoutubeIframe.js
+@@ -61,8 +61,27 @@ const YoutubeIframe = (props, ref) => {
+         return;
+       }
+ 
+-      const message = JSON.stringify({eventName, meta});
+-      webViewRef.current.postMessage(message);
++      // patch-package (patches/react-native-youtube-iframe+2.4.1.patch):
++      // v2.4.x sends these commands as JSON via webview.postMessage(), but the hosted
++      // iframe_v2.html page this library loads by default matches event.data against plain
++      // strings ('playVideo', ...) — so play/pause/mute/volume commands are silently dropped
++      // and the player never starts (upstream issues #376/#377; fix PR #383 unmerged).
++      // seekTo/loadVideoById work because they use injectJavaScript. Do the same here:
++      // inject the equivalent player.* call directly against the page's global `player`,
++      // which exists in both the hosted page and the useLocalHTML inline page.
++      const script = {
++        playVideo: PLAYER_FUNCTIONS.playVideo,
++        pauseVideo: PLAYER_FUNCTIONS.pauseVideo,
++        muteVideo: PLAYER_FUNCTIONS.muteVideo,
++        unMuteVideo: PLAYER_FUNCTIONS.unMuteVideo,
++        setVolume: meta ? PLAYER_FUNCTIONS.setVolume(meta.volume) : null,
++        setPlaybackRate: meta
++          ? PLAYER_FUNCTIONS.setPlaybackRate(meta.playbackRate)
++          : null,
++      }[eventName];
++      if (script) {
++        webViewRef.current.injectJavaScript(script);
++      }
+     },
+     [playerReady],
+   );

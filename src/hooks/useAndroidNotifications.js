@@ -77,7 +77,6 @@ export default function useAndroidNotifications() {
     socket.off('notification:new', handleGenericNotification);
     socket.off('friend:request:received', handleFriendRequestReceived);
     socket.off('friend:request:accepted', handleFriendRequestAccepted);
-    socket.off('chat:message:background', handleMessageReceived);
     socket.off('message:request:received', handleMessageRequestReceived);
     socket.off('matchmaking:proposal', handleMatchFound);
     socket.off('chat:reaction:received', handleReactionReceived);
@@ -173,23 +172,6 @@ export default function useAndroidNotifications() {
       senderName: `${acceptedByName} accepted your friend request`,
       senderId: friend?.id,
       requestId: friendship?.id
-    });
-  };
-
-  // Message notifications
-  const handleMessageReceived = ({ message }) => {
-    
-    // Don't show notification if user is in the same chat
-    if (currentChatIdRef.current === message.chatId) {
-      return;
-    }
-
-    androidNotificationService.showMessageNotification({
-      senderName: message.senderName || 'Someone',
-      message: message.content || message.text || 'New message',
-      chatId: message.chatId,
-      senderId: message.senderId,
-      messageId: message.id // For deduplication with push notifications
     });
   };
 
@@ -340,10 +322,6 @@ export default function useAndroidNotifications() {
 
     socket.on('friend:request:accepted', (data) => {
       handleFriendRequestAccepted(data);
-    });
-
-    socket.on('chat:message:background', (data) => {
-      handleMessageReceived(data);
     });
 
     socket.on('message:request:received', (data) => {

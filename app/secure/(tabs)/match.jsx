@@ -16,6 +16,7 @@ import { getSocket } from "@/src/api/socket";
 import NotificationPermissionBanner from "@/src/components/NotificationPermissionBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import PromptMatchingWrapper from "@/components/PromptMatchingWrapper";
+import JamMiniPlayerBar from "@/src/components/jam/JamMiniPlayerBar";
 import HelpRequestsList from "@/components/HelpRequestsList";
 import NotificationPanel from "@/components/NotificationPanel";
 import { useLocalNotificationCount } from "@/src/hooks/useLocalNotificationCount";
@@ -2800,6 +2801,7 @@ export default function MatchScreen() {
             {/* Prompt Matching Toggle - Help Mode */}
             <PromptMatchingWrapper />
 
+            <JamMiniPlayerBar style={styles.jamBar} />
 
             {/* Friend Requests */}
             {friendRequests.length > 0 && (
@@ -4693,6 +4695,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+
 
   // Mobile Friend Requests - WhatsApp/Instagram style
   mobileFriendRequests: {

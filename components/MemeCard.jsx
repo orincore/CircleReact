@@ -353,6 +353,12 @@ const styles = StyleSheet.create({
     right: 12,
     alignItems: 'center',
     gap: 18,
+    // Must outrank videoTapLayer's elevation/zIndex (10) below, or on
+    // Android the video's full-bleed tap-catching Pressable composites (and
+    // hit-tests) above these buttons, silently swallowing taps meant for
+    // like/comment/share whenever the card is showing a video.
+    elevation: 15,
+    zIndex: 15,
   },
   actionButton: {
     alignItems: 'center',

@@ -43,6 +43,8 @@ const MediaLibrary = Platform.OS !== "web" ? require("expo-media-library") : nul
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useJamSession } from "@/contexts/JamSessionContext";
+import JamMiniPlayerBar from "@/src/components/jam/JamMiniPlayerBar";
 import { getSocket, socketService } from "@/src/api/socket";
 import { chatApi } from "@/src/api/chat";
 import { reportsApi, REPORT_REASONS } from "@/src/api/reports";
@@ -572,12 +574,21 @@ export default function ChatConversationScreen() {
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { session: jamSession, startSession: startJamSession, setIsExpanded: setJamExpanded, setActiveChat } = useJamSession();
 
   const conversationId = typeof id === "string" ? id : "chat";
   const conversationName =
     typeof name === "string" ? name : "Conversation";
   const avatarUrl =
     typeof avatar === "string" && avatar.trim() ? avatar.trim() : null;
+
+  // Tells the (now app-global) JamSessionContext which chat is currently being viewed, so
+  // it knows which chat's session to check/track — see setActiveChat's own comment for why
+  // this doesn't tear down an ALREADY-ongoing session in a different chat just because the
+  // user opened this one to read messages.
+  useEffect(() => {
+    setActiveChat({ chatId: conversationId, otherUserId: paramOtherUserId, otherUserName: name });
+  }, [conversationId, paramOtherUserId, name, setActiveChat]);
   
   // Blind date info
   const isBlindDate = paramIsBlindDate === 'true';
@@ -639,6 +650,11 @@ export default function ChatConversationScreen() {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null); // For highlighting replied message
   const [showScrollToBottom, setShowScrollToBottom] = useState(false); // For scroll to bottom button
   const [newMessageCount, setNewMessageCount] = useState(0); // Count of new messages while scrolled up
+
+  // In-chat message search state
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   
   // Media sharing state
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
@@ -1320,6 +1336,17 @@ export default function ChatConversationScreen() {
     socket.emit("chat:join", { chatId: conversationId });
     socketService.setCurrentChatId(conversationId);
 
+    // socket.io rooms are cleared on every disconnect, including brief transport blips
+    // ("transport close" + auto-retry, which happens routinely on mobile networks) — the
+    // one-shot emit above only joins the room for the CURRENT connection. Without rejoining
+    // here, a client that silently reconnected would keep sending its own messages fine
+    // (those are direct emits) while going deaf to every io.to(room) broadcast — chat
+    // messages, and critically every jam:* event (playback state, pause-on-presence-loss,
+    // presence updates) — with no visible error, which reads as "out of sync" or "stuck
+    // showing stale presence" until the screen is closed and reopened.
+    const rejoinOnReconnect = () => socket.emit("chat:join", { chatId: conversationId });
+    socket.on("connect", rejoinOnReconnect);
+
     // Mark all unread messages as read immediately when opening the chat
     const markAllMessagesAsRead = () => {
       if (!myUserId || !conversationId) return;
@@ -1630,6 +1657,7 @@ export default function ChatConversationScreen() {
       try {
         socket.emit("chat:leave", { chatId: conversationId });
       } catch {}
+      socket.off("connect", rejoinOnReconnect);
       processedMessageIdsRef.current.clear();
       socketService.removeMessageHandler(`chat-${conversationId}`);
       socket.off("chat:history", handleHistory);
@@ -2327,6 +2355,53 @@ export default function ChatConversationScreen() {
     }, 1500);
   }, [messages]);
 
+  // In-chat message search: matches follow `messages`' own order (oldest
+  // first, same as render order), so index 0 is the oldest match and the
+  // last index is the most recent -- the one you'd usually want to land on
+  // first when opening search mid-conversation.
+  const searchMatches = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return messages.filter(
+      (m) => m && typeof m.text === "string" && m.text.trim() && m.type !== "system_screenshot" && m.text.toLowerCase().includes(q)
+    );
+  }, [messages, searchQuery]);
+
+  // Jump to the newest match whenever the search text itself changes (a new
+  // search), not on every unrelated message-list update.
+  useEffect(() => {
+    setSearchMatchIndex(searchMatches.length > 0 ? searchMatches.length - 1 : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const currentSearchMatchId = searchMatches[searchMatchIndex]?.id ?? null;
+
+  // Scroll to (and highlight, via the same mechanism as reply-tap) whichever
+  // message is currently selected in the search results -- reuses
+  // messagePositionsRef/listRef.scrollTo since this screen has no
+  // index-based scrolling API (see the comment on handleReplyTap above).
+  useEffect(() => {
+    if (!searchVisible || !currentSearchMatchId) return;
+    const y = messagePositionsRef.current[currentSearchMatchId];
+    if (typeof y === "number" && listRef.current) {
+      listRef.current.scrollTo({ y: Math.max(0, y - 100), animated: true });
+    }
+  }, [currentSearchMatchId, searchVisible]);
+
+  const goToPreviousSearchMatch = useCallback(() => {
+    setSearchMatchIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  const goToNextSearchMatch = useCallback(() => {
+    setSearchMatchIndex((i) => Math.min(searchMatches.length - 1, i + 1));
+  }, [searchMatches.length]);
+
+  const closeSearch = useCallback(() => {
+    setSearchVisible(false);
+    setSearchQuery("");
+    setSearchMatchIndex(0);
+  }, []);
+
   // Helper function to format date for dividers
   const formatDateDivider = useCallback((timestamp) => {
     const date = new Date(timestamp);
@@ -2414,7 +2489,7 @@ export default function ChatConversationScreen() {
         : conversationName;
     const isSelected = selectedMessageIds.includes(item.id);
     const isEditing = editingMessage && editingMessage.id === item.id;
-    const isHighlighted = highlightedMessageId === item.id;
+    const isHighlighted = highlightedMessageId === item.id || (searchVisible && currentSearchMatchId === item.id);
     
     // Check if we need to show date divider
     const currentDate = getDateString(item.createdAt);
@@ -3145,6 +3220,23 @@ export default function ChatConversationScreen() {
     }
   }, [loadMore, loadingMore, hasMore]);
 
+  // Android-only: re-anchor to the bottom whenever content height changes
+  // while the user is (or was just placed) near the bottom. The initial
+  // open-chat scrollToEnd (see hasInitialScrollRef below) fires off a fixed
+  // timeout, but message rows contain async-loading content -- avatars,
+  // media thumbnails, reaction pills -- that can still grow taller after
+  // that timeout fires. On Android that late growth doesn't auto-correct
+  // the ScrollView's offset the way it visually seems to on iOS, so the
+  // already-scrolled-to-bottom view appears to hop upward a moment after
+  // opening the chat as that content settles. Re-scrolling on every content
+  // size change (guarded by isNearBottomRef so it never yanks someone who's
+  // deliberately reading old messages) keeps it pinned through that settle.
+  const handleContentSizeChange = useCallback(() => {
+    if (Platform.OS !== "android") return;
+    if (!isNearBottomRef.current) return;
+    listRef.current?.scrollToEnd({ animated: false });
+  }, []);
+
   // Scroll to bottom of chat
   const scrollToBottom = useCallback(() => {
     if (listRef.current && messages.length > 0) {
@@ -3364,7 +3456,73 @@ export default function ChatConversationScreen() {
               <Ionicons name="eye-outline" size={20} color={theme.primary} />
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
+            onPress={() => {
+              // jamSession is now tracked app-wide, so it may belong to a DIFFERENT chat
+              // than the one currently open (e.g. the user is still listening elsewhere) —
+              // only treat it as "this chat's session" (and just expand it) when its
+              // chat_id actually matches; otherwise start a fresh one for this chat, which
+              // deliberately takes over tracking (see startSession's comment).
+              if (jamSession && jamSession.chat_id === conversationId) {
+                setJamExpanded(true);
+              } else {
+                startJamSession(conversationId, paramOtherUserId, name);
+              }
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="musical-notes-outline" size={20} color={theme.primary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
+            onPress={() => setSearchVisible(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="search-outline" size={20} color={theme.primary} />
+          </TouchableOpacity>
         </View>
+
+        {searchVisible && (
+          <View style={[styles.searchBarRow, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+            <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+            <TextInput
+              autoFocus
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search messages"
+              placeholderTextColor={theme.textPlaceholder}
+              style={[styles.searchBarInput, { color: theme.textPrimary }]}
+              returnKeyType="search"
+            />
+            {searchQuery.trim().length > 0 && (
+              <Text style={[styles.searchMatchCount, { color: theme.textSecondary }]}>
+                {searchMatches.length > 0 ? `${searchMatchIndex + 1}/${searchMatches.length}` : '0/0'}
+              </Text>
+            )}
+            <TouchableOpacity
+              onPress={goToPreviousSearchMatch}
+              disabled={searchMatchIndex <= 0}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.searchNavButton}
+            >
+              <Ionicons name="chevron-up" size={20} color={searchMatchIndex > 0 ? theme.textPrimary : theme.textPlaceholder} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={goToNextSearchMatch}
+              disabled={searchMatchIndex >= searchMatches.length - 1}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.searchNavButton}
+            >
+              <Ionicons name="chevron-down" size={20} color={searchMatchIndex < searchMatches.length - 1 ? theme.textPrimary : theme.textPlaceholder} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.searchNavButton}>
+              <Ionicons name="close" size={22} color={theme.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Transient "revealed" toast -- replaces the old blocking
             Alert.alert that fired the instant both sides revealed. Fades in
@@ -3487,6 +3645,7 @@ export default function ChatConversationScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
             onScroll={handleScroll}
+            onContentSizeChange={handleContentSizeChange}
             scrollEventThrottle={16}
           >
             {messages.map((item, index) => (
@@ -3520,6 +3679,8 @@ export default function ChatConversationScreen() {
               )}
             </TouchableOpacity>
           )}
+
+          <JamMiniPlayerBar style={styles.jamBarAboveComposer} />
 
           <View
             style={[styles.composerContainer, { borderTopColor: "transparent" }]}
@@ -4323,6 +4484,7 @@ export default function ChatConversationScreen() {
           setReactionTarget(null);
         }}
       />
+
     </LinearGradient>
   );
 }
@@ -4336,6 +4498,10 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  jamBarAboveComposer: {
+    marginHorizontal: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: "row",
@@ -4372,6 +4538,29 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
+  },
+  searchBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
+  },
+  searchMatchCount: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  searchNavButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerAvatarImage: {
     width: 32,

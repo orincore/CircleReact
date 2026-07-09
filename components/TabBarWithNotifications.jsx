@@ -190,14 +190,15 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
 
   return (
     <>
-      <View style={[
-        styles.tabBarContainer,
-        {
-          paddingBottom: getBottomPadding(),
-          backgroundColor: isDarkMode ? '#0E0E16' : '#FFFFFF',
-          borderTopColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
-        },
-      ]}>
+      <View
+        style={[
+          styles.tabBarContainer,
+          {
+            paddingBottom: getBottomPadding(),
+            backgroundColor: isDarkMode ? '#0E0E16' : '#FFFFFF',
+            borderTopColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
+          },
+        ]}>
         <View style={styles.tabBar}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];

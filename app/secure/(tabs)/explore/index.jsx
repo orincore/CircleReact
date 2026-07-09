@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnnouncementBanner from '@/components/AnnouncementBanner';
+import JamMiniPlayerBar from '@/src/components/jam/JamMiniPlayerBar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { usePullToRefreshHaptics } from '@/hooks/usePullToRefreshHaptics';
@@ -453,6 +454,8 @@ export default function ExploreScreen() {
           <Text style={styles.xEyebrow}>DISCOVER</Text>
           <Text style={[styles.xTitle, { color: theme.textPrimary }]}>Find Your{'\n'}People.</Text>
         </View>
+
+        <JamMiniPlayerBar style={styles.jamBar} />
 
         {/* Search bar */}
         <View style={styles.xSearchWrap}>
@@ -2175,6 +2178,7 @@ const styles = StyleSheet.create({
   xLoadingText: { fontSize: 13, fontWeight: '500' },
 
   xHeader: { marginBottom: 22 },
+  jamBar: { marginBottom: 18 },
   xEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: '#8B5CF6', marginBottom: 7 },
   xTitle: { fontSize: 36, fontWeight: '900', letterSpacing: -1.5, lineHeight: 42 },
 
@@ -2187,10 +2191,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 11,
+    // `shadowOpacity` was never set here, so this shadowColor/offset/radius
+    // was already invisible on iOS (defaults to 0). Android's `elevation`
+    // doesn't respect shadowColor at all though -- it always renders its
+    // own flat gray/black halo, which against this pill's translucent fill
+    // + border on a dark background read as a fuzzy double outline instead
+    // of a clean pill. Dropping elevation removes that Android-only halo;
+    // iOS is visually unchanged since its shadow was already off.
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 10,
-    elevation: 2,
   },
   // backgroundColor/padding are explicit, not left to default, because
   // Android's native EditText draws its own opaque default background +

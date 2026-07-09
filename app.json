@@ -2,14 +2,14 @@
   "expo": {
     "name": "Circle",
     "slug": "Circle",
-    "version": "2.0.2",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "circle",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "102",
+      "buildNumber": "103",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -97,7 +97,7 @@
         "android.permission.READ_MEDIA_AUDIO"
       ],
       "predictiveBackGestureEnabled": false,
-      "versionCode": 102,
+      "versionCode": 103,
       "package": "com.orincore.Circle",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.orincore.Circle",
       "googleServicesFile": "./google-services.json"
@@ -216,7 +216,7 @@
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/c9234d97-8ff5-45bc-8f8f-8772ef0926a5"
     },
-    "runtimeVersion": "2.0.2",
+    "runtimeVersion": "2.1.0",
     "extra": {
       "router": {},
       "eas": {
