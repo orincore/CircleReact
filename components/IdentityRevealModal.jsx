@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Animated,
   Image,
-  ActivityIndicator,
   Platform,
   Dimensions,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -254,7 +254,7 @@ const IdentityRevealModal = ({
                     end={{ x: 1, y: 0 }}
                   >
                     {loading ? (
-                      <ActivityIndicator color="white" size="small" />
+                      <Loader color="white" size={16} />
                     ) : (
                       <>
                         <Ionicons name="eye" size={20} color="white" />

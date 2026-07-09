@@ -1,5 +1,7 @@
 import FriendsListModal from "@/components/FriendsListModal";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import Loader from "@/components/Loader";
+import TypingDots from "@/components/chat/TypingDots";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -15,8 +17,7 @@ import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Swipeable } from 'react-native-gesture-handler';
-import { ActivityIndicator, Alert, Animated, FlatList, Image, LayoutAnimation, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, Dimensions, Modal } from "react-native";
-import { BlurView } from 'expo-blur';
+import { Alert, Animated, FlatList, Image, LayoutAnimation, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View, Dimensions, Modal } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -342,6 +343,11 @@ export default function ChatListScreen() {
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [blindDateStatus, setBlindDateStatus] = useState({ loading: false, enabled: false, foundToday: false });
   const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'blind'
+  // ChatIds that JUST moved out of Blind Connect (both sides revealed) in
+  // this session -- briefly highlighted wherever they next render, so the
+  // move reads as "this chat arrived here" instead of a chat silently
+  // vanishing from one tab and a lookalike appearing in the other.
+  const [justMovedChatIds, setJustMovedChatIds] = useState(() => new Set());
   const [otherVerificationCache, setOtherVerificationCache] = useState({}); // otherUserId -> boolean
   const [searchbarPaddingConfig, setSearchbarPaddingConfig] = useState(() => getSearchbarPaddingConfig());
   const buttonRefs = React.useRef({});
@@ -799,6 +805,40 @@ export default function ChatListScreen() {
       // Don't reload inbox - let real-time socket events handle updates
     };
 
+    // A meme-connect request just got accepted -- the new anonymous chat
+    // needs to show up under the Blind Connect tab right away rather than
+    // waiting for a manual pull-to-refresh. A full inbox reload (rather than
+    // a local patch) is simplest and correct here since this fires once per
+    // connection, not on a hot path.
+    const handleMemeConnectResponded = (data) => {
+      if (data?.status === 'accepted') {
+        loadInbox(true);
+      }
+    };
+
+    // Both sides revealed -- the chat needs to drop out of Blind Connect and
+    // into the normal Chats tab instantly, with the real name/photo.
+    // LayoutAnimation smooths the item's removal/insertion into whichever
+    // list is currently on screen instead of it abruptly snapping away, and
+    // the chatId gets a brief "just arrived" highlight the next time it
+    // renders (see justMovedChatIds / styles.chatRowJustMoved).
+    const handleChatRevealedRealtime = (data) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      const chatId = data?.chatId;
+      if (chatId) {
+        setJustMovedChatIds(prev => new Set(prev).add(chatId));
+        setTimeout(() => {
+          setJustMovedChatIds(prev => {
+            if (!prev.has(chatId)) return prev;
+            const next = new Set(prev);
+            next.delete(chatId);
+            return next;
+          });
+        }, 3000);
+      }
+      loadInbox(true);
+    };
+
     try {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
@@ -820,8 +860,10 @@ export default function ChatListScreen() {
         socket.on('chat:local:unread_cleared', handleLocalUnreadCleared);
         socket.on('friend:unfriended', handleUnfriended);
         socket.on('chat:list:changed', handleListChanged);
-        
-      
+        socket.on('meme_connect:responded', handleMemeConnectResponded);
+        socket.on('meme_connect:revealed', handleChatRevealedRealtime);
+        socket.on('blind_date:revealed', handleChatRevealedRealtime);
+
       } else {
         console.error('❌ [ChatList] Socket.on not available');
       }
@@ -851,6 +893,9 @@ export default function ChatListScreen() {
           socket.off('chat:local:unread_cleared', handleLocalUnreadCleared);
           socket.off('friend:unfriended', handleUnfriended);
           socket.off('chat:list:changed', handleListChanged);
+          socket.off('meme_connect:responded', handleMemeConnectResponded);
+          socket.off('meme_connect:revealed', handleChatRevealedRealtime);
+          socket.off('blind_date:revealed', handleChatRevealedRealtime);
         }
       } catch (error) {
       }
@@ -918,7 +963,7 @@ export default function ChatListScreen() {
     try {
       return filteredConversations.filter(item => {
         if (!item) return false;
-        const isBlind = !!item.isBlindDateOngoing;
+        const isBlind = !!item.isBlindDateOngoing || !!item.isMemeConnectOngoing;
         if (activeTab === 'blind' && !isBlind) return false;
         if (activeTab === 'chats' && isBlind) return false;
         return true;
@@ -1000,7 +1045,7 @@ export default function ChatListScreen() {
       if (!Array.isArray(conversations)) return 0;
       return conversations.filter(item => {
         if (!item) return false;
-        const isBlind = !!item.isBlindDateOngoing;
+        const isBlind = !!item.isBlindDateOngoing || !!item.isMemeConnectOngoing;
         if (activeTab === 'blind' && !isBlind) return false;
         if (activeTab === 'chats' && isBlind) return false;
         return showArchived ? !!item.archived : !item.archived;
@@ -1012,24 +1057,24 @@ export default function ChatListScreen() {
   }, [conversations, activeTab, showArchived]);
 
 
-  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null, isVerified = false) => {
+  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null, isVerified = false, isMemeConnect = false) => {
     try {
       if (!chatId) {
         console.error('[ChatList] Invalid chatId:', chatId);
         return;
       }
-      
+
       // Clear unread count when entering chat
       //console.log(`📱 Opening chat ${chatId}, clearing unread count`);
       setUnreadCounts(prev => ({
         ...prev,
         [chatId]: 0
       }));
-      
+
       router.push({
         pathname: "/secure/chat-conversation",
-        params: { 
-          id: chatId, 
+        params: {
+          id: chatId,
           name: name || 'Chat',
           avatar: profilePhoto || '',
           otherUserId: otherUserId || '',
@@ -1038,6 +1083,7 @@ export default function ChatListScreen() {
           blindDateGender: blindDateInfo?.gender || '',
           blindDateAge: blindDateInfo?.age ? String(blindDateInfo.age) : '',
           isOtherUserVerified: isVerified ? 'true' : 'false',
+          isMemeConnect: isMemeConnect ? 'true' : 'false',
         }
       });
     } catch (error) {
@@ -1233,7 +1279,7 @@ export default function ChatListScreen() {
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <Loader size={36} color={theme.primary} />
             <Text style={[styles.loadingText, dynamicStyles.loadingText]}>Loading conversations...</Text>
           </View>
         ) : (
@@ -1286,13 +1332,44 @@ export default function ChatListScreen() {
                 const chatId = item.chat.id;
                 const isBlindDateOngoing = !!item.isBlindDateOngoing;
                 const blindDateInfo = item.blindDateInfo;
-                // Use masked name for blind dates, otherwise use real name
+                const isMemeConnectOngoing = !!item.isMemeConnectOngoing;
+                const memeConnectInfo = item.memeConnectInfo;
+                // Set only once a chat is no longer ongoing-anonymous, for
+                // the first 24h after both sides revealed -- lets a chat
+                // that just moved out of Blind Connect still say where it
+                // came from instead of looking like a brand new chat.
+                const recentlyRevealedFrom = item.recentlyRevealedFrom;
+                // Both blind-date and meme-connect chats show the same
+                // masked-initials name style (e.g. "A***** S*******") before
+                // reveal, instead of meme-connect using a fixed generic
+                // "Anonymous connection" label -- the backend already sends
+                // this as otherName, but stating it explicitly here keeps the
+                // identity-hiding rule visible in one place rather than
+                // relying entirely on trusting the API response.
                 const displayName = isBlindDateOngoing && blindDateInfo?.maskedName
                   ? blindDateInfo.maskedName
-                  : (item.otherName || 'Unknown');
+                  : isMemeConnectOngoing && memeConnectInfo?.maskedName
+                    ? memeConnectInfo.maskedName
+                    : (item.otherName || 'Unknown');
+                // Meme-connect avatars are already blurred server-side (see
+                // anonAvatar.service.ts), so no client-side blur is applied
+                // for them below -- only blind date gets the live blur
+                // treatment since its photo is the real, unblurred one.
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
-                const currentUnreadCount = unreadCounts[chatId] || item.unreadCount || 0;
+                // `unreadCounts[chatId] || item.unreadCount || 0` looked
+                // right but `||` treats 0 as falsy: the moment a read event
+                // (socket or optimistic) correctly clears this chat's count
+                // to 0, that 0 got silently discarded in favor of
+                // item.unreadCount -- the stale count baked into the
+                // `conversations` array from the last full inbox load, which
+                // only refreshes on a full reload, not on a read. That's why
+                // the badge looked stuck instead of clearing in real time.
+                // undefined (no live override recorded yet) is the only case
+                // that should fall back to the REST snapshot; a recorded 0
+                // must be respected.
+                const liveUnreadCount = unreadCounts[chatId];
+                const currentUnreadCount = liveUnreadCount !== undefined ? liveUnreadCount : (item.unreadCount || 0);
                 const cachedVerified = item.otherId ? otherVerificationCache[item.otherId] : undefined;
                 const isOtherUserVerified =
                   cachedVerified === true ||
@@ -1322,15 +1399,17 @@ export default function ChatListScreen() {
                   item.lastMessage.status === 'failed' ? '#FF4444' :
                   theme.textMuted;
 
+                const justMoved = justMovedChatIds.has(chatId);
                 const row = (
                   <TouchableOpacity
                     style={[
                       styles.chatRow,
                       { paddingHorizontal: Math.max(16, responsive.horizontalPadding) },
                       openMenuChatId === chatId && styles.chatRowElevated,
+                      justMoved && [styles.chatRowJustMoved, { backgroundColor: theme.primaryLight, borderColor: theme.primary }],
                     ]}
                     activeOpacity={0.6}
-                    onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified)}
+                    onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified, isMemeConnectOngoing)}
                     onLongPress={() => {
                       if (Platform.OS !== 'web') {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -1341,6 +1420,16 @@ export default function ChatListScreen() {
                   >
                     <View style={styles.avatarContainer}>
                       {displayAvatar ? (
+                        // For an ongoing blind date, item.otherProfilePhoto is
+                        // already a server-side-blurred image (see
+                        // anonAvatar.service.ts / chat-list.routes.ts) rather
+                        // than the real photo blurred client-side at render
+                        // time -- the old blurRadius + BlurView-overlay
+                        // approach rendered inconsistently across platforms
+                        // (an unclipped, wrong-shaped box instead of an
+                        // actual blurred circular photo). A pre-blurred image
+                        // just needs the same plain clipping every other
+                        // avatar in this list gets.
                         <View style={{ overflow: 'hidden', borderRadius: AVATAR_RADIUS, borderWidth: 1.5, borderColor: theme.primary + '26' }}>
                           <Image
                             source={{ uri: displayAvatar }}
@@ -1352,15 +1441,7 @@ export default function ChatListScreen() {
                                 borderRadius: AVATAR_RADIUS,
                               },
                             ]}
-                            blurRadius={isBlindDateOngoing && Platform.OS === 'android' ? 50 : 0}
                           />
-                          {isBlindDateOngoing && (
-                            <BlurView
-                              intensity={40}
-                              tint={isDarkMode ? 'dark' : 'light'}
-                              style={StyleSheet.absoluteFill}
-                            />
-                          )}
                         </View>
                       ) : (
                         <View style={[styles.fallbackAvatar, { width: responsive.avatarSize, height: responsive.avatarSize, borderRadius: AVATAR_RADIUS, backgroundColor: theme.primaryLight, borderWidth: 1.5, borderColor: theme.primary + '26' }]}>
@@ -1370,7 +1451,9 @@ export default function ChatListScreen() {
                         </View>
                       )}
                       {isTyping && (
-                        <View style={styles.typingIndicator}><View style={styles.typingDot} /></View>
+                        <View style={styles.typingIndicator}>
+                          <TypingDots color="white" size={3} bounceHeight={2} duration={220} style={styles.typingDots} />
+                        </View>
                       )}
                     </View>
                     <View style={styles.chatInfo}>
@@ -1382,7 +1465,7 @@ export default function ChatListScreen() {
                           >
                             {displayName}
                           </Text>
-                          {isOtherUserVerified && !isBlindDateOngoing && (
+                          {isOtherUserVerified && !isBlindDateOngoing && !isMemeConnectOngoing && (
                             <VerifiedBadge size={15} style={{ marginLeft: 4 }} />
                           )}
                           {item.pinned && (
@@ -1399,18 +1482,41 @@ export default function ChatListScreen() {
                       {isBlindDateOngoing && blindDateSubtitle && (
                         <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>{blindDateSubtitle}</Text>
                       )}
-                      <View style={styles.chatLine2}>
-                        <Text
-                          style={[
-                            styles.chatMessage,
-                            dynamicStyles.chatMessage,
-                            { fontSize: responsive.fontSize.medium },
-                            isTyping && { color: theme.success, fontStyle: 'italic', fontWeight: '500' },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {isTyping ? 'typing...' : getLastMessagePreview(item.lastMessage)}
+                      {!isBlindDateOngoing && isMemeConnectOngoing && (
+                        <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>🎭 Anonymous meme connection</Text>
+                      )}
+                      {!isBlindDateOngoing && !isMemeConnectOngoing && recentlyRevealedFrom && (
+                        <Text style={[styles.recentlyRevealedTag, { color: theme.textMuted }]} numberOfLines={1}>
+                          {recentlyRevealedFrom === 'meme_connect' ? '✨ From Meme Blind Connect' : '✨ From Blind Connect'}
                         </Text>
+                      )}
+                      <View style={styles.chatLine2}>
+                        {isTyping ? (
+                          <View style={styles.typingPreviewRow}>
+                            <TypingDots color={theme.success} size={4} bounceHeight={3} duration={260} />
+                            <Text
+                              style={[
+                                styles.chatMessage,
+                                dynamicStyles.chatMessage,
+                                { fontSize: responsive.fontSize.medium, color: theme.success, fontStyle: 'italic', fontWeight: '500', marginLeft: 6 },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              typing...
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text
+                            style={[
+                              styles.chatMessage,
+                              dynamicStyles.chatMessage,
+                              { fontSize: responsive.fontSize.medium },
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {getLastMessagePreview(item.lastMessage)}
+                          </Text>
+                        )}
                         <View style={styles.chatLine2Right}>
                           {currentUnreadCount > 0 ? (
                             <View style={[styles.unreadBadge, dynamicStyles.unreadBadge]}>
@@ -1723,7 +1829,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
-    marginTop: 14,
+    marginTop: 30,
+    // A negative value here (previously -15) pulled whatever renders next
+    // (the chat list's first row) up underneath this banner's own bottom
+    // edge -- and since the banner's subtitle text wraps to 2 lines, its
+    // actual rendered height varies, so a fixed negative offset always
+    // either under- or over-lapped it. A small positive gap instead.
+    marginBottom: 12,
   },
   blindDateDailyBannerSuccess: {
     backgroundColor: 'rgba(34, 197, 94, 0.12)',
@@ -1762,6 +1874,12 @@ const styles = StyleSheet.create({
     zIndex: 10000,
     elevation: 12,
   },
+  // Brief highlight for a chat that just moved out of Blind Connect (see
+  // justMovedChatIds) -- cleared a few seconds after it renders.
+  chatRowJustMoved: {
+    borderWidth: 1,
+    borderRadius: 12,
+  },
   avatarContainer: {
     position: 'relative',
     marginRight: 12,
@@ -1787,11 +1905,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'white',
   },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'white',
+  typingDots: {
+    marginHorizontal: 0,
+  },
+  typingPreviewRow: {
+    flex: 1,
+    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   chatInfo: {
     flex: 1,
@@ -1819,6 +1940,13 @@ const styles = StyleSheet.create({
   blindDateTag: {
     fontSize: 11,
     fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 1,
+  },
+  recentlyRevealedTag: {
+    fontSize: 11,
+    fontWeight: '500',
+    fontStyle: 'italic',
     marginTop: 2,
     marginBottom: 1,
   },

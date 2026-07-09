@@ -39,16 +39,24 @@ export default function SecureLayout() {
         name="(tabs)" 
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="chat-conversation" 
-        options={{ 
+      <Stack.Screen
+        name="chat-conversation"
+        options={{
           headerShown: false,
           presentation: 'card',
           animation: 'slide_from_right'
         }}
       />
-      <Stack.Screen 
-        name="location" 
+      <Stack.Screen
+        name="meme-view"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right'
+        }}
+      />
+      <Stack.Screen
+        name="location"
         options={{ 
           headerShown: false,
           presentation: 'card',

@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { promptMatchingApi } from '@/src/api/promptMatching';
@@ -190,7 +190,7 @@ const TestGiverSetup = () => {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <Loader color="#fff" size={16} />
             ) : (
               <>
                 <Ionicons 
@@ -218,7 +218,7 @@ const TestGiverSetup = () => {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <Loader color="#fff" />
           ) : (
             <>
               <Ionicons name="add-circle" size={20} color="#fff" />

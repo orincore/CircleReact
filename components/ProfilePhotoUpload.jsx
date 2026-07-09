@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Platform,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import Loader from '@/components/Loader';
 import {
   ALLOWED_IMAGE_TYPES,
   FILE_SIZE_LIMITS,
@@ -186,7 +186,7 @@ export default function ProfilePhotoUpload({ currentPhotoUrl, onUploadSuccess })
         {/* Upload overlay */}
         <View style={styles.uploadOverlay}>
           {uploading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Loader size={16} color="#FFFFFF" />
           ) : (
             <Ionicons name="camera" size={24} color="#FFFFFF" />
           )}

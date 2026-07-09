@@ -4,11 +4,11 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   Alert,
   StyleSheet,
   Platform,
 } from 'react-native'
+import Loader from '@/components/Loader';
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import * as ImagePicker from 'expo-image-picker'
@@ -137,7 +137,7 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
           ]}
         >
           {loading ? (
-            <ActivityIndicator size="large" color={PRIMARY_BUTTON_COLOR} />
+            <Loader size={36} color={PRIMARY_BUTTON_COLOR} />
           ) : currentImage ? (
             <Image source={{ uri: currentImage }} style={styles.photo} />
           ) : (

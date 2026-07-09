@@ -8,7 +8,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useCallback } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -20,6 +19,7 @@ import {
   View,
   Platform,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
 
@@ -394,7 +394,7 @@ export default function NotificationsPage() {
         <View style={[styles.sheet, { backgroundColor: theme.background }]}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.primary} />
+              <Loader size={36} color={theme.primary} />
               <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
             </View>
           ) : notifications.length === 0 ? (

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Image } from 'react-native';
+import Loader from '@/components/Loader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter, useIsFocused, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useRouter, useIsFocused, useNavigation } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { feedApi } from '@/src/api/feed';
+import { getSocket } from '@/src/api/socket';
 import MemeCard from '@/components/MemeCard';
 import CommentsSheet from '@/components/CommentsSheet';
 import SharePickerModal from '@/components/SharePickerModal';
@@ -33,7 +35,6 @@ export default function MemesFeedScreen() {
   const { token } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams();
   // Tab screens stay mounted in the background when the user switches tabs --
   // `focusedId` alone (scroll position within the list) doesn't change just
   // because the user left this tab, so video playback (and its audio) kept
@@ -50,6 +51,7 @@ export default function MemesFeedScreen() {
   const [shareFor, setShareFor] = useState(null);
   const [cardHeight, setCardHeight] = useState(0);
   const [cardWidth, setCardWidth] = useState(0);
+  const [pendingConnectCount, setPendingConnectCount] = useState(0);
 
   const viewedIds = useRef(new Set());
   const prefetchedIds = useRef(new Set());
@@ -128,50 +130,44 @@ export default function MemesFeedScreen() {
     loadFeedRef.current = loadFeed;
   }, [loadFeed]);
 
-  // Skipped when a `memeId` deep link is present -- the effect below owns
-  // loading in that case (shared meme first, then the rest of the feed).
   useEffect(() => {
-    if (params?.memeId) return;
     loadFeed();
-  }, [loadFeed, params?.memeId]);
+  }, [loadFeed]);
 
-  // Deep link from a shared meme in chat (MemeSharePreview.jsx): fetch that
-  // exact meme and put it at the top of the list, instead of just opening
-  // this tab at whatever random position it was last scrolled to -- tab
-  // screens stay mounted across navigations, so a plain `router.push` here
-  // would otherwise land on old feed state, not the shared post. Re-runs
-  // whenever a new `memeId` comes in (e.g. tapping a different shared meme
-  // while this tab is already mounted).
+  // Badge on the Connect Requests entry icon below. Reloads whenever this
+  // tab regains focus (e.g. coming back from that screen after
+  // accepting/declining) and on the live socket events that change the
+  // pending count, instead of only ever loading once on mount.
   useEffect(() => {
-    const targetMemeId = params?.memeId;
-    if (!targetMemeId) return;
-
+    if (!token) return;
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    const loadPendingCount = async () => {
       try {
-        const res = await feedApi.getMeme(targetMemeId, token);
-        const targetMeme = res?.meme;
-        if (!cancelled && targetMeme) {
-          setMemes([targetMeme]);
-          setFocusedId(targetMeme.id);
-          requestAnimationFrame(() => {
-            listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
-          });
-        }
+        const res = await feedApi.getConnectRequests(token);
+        if (cancelled) return;
+        const count = (res?.incoming || []).filter(r => r.status === 'pending').length;
+        setPendingConnectCount(count);
       } catch (e) {
-        console.error('Failed to open shared meme:', e);
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Badge is a nice-to-have -- fail silently rather than disrupt the feed.
       }
+    };
 
-      if (!cancelled) {
-        await loadFeed({ append: true });
+    if (isScreenFocused) loadPendingCount();
+
+    const socket = getSocket(token);
+    if (socket) {
+      socket.on('meme_connect:request_created', loadPendingCount);
+      socket.on('meme_connect:responded', loadPendingCount);
+    }
+
+    return () => {
+      cancelled = true;
+      if (socket) {
+        socket.off('meme_connect:request_created', loadPendingCount);
+        socket.off('meme_connect:responded', loadPendingCount);
       }
-    })();
-
-    return () => { cancelled = true; };
-  }, [params?.memeId, token, loadFeed]);
+    };
+  }, [token, isScreenFocused]);
 
   // Double-tap the Memes tab icon to refresh. `tabPress` fires every time the
   // tab is pressed -- including while it's already the active tab -- on both
@@ -276,7 +272,7 @@ export default function MemesFeedScreen() {
           setCardWidth(e.nativeEvent.layout.width);
         }}
       >
-        <ActivityIndicator size="large" color="#FFFFFF" style={styles.centerLoader} />
+        <Loader size={36} color="#FFFFFF" style={styles.centerLoader} />
       </View>
     );
   }
@@ -288,11 +284,18 @@ export default function MemesFeedScreen() {
         onPress={() => router.push('/secure/(tabs)/memes/connect-requests')}
       >
         <Ionicons name="people-circle-outline" size={28} color="#FFFFFF" />
+        {pendingConnectCount > 0 && (
+          <View style={styles.connectRequestsBadge}>
+            <Text style={styles.connectRequestsBadgeText}>
+              {pendingConnectCount > 9 ? '9+' : pendingConnectCount}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {loading ? (
         <View style={[styles.centerLoader, styles.fill]}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Loader size={36} color="#FFFFFF" />
         </View>
       ) : memes.length === 0 ? (
         <View style={[styles.centerLoader, styles.fill]}>
@@ -326,7 +329,7 @@ export default function MemesFeedScreen() {
           onEndReachedThreshold={2}
           ListFooterComponent={loadingMore ? (
             <View style={styles.footerLoader}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Loader size={16} color="#FFFFFF" />
             </View>
           ) : null}
         />
@@ -362,6 +365,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     zIndex: 10,
+  },
+  connectRequestsBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FF4D67',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#000',
+  },
+  connectRequestsBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   fill: {
     flex: 1,

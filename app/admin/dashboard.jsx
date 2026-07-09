@@ -5,13 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Alert,
   Modal,
   Dimensions,
   Platform
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -429,7 +429,7 @@ function AdminDashboard() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading Admin Dashboard...</Text>
       </View>
     );

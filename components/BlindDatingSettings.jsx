@@ -6,11 +6,11 @@ import {
   Switch,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Animated,
   Alert,
   Platform,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -138,7 +138,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <Loader size={36} color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
             Loading settings...
           </Text>
@@ -350,7 +350,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
                 end={{ x: 1, y: 0 }}
               >
                 {saving ? (
-                  <ActivityIndicator color="white" />
+                  <Loader color="white" />
                 ) : (
                   <>
                     <Ionicons name="search-heart" size={24} color="white" />

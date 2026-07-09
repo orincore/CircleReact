@@ -5,13 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Modal,
   TextInput,
   Platform,
   Dimensions,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -399,7 +399,7 @@ export default function ReferralsDashboard() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading referrals...</Text>
       </View>
     );
@@ -514,7 +514,7 @@ export default function ReferralsDashboard() {
                 disabled={processing}
               >
                 {processing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Loader size={16} color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalButtonText}>Confirm</Text>
                 )}
@@ -590,7 +590,7 @@ export default function ReferralsDashboard() {
                 disabled={processing}
               >
                 {processing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Loader size={16} color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalButtonText}>Save Changes</Text>
                 )}
@@ -661,7 +661,7 @@ export default function ReferralsDashboard() {
                 disabled={processing}
               >
                 {processing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Loader size={16} color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalButtonText}>Change Status</Text>
                 )}

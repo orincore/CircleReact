@@ -11,6 +11,16 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
+        // Best-effort fix for an intermittent cold-start-only glitch where
+        // another tab's own floating UI (e.g. Match's settings button/
+        // full-screen "searching" spinner) briefly appeared bled through
+        // over the Chat tab right after switching to it for the first time
+        // post-launch. freezeOnBlur stops an inactive tab's screen from
+        // rendering/repainting at all while it isn't focused (via
+        // react-freeze under the hood), instead of just relying on it being
+        // laid out off in a hidden state -- the likelier cause on a cold
+        // start, when every tab is still settling into place at once.
+        freezeOnBlur: true,
       }}
     >
       <Tabs.Screen

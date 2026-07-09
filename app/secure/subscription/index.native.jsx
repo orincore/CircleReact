@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Platform,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -264,7 +264,7 @@ export default function SubscriptionScreen() {
               end={{ x: 1, y: 1 }}
             >
               {isPurchasing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Loader size={16} color="#FFFFFF" />
               ) : (
                 <Text style={styles.buttonText}>Subscribe Now</Text>
               )}
@@ -280,7 +280,7 @@ export default function SubscriptionScreen() {
       <LinearGradient colors={['#1F1147', '#2D1B69']} style={styles.gradient}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF6FB5" />
+            <Loader size={36} color="#FF6FB5" />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -320,7 +320,7 @@ export default function SubscriptionScreen() {
               </View>
               <TouchableOpacity style={styles.cancelButton} onPress={handleCancelSubscription} disabled={cancelling}>
                 {cancelling ? (
-                  <ActivityIndicator size="small" color="#FF6B6B" />
+                  <Loader size={16} color="#FF6B6B" />
                 ) : (
                   <Text style={styles.cancelButtonText}>Manage</Text>
                 )}

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendsApi } from '@/src/api/friends';
@@ -62,7 +62,9 @@ export default function SharePickerModal({ visible, memeId, onClose }) {
 
       const connectTargets = acceptedRequests.map(r => ({
         key: `chat-${r.chat_id}`,
-        label: 'Anonymous connection',
+        // Same masked-initials style as blind-connect chats, not a fixed
+        // generic label.
+        label: r.maskedName || 'Anonymous',
         chatId: r.chat_id,
         isAnonymous: true,
         // Server-side-blurred version of the other party's real photo (see
@@ -172,7 +174,7 @@ export default function SharePickerModal({ visible, memeId, onClose }) {
 
           {loading ? (
             <View style={styles.centerLoader}>
-              <ActivityIndicator size="small" color="#7C2B86" />
+              <Loader size={16} color="#7C2B86" />
             </View>
           ) : (
             <FlatList
@@ -227,7 +229,7 @@ export default function SharePickerModal({ visible, memeId, onClose }) {
               activeOpacity={0.8}
             >
               {sending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Loader size={16} color="#FFFFFF" />
               ) : (
                 <Text style={styles.sendButtonText}>
                   {selectedKeys.size > 0 ? `Send (${selectedKeys.size})` : 'Send'}

@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import Loader from '@/components/Loader';
 
 const RefundsScreen = () => {
   const [token, setToken] = useState(null)
@@ -242,7 +243,7 @@ const RefundsScreen = () => {
   if (loading && refunds.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading refunds...</Text>
         <TouchableOpacity 
           style={styles.retryButton}
@@ -454,7 +455,7 @@ const RefundsScreen = () => {
                     disabled={processing}
                   >
                     {processing ? (
-                      <ActivityIndicator size="small" color="white" />
+                      <Loader size={16} color="white" />
                     ) : (
                       <>
                         <Ionicons name="checkmark-circle" size={20} color="white" />
@@ -469,7 +470,7 @@ const RefundsScreen = () => {
                     disabled={processing}
                   >
                     {processing ? (
-                      <ActivityIndicator size="small" color="white" />
+                      <Loader size={16} color="white" />
                     ) : (
                       <>
                         <Ionicons name="close-circle" size={20} color="white" />

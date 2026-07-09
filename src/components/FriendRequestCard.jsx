@@ -6,9 +6,9 @@ import {
   StyleSheet,
   Image,
   Alert,
-  ActivityIndicator,
   Platform
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { friendsApi } from '@/src/api/friends';
@@ -183,7 +183,7 @@ export default function FriendRequestCard({
             disabled={loading}
           >
             {loading && actionType === 'reject' ? (
-              <ActivityIndicator size="small" color="#FF4444" />
+              <Loader size={16} color="#FF4444" />
             ) : (
               <>
                 <Ionicons name="close-circle-outline" size={20} color="#FF4444" />
@@ -206,7 +206,7 @@ export default function FriendRequestCard({
               end={{ x: 1, y: 1 }}
             >
               {loading && actionType === 'accept' ? (
-                <ActivityIndicator size="small" color="white" />
+                <Loader size={16} color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle-outline" size={20} color="white" />

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Dimensions,
   Platform,
@@ -13,6 +12,7 @@ import {
   TextInput,
   Alert
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -358,7 +358,7 @@ const LogsModal = ({ visible, container, logs, onClose, onRefresh, loading }) =>
         
         {loading ? (
           <View style={styles.logsLoading}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Loader size={36} color={COLORS.primary} />
           </View>
         ) : (
           <ScrollView style={styles.logsContent}>
@@ -505,7 +505,7 @@ export default function InfrastructureMonitoring() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Loader size={36} color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading Infrastructure Data...</Text>
       </View>
     );

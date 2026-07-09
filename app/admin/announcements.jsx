@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { announcementsAdminApi } from '@/src/api/announcementsAdmin';
 import { API_BASE_URL } from '@/src/api/config';
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
   View,
   Switch,
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 export default function AdminAnnouncements() {
   const router = useRouter();
@@ -396,7 +396,7 @@ export default function AdminAnnouncements() {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <TouchableOpacity style={styles.submitBtn} onPress={handleCreateOrUpdate} disabled={saving}>
-                {saving ? <ActivityIndicator color="#1F1147" /> : (
+                {saving ? <Loader color="#1F1147" /> : (
                   <>
                     <Text style={styles.submitBtnText}>{editingId ? 'Save Changes' : 'Create'}</Text>
                     <Ionicons name="arrow-forward" size={16} color="#1F1147" />
@@ -415,7 +415,7 @@ export default function AdminAnnouncements() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Existing Announcements</Text>
             {loading ? (
-              <View style={styles.centerRow}><ActivityIndicator color="#FFE8FF" /><Text style={styles.loadingText}> Loading...</Text></View>
+              <View style={styles.centerRow}><Loader color="#FFE8FF" /><Text style={styles.loadingText}> Loading...</Text></View>
             ) : (
               <View style={{ gap: 12 }}>
                 {announcements.length === 0 && (
@@ -433,10 +433,10 @@ export default function AdminAnnouncements() {
                         <Text style={styles.smallBtnText}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.smallBtn, styles.publishBtn]} onPress={() => handlePublish(a.id)} disabled={!!publishing[a.id]}>
-                        {publishing[a.id] ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.smallBtnText}>Publish</Text>}
+                        {publishing[a.id] ? <Loader color="#FFFFFF" /> : <Text style={styles.smallBtnText}>Publish</Text>}
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.smallBtn, styles.deleteBtn]} onPress={() => handleDelete(a.id)} disabled={!!deleting[a.id]}>
-                        {deleting[a.id] ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.smallBtnText}>Delete</Text>}
+                        {deleting[a.id] ? <Loader color="#FFFFFF" /> : <Text style={styles.smallBtnText}>Delete</Text>}
                       </TouchableOpacity>
                     </View>
                   </View>

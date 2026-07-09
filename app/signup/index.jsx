@@ -11,7 +11,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useContext, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Modal,
   Platform,
@@ -21,6 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Loader from '@/components/Loader';
 import { SignupWizardContext } from "./_layout";
 
 const GENDER_OPTIONS = [
@@ -249,7 +249,7 @@ export default function SignupStepOne() {
           autoCapitalize="none"
           style={[styles.input, { color: theme.textPrimary }]}
         />
-        {checkingUsername && <ActivityIndicator size="small" color={theme.primary} />}
+        {checkingUsername && <Loader size={16} color={theme.primary} />}
         {!checkingUsername && usernameAvail === true && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
         {!checkingUsername && usernameAvail === false && <Ionicons name="close-circle" size={20} color="#EF4444" />}
       </SignupInput>

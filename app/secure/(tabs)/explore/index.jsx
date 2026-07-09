@@ -10,7 +10,6 @@ import { useRouter } from 'expo-router';
 import { usePullToRefreshHaptics } from '@/hooks/usePullToRefreshHaptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -25,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 const isBrowser = Platform.OS === 'web';
 
@@ -422,7 +422,7 @@ export default function ExploreScreen() {
     return (
       <View style={[styles.xContainer, { backgroundColor: theme.background }]}>
         <View style={styles.xLoadingCenter}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Loader size={36} color="#8B5CF6" />
           <Text style={[styles.xLoadingText, { color: theme.textMuted }]}>Finding people…</Text>
         </View>
       </View>
@@ -472,7 +472,7 @@ export default function ExploreScreen() {
               onChangeText={token ? setSearchQuery : undefined}
               editable={!!token}
             />
-            {searching && <ActivityIndicator size="small" color="#8B5CF6" />}
+            {searching && <Loader size={16} color="#8B5CF6" />}
             {!token && <Ionicons name="lock-closed-outline" size={14} color={isDarkMode ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.28)'} />}
           </View>
 
@@ -2192,7 +2192,13 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  xSearchInput: { flex: 1, fontSize: 14, fontWeight: '500' },
+  // backgroundColor/padding are explicit, not left to default, because
+  // Android's native EditText draws its own opaque default background +
+  // padding underneath whatever style is given unless backgroundColor is
+  // set -- without this the input showed as a mismatched sharp-cornered box
+  // sitting inside the rounded, tinted xSearchBar pill instead of blending
+  // into it. iOS's TextInput has no such default, so this only mattered here.
+  xSearchInput: { flex: 1, fontSize: 14, fontWeight: '500', backgroundColor: 'transparent', padding: 0 },
 
   xDropdown: {
     position: 'absolute',

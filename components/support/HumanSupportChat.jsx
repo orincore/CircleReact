@@ -1,7 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { Ionicons } from '@expo/vector-icons'
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import Loader from '@/components/Loader';
 
 const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
   const { token } = useAuth()
@@ -437,7 +438,7 @@ const HumanSupportChat = ({ visible, onClose, category, userId = null }) => {
             <View style={styles.connectionContainer}>
               <Animated.View style={[styles.connectionContent, { transform: [{ scale: pulseAnim }] }]}>
                 <View style={styles.connectionIcon}>
-                  <ActivityIndicator size="large" color="#7C2B86" />
+                  <Loader size={36} color="#7C2B86" />
                 </View>
                 <Text style={styles.connectionTitle}>Connecting you with our support team...</Text>
                 <Text style={styles.connectionSubtitle}>Please wait while we find the best agent to help you</Text>

@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Platform,
@@ -14,6 +13,7 @@ import {
   Text,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 import FriendRequestCard from './FriendRequestCard';
 
 export default function FriendRequestsSection() {
@@ -102,7 +102,7 @@ export default function FriendRequestsSection() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading friend requests...</Text>
       </View>
     );

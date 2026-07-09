@@ -44,7 +44,6 @@ import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   AppState,
@@ -62,6 +61,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Loader from '@/components/Loader';
 
 // iOS 26+ Liquid Glass: render header controls with the native glass material
 // (matching the native bottom tab bar) when the OS supports it; otherwise fall
@@ -2232,7 +2232,7 @@ export default function MatchScreen() {
                   </Text>
                 </View>
                 {blindDateLoading ? (
-                  <ActivityIndicator size="small" color="#7C2B86" />
+                  <Loader size={16} color="#7C2B86" />
                 ) : (
                   <View style={[
                     styles.sidebarToggle,
@@ -2721,7 +2721,7 @@ export default function MatchScreen() {
                   <View style={styles.z_bentoTopRow}>
                     <View style={[styles.z_bentoIconWrap, blindDateEnabled && { backgroundColor: 'rgba(52,211,153,0.15)' }]}>
                       {blindDateLoading ? (
-                        <ActivityIndicator size="small" color="#A78BFA" />
+                        <Loader size={16} color="#A78BFA" />
                       ) : (
                         <Ionicons
                           name="eye-off"
@@ -2759,7 +2759,7 @@ export default function MatchScreen() {
                     </Text>
                   </View>
                   {loadingActiveHelpRequest && (
-                    <ActivityIndicator size="small" color={theme.primary} />
+                    <Loader size={16} color={theme.primary} />
                   )}
                 </View>
 
@@ -3231,7 +3231,7 @@ const ConnectionAnimation = ({ userName, onComplete }) => {
         <Ionicons name="link" size={64} color="#FFFFFF" />
         <Text style={connectionStyles.title}>Creating Connection</Text>
         <Text style={connectionStyles.subtitle}>with {userName}</Text>
-        <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 20 }} />
+        <Loader size={36} color="#FFFFFF" style={{ marginTop: 20 }} />
       </View>
     </Animated.View>
   );

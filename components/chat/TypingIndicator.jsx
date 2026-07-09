@@ -1,44 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { useTheme } from "@/contexts/ThemeContext";
-
-const BOUNCE_HEIGHT = 4;
-const BOUNCE_DURATION = 300;
-const DOT_STAGGER_MS = 120;
-
-function BouncingDot({ delayMs, color }) {
-  const translateY = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withDelay(
-      delayMs,
-      withRepeat(
-        withSequence(
-          withTiming(-BOUNCE_HEIGHT, { duration: BOUNCE_DURATION, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: BOUNCE_DURATION, easing: Easing.in(Easing.quad) })
-        ),
-        -1,
-        false
-      )
-    );
-  }, [delayMs]);
-
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  return <Animated.View style={[styles.dot, { backgroundColor: color }, dotStyle]} />;
-}
+import TypingDots from "./TypingDots";
 
 // Bubble-shaped typing indicator with a staggered bouncing-dots animation.
 // Purely presentational: the parent owns `typingUsers` state / socket wiring
@@ -73,7 +44,7 @@ export default function TypingIndicator({ visible, avatarUrl }) {
   return (
     <Animated.View style={[styles.row, containerStyle]}>
       {avatarUrl ? (
-        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+        <ExpoImage source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
       ) : (
         <View style={[styles.avatarFallback, { backgroundColor: theme.primary }]} />
       )}
@@ -83,9 +54,7 @@ export default function TypingIndicator({ visible, avatarUrl }) {
           { backgroundColor: theme.surface, shadowColor: theme.shadowColor },
         ]}
       >
-        <BouncingDot delayMs={0} color={theme.textMuted} />
-        <BouncingDot delayMs={DOT_STAGGER_MS} color={theme.textMuted} />
-        <BouncingDot delayMs={DOT_STAGGER_MS * 2} color={theme.textMuted} />
+        <TypingDots color={theme.textMuted} />
       </View>
     </Animated.View>
   );
@@ -123,11 +92,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 3,
     elevation: 1,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 2,
   },
 });

@@ -15,7 +15,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -30,6 +29,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function UserProfileScreen() {
@@ -678,7 +678,7 @@ export default function UserProfileScreen() {
   if (loading) {
     return (
       <View style={[dynamicStyles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <Loader size={36} color={theme.primary} />
         <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading profile...</Text>
       </View>
     );

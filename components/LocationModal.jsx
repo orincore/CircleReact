@@ -3,7 +3,6 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   Image,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import LocationMap from './LocationMap';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -367,7 +367,7 @@ export default function LocationModal({
                   <View style={styles.mapPlaceholder}>
                     {loading ? (
                       <>
-                        <ActivityIndicator size="large" color="#7C2B86" />
+                        <Loader size={36} color="#7C2B86" />
                         <Text style={styles.mapPlaceholderText}>Loading map...</Text>
                       </>
                     ) : (
@@ -391,7 +391,7 @@ export default function LocationModal({
 
                 {loading ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#7C2B86" />
+                    <Loader size={36} color="#7C2B86" />
                     <Text style={styles.loadingText}>Finding people nearby...</Text>
                   </View>
                 ) : filteredUsers.length > 0 ? (

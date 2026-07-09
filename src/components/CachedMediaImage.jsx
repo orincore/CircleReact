@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Loader from '@/components/Loader';
 import MediaCacheService from '../services/MediaCacheService';
 import MediaSaveService from '../services/MediaSaveService';
 
@@ -17,7 +18,8 @@ const CachedMediaImage = ({
   placeholder = null,
   onLoad = null,
   onError = null,
-  showSaveButton = true
+  showSaveButton = true,
+  onPress = null,
 }) => {
   const [imageSource, setImageSource] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +112,15 @@ const CachedMediaImage = ({
   };
 
   const handleImagePress = () => {
+    // Callers with their own tap behavior (e.g. MemeCard's double-tap-to-like)
+    // take over entirely instead of the default "toggle the save button"
+    // behavior -- there's only ever the one TouchableOpacity here, so a
+    // caller-supplied handler can't be shadowed by a nested touchable the
+    // way an outer wrapping Pressable would be.
+    if (onPress) {
+      onPress();
+      return;
+    }
     setShowControls(!showControls);
   };
 
@@ -130,7 +141,7 @@ const CachedMediaImage = ({
   if (isLoading || !imageSource) {
     return (
       <View style={[styles.loadingContainer, style]}>
-        {placeholder || <ActivityIndicator size="small" color="#7C2B86" />}
+        {placeholder || <Loader size={16} color="#7C2B86" />}
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -161,7 +172,7 @@ const CachedMediaImage = ({
             disabled={isSaving}
           >
             {isSaving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Loader size={16} color="#FFFFFF" />
             ) : (
               <Ionicons 
                 name={Platform.OS === 'web' ? 'download' : 'save'} 

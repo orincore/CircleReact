@@ -11,7 +11,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -23,6 +22,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Removed ads and referral components for clean modern design
@@ -319,7 +319,7 @@ export default function ProfileScreen() {
         <View style={styles.contentCard}>
           <Text style={styles.contentTitle}>Friends</Text>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#7C2B86" />
+            <Loader size={36} color="#7C2B86" />
             <Text style={styles.loadingText}>Loading friends...</Text>
           </View>
         </View>
@@ -510,7 +510,7 @@ export default function ProfileScreen() {
         
         {loadingPhotos ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#7C2B86" />
+            <Loader size={36} color="#7C2B86" />
             <Text style={styles.loadingText}>Loading your gallery...</Text>
           </View>
         ) : (
@@ -565,7 +565,7 @@ export default function ProfileScreen() {
                     <View style={[styles.photoPlaceholder, uploadingPhoto && index === 0 && styles.photoPlaceholderUploading]}>
                       {uploadingPhoto && index === 0 ? (
                         <>
-                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Loader size={16} color="#7C2B86" />
                           <Text style={styles.uploadingText}>Uploading...</Text>
                         </>
                       ) : (
@@ -599,7 +599,7 @@ export default function ProfileScreen() {
                   >
                     {uploadingPhoto ? (
                       <>
-                        <ActivityIndicator size="small" color="#7C2B86" />
+                        <Loader size={16} color="#7C2B86" />
                         <Text style={styles.uploadButtonText}>Uploading Photo...</Text>
                       </>
                     ) : (
@@ -1542,7 +1542,7 @@ export default function ProfileScreen() {
               >
                 {loadingReferral ? (
                   <View style={styles.referralLoadingContainer}>
-                    <ActivityIndicator size="large" color="#FF6FB5" />
+                    <Loader size={36} color="#FF6FB5" />
                     <Text style={styles.referralLoadingText}>Loading referral data...</Text>
                   </View>
                 ) : referralData ? (

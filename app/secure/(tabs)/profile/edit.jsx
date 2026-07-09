@@ -10,7 +10,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const GENDER_OPTIONS = [
@@ -434,7 +435,7 @@ export default function EditProfileScreen() {
               disabled={saving || uploadingPhoto}
             >
               {saving || uploadingPhoto ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Loader size={16} color="#FFFFFF" />
               ) : (
                 <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Save</Text>
               )}
@@ -465,7 +466,7 @@ export default function EditProfileScreen() {
                   )}
                   {uploadingPhoto && (
                     <View style={styles.uploadingOverlay}>
-                      <ActivityIndicator size="large" color="#FFFFFF" />
+                      <Loader size={36} color="#FFFFFF" />
                     </View>
                   )}
                 </TouchableOpacity>

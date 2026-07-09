@@ -6,7 +6,6 @@ import { useRouter } from 'expo-router';
 import { announcementsApi, } from '@/src/api/announcements';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  ActivityIndicator,
   Image,
   useWindowDimensions,
   Linking,
@@ -17,6 +16,7 @@ import {
   View,
   FlatList,
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 export default function AnnouncementBanner({ placement = 'global' }) {
   const { token } = useAuth();
@@ -112,7 +112,7 @@ export default function AnnouncementBanner({ placement = 'global' }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#FFE8FF" />
+        <Loader size={16} color="#FFE8FF" />
         <Text style={styles.loadingText}>Loading announcements…</Text>
       </View>
     );

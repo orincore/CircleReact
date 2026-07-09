@@ -1,4 +1,5 @@
 import Avatar from "@/components/Avatar";
+import Loader from "@/components/Loader";
 import { ProfilePremiumBadge, PremiumIcon } from "@/components/PremiumBadge";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import PhotoPlaceholder from "@/components/PhotoPlaceholder";
@@ -15,7 +16,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -575,7 +575,16 @@ export default function ProfileScreen() {
       elevation: 3,
     },
     editButton: {
-      minWidth: 130,
+      // Was a rigid 130 with flexShrink: 0 -- on narrower screens/larger font
+      // scales, that never gave an inch, so the *other* button (shareButton,
+      // flex: 1) absorbed the entire squeeze and got crushed below the width
+      // "Share" + its icon need, wrapping the label onto two lines. Letting
+      // this one shrink too (down to a floor that still fits "Edit Profile")
+      // spreads the squeeze across both buttons instead of dumping it all on
+      // one.
+      minWidth: 110,
+      flexShrink: 1,
+      flexGrow: 0,
       backgroundColor: theme.surfaceSecondary,
       borderRadius: 12,
       paddingHorizontal: 16,
@@ -584,7 +593,6 @@ export default function ProfileScreen() {
       borderColor: theme.border,
       justifyContent: 'center',
       alignItems: 'center',
-      flexShrink: 0,
     },
     editButtonText: {
       fontSize: 14,
@@ -593,6 +601,7 @@ export default function ProfileScreen() {
     },
     shareButton: {
       flex: 1,
+      minWidth: 92,
       backgroundColor: theme.primary,
       borderRadius: 12,
       paddingHorizontal: 16,
@@ -867,7 +876,7 @@ export default function ProfileScreen() {
                   style={dynamicStyles.editButton}
                   onPress={() => router.push("/secure/(tabs)/profile/edit")}
                 >
-                  <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
+                  <Text style={dynamicStyles.editButtonText} numberOfLines={1}>Edit Profile</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -886,7 +895,7 @@ export default function ProfileScreen() {
                   }}
                 >
                   <Ionicons name="share-social" size={16} color="#FFFFFF" />
-                  <Text style={dynamicStyles.shareButtonText}>Share</Text>
+                  <Text style={dynamicStyles.shareButtonText} numberOfLines={1}>Share</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -968,7 +977,7 @@ export default function ProfileScreen() {
                 disabled={uploadingPhoto}
               >
                 {uploadingPhoto ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Loader size={16} color={theme.primary} />
                 ) : (
                   <Ionicons name="add" size={20} color={theme.primary} />
                 )}
@@ -1037,7 +1046,7 @@ export default function ProfileScreen() {
                   disabled={uploadingPhoto}
                 >
                   {uploadingPhoto && index === 0 ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
+                    <Loader size={16} color={theme.primary} />
                   ) : (
                     <>
                       <Ionicons name="add" size={24} color={theme.textMuted} />

@@ -8,9 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -333,7 +333,7 @@ const HelpRequestScreen = () => {
             disabled={!prompt.trim() || loading || !!activeRequest}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <Loader color="#fff" />
             ) : (
               <>
                 <Ionicons name="search" size={20} color="#fff" />

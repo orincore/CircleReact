@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 // This screen only submits credentials and stores the resulting token.
 // It does not attempt to detect an existing session and auto-redirect -
@@ -178,7 +178,7 @@ export default function AdminLogin() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#1F1147" />
+                <Loader color="#1F1147" />
               ) : (
                 <>
                   <Text style={styles.loginButtonText}>Login to Admin Panel</Text>

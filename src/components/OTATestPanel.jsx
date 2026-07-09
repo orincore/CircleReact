@@ -11,8 +11,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { runComprehensiveOTATests, testCompleteUpdateFlow, testUpdateNotificationSystem } from '@/src/utils/otaTestHelper';
@@ -188,7 +188,7 @@ const OTATestPanel = () => {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="white" />
+            <Loader size={16} color="white" />
           ) : (
             <Ionicons name="play" size={16} color="white" />
           )}

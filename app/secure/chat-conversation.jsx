@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -12,7 +11,6 @@ import {
   Linking,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -26,7 +24,7 @@ import { runOnJS } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
-import { BlurView } from "expo-blur";
+import Loader from "@/components/Loader";
 import { Image as ExpoImage } from "expo-image";
 import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -70,9 +68,15 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 // Swipeable Message Wrapper for reply gesture using react-native-gesture-handler
-// This prevents keyboard from closing during swipe
-function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
+// This prevents keyboard from closing during swipe. Tap/double-tap/long-press
+// are handled here too (as Gesture.Tap/Gesture.LongPress raced against the
+// pan) rather than via a wrapping core-RN Pressable -- a Pressable ancestor
+// around a GestureDetector descendant is a known RNGH conflict: the native
+// pan recognizer intercepts the touch stream before Pressable's JS long-press
+// timer resolves, so onLongPress silently never fires (mostly on Android).
+function SwipeableMessage({ children, isMine, onSwipeReply, message, onPress, onLongPress }) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const [isPressed, setIsPressed] = useState(false);
   // Separate opacity per side: previously both used one direction-agnostic
   // value (based on Math.abs(translationX)), so swiping either way faded in
   // BOTH the left and right reply icons at once. Each side now only reacts
@@ -157,6 +161,43 @@ function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
       runOnJS(resetPosition)();
     });
 
+  const setPressed = useCallback((val) => setIsPressed(val), []);
+
+  const tapGesture = Gesture.Tap()
+    .maxDuration(250)
+    .onBegin(() => {
+      'worklet';
+      runOnJS(setPressed)(true);
+    })
+    .onEnd((_event, success) => {
+      'worklet';
+      if (success) runOnJS(onPress)();
+    })
+    .onFinalize(() => {
+      'worklet';
+      runOnJS(setPressed)(false);
+    });
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(300)
+    .onBegin(() => {
+      'worklet';
+      runOnJS(setPressed)(true);
+    })
+    .onStart(() => {
+      'worklet';
+      runOnJS(onLongPress)();
+    })
+    .onFinalize(() => {
+      'worklet';
+      runOnJS(setPressed)(false);
+    });
+
+  // Race: whichever gesture activates first (a drag, a quick tap, or a hold)
+  // wins and cancels the others -- pan needs 10-20px movement to activate, so
+  // a stationary press always resolves to tap/long-press instead.
+  const composedGesture = Gesture.Race(panGesture, longPressGesture, tapGesture);
+
   // Every extra plain View/Animated.View wrapped around the bubble for the
   // swipe gesture was another auto-width column container Yoga had to
   // resolve, and each one was a chance for the "stretch to my own
@@ -193,12 +234,13 @@ function SwipeableMessage({ children, isMine, onSwipeReply, message }) {
         </View>
       </Animated.View>
 
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View
           style={{
             transform: [{ translateX }],
             alignSelf: isMine ? "flex-end" : "flex-start",
             alignItems: isMine ? "flex-end" : "flex-start",
+            opacity: isPressed ? 0.8 : 1,
           }}
         >
           {children}
@@ -227,6 +269,7 @@ function MessageBubble({
   onMediaPress,
   viewedOnceMessages,
   onSwipeReply,
+  myUserId,
 }) {
   const viewedOnceMessagesSet = viewedOnceMessages instanceof Set ? viewedOnceMessages : new Set();
   // Determine tick style based on message status
@@ -252,9 +295,11 @@ function MessageBubble({
 
   // Group reactions by emoji for display
   const reactionCounts = {};
+  const myReactionEmojis = new Set();
   (message.reactions || []).forEach((r) => {
     if (!r || !r.emoji) return;
     reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+    if (myUserId && r.userId === myUserId) myReactionEmojis.add(r.emoji);
   });
 
   const lastTapRef = useRef(0);
@@ -308,23 +353,29 @@ function MessageBubble({
     : null;
 
   return (
-    <Pressable
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.messageRow,
         isMine ? styles.messageRowMine : styles.messageRowTheirs,
-        pressed && { opacity: 0.8 },
       ]}
-      onPress={handlePress}
-      delayLongPress={300}
-      onLongPress={() => {
-        if (onLongPress) onLongPress();
-      }}
     >
       {/* Swipe-to-reply is scoped to just the bubble itself (not the full
           row, which spans the whole screen width with empty space beside a
           short message) — SwipeableMessage used to wrap the entire Pressable
-          row, so swiping anywhere in that empty space also triggered reply. */}
-      <SwipeableMessage isMine={isMine} message={message} onSwipeReply={onSwipeReply}>
+          row, so swiping anywhere in that empty space also triggered reply.
+          Tap/long-press are handled inside SwipeableMessage's GestureDetector
+          (not a Pressable here) since nesting a Pressable ancestor around a
+          GestureDetector descendant is what broke long-press in the first
+          place -- see comment on SwipeableMessage above. */}
+      <SwipeableMessage
+        isMine={isMine}
+        message={message}
+        onSwipeReply={onSwipeReply}
+        onPress={handlePress}
+        onLongPress={() => {
+          if (onLongPress) onLongPress();
+        }}
+      >
       <AnimatedMessageBubble
         isMine={isMine}
         isHighlighted={isHighlighted}
@@ -481,18 +532,26 @@ function MessageBubble({
         {Object.keys(reactionCounts).length > 0 && (
           <View style={styles.reactionSummaryRow}>
             {Object.entries(reactionCounts).map(([emoji, count]) => (
-              <View key={emoji} style={styles.reactionBubble}>
+              <TouchableOpacity
+                key={emoji}
+                activeOpacity={0.6}
+                style={[
+                  styles.reactionBubble,
+                  myReactionEmojis.has(emoji) && styles.reactionBubbleMine,
+                ]}
+                onPress={() => onReact && onReact(emoji)}
+              >
                 <Text style={styles.reactionEmoji}>{emoji}</Text>
                 {count > 1 && (
                   <Text style={styles.reactionCount}>{count}</Text>
                 )}
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
       </AnimatedMessageBubble>
       </SwipeableMessage>
-    </Pressable>
+    </View>
   );
 }
 
@@ -535,41 +594,28 @@ export default function ChatConversationScreen() {
   const [memeConnectRequest, setMemeConnectRequest] = useState(null);
   const [revealingMemeConnect, setRevealingMemeConnect] = useState(false);
 
-  useEffect(() => {
-    if (!isMemeConnect || !token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { feedApi } = await import('@/src/api/feed');
-        const res = await feedApi.getConnectRequests(token);
-        const all = [...(res?.incoming || []), ...(res?.outgoing || [])];
-        const match = all.find(r => r.chat_id === conversationId);
-        if (!cancelled) setMemeConnectRequest(match || null);
-      } catch (e) {
-        console.error('Failed to load meme connect request for chat:', e);
-      }
-    })();
-    return () => { cancelled = true; };
+  const loadMemeConnectRequest = useCallback(async () => {
+    if (!isMemeConnect || !token) return null;
+    try {
+      const { feedApi } = await import('@/src/api/feed');
+      const res = await feedApi.getConnectRequests(token);
+      const all = [...(res?.incoming || []), ...(res?.outgoing || [])];
+      const match = all.find(r => r.chat_id === conversationId) || null;
+      setMemeConnectRequest(match);
+      return match;
+    } catch (e) {
+      console.error('Failed to load meme connect request for chat:', e);
+      return null;
+    }
   }, [isMemeConnect, token, conversationId]);
 
   const memeConnectBothRevealed = !!memeConnectRequest?.revealed_at;
   const memeConnectSelfRevealed = memeConnectRequest && user?.id
     ? (memeConnectRequest.requester_id === user.id ? memeConnectRequest.requester_revealed : memeConnectRequest.target_revealed)
     : false;
-
-  const handleMemeConnectReveal = async () => {
-    if (!memeConnectRequest || revealingMemeConnect) return;
-    try {
-      setRevealingMemeConnect(true);
-      const { feedApi } = await import('@/src/api/feed');
-      const res = await feedApi.requestReveal(memeConnectRequest.id, token);
-      if (res?.request) setMemeConnectRequest(res.request);
-    } catch (e) {
-      console.error('Failed to request reveal:', e);
-    } finally {
-      setRevealingMemeConnect(false);
-    }
-  };
+  // handleMemeConnectReveal and its supporting reveal logic are defined
+  // further down, right after bothRevealed/otherUserProfile state exists
+  // (they need to set that state directly -- see the comment there).
 
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState("");
@@ -898,6 +944,181 @@ export default function ChatConversationScreen() {
   const [showBlockedInfoModal, setShowBlockedInfoModal] = useState(false);
   const [blockedInfoMessage, setBlockedInfoMessage] = useState(null);
   const [otherUserProfile, setOtherUserProfile] = useState(null);
+
+  // Both-sides-revealed animation: a brief crossfade/pop on the header
+  // avatar + name (masked -> real) plus a transient "revealed" toast,
+  // instead of a blocking Alert.alert stealing focus the instant both
+  // sides reveal. revealAnim drives both the header content opacity/scale
+  // and the toast; justRevealed gates rendering the animated (heavier,
+  // dual-image-crossfade) header content only during that window.
+  const [justRevealed, setJustRevealed] = useState(false);
+  const revealAnim = useRef(new Animated.Value(1)).current;
+  const revealToastAnim = useRef(new Animated.Value(0)).current;
+  const playRevealAnimation = useCallback(() => {
+    setJustRevealed(true);
+    revealAnim.setValue(0);
+    revealToastAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(revealAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(revealToastAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(2200),
+        Animated.timing(revealToastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start(() => setJustRevealed(false));
+  }, [revealAnim, revealToastAnim]);
+
+  // Once both sides have revealed a meme-connect chat, fetch the (no-longer-
+  // anonymous) other user's real profile and feed it into the same
+  // otherUserProfile/bothRevealed state Blind Dating's header already
+  // renders from -- that header logic doesn't actually gate its name/avatar
+  // fallback on isBlindDate, just bothRevealed + otherUserProfile, so reusing
+  // it here means the header updates instantly with no meme-connect-specific
+  // header code needed.
+  const applyMemeConnectRevealedProfile = useCallback(async (request) => {
+    if (!request?.revealed_at || !user?.id || !token) return;
+    const otherUserId = request.requester_id === user.id ? request.target_id : request.requester_id;
+    if (!otherUserId) return;
+    try {
+      const { API_BASE_URL } = await import('@/src/api/config');
+      const response = await fetch(`${API_BASE_URL}/api/friends/user/${otherUserId}/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!data) return;
+      setOtherUserProfile({
+        id: data.id,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        profile_photo_url: data.profilePhotoUrl,
+        gender: data.gender,
+        age: data.age,
+        needs: Array.isArray(data.needs) ? data.needs[0] : null,
+        is_verified: data.verification_status === 'verified',
+      });
+      setBothRevealed(true);
+    } catch (e) {
+      console.error('Failed to load revealed profile for meme connect:', e);
+    }
+  }, [user?.id, token]);
+
+  // Sync bothRevealed/otherUserProfile on mount too, not just reactively
+  // when a reveal happens live during this session -- opening a
+  // meme-connect chat that was ALREADY fully revealed in a past session
+  // otherwise left bothRevealed stuck false forever (nothing else ever set
+  // it), so the header kept showing the masked name/blurred photo even
+  // though memeConnectBothRevealed (from memeConnectRequest.revealed_at)
+  // was correctly true and the reveal button was correctly hidden.
+  useEffect(() => {
+    loadMemeConnectRequest().then((match) => {
+      if (match?.revealed_at) {
+        applyMemeConnectRevealedProfile(match);
+      }
+    });
+  }, [loadMemeConnectRequest, applyMemeConnectRevealedProfile]);
+
+  const handleMemeConnectReveal = async () => {
+    if (!memeConnectRequest || revealingMemeConnect) return;
+    try {
+      setRevealingMemeConnect(true);
+      const { feedApi } = await import('@/src/api/feed');
+      const res = await feedApi.requestReveal(memeConnectRequest.id, token);
+      if (res?.request) {
+        setMemeConnectRequest(res.request);
+        if (res.request.revealed_at) {
+          await applyMemeConnectRevealedProfile(res.request);
+          playRevealAnimation();
+        }
+      }
+    } catch (e) {
+      console.error('Failed to request reveal:', e);
+    } finally {
+      setRevealingMemeConnect(false);
+    }
+  };
+
+  // Live updates for the meme-connect reveal flow: the other party revealing
+  // (banner should update without reopening the chat) and both sides
+  // revealing (header should update instantly on both ends, per above).
+  useEffect(() => {
+    if (!isMemeConnect || !token || !conversationId) return;
+    const socket = getSocket(token);
+    if (!socket) return;
+
+    const handleRevealRequestedMC = (data) => {
+      if (data?.chatId !== conversationId) return;
+      const iAmRequester = memeConnectRequest?.requester_id === user?.id;
+      const selfAlreadyRevealed = iAmRequester
+        ? memeConnectRequest?.requester_revealed
+        : memeConnectRequest?.target_revealed;
+
+      setMemeConnectRequest(prev => {
+        if (!prev) return prev;
+        const iAmReq = prev.requester_id === user?.id;
+        return iAmReq ? { ...prev, target_revealed: true } : { ...prev, requester_revealed: true };
+      });
+
+      // Same "they revealed, want to reveal too?" prompt Blind Dating
+      // already shows automatically -- meme-connect used to just flip the
+      // flag silently and rely on the person noticing the banner text.
+      if (!selfAlreadyRevealed) {
+        Alert.alert(
+          `${conversationName} revealed their identity!`,
+          'Do you want to reveal yours too? Once you both reveal, your real names and photos become visible to each other.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Reveal', onPress: handleMemeConnectReveal },
+          ]
+        );
+      }
+    };
+
+    const handleRevealedMC = async (data) => {
+      if (data?.chatId !== conversationId) return;
+      const match = await loadMemeConnectRequest();
+      if (match?.revealed_at) {
+        await applyMemeConnectRevealedProfile(match);
+        playRevealAnimation();
+      }
+    };
+
+    socket.on('meme_connect:reveal_requested', handleRevealRequestedMC);
+    socket.on('meme_connect:revealed', handleRevealedMC);
+
+    return () => {
+      socket.off('meme_connect:reveal_requested', handleRevealRequestedMC);
+      socket.off('meme_connect:revealed', handleRevealedMC);
+    };
+  }, [isMemeConnect, token, conversationId, user?.id, loadMemeConnectRequest, applyMemeConnectRevealedProfile, memeConnectRequest, conversationName]);
+
+  // Single entry point for the header-right reveal button -- shown for
+  // either anonymous chat type, before this user has revealed themself.
+  // Blind Dating already has a full reveal modal (see showRevealPrompt
+  // below); meme-connect only ever had a one-tap banner button with no
+  // confirmation step, so this adds one for parity -- revealing your
+  // identity isn't something to trigger by accident.
+  const canRevealFromHeader =
+    (isBlindDate && !bothRevealed && !hasRevealedSelf) ||
+    (isMemeConnect && !memeConnectBothRevealed && !memeConnectSelfRevealed);
+
+  const handleHeaderRevealPress = () => {
+    if (isBlindDate) {
+      setShowRevealPrompt(true);
+      return;
+    }
+    if (isMemeConnect) {
+      Alert.alert(
+        'Reveal your identity?',
+        `${conversationName} will be notified and can choose to reveal too. Once you both reveal, your real names and photos become visible to each other.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Reveal', onPress: handleMemeConnectReveal },
+        ]
+      );
+    }
+  };
+
   const REVEAL_THRESHOLD = 30;
   const REVEAL_INTERVAL = 10; // Show prompt every 10 messages after dismissal
   const [reportAdditionalDetails, setReportAdditionalDetails] = useState('');
@@ -1566,19 +1787,7 @@ export default function ChatConversationScreen() {
             setFriendStatus('friends');
             setCanMessage(true);
           }
-          Alert.alert(
-            '🎉 Profiles Revealed!',
-            'Both of you have revealed! You are now friends and can see each other\'s full profiles.',
-            [{ 
-              text: 'View Profile', 
-              onPress: () => {
-                if (data.otherUserId) {
-                  router.push(`/secure/user-profile/${data.otherUserId}`);
-                }
-              }
-            },
-            { text: 'Continue Chatting' }]
-          );
+          playRevealAnimation();
         }
         // Single reveal - banner will show status
       }
@@ -1621,21 +1830,8 @@ export default function ChatConversationScreen() {
           setFriendStatus('friends');
           setCanMessage(true);
         }
-        
-        // Show success alert
-        Alert.alert(
-          '🎉 Profiles Revealed!',
-          'Both of you have revealed! You are now friends and can see each other\'s full profiles.',
-          [{ 
-            text: 'View Profile', 
-            onPress: () => {
-              if (data.otherUserId) {
-                router.push(`/secure/user-profile/${data.otherUserId}`);
-              }
-            }
-          },
-          { text: 'Continue Chatting' }]
-        );
+
+        playRevealAnimation();
       }
     };
     
@@ -1658,7 +1854,7 @@ export default function ChatConversationScreen() {
       socket.off('blind_date:reveal_requested', handleRevealRequested);
       socket.off('blind_date:revealed', handleBothRevealed);
     };
-  }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf, router]);
+  }, [isBlindDate, token, conversationId, blindDateMatch?.id, hasRevealedSelf, router, playRevealAnimation]);
 
   // Clear the "no confirmation" failure timer for an optimistic message once
   // the server acknowledges/echoes it.
@@ -2056,7 +2252,9 @@ export default function ChatConversationScreen() {
   const handleAddReaction = async (messageId, emoji) => {
     if (!token || !messageId || !emoji) return;
 
-    // Optimistic local update so the reaction appears immediately
+    // Optimistic local update so the reaction toggles immediately instead of
+    // waiting on the chat:reaction:added/removed round-trip below -- tapping
+    // your own reaction pill removes it, tapping any other emoji adds it.
     setMessages((prev) =>
       prev.map((msg) => {
         if (msg.id !== messageId) return msg;
@@ -2064,7 +2262,14 @@ export default function ChatConversationScreen() {
         const exists = reactions.some(
           (r) => r && r.userId === myUserId && r.emoji === emoji
         );
-        if (exists) return msg;
+        if (exists) {
+          return {
+            ...msg,
+            reactions: reactions.filter(
+              (r) => !(r && r.userId === myUserId && r.emoji === emoji)
+            ),
+          };
+        }
         const optimisticReaction = {
           id: `temp-${Date.now()}`,
           messageId,
@@ -2246,10 +2451,16 @@ export default function ChatConversationScreen() {
             message={item}
             isMine={isMine}
             senderName={isMine ? "You" : otherDisplayName}
+            myUserId={myUserId}
             onSwipeReply={handleSwipeReply}
             onReact={(emoji) => handleAddReaction(item.id, emoji)}
             onDoubleTap={() => setReactionTarget(item)}
             onLongPress={() => {
+              // The actions sheet is a native Modal now (see render below),
+              // which presents in its own layer above the keyboard, so no
+              // dismiss-timing dance is needed here -- just close the
+              // keyboard for a cleaner look and show the sheet.
+              Keyboard.dismiss();
               setActionMessage(item);
               setShowMessageActions(true);
             }}
@@ -2455,7 +2666,7 @@ export default function ChatConversationScreen() {
     if (!actionMessage) return;
     const senderIdStr =
       actionMessage.senderId != null ? String(actionMessage.senderId) : null;
-    if (!myUserId || senderIdStr !== myUserId) {
+    if (!myUserId || senderIdStr !== myUserId || actionMessage.sharedMemeId) {
       setShowMessageActions(false);
       setActionMessage(null);
       return;
@@ -3002,46 +3213,71 @@ export default function ChatConversationScreen() {
             disabled={!paramOtherUserId && !otherUserProfile?.id}
           >
             {(() => {
-              // Use revealed profile photo if available, otherwise use avatarUrl
-              const displayAvatarUrl = bothRevealed && otherUserProfile?.profile_photo_url 
-                ? otherUserProfile.profile_photo_url 
+              // Use revealed profile photo if available, otherwise use
+              // avatarUrl -- which, for an ongoing (unrevealed) blind date,
+              // is already a server-side-blurred image passed through from
+              // the chat list's route params (see anonAvatar.service.ts /
+              // chat-list.routes.ts), not the real photo blurred client-side
+              // at render time. That used to need its own blurRadius +
+              // BlurView-overlay treatment here, which rendered
+              // inconsistently across platforms (an unclipped, wrong-shaped
+              // box instead of an actual blurred circular photo). A
+              // pre-blurred image just needs the same plain clipping every
+              // other avatar in the app gets.
+              const revealedAvatarUrl = otherUserProfile?.profile_photo_url;
+              const displayAvatarUrl = bothRevealed && revealedAvatarUrl
+                ? revealedAvatarUrl
                 : avatarUrl;
-              const shouldBlur = isBlindDate && !bothRevealed;
-              
+
+              // Reveal moment: crossfade the old blurred/masked photo into
+              // the real one instead of an instant hard swap. avatarUrl is
+              // the original masked snapshot from route params, which stays
+              // stable even after bothRevealed flips, so it's safe to use
+              // as the "before" layer here.
+              if (justRevealed && revealedAvatarUrl) {
+                return (
+                  <View style={styles.headerAvatarCrossfadeContainer}>
+                    {avatarUrl && (
+                      <ExpoImage
+                        source={{ uri: avatarUrl }}
+                        style={styles.headerAvatarCrossfadeImage}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
+                    )}
+                    <Animated.View style={[styles.headerAvatarCrossfadeImage, { opacity: revealAnim }]}>
+                      <ExpoImage
+                        source={{ uri: revealedAvatarUrl }}
+                        style={styles.headerAvatarCrossfadeImage}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
+                    </Animated.View>
+                  </View>
+                );
+              }
+
               if (displayAvatarUrl) {
                 return (
                   <View style={{ overflow: 'hidden', borderRadius: 12 }}>
-                    <Image
+                    <ExpoImage
                       source={{ uri: displayAvatarUrl }}
                       style={styles.headerAvatarImage}
-                      blurRadius={shouldBlur ? 50 : 0}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={100}
                     />
-                    {shouldBlur && (
-                      <BlurView
-                        intensity={40}
-                        tint={isDarkMode ? 'dark' : 'light'}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    )}
                   </View>
                 );
               }
               return (
-                <View
-                  style={[
-                    styles.headerAvatarFallback,
-                    { backgroundColor: shouldBlur ? theme.primary + '80' : theme.primary },
-                  ]}
-                >
+                <View style={[styles.headerAvatarFallback, { backgroundColor: theme.primary }]}>
                   <Text style={styles.headerAvatarFallbackText}>
-                    {(bothRevealed && otherUserProfile?.first_name 
-                      ? otherUserProfile.first_name 
+                    {(bothRevealed && otherUserProfile?.first_name
+                      ? otherUserProfile.first_name
                       : conversationName
                     ).charAt(0).toUpperCase()}
                   </Text>
-                  {shouldBlur && (
-                    <BlurView intensity={30} tint={isDarkMode ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                  )}
                 </View>
               );
             })()}
@@ -3049,17 +3285,17 @@ export default function ChatConversationScreen() {
 
           <View style={styles.headerInfo}>
             <View style={styles.headerNameRow}>
-              <Text
-                style={[styles.headerTitle, { color: theme.textPrimary }]}
+              <Animated.Text
+                style={[styles.headerTitle, { color: theme.textPrimary, opacity: revealAnim }]}
                 numberOfLines={1}
               >
-                {bothRevealed && otherUserProfile?.first_name 
+                {bothRevealed && otherUserProfile?.first_name
                   ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
                   : isBlindDate && otherUserProfile?.first_name
                     ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
                     : conversationName
                 }
-              </Text>
+              </Animated.Text>
               {(otherUserVerified || (bothRevealed && otherUserProfile?.is_verified)) && (
                 <VerifiedBadge size={18} style={{ marginLeft: 4 }} />
               )}
@@ -3118,8 +3354,44 @@ export default function ChatConversationScreen() {
               </Animated.View>
             )}
           </View>
+
+          {canRevealFromHeader && (
+            <TouchableOpacity
+              style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
+              onPress={handleHeaderRevealPress}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="eye-outline" size={20} color={theme.primary} />
+            </TouchableOpacity>
+          )}
         </View>
-        
+
+        {/* Transient "revealed" toast -- replaces the old blocking
+            Alert.alert that fired the instant both sides revealed. Fades in
+            with the header crossfade, sits for a couple seconds, fades out;
+            tapping it jumps straight to the now-visible profile. */}
+        {justRevealed && (
+          <Animated.View
+            style={[
+              styles.revealToast,
+              { backgroundColor: theme.primary, opacity: revealToastAnim, transform: [{ translateY: revealToastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }] },
+            ]}
+            pointerEvents="box-none"
+          >
+            <TouchableOpacity
+              style={styles.revealToastContent}
+              activeOpacity={0.85}
+              onPress={() => {
+                const profileId = otherUserProfile?.id || paramOtherUserId;
+                if (profileId) router.push(`/secure/user-profile/${profileId}`);
+              }}
+            >
+              <Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.revealToastText}>Identity revealed! Tap to view profile</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+
         {/* Anonymous meme-connect reveal banner -- separate from Blind Dating's
             reveal system above; lighter weight (no message filtering, no
             auto-unblur), just a status line + reveal button. */}
@@ -3178,7 +3450,7 @@ export default function ChatConversationScreen() {
                 disabled={isRevealSubmitting}
               >
                 {isRevealSubmitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <Loader size={16} color="#fff" />
                 ) : (
                   <Text style={styles.revealStatusButtonText}>Reveal</Text>
                 )}
@@ -3260,7 +3532,7 @@ export default function ChatConversationScreen() {
                 <View style={styles.selectionToolbarActions}>
                   <TouchableOpacity
                     onPress={handleDeleteMessages}
-                    style={styles.selectionToolbarButton}
+                    style={[styles.selectionToolbarButton, { backgroundColor: "#FEE2E2" }]}
                   >
                     <Text
                       style={[
@@ -3403,7 +3675,7 @@ export default function ChatConversationScreen() {
                     disabled={isUploadingMedia}
                   >
                     {isUploadingMedia ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <Loader size={16} color="#fff" />
                     ) : (
                       <>
                         <Feather name="send" size={18} color="#fff" />
@@ -3652,101 +3924,177 @@ export default function ChatConversationScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
-      {reactionTarget && (
-        <View style={styles.reactionOverlayContainer} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.reactionOverlayBackdrop}
-            activeOpacity={1}
-            onPress={() => setReactionTarget(null)}
-          >
-            <View style={styles.reactionOverlay}>
-              {REACTION_EMOJIS.map((emoji) => (
+      {/* Quick-reaction row for double-tap, as a Modal for the same reason
+          the long-press actions sheet is one -- see comment below. */}
+      <Modal
+        visible={!!reactionTarget && !showAllReactions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReactionTarget(null)}
+      >
+        {reactionTarget && (
+          <View style={styles.reactionOverlayContainer}>
+            <TouchableOpacity
+              style={styles.reactionOverlayBackdrop}
+              activeOpacity={1}
+              onPress={() => setReactionTarget(null)}
+            >
+              <View style={styles.reactionOverlay}>
+                {REACTION_EMOJIS.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={styles.reactionOverlayButton}
+                    onPress={() => {
+                      handleAddReaction(reactionTarget.id, emoji);
+                      setReactionTarget(null);
+                      setShowAllReactions(false);
+                    }}
+                  >
+                    <Text style={styles.reactionOverlayEmoji}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+                {/* + icon to open full emoji sheet */}
                 <TouchableOpacity
-                  key={emoji}
                   style={styles.reactionOverlayButton}
+                  onPress={() => setShowAllReactions(true)}
+                >
+                  <Text style={[styles.reactionOverlayEmoji, { fontWeight: "600" }]}>＋</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </Modal>
+      {/* Message actions sheet for long-press. A native Modal (like the other
+          sheets in this screen -- media options, report) instead of a plain
+          absolutely-positioned View: a raw View sibling of the
+          KeyboardAvoidingView tree got clipped/pushed off-screen by the
+          keyboard-dismiss/layout race (confirmed with a bright debug-colored
+          version of the old markup -- it rendered, but squashed into a
+          sliver at the very bottom instead of the full sheet). Modal
+          presents in its own native layer above the keyboard and everything
+          else, which sidesteps that race entirely. */}
+      <Modal
+        visible={showMessageActions && !!actionMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowMessageActions(false);
+          setActionMessage(null);
+        }}
+      >
+        {actionMessage && (
+          <View style={styles.actionsOverlayContainer}>
+            <TouchableOpacity
+              style={styles.actionsOverlayBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                setShowMessageActions(false);
+                setActionMessage(null);
+              }}
+            >
+              <View
+                style={[
+                  styles.actionsSheet,
+                  {
+                    backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
+                    paddingBottom: styles.actionsSheet.paddingBottom + insets.bottom,
+                  },
+                ]}
+              >
+                {/* Quick-reaction row, WhatsApp-style -- react without
+                    leaving the long-press menu. */}
+                <View
+                  style={[
+                    styles.actionsSheetReactionRow,
+                    { borderBottomColor: isDarkMode ? '#38383A' : '#E5E7EB' },
+                  ]}
+                >
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={styles.actionsSheetReactionButton}
+                      onPress={() => {
+                        handleAddReaction(actionMessage.id, emoji);
+                        setShowMessageActions(false);
+                        setActionMessage(null);
+                      }}
+                    >
+                      <Text style={styles.actionsSheetReactionEmoji}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.actionsSheetReactionButton}
+                    onPress={() => {
+                      setReactionTarget(actionMessage);
+                      setShowAllReactions(true);
+                      setShowMessageActions(false);
+                      setActionMessage(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.actionsSheetReactionEmoji,
+                        { fontWeight: "600", color: isDarkMode ? '#F9FAFB' : '#000000' },
+                      ]}
+                    >
+                      ＋
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {/* Reply option */}
+                <TouchableOpacity
+                  style={styles.actionsSheetButton}
                   onPress={() => {
-                    handleAddReaction(reactionTarget.id, emoji);
-                    setReactionTarget(null);
-                    setShowAllReactions(false);
+                    setReplyToMessage(actionMessage);
+                    setShowMessageActions(false);
+                    setActionMessage(null);
                   }}
                 >
-                  <Text style={styles.reactionOverlayEmoji}>{emoji}</Text>
+                  <Text style={[styles.actionsSheetText, { color: '#7C3AED' }]}>Reply</Text>
                 </TouchableOpacity>
-              ))}
-              {/* + icon to open full emoji sheet */}
-              <TouchableOpacity
-                style={styles.reactionOverlayButton}
-                onPress={() => setShowAllReactions(true)}
-              >
-                <Text style={[styles.reactionOverlayEmoji, { fontWeight: "600" }]}>＋</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-      {/* Message actions overlay for long-press */}
-      {showMessageActions && actionMessage && (
-        <View style={styles.actionsOverlayContainer} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.actionsOverlayBackdrop}
-            activeOpacity={1}
-            onPress={() => {
-              setShowMessageActions(false);
-              setActionMessage(null);
-            }}
-          >
-            <View style={styles.actionsSheet}>
-              {/* Reply option */}
-              <TouchableOpacity
-                style={styles.actionsSheetButton}
-                onPress={() => {
-                  setReplyToMessage(actionMessage);
-                  setShowMessageActions(false);
-                  setActionMessage(null);
-                }}
-              >
-                <Text style={[styles.actionsSheetText, { color: '#7C3AED' }]}>Reply</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionsSheetButton}
-                onPress={() => {
-                  toggleSelectMessage(actionMessage.id);
-                  setShowMessageActions(false);
-                }}
-              >
-                <Text style={styles.actionsSheetText}>Select</Text>
-              </TouchableOpacity>
-              {myUserId &&
-                actionMessage.senderId != null &&
-                String(actionMessage.senderId) === myUserId && (
-                  <TouchableOpacity
-                    style={styles.actionsSheetButton}
-                    onPress={handleStartEdit}
-                  >
-                    <Text style={styles.actionsSheetText}>Edit</Text>
-                  </TouchableOpacity>
-                )}
-              <TouchableOpacity
-                style={styles.actionsSheetButton}
-                onPress={handleDeleteMessages}
-              >
-                <Text style={[styles.actionsSheetText, styles.deleteText]}>Delete</Text>
-              </TouchableOpacity>
-              {/* Only show Report button for messages from other users */}
-              {myUserId &&
-                actionMessage.senderId != null &&
-                String(actionMessage.senderId) !== myUserId && (
-                  <TouchableOpacity
-                    style={styles.actionsSheetButton}
-                    onPress={() => handleOpenReportModal(actionMessage)}
-                  >
-                    <Text style={[styles.actionsSheetText, { color: '#FF6B6B' }]}>Report</Text>
-                  </TouchableOpacity>
-                )}
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+                <TouchableOpacity
+                  style={styles.actionsSheetButton}
+                  onPress={() => {
+                    toggleSelectMessage(actionMessage.id);
+                    setShowMessageActions(false);
+                  }}
+                >
+                  <Text style={[styles.actionsSheetText, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Select</Text>
+                </TouchableOpacity>
+                {myUserId &&
+                  actionMessage.senderId != null &&
+                  String(actionMessage.senderId) === myUserId &&
+                  !actionMessage.sharedMemeId && (
+                    <TouchableOpacity
+                      style={styles.actionsSheetButton}
+                      onPress={handleStartEdit}
+                    >
+                      <Text style={[styles.actionsSheetText, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Edit</Text>
+                    </TouchableOpacity>
+                  )}
+                <TouchableOpacity
+                  style={styles.actionsSheetButton}
+                  onPress={handleDeleteMessages}
+                >
+                  <Text style={[styles.actionsSheetText, styles.deleteText]}>Delete</Text>
+                </TouchableOpacity>
+                {/* Only show Report button for messages from other users */}
+                {myUserId &&
+                  actionMessage.senderId != null &&
+                  String(actionMessage.senderId) !== myUserId && (
+                    <TouchableOpacity
+                      style={styles.actionsSheetButton}
+                      onPress={() => handleOpenReportModal(actionMessage)}
+                    >
+                      <Text style={[styles.actionsSheetText, { color: '#FF6B6B' }]}>Report</Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </Modal>
 
       {/* Report Message Modal */}
       <Modal
@@ -3833,7 +4181,7 @@ export default function ChatConversationScreen() {
               disabled={!selectedReportReason || isSubmittingReport}
             >
               {isSubmittingReport ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <Loader size={16} color="#fff" />
               ) : (
                 <Text style={styles.reportSubmitBtnText}>Submit Report</Text>
               )}
@@ -3934,7 +4282,7 @@ export default function ChatConversationScreen() {
               disabled={isRevealSubmitting}
             >
               {isRevealSubmitting ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <Loader size={16} color="#fff" />
               ) : (
                 <Text style={styles.revealBtnText}>
                   {otherHasRevealed ? '🎉 Reveal & Connect!' : '✨ Reveal My Profile'}
@@ -3962,7 +4310,11 @@ export default function ChatConversationScreen() {
 
       <ReactionPicker
         visible={!!(reactionTarget && showAllReactions)}
-        onClose={() => setShowAllReactions(false)}
+        isDarkMode={isDarkMode}
+        onClose={() => {
+          setShowAllReactions(false);
+          setReactionTarget(null);
+        }}
         onSelectEmoji={(emoji) => {
           if (reactionTarget && emoji) {
             handleAddReaction(reactionTarget.id, emoji);
@@ -4005,19 +4357,47 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  headerRevealButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
   headerInfo: {
     flex: 1,
   },
   headerAvatarImage: {
     width: 32,
     height: 32,
+    borderRadius: 12, // rounded-square (squircle), not a circle -- matches this app's avatar convention (see AVATAR_RADIUS in chat/index.jsx)
+    marginRight: 8,
+  },
+  headerAvatarCrossfadeContainer: {
+    width: 32,
+    height: 32,
     borderRadius: 12,
     marginRight: 8,
+    overflow: 'hidden',
+  },
+  headerAvatarCrossfadeImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
   headerAvatarFallback: {
     width: 32,
     height: 32,
     borderRadius: 12,
+    overflow: 'hidden',
     marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -4442,6 +4822,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginRight: 4,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  reactionBubbleMine: {
+    backgroundColor: "#DDD6FE",
+    borderColor: "#7C3AED",
   },
   reactionCount: {
     fontSize: 11,
@@ -4449,7 +4835,7 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
   reactionOverlayContainer: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -4458,28 +4844,32 @@ const styles = StyleSheet.create({
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(0,0,0,0.25)",
   },
   reactionOverlay: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    elevation: 4,
+    borderRadius: 32,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    elevation: 6,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
   reactionOverlayButton: {
-    marginHorizontal: 4,
+    marginHorizontal: 6,
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
   },
   reactionOverlayEmoji: {
-    fontSize: 22,
+    fontSize: 30,
   },
   actionsOverlayContainer: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: "flex-end",
     alignItems: "center",
   },
@@ -4492,7 +4882,6 @@ const styles = StyleSheet.create({
   },
   actionsSheet: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: 16,
@@ -4501,6 +4890,23 @@ const styles = StyleSheet.create({
   },
   actionsSheetButton: {
     paddingVertical: 12,
+  },
+  actionsSheetReactionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  actionsSheetReactionButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionsSheetReactionEmoji: {
+    fontSize: 26,
   },
   actionsSheetText: {
     fontSize: 16,
@@ -4512,26 +4918,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
     backgroundColor: "#EFF6FF",
-    marginBottom: 6,
+    marginBottom: 10,
   },
   selectionToolbarText: {
-    fontSize: 12,
+    fontSize: 15,
+    fontWeight: "700",
     color: "#1F2937",
   },
   selectionToolbarActions: {
     flexDirection: "row",
   },
   selectionToolbarButton: {
-    marginLeft: 12,
+    marginLeft: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
   },
   selectionToolbarButtonText: {
-    fontSize: 12,
+    fontSize: 14,
     color: "#2563EB",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   editBanner: {
     flexDirection: "row",
@@ -4839,6 +5250,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 16,
+  },
+  revealToast: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  revealToastContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  revealToastText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   revealStatusText: {
     color: '#fff',

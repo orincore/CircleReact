@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   FlatList,
@@ -16,6 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -181,6 +182,7 @@ function CommentContent({ comment, isReply, onAliasPress, onReply, onDelete }) {
 
 export default function CommentsSheet({ visible, meme, onClose, onCommentPosted, onCommentDeleted }) {
   const { token } = useAuth();
+  const router = useRouter();
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [comments, setComments] = useState([]);
@@ -402,6 +404,21 @@ export default function CommentsSheet({ visible, meme, onClose, onCommentPosted,
               await feedApi.createConnectRequest(comment.id, token);
               Alert.alert('Request sent', `A connect request was sent to ${comment.alias}.`);
             } catch (e) {
+              // You already revealed identities with this person on a past
+              // meme -- there's no anonymous cycle left to start, so just
+              // offer to open the chat you already have instead of a
+              // dead-end error.
+              if (e?.details?.alreadyConnected && e.details.chat_id) {
+                Alert.alert(
+                  'Already connected',
+                  'You already know this person from a previous connect. Want to open your chat with them?',
+                  [
+                    { text: 'Not now', style: 'cancel' },
+                    { text: 'Open chat', onPress: () => { onClose?.(); router.push(`/secure/chat-conversation?id=${e.details.chat_id}`); } },
+                  ]
+                );
+                return;
+              }
               const message = e?.message || 'Failed to send connect request.';
               Alert.alert('Error', message);
             }
@@ -429,7 +446,7 @@ export default function CommentsSheet({ visible, meme, onClose, onCommentPosted,
 
             {loading ? (
               <View style={styles.centerLoader}>
-                <ActivityIndicator size="small" color="#7C2B86" />
+                <Loader size={16} color="#7C2B86" />
               </View>
             ) : (
               <FlatList
@@ -510,7 +527,7 @@ export default function CommentsSheet({ visible, meme, onClose, onCommentPosted,
               >
                 <View style={styles.sendButtonInner}>
                   {posting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Loader size={16} color="#FFFFFF" />
                   ) : (
                     <Feather name="send" size={17} color="#FFFFFF" />
                   )}

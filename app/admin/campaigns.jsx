@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Platform,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 export default function AdminCampaigns() {
   const router = useRouter();
@@ -340,7 +340,7 @@ export default function AdminCampaigns() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading campaigns...</Text>
       </View>
     );

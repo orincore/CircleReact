@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Linking,
-  ActivityIndicator
+  Linking
 } from 'react-native';
+import Loader from '@/components/Loader';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -121,7 +121,7 @@ const LinkedSocialAccounts = ({ userId, isOwnProfile = false, onUpgradeRequest }
           <Text style={[styles.title, { color: isDarkMode ? '#FFFFFF' : '#1F1147' }]}>Social Accounts</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#7C2B86" />
+          <Loader size={16} color="#7C2B86" />
         </View>
       </View>
     );

@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -100,7 +100,7 @@ export default function SubscriptionScreen() {
       <LinearGradient colors={['#1F1147', '#2D1B69']} style={styles.gradient}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF6FB5" />
+            <Loader size={36} color="#FF6FB5" />
           </View>
         </SafeAreaView>
       </LinearGradient>

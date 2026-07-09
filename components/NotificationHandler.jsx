@@ -102,7 +102,36 @@ const NotificationHandler = () => {
             // Navigate to friends screen
             router.push('/secure/(tabs)/friends');
             break;
-            
+
+          case 'meme_liked_by_friend':
+          case 'meme_discovery':
+            // Open the standalone meme viewer (same route MemeSharePreview
+            // deep-links to from chat) for the meme the notification is about
+            if (data.memeId) {
+              router.push({ pathname: '/secure/meme-view', params: { memeId: data.memeId } });
+            } else {
+              router.push('/secure/(tabs)/memes');
+            }
+            break;
+
+          case 'friend_birthday':
+          case 'weather_checkin':
+            // Open the chat with the friend the notification is about
+            if (data.chatId) {
+              router.push({
+                pathname: '/secure/chat-conversation',
+                params: { id: data.chatId, name: data.targetUserName || data.birthdayUserName || 'Chat' },
+              });
+            } else {
+              router.push('/secure/(tabs)/chats');
+            }
+            break;
+
+          case 'birthday_self':
+            // Nothing specific to open -- just bring the user into the app.
+            router.push('/secure/(tabs)/match');
+            break;
+
           case 'search_update':
           case 'background_search_started':
           case 'background_reminder':

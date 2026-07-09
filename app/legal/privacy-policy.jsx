@@ -62,12 +62,21 @@ export default function PrivacyPolicy() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>4. Location Information</Text>
               <Text style={styles.sectionText}>
-                We use your location to help you find nearby matches and improve your experience. 
+                We use your location to help you find nearby matches and improve your experience.
                 You can control location sharing in your device settings. Location data is:
               </Text>
               <Text style={styles.bulletPoint}>• Used only for matching and safety features</Text>
               <Text style={styles.bulletPoint}>• Not shared with other users without your consent</Text>
               <Text style={styles.bulletPoint}>• Stored securely and deleted when no longer needed</Text>
+              <Text style={styles.sectionText}>
+                Background location: if you turn on "Location Tracking" in Settings, Circle continues
+                to check your approximate location periodically (roughly every 15–30 minutes) even
+                while the app is closed or not in use, so we can notify you and other Circle members
+                when you're near each other and keep your nearby-match suggestions up to date. This is
+                off by default, we ask for your explicit permission before turning it on, and you can
+                disable it at any time from Settings — doing so stops all background location checks
+                immediately.
+              </Text>
             </View>
 
             <View style={styles.section}>

@@ -8,11 +8,11 @@ import {
   TextInput,
   Share,
   Alert,
-  ActivityIndicator,
   Clipboard,
   Platform,
   RefreshControl,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -219,7 +219,7 @@ export default function ReferralsScreen() {
       <LinearGradient colors={['#1F1147', '#2D1B69']} style={styles.gradient}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF6FB5" />
+            <Loader size={36} color="#FF6FB5" />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -402,7 +402,7 @@ export default function ReferralsScreen() {
               <View>
                 {loadingTransactions ? (
                   <View style={styles.transactionsLoading}>
-                    <ActivityIndicator size="small" color="#FF6FB5" />
+                    <Loader size={16} color="#FF6FB5" />
                     <Text style={styles.loadingText}>Loading transactions...</Text>
                   </View>
                 ) : transactions.length === 0 ? (

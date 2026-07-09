@@ -88,15 +88,19 @@ export const reportsApi = {
    */
   async submitReport(params: SubmitReportParams): Promise<ReportResponse> {
     try {
-      const response: any = await http.post('/api/reports', params);
-      return response.data as ReportResponse;
+      const response = await http.post<ReportResponse, SubmitReportParams>('/api/reports', params);
+      return response;
     } catch (error) {
-      console.error('Error submitting report:', error);
       const err = error as any;
+      // A duplicate report (429) is an expected, user-facing outcome, not a bug -
+      // avoid console.error so it doesn't surface as a dev redbox.
+      if (err?.status !== 429) {
+        console.error('Error submitting report:', error);
+      }
       return {
         success: false,
-        message: err?.response?.data?.message || 'Failed to submit report',
-        error: err?.response?.data?.error || 'Unknown error'
+        message: err?.details?.message || err?.message || 'Failed to submit report',
+        error: err?.details?.error || 'Unknown error'
       };
     }
   },
@@ -106,8 +110,8 @@ export const reportsApi = {
    */
   async getMyReports(): Promise<UserReport[]> {
     try {
-      const response: any = await http.get('/api/reports/my-reports');
-      return response.data?.reports || [];
+      const response = await http.get<{ reports?: UserReport[] }>('/api/reports/my-reports');
+      return response?.reports || [];
     } catch (error) {
       console.error('Error fetching reports:', error);
       return [];

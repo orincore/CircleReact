@@ -3,7 +3,6 @@ import { socialAccountsApi } from '@/src/api/social-accounts';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Linking,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 const SocialAccountsManager = ({ onClose }) => {
   const { token } = useAuth();
@@ -198,7 +198,7 @@ const SocialAccountsManager = ({ onClose }) => {
           </TouchableOpacity>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7C2B86" />
+          <Loader size={36} color="#7C2B86" />
           <Text style={styles.loadingText}>Loading accounts...</Text>
         </View>
       </View>
@@ -250,7 +250,7 @@ const SocialAccountsManager = ({ onClose }) => {
                   disabled={linkingPlatform === 'instagram'}
                 >
                   {linkingPlatform === 'instagram' ? (
-                    <ActivityIndicator size="small" color="white" />
+                    <Loader size={16} color="white" />
                   ) : (
                     <Text style={styles.linkButtonText}>Link</Text>
                   )}

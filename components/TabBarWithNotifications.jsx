@@ -5,7 +5,7 @@ import { chatApi } from "@/src/api/chat";
 import { unreadCountService } from "@/src/services/unreadCountService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from 'react';
-import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -14,7 +14,7 @@ const WEB_BOTTOM_PADDING = 20;
 
 
 export default function TabBarWithNotifications({ state, descriptors, navigation }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [chatUnreadCounts, setChatUnreadCounts] = useState({}); // chatId -> unread count
@@ -244,7 +244,24 @@ export default function TabBarWithNotifications({ state, descriptors, navigation
                       { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.18)' : 'rgba(139,92,246,0.1)' },
                     ]} />
                   )}
-                  <Ionicons name={iconName} size={23} color={color} />
+                  {route.name === 'profile' && user?.profilePhotoUrl ? (
+                    // Matches the iOS native tab bar's circular profile photo
+                    // (app/secure/(tabs)/_layout.ios.jsx) -- that one has to
+                    // rasterize the avatar into a PNG for UITabBar, but here
+                    // it's plain RN so a clipping wrapper + matching
+                    // borderRadius on the Image (both exactly half of the
+                    // avatar's own size) is all that's needed.
+                    <View
+                      style={[
+                        styles.tabAvatarRing,
+                        { borderColor: isFocused ? activeColor : 'transparent' },
+                      ]}
+                    >
+                      <Image source={{ uri: user.profilePhotoUrl }} style={styles.tabAvatarImage} />
+                    </View>
+                  ) : (
+                    <Ionicons name={iconName} size={23} color={color} />
+                  )}
                   {route.name === 'chat' && totalUnreadMessages > 0 && (
                     <View style={[styles.chatBadge, { backgroundColor: theme.error, borderColor: isDarkMode ? '#0E0E16' : '#FFFFFF' }]}>
                       <Text style={styles.chatBadgeText}>
@@ -296,6 +313,24 @@ const styles = StyleSheet.create({
     width: 52,
     height: 34,
     borderRadius: 17,
+  },
+  // borderRadius on both the wrapping ring and the image itself is exactly
+  // half of their own width/height -- that's what actually makes this a
+  // circle instead of a square photo; overflow:'hidden' on the ring is what
+  // clips it there.
+  tabAvatarRing: {
+    width: 25,
+    height: 25,
+    borderRadius: 12.5,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12.5,
   },
   tabLabel: {
     fontSize: 10,

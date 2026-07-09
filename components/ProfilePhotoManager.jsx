@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Platform,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import Loader from '@/components/Loader';
 
 /**
  * Profile Photo Manager Component
@@ -221,7 +221,7 @@ export default function ProfilePhotoManager({ size = 150 }) {
           >
             <View style={styles.placeholderContainer}>
               {uploading ? (
-                <ActivityIndicator size="large" color="#7C2B86" />
+                <Loader size={36} color="#7C2B86" />
               ) : (
                 <>
                   <Ionicons name="person" size={size * 0.4} color="#7C2B86" />
@@ -244,7 +244,7 @@ export default function ProfilePhotoManager({ size = 150 }) {
         {/* Uploading overlay */}
         {uploading && (
           <View style={styles.uploadingOverlay}>
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Loader size={16} color="#FFFFFF" />
             <Text style={styles.uploadingText}>Uploading...</Text>
           </View>
         )}

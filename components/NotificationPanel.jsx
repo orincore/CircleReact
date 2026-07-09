@@ -8,7 +8,6 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -23,6 +22,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
 
@@ -413,6 +413,16 @@ export default function NotificationPanel({ visible, onClose }) {
   };
 
   const handleNotificationPress = (item) => {
+    // Meme-connect notifications deliberately carry no sender/user id (the
+    // whole point is the other party stays anonymous until reveal), so they
+    // can't route to a profile like the fallback below -- send the user to
+    // the Connect Requests screen instead, where the actual request lives.
+    if (item.data?.action === 'meme_connect') {
+      onClose();
+      router.push('/secure/(tabs)/memes/connect-requests');
+      return;
+    }
+
     const userId = item.data?.userId ||
                    item.data?.requestId?.sender_id ||
                    item.sender?.id ||
@@ -705,7 +715,7 @@ export default function NotificationPanel({ visible, onClose }) {
             <View style={styles.content}>
               {loading ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={theme.primary} />
+                  <Loader size={36} color={theme.primary} />
                   <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
                 </View>
               ) : getFilteredNotifications().length === 0 ? (

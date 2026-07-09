@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import Loader from '@/components/Loader';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -482,7 +483,7 @@ export default function FaceVerificationScreen() {
   if (!permission || !micPermission) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#A16AE8" />
+        <Loader size={36} color="#A16AE8" />
       </View>
     );
   }
@@ -612,7 +613,7 @@ export default function FaceVerificationScreen() {
                 <View style={styles.faceGuide} />
                 {!isCameraReady && !IS_WEB && (
                   <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color="#FF6FB5" />
+                    <Loader size={36} color="#FF6FB5" />
                     <Text style={styles.loadingText}>Initializing camera...</Text>
                   </View>
                 )}
@@ -709,7 +710,7 @@ export default function FaceVerificationScreen() {
               >
                 <LinearGradient colors={['#10B981', '#34D399']} style={styles.submitGradient}>
                   {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <Loader color="#FFFFFF" />
                   ) : (
                     <Text style={styles.submitText}>Submit</Text>
                   )}

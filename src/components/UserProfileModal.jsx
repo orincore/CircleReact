@@ -9,7 +9,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -23,6 +22,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Removed Avatar import to fix require cycle
 import VerifiedBadge from '../../components/VerifiedBadge';
@@ -1027,7 +1027,7 @@ export default function UserProfileModal({
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#7C2B86" />
+                <Loader size={36} color="#7C2B86" />
                 <Text style={styles.loadingText}>Loading profile...</Text>
               </View>
             ) : profileData ? (

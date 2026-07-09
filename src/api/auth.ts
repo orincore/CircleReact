@@ -21,12 +21,21 @@ export interface AuthResponse {
   needsDobMigration?: boolean;
 }
 
-export interface LoginBody {
+// Sent on every login/signup so the backend can tie the new session to a
+// device (see CircleReact's src/services/deviceId.js for deviceId). All
+// optional -- older/unpatched call sites simply omit them.
+export interface DeviceInfo {
+  deviceId?: string;
+  deviceType?: string;
+  deviceName?: string;
+}
+
+export interface LoginBody extends DeviceInfo {
   identifier: string; // email or username
   password: string;
 }
 
-export interface SignupBody {
+export interface SignupBody extends DeviceInfo {
   firstName: string;
   lastName: string;
   dateOfBirth: string; // ISO date, must be at least MIN_AGE years old
@@ -54,7 +63,7 @@ export interface GoogleAuthResponse {
   };
 }
 
-export interface GoogleCompleteSignupBody {
+export interface GoogleCompleteSignupBody extends DeviceInfo {
   idToken: string;
   firstName: string;
   lastName: string;
@@ -68,10 +77,22 @@ export interface GoogleCompleteSignupBody {
   about?: string;
 }
 
+export interface LogoutBody {
+  deviceId?: string | null;
+  // The push token (not the JWT) -- a fallback match for rows still
+  // missing a deviceId, mirrors /api/notifications/unregister-token.
+  token?: string | null;
+}
+
 export const authApi = {
   login: (body: LoginBody) => http.post<AuthResponse, LoginBody>("/api/auth/login", body),
   signup: (body: SignupBody) => http.post<AuthResponse, SignupBody>("/api/auth/signup", body),
   usernameAvailable: (username: string) => http.get<{ available: boolean }>(`/api/auth/username-available?username=${encodeURIComponent(username)}`),
-  googleAuth: (idToken: string) => http.post<GoogleAuthResponse, { idToken: string }>("/api/auth/google", { idToken }),
+  googleAuth: (idToken: string, device?: DeviceInfo) =>
+    http.post<GoogleAuthResponse, { idToken: string } & DeviceInfo>("/api/auth/google", { idToken, ...device }),
   googleCompleteSignup: (body: GoogleCompleteSignupBody) => http.post<AuthResponse, GoogleCompleteSignupBody>("/api/auth/google/complete-signup", body),
+  // Pass the token explicitly -- called during logOut() right before the
+  // in-memory/AsyncStorage token is cleared, so relying on http.ts's
+  // storage-lookup fallback would risk a race.
+  logout: (body: LogoutBody, token: string) => http.post<{ success: boolean; message: string }, LogoutBody>("/api/auth/logout", body, token),
 };

@@ -9,7 +9,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -20,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Loader from '@/components/Loader';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Same brand gradient + squircle avatar radius as the chat list screen and
@@ -179,9 +179,9 @@ export default function FriendsScreen() {
 
           <View style={styles.actionsContainer}>
             {isCreating ? (
-              <ActivityIndicator size="small" color={theme.primary} />
+              <Loader size={16} color={theme.primary} />
             ) : isUnfriending ? (
-              <ActivityIndicator size="small" color="#FF4D4F" />
+              <Loader size={16} color="#FF4D4F" />
             ) : (
               <Ionicons name="chatbubble" size={20} color={theme.primary} />
             )}
@@ -273,7 +273,7 @@ export default function FriendsScreen() {
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.primary} />
+              <Loader size={36} color={theme.primary} />
               <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading friends...</Text>
             </View>
           ) : (

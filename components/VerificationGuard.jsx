@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Loader from '@/components/Loader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,7 +18,7 @@ export default function VerificationGuard({ children, feature = 'this feature' }
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#A16AE8" />
+        <Loader size={36} color="#A16AE8" />
         <Text style={styles.loadingText}>Checking verification status...</Text>
       </View>
     );

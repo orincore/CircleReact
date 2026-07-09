@@ -5,7 +5,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Loader from '@/components/Loader';
 
 export default function UserDetailScreen() {
   const { userId } = useLocalSearchParams();
@@ -589,7 +590,7 @@ export default function UserDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading user details...</Text>
       </View>
     );
@@ -1305,7 +1306,7 @@ export default function UserDetailScreen() {
                 disabled={actionLoading}
               >
                 {actionLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Loader size={16} color="#FFFFFF" />
                 ) : (
                   <Text style={styles.confirmButtonText}>Process Refund</Text>
                 )}

@@ -84,7 +84,8 @@ export default function Login() {
       <WavyBackground />
 
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: 0 })}
         style={styles.keyboardView}
       >
         <ScrollView
@@ -92,6 +93,7 @@ export default function Login() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <View
             style={[

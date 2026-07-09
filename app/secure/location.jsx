@@ -8,7 +8,6 @@ import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -24,6 +23,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isLargeScreen = screenWidth >= 768; // Tablet/Desktop breakpoint
@@ -1242,7 +1242,7 @@ export default function LocationPage() {
                       
                       {isLoadingUsers && (
                         <View style={styles.mapLoadingOverlay}>
-                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Loader size={16} color="#7C2B86" />
                           <Text style={styles.mapLoadingText}>Loading users...</Text>
                         </View>
                       )}
@@ -1251,7 +1251,7 @@ export default function LocationPage() {
                     <View style={styles.mapPlaceholder}>
                       {loading ? (
                         <>
-                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Loader size={36} color="#7C2B86" />
                           <Text style={styles.mapPlaceholderText}>Loading map...</Text>
                         </>
                       ) : (
@@ -1324,7 +1324,7 @@ export default function LocationPage() {
                       
                       {isLoadingUsers && (
                         <View style={styles.mapLoadingOverlay}>
-                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Loader size={16} color="#7C2B86" />
                           <Text style={styles.mapLoadingText}>Loading users...</Text>
                         </View>
                       )}
@@ -1360,7 +1360,7 @@ export default function LocationPage() {
                     <View style={styles.mapPlaceholder}>
                       {loading ? (
                         <>
-                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Loader size={36} color="#7C2B86" />
                           <Text style={styles.mapPlaceholderText}>Loading map...</Text>
                         </>
                       ) : (
@@ -1413,7 +1413,7 @@ export default function LocationPage() {
                       
                       {isLoadingUsers && (
                         <View style={styles.mapLoadingOverlay}>
-                          <ActivityIndicator size="small" color="#7C2B86" />
+                          <Loader size={16} color="#7C2B86" />
                           <Text style={styles.mapLoadingText}>Loading users...</Text>
                         </View>
                       )}
@@ -1422,7 +1422,7 @@ export default function LocationPage() {
                     <View style={styles.mapPlaceholder}>
                       {loading ? (
                         <>
-                          <ActivityIndicator size="large" color="#7C2B86" />
+                          <Loader size={36} color="#7C2B86" />
                           <Text style={styles.mapPlaceholderText}>Loading map...</Text>
                         </>
                       ) : (
@@ -1451,7 +1451,7 @@ export default function LocationPage() {
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#7C2B86" />
+                <Loader size={36} color="#7C2B86" />
                 <Text style={styles.loadingText}>Finding people nearby...</Text>
               </View>
             ) : totalFilteredUsers > 0 ? (

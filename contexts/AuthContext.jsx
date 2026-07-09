@@ -3,10 +3,25 @@ import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
 import { onTokenRenewed } from "@/src/api/tokenStore";
+import { getOrCreateDeviceId } from "@/src/services/deviceId";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Device from 'expo-device';
 import { useRouter, useSegments } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
+
+// Gathered once per call site (login/signup/google auth) so a new
+// auth_sessions row on the backend can be tied to a device -- see
+// src/services/deviceId.js for why deviceId (not the push token) is the
+// stable per-install identifier.
+async function getDeviceInfo() {
+  const deviceId = await getOrCreateDeviceId();
+  return {
+    deviceId,
+    deviceType: Platform.OS,
+    deviceName: Device.deviceName || `${Platform.OS} Device`,
+  };
+}
 
 const AuthContext = createContext(undefined);
 
@@ -148,7 +163,8 @@ export function AuthProvider({ children }) {
   }, [router, checkAccountStatus]);
 
   const logIn = useCallback(async (identifier, password) => {
-    const resp = await authApi.login({ identifier, password });
+    const deviceInfo = await getDeviceInfo();
+    const resp = await authApi.login({ identifier, password, ...deviceInfo });
     
     //console.log('🔍 [Frontend] Login response:', JSON.stringify(resp, null, 2));
     //console.log('🔍 [Frontend] User emailVerified:', resp.user.emailVerified);
@@ -191,6 +207,7 @@ export function AuthProvider({ children }) {
     async (payload) => {
       // payload must include: firstName, lastName, dateOfBirth, gender, email, username, password
       // and may include: phoneNumber, interests, needs
+      const deviceInfo = await getDeviceInfo();
       const resp = await authApi.signup({
         firstName: payload.firstName,
         lastName: payload.lastName,
@@ -205,6 +222,7 @@ export function AuthProvider({ children }) {
         about: payload.about || undefined,
         instagramUsername: payload.instagramUsername || undefined,
         referralCode: payload.referralCode || undefined,
+        ...deviceInfo,
       });
       
       // For new signups, store token and user but don't set as authenticated
@@ -227,7 +245,8 @@ export function AuthProvider({ children }) {
   );
 
   const googleAuth = useCallback(async (idToken) => {
-    const resp = await authApi.googleAuth(idToken);
+    const deviceInfo = await getDeviceInfo();
+    const resp = await authApi.googleAuth(idToken, deviceInfo);
     
     if (resp.isNewUser) {
       // New user - return Google profile data for signup completion
@@ -240,7 +259,8 @@ export function AuthProvider({ children }) {
   }, [applyAuth]);
 
   const googleCompleteSignup = useCallback(async (signupData) => {
-    const resp = await authApi.googleCompleteSignup(signupData);
+    const deviceInfo = await getDeviceInfo();
+    const resp = await authApi.googleCompleteSignup({ ...signupData, ...deviceInfo });
     
     // For Google OAuth users, email is pre-verified, so complete authentication
     setToken(resp.access_token);
@@ -335,6 +355,21 @@ export function AuthProvider({ children }) {
     // Unregister push token for this user on logout FIRST (before clearing auth)
     // This ensures we can still make the API call with valid auth
     if (currentToken) {
+      // Server-side logout: revokes this session (rejected on its next
+      // request once session-revocation enforcement is turned on) and
+      // disables push for this device. Called alongside -- not instead of
+      // -- the unregister-token call below for this release, as a
+      // belt-and-suspenders safety net while that enforcement rolls out.
+      try {
+        const deviceInfo = await getDeviceInfo();
+        const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
+        const notificationService = AndroidNotificationService.default;
+        const pushToken = notificationService?.getPushToken ? notificationService.getPushToken() : null;
+        await authApi.logout({ deviceId: deviceInfo.deviceId, token: pushToken || undefined }, currentToken);
+      } catch (error) {
+        console.error('Failed to call server logout:', error);
+      }
+
       try {
         const AndroidNotificationService = await import('../src/services/AndroidNotificationService');
         const notificationService = AndroidNotificationService.default;
@@ -652,6 +687,31 @@ export function AuthProvider({ children }) {
       subscription?.remove();
     };
   }, [isAuthenticated, token, checkCurrentAccountStatus]);
+
+  // Fallback net for the notification-permission-granted-in-Settings case:
+  // some Android OEM ROMs don't reliably fire the AppState 'active' transition
+  // above when returning from the system Settings app, which otherwise leaves
+  // a user stuck with notifications enabled at the OS level but no push token
+  // ever registered. This polls cheaply (see AndroidNotificationService) and
+  // only fetches a token once one is actually missing.
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    let cancelled = false;
+
+    import('../src/services/AndroidNotificationService').then((mod) => {
+      if (cancelled) return;
+      mod.default.startPermissionWatcher(() => token);
+    }).catch((error) => {
+      console.error('Failed to start push permission watcher:', error);
+    });
+
+    return () => {
+      cancelled = true;
+      import('../src/services/AndroidNotificationService').then((mod) => {
+        mod.default.stopPermissionWatcher();
+      }).catch(() => {});
+    };
+  }, [isAuthenticated, token]);
 
   const value = useMemo(() => ({
     isAuthenticated,

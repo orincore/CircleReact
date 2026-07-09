@@ -1,4 +1,5 @@
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Loader from '@/components/Loader';
 import { PRIMARY_BUTTON_COLOR, SECONDARY_BORDER_COLOR } from "./SignupScreenLayout";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -16,7 +17,7 @@ export function SignupPrimaryButton({ label, onPress, disabled, loading }) {
       activeOpacity={0.85}
     >
       <View style={styles.primaryButton}>
-        {loading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{label}</Text>}
+        {loading ? <Loader size={16} color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{label}</Text>}
       </View>
     </TouchableOpacity>
   );

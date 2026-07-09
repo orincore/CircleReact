@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import Loader from '@/components/Loader';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { socialAccountsApi } from '@/src/api/social-accounts';
 
@@ -80,8 +81,8 @@ export default function SpotifyCallback() {
           {message}
         </Text>
         {status === 'processing' && (
-          <ActivityIndicator 
-            size="large" 
+          <Loader 
+            size={36} 
             color="#1DB954" 
             style={styles.loader}
           />

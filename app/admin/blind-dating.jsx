@@ -5,13 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Alert,
   Platform,
   Modal,
   TextInput,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -604,7 +604,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="checkmark-done" size={20} color="#FFF" />
@@ -619,7 +619,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="heart" size={20} color="#FFF" />
@@ -634,7 +634,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="refresh" size={20} color="#FFF" />
@@ -651,7 +651,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="flash" size={20} color="#FFF" />
@@ -666,7 +666,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="mail" size={20} color="#FFF" />
@@ -681,7 +681,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="analytics" size={20} color="#FFF" />
@@ -709,7 +709,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="pause-circle" size={20} color="#FFF" />
@@ -724,7 +724,7 @@ export default function BlindDatingAdmin() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFF" />
+              <Loader color="#FFF" />
             ) : (
               <>
                 <Ionicons name="trash" size={20} color="#FFF" />
@@ -927,7 +927,7 @@ export default function BlindDatingAdmin() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C2B86" />
+        <Loader size={36} color="#7C2B86" />
         <Text style={styles.loadingText}>Loading Blind Connect Data...</Text>
       </View>
     );
@@ -1339,7 +1339,7 @@ export default function BlindDatingAdmin() {
                 disabled={!selectedUserA || !selectedUserB || creatingMatch}
               >
                 {creatingMatch ? (
-                  <ActivityIndicator color="#FFF" />
+                  <Loader color="#FFF" />
                 ) : (
                   <>
                     <Ionicons name="heart" size={20} color="#FFF" />

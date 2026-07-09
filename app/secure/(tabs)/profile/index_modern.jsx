@@ -11,7 +11,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -23,6 +22,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileScreen() {
@@ -351,7 +351,7 @@ export default function ProfileScreen() {
                 disabled={uploadingPhoto}
               >
                 {uploadingPhoto ? (
-                  <ActivityIndicator size="small" color="#8B5CF6" />
+                  <Loader size={16} color="#8B5CF6" />
                 ) : (
                   <Ionicons name="add" size={20} color="#8B5CF6" />
                 )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native'
+import Loader from '@/components/Loader';
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
@@ -204,7 +205,7 @@ const ChatWidget = ({ visible, onClose, userId = null }) => {
           >
             {loading && messages.length === 0 ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#7C2B86" />
+                <Loader size={16} color="#7C2B86" />
                 <Text style={styles.loadingText}>Starting conversation...</Text>
               </View>
             ) : (

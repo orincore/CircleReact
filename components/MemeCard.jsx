@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, FlatList } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, View, Text, StyleSheet, TouchableOpacity, Pressable, FlatList } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
@@ -30,7 +30,7 @@ const CONTROLS_HIDE_DELAY_MS = 3000;
  * the same approach ChatVideoPlayer.jsx and CachedMediaImage already use
  * successfully in this app.
  */
-function VideoAsset({ uri, isFocused, height, width }) {
+function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
   });
@@ -39,6 +39,8 @@ function VideoAsset({ uri, isFocused, height, width }) {
   const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const singleTapTimerRef = useRef(null);
 
   useEffect(() => {
     if (!player) return;
@@ -56,6 +58,7 @@ function VideoAsset({ uri, isFocused, height, width }) {
   useEffect(() => {
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
     };
   }, []);
 
@@ -84,8 +87,34 @@ function VideoAsset({ uri, isFocused, height, width }) {
     revealControls();
   };
 
+  const handleTap = () => {
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current < 250;
+    lastTapRef.current = now;
+
+    if (isDoubleTap) {
+      // A double tap should only burst-like -- not also flash the
+      // play/pause & mute controls. The first tap's own timer (below) is
+      // still pending at this point, so cancel it before it can fire.
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      if (onDoubleTapLike) onDoubleTapLike();
+      return;
+    }
+
+    // Delay revealing controls just long enough to find out whether a
+    // second tap is coming -- otherwise the very first tap of a double-tap
+    // would already have shown them before we know it's a double tap.
+    singleTapTimerRef.current = setTimeout(() => {
+      singleTapTimerRef.current = null;
+      revealControls();
+    }, 250);
+  };
+
   return (
-    <Pressable style={{ width, height }} onPress={revealControls}>
+    <View style={{ width, height }}>
       <VideoView
         key={uri}
         player={player}
@@ -94,22 +123,42 @@ function VideoAsset({ uri, isFocused, height, width }) {
         nativeControls={false}
         surfaceType="textureView"
       />
-      {controlsVisible ? (
-        <View style={styles.videoControlsOverlay} pointerEvents="box-none">
-          <TouchableOpacity style={styles.videoControlButton} onPress={togglePlayPause} activeOpacity={0.7}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.videoControlButton} onPress={toggleMute} activeOpacity={0.7}>
-            <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={26} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      ) : null}
-    </Pressable>
+      {/* A sibling layer stacked on top of the video, not a wrapper around it.
+          On Android, VideoView's native surface (TextureView) composites on
+          its own hardware layer that can draw over sibling RN views
+          regardless of JSX/z-index order -- if this Pressable instead wrapped
+          the VideoView as its child, the play/pause and mute buttons would
+          render (and often fail to receive touches) underneath the video
+          surface, invisible. Stacking it as a separate top-level sibling
+          with explicit elevation guarantees it composites above the video on
+          Android; iOS composites normally either way. */}
+      <Pressable style={[StyleSheet.absoluteFill, styles.videoTapLayer]} onPress={handleTap}>
+        {controlsVisible ? (
+          <View style={styles.videoControlsOverlay} pointerEvents="box-none">
+            <TouchableOpacity style={styles.videoControlButton} onPress={togglePlayPause} activeOpacity={0.7}>
+              <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.videoControlButton} onPress={toggleMute} activeOpacity={0.7}>
+              <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </Pressable>
+    </View>
   );
 }
 
-function CarouselAssets({ assets, height, width, dotsBottom }) {
+function CarouselAssets({ assets, height, width, dotsBottom, onDoubleTapLike }) {
   const [index, setIndex] = useState(0);
+  const lastTapRef = useRef(0);
+
+  const handleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 250 && onDoubleTapLike) {
+      onDoubleTapLike();
+    }
+    lastTapRef.current = now;
+  };
 
   return (
     <View style={{ width, height }}>
@@ -130,6 +179,7 @@ function CarouselAssets({ assets, height, width, dotsBottom }) {
             style={{ width, height }}
             resizeMode="contain"
             showSaveButton={false}
+            onPress={handleTap}
           />
         )}
       />
@@ -153,12 +203,58 @@ export default function MemeCard({ item, isFocused, height, width, bottomInset =
   // than hugging the very bottom of the card.
   const actionsBottom = contentBottom + 70;
 
+  const lastTapRef = useRef(0);
+  const heartScale = useRef(new Animated.Value(0.5)).current;
+  const heartOpacity = useRef(new Animated.Value(0)).current;
+
+  const playLikeBurst = useCallback(() => {
+    heartScale.stopAnimation();
+    heartOpacity.stopAnimation();
+    heartScale.setValue(0.5);
+    heartOpacity.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1.15, friction: 4, useNativeDriver: true }),
+      Animated.timing(heartScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+      Animated.delay(350),
+      Animated.timing(heartOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start();
+  }, [heartScale, heartOpacity]);
+
+  // Instagram-style: a double tap only ever *likes*, it never unlikes an
+  // already-liked meme -- unliking stays a deliberate single tap on the
+  // heart button.
+  const handleDoubleTapLike = useCallback(() => {
+    playLikeBurst();
+    if (!item.liked_by_me && onLike) onLike();
+  }, [item.liked_by_me, onLike, playLikeBurst]);
+
+  const handleImageTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 250) {
+      handleDoubleTapLike();
+    }
+    lastTapRef.current = now;
+  };
+
   return (
     <View style={[styles.card, { height, width }]}>
       {item.post_type === 'video' && videoAsset ? (
-        <VideoAsset uri={videoAsset.s3_url} isFocused={isFocused} height={height} width={width} />
+        // Keyed on the video's own URI, not just item.id: FlashList recycles
+        // cells (reuses component instances) rather than unmounting them on
+        // scroll, so without this VideoAsset would stay the *same* mounted
+        // instance across different feed items -- its useVideoPlayer(uri)
+        // call would then just receive a new uri on an existing hook call,
+        // which makes expo-video replace the source on the same underlying
+        // native player rather than construct a fresh one. That's a known
+        // upstream expo-video/ExoPlayer bug on Android: reusing a player
+        // instance for a new source renders a black screen even though the
+        // audio plays and playback state is otherwise correct. Keying here
+        // forces React to fully unmount the old VideoAsset (destroying its
+        // player) and mount a brand new one -- a fresh useVideoPlayer call,
+        // fresh native player -- whenever the video changes.
+        <VideoAsset key={videoAsset.s3_url} uri={videoAsset.s3_url} isFocused={isFocused} height={height} width={width} onDoubleTapLike={handleDoubleTapLike} />
       ) : item.post_type === 'carousel' ? (
-        <CarouselAssets assets={imageAssets} height={height} width={width} dotsBottom={contentBottom + 110} />
+        <CarouselAssets assets={imageAssets} height={height} width={width} dotsBottom={contentBottom + 110} onDoubleTapLike={handleDoubleTapLike} />
       ) : imageAssets[0] ? (
         <CachedMediaImage
           messageId={imageAssets[0].id}
@@ -166,8 +262,19 @@ export default function MemeCard({ item, isFocused, height, width, bottomInset =
           style={{ width, height }}
           resizeMode="contain"
           showSaveButton={false}
+          onPress={handleImageTap}
         />
       ) : null}
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.likeBurst,
+          { opacity: heartOpacity, transform: [{ scale: heartScale }] },
+        ]}
+      >
+        <Ionicons name="heart" size={100} color="#FF3040" style={styles.likeBurstIcon} />
+      </Animated.View>
 
       <View style={[styles.captionWrap, { bottom: contentBottom }]} pointerEvents="none">
         {item.poster_alias ? (
@@ -296,6 +403,12 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: '#FFFFFF',
   },
+  // Explicit elevation is what actually gets this to composite above the
+  // video's native surface on Android -- see the comment where this is used.
+  videoTapLayer: {
+    elevation: 10,
+    zIndex: 10,
+  },
   videoControlsOverlay: {
     position: 'absolute',
     top: 0,
@@ -314,5 +427,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  likeBurst: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 20,
+    zIndex: 20,
+  },
+  likeBurstIcon: {
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
 });

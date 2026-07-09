@@ -5,12 +5,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 
 // Single source of truth for admin access, wrapping every route under
 // app/admin/_layout.jsx - including /admin/login itself. Admin sessions are
@@ -108,7 +108,7 @@ const AdminAuthGuard = ({ children }) => {
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#7C2B86', '#5D5FEF']} style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Loader size={36} color="#FFFFFF" />
           <Text style={styles.loadingText}>Verifying admin access...</Text>
         </LinearGradient>
       </View>

@@ -5,11 +5,11 @@ import {
   Modal,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Dimensions,
   ScrollView,
   Platform,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -200,7 +200,7 @@ const GiverRequestModal = ({
               disabled={loading}
             >
               {loading && action === 'decline' ? (
-                <ActivityIndicator color={isDarkMode ? '#fff' : '#333'} />
+                <Loader color={isDarkMode ? '#fff' : '#333'} />
               ) : (
                 <>
                   <Ionicons name="shuffle" size={20} color={isDarkMode ? '#fff' : '#333'} />
@@ -223,7 +223,7 @@ const GiverRequestModal = ({
                 end={{ x: 1, y: 0 }}
               >
                 {loading && action === 'accept' ? (
-                  <ActivityIndicator color="#fff" />
+                  <Loader color="#fff" />
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={22} color="#fff" />

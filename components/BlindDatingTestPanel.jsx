@@ -6,10 +6,10 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Animated,
   Platform,
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -343,7 +343,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
               )}
             </View>
           ) : (
-            <ActivityIndicator color={theme.primary} />
+            <Loader color={theme.primary} />
           )}
         </View>
         
@@ -385,7 +385,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
               end={{ x: 1, y: 0 }}
             >
               {loading ? (
-                <ActivityIndicator color="white" size="small" />
+                <Loader color="white" size={16} />
               ) : (
                 <>
                   <Ionicons name="shield-checkmark" size={20} color="white" />
@@ -545,7 +545,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
             >
               {runningTests ? (
                 <>
-                  <ActivityIndicator color="white" size="small" />
+                  <Loader color="white" size={16} />
                   <Text style={styles.buttonText}>Running Tests...</Text>
                 </>
               ) : (
@@ -686,7 +686,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
                 end={{ x: 1, y: 0 }}
               >
                 {enablingBlindDating ? (
-                  <ActivityIndicator color="white" size="small" />
+                  <Loader color="white" size={16} />
                 ) : (
                   <>
                     <Ionicons name="power" size={20} color="white" />
@@ -711,7 +711,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
             >
               {findingMatch ? (
                 <>
-                  <ActivityIndicator color="white" size="small" />
+                  <Loader color="white" size={16} />
                   <Text style={styles.buttonText}>Finding Match...</Text>
                 </>
               ) : (
@@ -868,7 +868,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
               end={{ x: 1, y: 0 }}
             >
               {loadingDebug ? (
-                <ActivityIndicator color="white" size="small" />
+                <Loader color="white" size={16} />
               ) : (
                 <>
                   <Ionicons name="bug" size={18} color="white" />
@@ -917,7 +917,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
             >
               {creatingTestMatch ? (
                 <>
-                  <ActivityIndicator color="white" size="small" />
+                  <Loader color="white" size={16} />
                   <Text style={styles.buttonText}>Creating Test Match...</Text>
                 </>
               ) : (
@@ -1000,7 +1000,7 @@ const BlindDatingTestPanel = ({ onClose }) => {
                       ))}
                       {aiChatLoading && (
                         <View style={[styles.chatBubble, styles.otherBubble, { backgroundColor: theme.surface }]}>
-                          <ActivityIndicator color={theme.primary} size="small" />
+                          <Loader color={theme.primary} size={16} />
                         </View>
                       )}
                     </View>

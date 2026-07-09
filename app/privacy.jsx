@@ -46,7 +46,26 @@ export default function PrivacyPolicy() {
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>2. How We Use Your Information</Text>
+            <Text style={styles.sectionTitle}>2. Location Information</Text>
+            <Text style={styles.paragraph}>
+              We use your location to help you find nearby matches and improve your experience. You
+              can control location sharing in your device settings, and location data is used only
+              for matching and safety features, never shared with other users without your consent,
+              and stored securely and deleted when no longer needed.
+            </Text>
+            <Text style={styles.paragraph}>
+              Background location: if you turn on "Location Tracking" in Settings, Circle continues
+              to check your approximate location periodically (roughly every 15–30 minutes) even
+              while the app is closed or not in use, so we can notify you and other Circle members
+              when you're near each other and keep your nearby-match suggestions up to date. This is
+              off by default, we ask for your explicit permission before turning it on, and you can
+              disable it at any time from Settings — doing so stops all background location checks
+              immediately.
+            </Text>
+          </View>
+
+          <View style={styles.policySection}>
+            <Text style={styles.sectionTitle}>3. How We Use Your Information</Text>
             <Text style={styles.paragraph}>
               We use the information we collect to:
             </Text>
@@ -58,7 +77,7 @@ export default function PrivacyPolicy() {
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>3. Information Sharing</Text>
+            <Text style={styles.sectionTitle}>4. Information Sharing</Text>
             <Text style={styles.paragraph}>
               We do not sell your personal information. We may share your information only in the following circumstances:
             </Text>
@@ -69,14 +88,14 @@ export default function PrivacyPolicy() {
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>4. Data Security</Text>
+            <Text style={styles.sectionTitle}>5. Data Security</Text>
             <Text style={styles.paragraph}>
               We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the Internet is 100% secure.
             </Text>
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>5. Your Rights</Text>
+            <Text style={styles.sectionTitle}>6. Your Rights</Text>
             <Text style={styles.paragraph}>
               You have the right to:
             </Text>
@@ -87,21 +106,21 @@ export default function PrivacyPolicy() {
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>6. Children's Privacy</Text>
+            <Text style={styles.sectionTitle}>7. Children's Privacy</Text>
             <Text style={styles.paragraph}>
               Circle is not intended for users under the age of 18. We do not knowingly collect personal information from children under 18. If we become aware that a child under 18 has provided us with personal information, we will take steps to delete such information.
             </Text>
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>7. Changes to This Policy</Text>
+            <Text style={styles.sectionTitle}>8. Changes to This Policy</Text>
             <Text style={styles.paragraph}>
               We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date.
             </Text>
           </View>
 
           <View style={styles.policySection}>
-            <Text style={styles.sectionTitle}>8. Contact Us</Text>
+            <Text style={styles.sectionTitle}>9. Contact Us</Text>
             <Text style={styles.paragraph}>
               If you have any questions about this Privacy Policy, please contact us at:
             </Text>

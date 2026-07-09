@@ -6,7 +6,8 @@ import { calculateAge } from "@/src/utils/age";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useContext, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Loader from '@/components/Loader';
 import { SignupWizardContext } from "./_layout";
 import axios from "axios";
 
@@ -174,7 +175,7 @@ export default function SignupAbout() {
             disabled={isGenerating}
           >
             {isGenerating ? (
-              <ActivityIndicator size="small" color={PRIMARY_BUTTON_COLOR} />
+              <Loader size={16} color={PRIMARY_BUTTON_COLOR} />
             ) : (
               <>
                 <Ionicons name="sparkles" size={16} color={PRIMARY_BUTTON_COLOR} />

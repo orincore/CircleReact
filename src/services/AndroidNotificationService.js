@@ -169,17 +169,38 @@ class AndroidNotificationService {
         return null;
       }
 
-      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-      const token = tokenData.data;
+      // Right after a permission grant (e.g. the user just flipped it on in
+      // system Settings and came back), Android's FCM/Play Services
+      // registration can take a beat to catch up -- getExpoPushTokenAsync()
+      // sometimes throws transiently in that window. A couple of short
+      // retries covers that without giving up on the very first hiccup.
+      let token = null;
+      let lastError = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+          token = tokenData.data;
+          lastError = null;
+          break;
+        } catch (e) {
+          lastError = e;
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          }
+        }
+      }
+      if (lastError) {
+        console.error('❌ Error getting push token after retries:', lastError);
+      }
 
       if (token && token !== 'undefined') {
         this.expoPushToken = token;
-        
+
         // Save to database if we have auth token
         if (authToken) {
           await this.savePushTokenToDatabase(token, authToken);
         }
-        
+
         return token;
       }
 
@@ -187,6 +208,44 @@ class AndroidNotificationService {
     } catch (error) {
       console.error('❌ Error refreshing push token:', error);
       return null;
+    }
+  }
+
+  /**
+   * Best-effort fallback net for detecting a permission grant that happened
+   * in the OS Settings app. The AppState 'active' listener (see AuthContext)
+   * is the primary path, but some Android OEM ROMs (aggressive battery/task
+   * managers on MIUI, ColorOS, etc.) don't reliably fire that transition when
+   * returning from Settings, which otherwise leaves a user stuck with
+   * notifications enabled at the OS level but no token ever registered.
+   * getPermissionsAsync is a cheap native call, so polling it is safe; the
+   * expensive getExpoPushTokenAsync only runs once, when a token is missing.
+   * @param {() => (string|Promise<string>)} getAuthToken
+   */
+  startPermissionWatcher(getAuthToken) {
+    if (Platform.OS === 'web' || this._permissionWatcherInterval) return;
+
+    this._permissionWatcherInterval = setInterval(async () => {
+      try {
+        if (this.expoPushToken) return; // already have one, nothing to recover
+
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') return;
+
+        const authToken = typeof getAuthToken === 'function' ? await getAuthToken() : getAuthToken;
+        if (!authToken) return;
+
+        await this.refreshAndSaveToken(authToken);
+      } catch (error) {
+        // Best-effort background check -- failures here shouldn't be noisy.
+      }
+    }, 60000);
+  }
+
+  stopPermissionWatcher() {
+    if (this._permissionWatcherInterval) {
+      clearInterval(this._permissionWatcherInterval);
+      this._permissionWatcherInterval = null;
     }
   }
 
@@ -427,6 +486,20 @@ class AndroidNotificationService {
           //console.log('📱 Marketing campaign notification:', data.campaignId);
           // Can navigate to specific campaign landing page if needed
           break;
+        case 'profile_suggestion':
+          // Meme-connect requests reuse this generic type (see
+          // memeConnect.service.ts) since they deliberately carry no
+          // sender/user id -- route to the Connect Requests screen instead
+          // of a profile. Other profile_suggestion pushes have no tap action.
+          if (data.action === 'meme_connect') {
+            try {
+              const { router } = await import('expo-router');
+              router.push('/secure/(tabs)/memes/connect-requests');
+            } catch (error) {
+              console.error('❌ Failed to navigate to connect requests from notification tap:', error);
+            }
+          }
+          break;
         default:
           //console.log('📱 Unknown notification type:', data.type);
       }
@@ -664,8 +737,9 @@ class AndroidNotificationService {
 
       const deviceType = Platform.OS;
       const deviceName = Device.deviceName || `${Platform.OS} Device`;
+      const { getOrCreateDeviceId } = await import('./deviceId');
+      const deviceId = await getOrCreateDeviceId();
 
-      
       const response = await fetch(`${API_BASE_URL}/api/notifications/register-token`, {
         method: 'POST',
         headers: {
@@ -676,6 +750,7 @@ class AndroidNotificationService {
           token,
           deviceType,
           deviceName,
+          deviceId,
         }),
       });
 
@@ -717,11 +792,13 @@ class AndroidNotificationService {
       }
 
       const token = this.expoPushToken;
+      const { getOrCreateDeviceId } = await import('./deviceId');
+      const deviceId = await getOrCreateDeviceId();
 
-      // Always send the specific token if available, otherwise disable all tokens for user
+      // Always send the specific token/device if available, otherwise disable all tokens for user
       const body = token && token !== 'undefined'
-        ? { token }
-        : {};
+        ? { token, deviceId }
+        : (deviceId ? { deviceId } : {});
 
       const response = await fetch(`${API_BASE_URL}/api/notifications/unregister-token`, {
         method: 'POST',

@@ -56,6 +56,7 @@ export interface ChatInboxItem {
   archived?: boolean;
   isBlindDateOngoing?: boolean;
   blindDateInfo?: BlindDateInfo | null;
+  isMemeConnectOngoing?: boolean;
 }
 
 export const chatApi = {
@@ -103,6 +104,7 @@ export const chatApi = {
       archived: !!it.archived,
       isBlindDateOngoing: !!it.isBlindDateOngoing,
       blindDateInfo: it.blindDateInfo || null,
+      isMemeConnectOngoing: !!it.isMemeConnectOngoing,
     }))
     return { inbox }
   },

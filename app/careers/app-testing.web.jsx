@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
+import Loader from '@/components/Loader';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { Ionicons } from '@expo/vector-icons';
@@ -221,7 +222,7 @@ export default function AppTestingApplication() {
               <TouchableOpacity style={styles.primaryBtn} onPress={handleApply} disabled={loading}>
                 {loading ? (
                   <>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Loader size={16} color="#FFFFFF" />
                     <Text style={styles.primaryBtnText}>Submitting...</Text>
                   </>
                 ) : (

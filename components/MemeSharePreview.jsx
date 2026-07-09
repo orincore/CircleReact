@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import Loader from '@/components/Loader';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,10 +8,11 @@ import { feedApi } from '@/src/api/feed';
 
 /**
  * Compact preview card rendered in place of a chat message's text when
- * `shared_meme_id` is set. Tapping deep-links into the Memes tab with this
- * meme's id as a route param -- the feed screen fetches it directly and
- * prepends it to the top of the list, rather than just opening the tab at
- * whatever random position it was last scrolled to.
+ * `shared_meme_id` is set. Tapping deep-links into the standalone meme-view
+ * screen (app/secure/meme-view.jsx) with this meme's id as a route param --
+ * that screen is a plain sibling of chat-conversation in the stack (not part
+ * of the (tabs) group), so router.back() from it always returns exactly to
+ * this chat, with the chat's message list and scroll position untouched.
  */
 export default function MemeSharePreview({ memeId }) {
   const { token } = useAuth();
@@ -36,7 +38,7 @@ export default function MemeSharePreview({ memeId }) {
   if (loading) {
     return (
       <View style={[styles.card, styles.center]}>
-        <ActivityIndicator size="small" color="#7C2B86" />
+        <Loader size={16} color="#7C2B86" />
       </View>
     );
   }
@@ -55,7 +57,7 @@ export default function MemeSharePreview({ memeId }) {
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.85}
-      onPress={() => router.push({ pathname: '/secure/(tabs)/memes', params: { memeId } })}
+      onPress={() => router.push({ pathname: '/secure/meme-view', params: { memeId } })}
     >
       {thumbAsset ? (
         <Image source={{ uri: thumbAsset.s3_url }} style={styles.thumb} resizeMode="cover" />

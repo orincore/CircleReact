@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Loader from '@/components/Loader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -164,7 +165,7 @@ const HelpRequestCard = ({ request, onHelp, onAccept, onDeny, showHelpButton = t
               style={styles.actionButtonGradient}
             >
               {loading && action === 'accept' ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Loader color="#FFFFFF" size={16} />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
@@ -184,7 +185,7 @@ const HelpRequestCard = ({ request, onHelp, onAccept, onDeny, showHelpButton = t
             disabled={loading}
           >
             {loading && action === 'deny' ? (
-              <ActivityIndicator color={theme.textSecondary} size="small" />
+              <Loader color={theme.textSecondary} size={16} />
             ) : (
               <>
                 <Ionicons name="close-circle" size={18} color={theme.textSecondary} />

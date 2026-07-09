@@ -10,10 +10,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   Platform,
   ScrollView
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendsApi } from '@/src/api/friends';
 import { FriendRequestService } from '@/src/services/FriendRequestService';
@@ -105,7 +105,7 @@ export default function UnfriendTestComponent({ visible, onClose }) {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7C2B86" />
+          <Loader size={36} color="#7C2B86" />
           <Text style={styles.loadingText}>Loading friends...</Text>
         </View>
       ) : (
@@ -132,7 +132,7 @@ export default function UnfriendTestComponent({ visible, onClose }) {
                   disabled={unfriendingUser === friend.id}
                 >
                   {unfriendingUser === friend.id ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <Loader size={16} color="#FFF" />
                   ) : (
                     <>
                       <Ionicons name="person-remove-outline" size={16} color="#FFF" />

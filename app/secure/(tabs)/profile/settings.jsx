@@ -4,15 +4,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import LocationTrackingService from "@/services/LocationTrackingService";
+import BackgroundLocationDisclosureModal from "@/components/BackgroundLocationDisclosureModal";
 import { loadPreferencesFromUser, syncPreferencesWithBackend } from "@/utils/preferences";
 import { accountDeletionApi } from "@/src/api/account-deletion";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerSupportScreen from "../../../settings/customer-support";
+import ActiveSessionsSection from "@/components/ActiveSessionsSection";
 import Constants from "expo-constants";
 
 const LOCATION_OPTIONS = [
@@ -61,6 +64,7 @@ export default function SettingsScreen() {
   // Location tracking
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
   const [lastLocationUpdate, setLastLocationUpdate] = useState(null);
+  const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   
   // Invisible mode
   const [invisibleMode, setInvisibleMode] = useState(false);
@@ -366,39 +370,31 @@ export default function SettingsScreen() {
     }
   };
 
+  // Turning the toggle ON doesn't touch locationTrackingEnabled directly --
+  // it shows the prominent disclosure first (Google Play's User Data policy
+  // requires a developer-controlled, in-app disclosure before requesting
+  // ACCESS_BACKGROUND_LOCATION, shown *before* the OS permission prompt, not
+  // just the rationale string baked into that OS dialog). The Switch stays
+  // visually off until the user actually consents and the permission/start
+  // succeeds.
   const toggleLocationTracking = async (enabled) => {
+    if (enabled) {
+      setShowLocationDisclosure(true);
+      return;
+    }
+
     try {
-      if (enabled) {
-        // Start location tracking
-        await LocationTrackingService.startTracking(token);
-        setLocationTrackingEnabled(true);
-        
-        // Update location immediately
-        await LocationTrackingService.updateLocationNow();
-        const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
-        setLastLocationUpdate(lastUpdate);
-        
-        if (Platform.OS === 'web') {
-          window.alert('Location Tracking Enabled\n\nCircle will now update your location every 5 minutes for better matches, even when the app is closed.');
-        } else {
-          Alert.alert(
-            'Location Tracking Enabled',
-            'Circle will now update your location every 5 minutes for better matches, even when the app is closed.'
-          );
-        }
+      // Stop location tracking
+      await LocationTrackingService.stopTracking();
+      setLocationTrackingEnabled(false);
+
+      if (Platform.OS === 'web') {
+        window.alert('Location Tracking Disabled\n\nCircle will no longer track your location in the background.');
       } else {
-        // Stop location tracking
-        await LocationTrackingService.stopTracking();
-        setLocationTrackingEnabled(false);
-        
-        if (Platform.OS === 'web') {
-          window.alert('Location Tracking Disabled\n\nCircle will no longer track your location in the background.');
-        } else {
-          Alert.alert(
-            'Location Tracking Disabled',
-            'Circle will no longer track your location in the background.'
-          );
-        }
+        Alert.alert(
+          'Location Tracking Disabled',
+          'Circle will no longer track your location in the background.'
+        );
       }
     } catch (error) {
       console.error('Error toggling location tracking:', error);
@@ -413,6 +409,47 @@ export default function SettingsScreen() {
       // Revert the toggle if it failed
       setLocationTrackingEnabled(!enabled);
     }
+  };
+
+  // Called after the user explicitly taps "Allow" on the prominent
+  // disclosure -- only now do we actually request the permission and start
+  // tracking.
+  const handleAllowLocationTracking = async () => {
+    setShowLocationDisclosure(false);
+    try {
+      await LocationTrackingService.startTracking(token);
+      setLocationTrackingEnabled(true);
+
+      // Update location immediately
+      await LocationTrackingService.updateLocationNow();
+      const lastUpdate = await LocationTrackingService.getLastLocationUpdate();
+      setLastLocationUpdate(lastUpdate);
+
+      if (Platform.OS === 'web') {
+        window.alert('Location Tracking Enabled\n\nCircle will now update your location every 5 minutes for better matches, even when the app is closed.');
+      } else {
+        Alert.alert(
+          'Location Tracking Enabled',
+          'Circle will now update your location every 5 minutes for better matches, even when the app is closed.'
+        );
+      }
+    } catch (error) {
+      console.error('Error enabling location tracking:', error);
+      if (Platform.OS === 'web') {
+        window.alert(`Error\n\n${error.message || 'Failed to change location tracking settings. Please check your location permissions.'}`);
+      } else {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to change location tracking settings. Please check your location permissions.'
+        );
+      }
+      setLocationTrackingEnabled(false);
+    }
+  };
+
+  const handleDenyLocationTracking = () => {
+    setShowLocationDisclosure(false);
+    // Switch was never optimistically flipped on, so there's nothing to revert.
   };
 
   const updateLocationNow = async () => {
@@ -1150,6 +1187,9 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* Active Sessions */}
+          <ActiveSessionsSection />
+
           {/* Delete Account Section */}
           <View style={styles.dangerZone}>
             <View style={styles.dangerHeader}>
@@ -1169,7 +1209,7 @@ export default function SettingsScreen() {
             >
               {deletingAccount ? (
                 <>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Loader size={16} color="#FFFFFF" />
                   <Text style={styles.deleteButtonText}>Deleting Account...</Text>
                 </>
               ) : (
@@ -1196,6 +1236,12 @@ export default function SettingsScreen() {
       <CustomerSupportScreen
         visible={showCustomerSupport}
         onClose={() => setShowCustomerSupport(false)}
+      />
+
+      <BackgroundLocationDisclosureModal
+        visible={showLocationDisclosure}
+        onAllow={handleAllowLocationTracking}
+        onDeny={handleDenyLocationTracking}
       />
     </LinearGradient>
   );

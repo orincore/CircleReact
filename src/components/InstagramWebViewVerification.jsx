@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Loader from '@/components/Loader';
 import { socialAccountsApi } from '../api/social-accounts';
 
 // Try to import WebBrowser from Expo
@@ -167,7 +167,7 @@ const InstagramWebViewVerification = ({
             disabled={startingOAuth}
           >
             {startingOAuth ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Loader size={16} color="#FFFFFF" />
             ) : (
               <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
             )}
