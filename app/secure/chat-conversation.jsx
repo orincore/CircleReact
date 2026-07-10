@@ -4,33 +4,18 @@ import {
   Alert,
   Animated,
   Dimensions,
-  FlatList,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
-  ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { FlashList } from "@shopify/flash-list";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import Feather from "@expo/vector-icons/Feather";
-import Loader from "@/components/Loader";
-import { Image as ExpoImage } from "expo-image";
 import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ChatVideoPlayer from "@/components/ChatVideoPlayer";
-import MemeSharePreview from "@/components/MemeSharePreview";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 // expo-media-library is native-only (saving to the device photo gallery,
@@ -48,518 +33,40 @@ import { useJamSession } from "@/contexts/JamSessionContext";
 import JamMiniPlayerBar from "@/src/components/jam/JamMiniPlayerBar";
 import { getSocket, socketService } from "@/src/api/socket";
 import { chatApi } from "@/src/api/chat";
-import { reportsApi, REPORT_REASONS } from "@/src/api/reports";
+import { reportsApi } from "@/src/api/reports";
 import { unreadCountService } from "@/src/services/unreadCountService";
 import { blindDatingApi } from "@/src/api/blindDating";
 import ReactionPicker from "@/src/components/ReactionPicker";
-import VerifiedBadge from "@/components/VerifiedBadge";
 import { chatMediaService } from "@/src/services/chatMediaService";
 import { LinearGradient } from "expo-linear-gradient";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-import AnimatedMessageBubble from "@/components/chat/AnimatedMessageBubble";
 import MediaSendingIndicator from "@/components/chat/MediaSendingIndicator";
+import ChatHeader from "@/components/chat/ChatHeader";
+import ChatSearchBar from "@/components/chat/ChatSearchBar";
+import RevealBanners from "@/components/chat/RevealBanners";
+import ScrollToBottomButton from "@/components/chat/ScrollToBottomButton";
+import SelectionToolbar from "@/components/chat/SelectionToolbar";
+import ComposerBanners from "@/components/chat/ComposerBanners";
+import MediaPreviewStrip from "@/components/chat/MediaPreviewStrip";
+import ComposerInputBar from "@/components/chat/ComposerInputBar";
+import MediaOptionsSheet from "@/components/chat/MediaOptionsSheet";
+import MediaViewerModal from "@/components/chat/MediaViewerModal";
+import QuickReactionRow from "@/components/chat/QuickReactionRow";
+import MessageActionsSheet from "@/components/chat/MessageActionsSheet";
+import ReportMessageModal from "@/components/chat/ReportMessageModal";
+import BlockedInfoModal from "@/components/chat/BlockedInfoModal";
+import RevealPromptModal from "@/components/chat/RevealPromptModal";
+import { styles } from "@/components/chat/chatConversationStyles";
+import {
+  VIEW_ONCE_ERROR_MESSAGES,
+  CACHE_MAX_MESSAGES,
+  REVEAL_THRESHOLD,
+  REVEAL_INTERVAL,
+  mergeStatus,
+  deduplicateMessages,
+} from "@/components/chat/chatConversationHelpers";
 
-// Used for messageBubble's maxWidth below. A percentage maxWidth only
-// resolves correctly against a parent with a definite (non-auto) width —
-// the bubble's immediate parent is the swipe-gesture wrapper, which is
-// itself auto/shrink-to-fit, so "80%" had nothing definite to resolve
-// against and produced inconsistent results (sometimes stretching to fill,
-// sometimes wrapping text early). An absolute pixel value sidesteps that
-// entirely since it doesn't need to resolve against any ancestor.
-const SCREEN_WIDTH = Dimensions.get("window").width;
-
-const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
-
-// Swipeable Message Wrapper for reply gesture using react-native-gesture-handler
-// This prevents keyboard from closing during swipe. Tap/double-tap/long-press
-// are handled here too (as Gesture.Tap/Gesture.LongPress raced against the
-// pan) rather than via a wrapping core-RN Pressable -- a Pressable ancestor
-// around a GestureDetector descendant is a known RNGH conflict: the native
-// pan recognizer intercepts the touch stream before Pressable's JS long-press
-// timer resolves, so onLongPress silently never fires (mostly on Android).
-const SwipeableMessage = React.memo(function SwipeableMessage({ children, isMine, onSwipeReply, message, onPress, onLongPress }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const [isPressed, setIsPressed] = useState(false);
-  // Separate opacity per side: previously both used one direction-agnostic
-  // value (based on Math.abs(translationX)), so swiping either way faded in
-  // BOTH the left and right reply icons at once. Each side now only reacts
-  // to swipes toward it.
-  const leftIconOpacity = useRef(new Animated.Value(0)).current;
-  const rightIconOpacity = useRef(new Animated.Value(0)).current;
-  const SWIPE_THRESHOLD = 60;
-  const hasTriggeredReply = useRef(false);
-
-  // Reset the trigger flag
-  const resetTriggerFlag = useCallback(() => {
-    hasTriggeredReply.current = false;
-  }, []);
-
-  // Wrapper function to safely call the reply callback
-  const triggerReply = useCallback(() => {
-    if (onSwipeReply && !hasTriggeredReply.current) {
-      hasTriggeredReply.current = true;
-      onSwipeReply(message);
-    }
-  }, [onSwipeReply, message]);
-
-  // Reset animation to original position
-  const resetPosition = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateX, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 10,
-      }),
-      Animated.timing(leftIconOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(rightIconOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [translateX, leftIconOpacity, rightIconOpacity]);
-
-  // Update animation values
-  const updateAnimation = useCallback((translationXValue) => {
-    const clampedX = Math.max(-SWIPE_THRESHOLD - 20, Math.min(SWIPE_THRESHOLD + 20, translationXValue));
-    translateX.setValue(clampedX);
-    const progress = Math.min(Math.abs(clampedX) / SWIPE_THRESHOLD, 1);
-    // Dragging right (positive X) reveals the left indicator; dragging left
-    // (negative X) reveals the right one — never both at once.
-    leftIconOpacity.setValue(clampedX > 0 ? progress : 0);
-    rightIconOpacity.setValue(clampedX < 0 ? progress : 0);
-  }, [translateX, leftIconOpacity, rightIconOpacity]);
-
-  // Handle gesture end with threshold check
-  const handleGestureEnd = useCallback((translationXValue) => {
-    if (Math.abs(translationXValue) >= SWIPE_THRESHOLD) {
-      triggerReply();
-    }
-    resetPosition();
-  }, [triggerReply, resetPosition]);
-  
-  const panGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20]) // Only activate after 20px horizontal movement
-    .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (allow more vertical tolerance)
-    .minDistance(10) // Minimum distance before gesture activates
-    .onStart(() => {
-      'worklet';
-      runOnJS(resetTriggerFlag)();
-    })
-    .onUpdate((event) => {
-      'worklet';
-      runOnJS(updateAnimation)(event.translationX);
-    })
-    .onEnd((event) => {
-      'worklet';
-      runOnJS(handleGestureEnd)(event.translationX);
-    })
-    .onFinalize(() => {
-      'worklet';
-      runOnJS(resetPosition)();
-    });
-
-  const setPressed = useCallback((val) => setIsPressed(val), []);
-
-  const tapGesture = Gesture.Tap()
-    .maxDuration(250)
-    .onBegin(() => {
-      'worklet';
-      runOnJS(setPressed)(true);
-    })
-    .onEnd((_event, success) => {
-      'worklet';
-      if (success) runOnJS(onPress)();
-    })
-    .onFinalize(() => {
-      'worklet';
-      runOnJS(setPressed)(false);
-    });
-
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(300)
-    .onBegin(() => {
-      'worklet';
-      runOnJS(setPressed)(true);
-    })
-    .onStart(() => {
-      'worklet';
-      runOnJS(onLongPress)();
-    })
-    .onFinalize(() => {
-      'worklet';
-      runOnJS(setPressed)(false);
-    });
-
-  // Race: whichever gesture activates first (a drag, a quick tap, or a hold)
-  // wins and cancels the others -- pan needs 10-20px movement to activate, so
-  // a stationary press always resolves to tap/long-press instead.
-  const composedGesture = Gesture.Race(panGesture, longPressGesture, tapGesture);
-
-  // Every extra plain View/Animated.View wrapped around the bubble for the
-  // swipe gesture was another auto-width column container Yoga had to
-  // resolve, and each one was a chance for the "stretch to my own
-  // not-yet-determined width" ambiguity that caused short text to measure
-  // at an already-wrapped width (confirmed via on-screen debug
-  // measurements). Fix: don't wrap the bubble in anything extra at all.
-  // GestureDetector's one required child IS the bubble itself (transform
-  // passed straight into its style), and the reply icons are now rendered
-  // as siblings positioned against messageRow directly (which already has
-  // position:'relative') instead of against a removed middle wrapper.
-  return (
-    <>
-      <Animated.View
-        style={[
-          styles.replyIconContainer,
-          styles.replyIconLeft,
-          { opacity: leftIconOpacity },
-        ]}
-      >
-        <View style={styles.replyIconCircle}>
-          <Ionicons name="arrow-undo" size={18} color="#fff" />
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.replyIconContainer,
-          styles.replyIconRight,
-          { opacity: rightIconOpacity },
-        ]}
-      >
-        <View style={styles.replyIconCircle}>
-          <Ionicons name="arrow-undo" size={18} color="#fff" />
-        </View>
-      </Animated.View>
-
-      <GestureDetector gesture={composedGesture}>
-        <Animated.View
-          style={{
-            transform: [{ translateX }],
-            alignSelf: isMine ? "flex-end" : "flex-start",
-            alignItems: isMine ? "flex-end" : "flex-start",
-            opacity: isPressed ? 0.8 : 1,
-          }}
-        >
-          {children}
-        </Animated.View>
-      </GestureDetector>
-    </>
-  );
-});
-
-const MessageBubble = React.memo(function MessageBubble({
-  message,
-  isMine,
-  senderName,
-  onReact,
-  onDoubleTap,
-  onLongPress,
-  isSelected,
-  isEditing,
-  selectionMode,
-  onToggleSelect,
-  replyToMessage,
-  isDarkMode,
-  onReplyTap,
-  isHighlighted,
-  onMediaPress,
-  viewedOnceMessages,
-  onSwipeReply,
-  myUserId,
-}) {
-  const viewedOnceMessagesSet = viewedOnceMessages instanceof Set ? viewedOnceMessages : new Set();
-  // Determine tick style based on message status
-  let tickIconName = null;
-  let tickColor = "#808080"; // default grey
-
-  if (isMine) {
-    if (message.status === "read") {
-      tickIconName = "checkmark-done"; // double tick
-      tickColor = "#34B7F1"; // blue
-    } else if (message.status === "delivered") {
-      tickIconName = "checkmark-done"; // double tick
-    } else if (message.status === "sent") {
-      tickIconName = "checkmark"; // single tick
-    } else if (message.status === "sending" || message.isOptimistic) {
-      tickIconName = "time-outline"; // clock for sending
-      tickColor = "#A0A0A0";
-    } else if (message.status === "failed") {
-      tickIconName = "alert-circle"; // error icon for failed
-      tickColor = "#FF4444";
-    }
-  }
-
-  // Group reactions by emoji for display
-  const reactionCounts = {};
-  const myReactionEmojis = new Set();
-  (message.reactions || []).forEach((r) => {
-    if (!r || !r.emoji) return;
-    reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
-    if (myUserId && r.userId === myUserId) myReactionEmojis.add(r.emoji);
-  });
-
-  const lastTapRef = useRef(0);
-
-  // Bubble backgrounds invert between light/dark mode via AnimatedMessageBubble
-  // (mine: near-black in light mode / white in dark mode; theirs: the reverse),
-  // so text color must invert right along with it to stay readable.
-  const bubbleTextStyle = isMine
-    ? [styles.myMessageText, isDarkMode && styles.myMessageTextDark]
-    : [styles.theirMessageText, isDarkMode && styles.theirMessageTextDark];
-  const bubbleIconColor = isMine
-    ? (isDarkMode ? "#111111" : "#fff")
-    : (isDarkMode ? "#E5E7EB" : "#374151");
-
-  const handlePress = () => {
-    // In selection mode, tapping toggles selection instead of reacting
-    if (selectionMode && onToggleSelect) {
-      onToggleSelect(message.id);
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastTapRef.current < 250) {
-      if (onDoubleTap) onDoubleTap(message);
-    }
-    lastTapRef.current = now;
-  };
-
-  const formatTime = () => {
-    if (!message.createdAt) return "";
-    try {
-      const d =
-        typeof message.createdAt === "number"
-          ? new Date(message.createdAt)
-          : new Date(message.createdAt);
-      // A malformed/unparseable createdAt doesn't throw here -- it silently
-      // produces NaN fields below (e.g. "NaN:NaN AM") instead of an error,
-      // so this needs an explicit check rather than relying on the catch.
-      if (Number.isNaN(d.getTime())) return "";
-      let hours = d.getHours();
-      const minutes = d.getMinutes().toString().padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      if (hours === 0) hours = 12;
-      const hoursStr = hours.toString().padStart(2, "0");
-      return `${hoursStr}:${minutes} ${ampm}`;
-    } catch {
-      return "";
-    }
-  };
-
-  // Replied-to message is resolved once by the parent (an O(1) Map lookup)
-  // and handed down directly, instead of every bubble scanning the entire
-  // message list on every render.
-  const repliedMessage = message.reply_to_id ? replyToMessage : null;
-
-  return (
-    <View
-      style={[
-        styles.messageRow,
-        isMine ? styles.messageRowMine : styles.messageRowTheirs,
-      ]}
-    >
-      {/* Swipe-to-reply is scoped to just the bubble itself (not the full
-          row, which spans the whole screen width with empty space beside a
-          short message) — SwipeableMessage used to wrap the entire Pressable
-          row, so swiping anywhere in that empty space also triggered reply.
-          Tap/long-press are handled inside SwipeableMessage's GestureDetector
-          (not a Pressable here) since nesting a Pressable ancestor around a
-          GestureDetector descendant is what broke long-press in the first
-          place -- see comment on SwipeableMessage above. */}
-      <SwipeableMessage
-        isMine={isMine}
-        message={message}
-        onSwipeReply={onSwipeReply}
-        onPress={handlePress}
-        onLongPress={() => {
-          if (onLongPress) onLongPress(message);
-        }}
-      >
-      <AnimatedMessageBubble
-        isMine={isMine}
-        isHighlighted={isHighlighted}
-        style={[
-          styles.messageBubble,
-          isMine ? styles.myMessageBubble : styles.theirMessageBubble,
-          isSelected && styles.messageBubbleSelected,
-          isEditing && styles.messageBubbleEditing,
-          isHighlighted && styles.messageBubbleHighlighted,
-        ]}
-      >
-        {/* Sender name + time header row, "Room Chat" style */}
-        <View style={styles.bubbleHeaderRow}>
-          <Text style={[bubbleTextStyle, styles.bubbleSenderName]} numberOfLines={1}>
-            {senderName}
-          </Text>
-          <View style={styles.bubbleHeaderRight}>
-            {isMine && tickIconName ? (
-              <Ionicons
-                name={tickIconName}
-                size={13}
-                color={tickColor}
-                style={{ marginRight: 4 }}
-              />
-            ) : null}
-            <Text style={[styles.bubbleTimeText, { color: bubbleIconColor }]}>
-              {formatTime()}
-              {message.isEdited ? ' · edited' : ''}
-            </Text>
-          </View>
-        </View>
-
-        {/* Reply preview inside bubble - tappable to scroll to original message */}
-        {repliedMessage && (
-          <TouchableOpacity 
-            activeOpacity={0.7}
-            onPress={() => onReplyTap && onReplyTap(message.reply_to_id)}
-            style={[
-              styles.replyPreviewInBubble,
-              isMine 
-                ? (isDarkMode ? styles.replyPreviewInBubbleMineDark : styles.replyPreviewInBubbleMine)
-                : (isDarkMode ? styles.replyPreviewInBubbleTheirsDark : styles.replyPreviewInBubbleTheirs),
-            ]}
-          >
-            <View style={[
-              styles.replyPreviewBar,
-              isMine
-                ? (isDarkMode ? styles.replyPreviewBarMineDark : styles.replyPreviewBarMine)
-                : styles.replyPreviewBarTheirs,
-            ]} />
-            <View style={styles.replyPreviewContent}>
-              <View style={styles.replyPreviewNameRow}>
-                <Ionicons
-                  name="arrow-undo-outline"
-                  size={12}
-                  color={bubbleIconColor}
-                  style={styles.replyPreviewNameIcon}
-                />
-                <Text style={[
-                  styles.replyPreviewName,
-                  isMine
-                    ? (isDarkMode ? styles.replyPreviewNameMineDark : styles.replyPreviewNameMine)
-                    : (isDarkMode ? styles.replyPreviewNameTheirsDark : styles.replyPreviewNameTheirs),
-                ]} numberOfLines={1}>
-                  {repliedMessage.senderId === message.senderId ? 'You' : 'Them'}
-                </Text>
-              </View>
-              <Text style={[
-                styles.replyPreviewText,
-                isMine 
-                  ? (isDarkMode ? styles.replyPreviewTextMineDark : styles.replyPreviewTextMine)
-                  : (isDarkMode ? styles.replyPreviewTextTheirsDark : styles.replyPreviewTextTheirs),
-                repliedMessage.isViewOnce && { fontStyle: 'italic' }
-              ]} numberOfLines={1}>
-                {repliedMessage.text || 
-                 (repliedMessage.isViewOnce 
-                   ? (repliedMessage.mediaType === 'video' ? 'View once video' : 'View once photo')
-                   : (repliedMessage.mediaType === 'video' ? '📹 Video' : repliedMessage.mediaUrl ? '📷 Image' : 'Message')
-                 )}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        {/* Shared meme preview -- takes priority over regular media/text since a
-            shared-meme message never has its own mediaUrl/text set. */}
-        {message.sharedMemeId && (
-          <MemeSharePreview memeId={message.sharedMemeId} />
-        )}
-        {/* Media content (image or video) */}
-        {message.mediaUrl && !message.isViewOnce && (
-          <TouchableOpacity 
-            style={styles.mediaContainer}
-            activeOpacity={0.9}
-            onPress={() => onMediaPress && onMediaPress(message.mediaUrl, message.mediaType, message.isViewOnce, message.id)}
-          >
-            {message.mediaType === 'video' ? (
-              <View style={styles.videoContainer}>
-                <ExpoImage
-                  source={{ uri: message.thumbnail || message.mediaUrl }}
-                  style={styles.mediaImage}
-                  contentFit="cover"
-                  cachePolicy="disk"
-                />
-                <View style={styles.videoPlayOverlay}>
-                  <View style={styles.videoPlayButton}>
-                    <Ionicons name="play" size={24} color="#fff" />
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <ExpoImage
-                source={{ uri: message.mediaUrl }}
-                style={styles.mediaImage}
-                contentFit="cover"
-                cachePolicy="disk"
-              />
-            )}
-          </TouchableOpacity>
-        )}
-        {/* View Once Media - never render an actual preview; the real media_url
-            is server-stripped from history entirely (see chat.repo.ts) and only
-            ever handed out once, at tap time, via the view-once consume flow. */}
-        {message.isViewOnce && message.mediaType && (
-          (message.viewOnceViewed || viewedOnceMessagesSet.has(message.id)) ? (
-            <Text style={[
-              bubbleTextStyle,
-              styles.viewOnceMessageText,
-              { opacity: 0.6 }
-            ]}>
-              <Ionicons name="eye-off-outline" size={14} color={bubbleIconColor} />
-              {' '}Opened
-            </Text>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => onMediaPress && onMediaPress(message.mediaUrl, message.mediaType, message.isViewOnce, message.id)}
-            >
-              <Text style={[
-                bubbleTextStyle,
-                styles.viewOnceMessageText
-              ]}>
-                <Ionicons name="eye-off" size={14} color={bubbleIconColor} />
-                {' '}{message.mediaType === 'video' ? 'View once video' : 'View once photo'}
-              </Text>
-            </TouchableOpacity>
-          )
-        )}
-        {/* Text content */}
-        {message.text ? (
-          <Text style={bubbleTextStyle}>
-            {message.text}
-          </Text>
-        ) : null}
-        {Object.keys(reactionCounts).length > 0 && (
-          <View style={styles.reactionSummaryRow}>
-            {Object.entries(reactionCounts).map(([emoji, count]) => (
-              <TouchableOpacity
-                key={emoji}
-                activeOpacity={0.6}
-                style={[
-                  styles.reactionBubble,
-                  myReactionEmojis.has(emoji) && styles.reactionBubbleMine,
-                ]}
-                onPress={() => onReact && onReact(message.id, emoji)}
-              >
-                <Text style={styles.reactionEmoji}>{emoji}</Text>
-                {count > 1 && (
-                  <Text style={styles.reactionCount}>{count}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </AnimatedMessageBubble>
-      </SwipeableMessage>
-    </View>
-  );
-});
+import MessageBubble from "@/components/chat/MessageBubble";
 
 export default function ChatConversationScreen() {
   const router = useRouter();
@@ -633,6 +140,13 @@ export default function ChatConversationScreen() {
   // (they need to set that state directly -- see the comment there).
 
   const [messages, setMessages] = useState([]);
+  // Mirrors `messages` for renderItem to read without being a dependency of
+  // it -- renderItem is passed to FlashList, which treats a changed
+  // renderItem identity as a signal to re-render currently-visible cells, so
+  // closing over `messages` directly there would thrash on every send/receive
+  // (see renderItem below and the useCallback deps comment near it).
+  const messagesRef = useRef([]);
+  messagesRef.current = messages;
   const [composer, setComposer] = useState("");
   const [typingUsers, setTypingUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
@@ -791,14 +305,6 @@ export default function ChatConversationScreen() {
   // via an atomic server-side consume. This replaces the old approach of
   // just opening the (locally-cached) mediaUrl and telling the server about
   // it afterward — that couldn't actually enforce anything server-side.
-  const VIEW_ONCE_ERROR_MESSAGES = {
-    already_viewed: 'This view-once media has already been opened and can no longer be viewed.',
-    sender_cannot_view: "You already sent this — only the recipient can open it, and only once.",
-    not_found: 'This media is no longer available.',
-    invalid_request: 'Could not open this media. Please try again.',
-    server_error: 'Could not open this media. Please try again.',
-  };
-
   const consumeViewOnceMedia = useCallback((messageId, type) => {
     const socket = token ? getSocket(token) : null;
     if (!socket || !conversationId) {
@@ -861,7 +367,6 @@ export default function ChatConversationScreen() {
 
   // Cache key for this conversation
   const cacheKey = `@circle:chat_messages:${conversationId}`;
-  const CACHE_MAX_MESSAGES = 50; // Cache last 50 messages for fast load
 
   // Load cached messages on mount for instant display
   useEffect(() => {
@@ -1133,8 +638,6 @@ export default function ChatConversationScreen() {
     }
   };
 
-  const REVEAL_THRESHOLD = 30;
-  const REVEAL_INTERVAL = 10; // Show prompt every 10 messages after dismissal
   const [reportAdditionalDetails, setReportAdditionalDetails] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [canMessage, setCanMessage] = useState(() => {
@@ -1185,30 +688,6 @@ export default function ChatConversationScreen() {
     ios: insets.top + 60,
     default: 0,
   });
-
-  // Monotonic message status helper: sent -> delivered -> read
-  const statusPriority = {
-    sent: 1,
-    delivered: 2,
-    read: 3,
-  };
-
-  const mergeStatus = (current, next) => {
-    if (!next) return current || null;
-    const c = statusPriority[current] || 0;
-    const n = statusPriority[next] || 0;
-    return n > c ? next : current;
-  };
-
-  const deduplicateMessages = (messageArray) => {
-    const seen = new Set();
-    return messageArray.filter((msg) => {
-      if (!msg.id) return true;
-      if (seen.has(msg.id)) return false;
-      seen.add(msg.id);
-      return true;
-    });
-  };
 
   // Handle screenshot attempts: show notice and send a real chat message so both users see it
   const handleScreenshotAttempt = useCallback(() => {
@@ -1903,7 +1382,10 @@ export default function ChatConversationScreen() {
     );
   };
 
-  const handleSend = () => {
+  // useCallback so this doesn't get recreated (and force ComposerInputBar to
+  // re-render) on every unrelated parent re-render -- see the comment on
+  // handleComposerChange above for why that matters here.
+  const handleSend = useCallback(() => {
     const trimmed = (composer || "").trim();
     if (!trimmed) return;
 
@@ -2031,7 +1513,18 @@ export default function ChatConversationScreen() {
         )
       );
     }
-  };
+  }, [
+    composer,
+    token,
+    conversationId,
+    user,
+    myUserId,
+    isBlindDate,
+    canMessage,
+    paramOtherUserId,
+    editingMessage,
+    replyToMessage,
+  ]);
 
   // Media handling functions
   const handlePickMedia = async () => {
@@ -2325,6 +1818,8 @@ export default function ChatConversationScreen() {
     for (const m of messages) map.set(m.id, m);
     return map;
   }, [messages]);
+  const messagesByIdRef = useRef(messagesById);
+  messagesByIdRef.current = messagesById;
 
   const scrollToMessageId = useCallback((messageId) => {
     const item = messageId ? messagesById.get(messageId) : null;
@@ -2538,9 +2033,11 @@ export default function ChatConversationScreen() {
     const isEditing = editingMessage && editingMessage.id === item.id;
     const isHighlighted = highlightedMessageId === item.id || (searchVisible && currentSearchMatchId === item.id);
 
-    // Check if we need to show date divider
+    // Check if we need to show date divider. Reads from messagesRef (not the
+    // `messages` state directly) so this closure doesn't need `messages` as
+    // a dependency below -- see the comment on messagesRef's declaration.
     const currentDate = getDateString(item.createdAt);
-    const prevMessage = index > 0 ? messages[index - 1] : null;
+    const prevMessage = index > 0 ? messagesRef.current[index - 1] : null;
     const prevDate = prevMessage ? getDateString(prevMessage.createdAt) : null;
     const showDateDivider = !prevMessage || currentDate !== prevDate;
 
@@ -2548,7 +2045,7 @@ export default function ChatConversationScreen() {
     const showUnreadDivider = item.id === firstUnreadMessageId;
 
     // O(1) lookup instead of scanning the whole message list per bubble.
-    const repliedMessage = item.reply_to_id ? messagesById.get(item.reply_to_id) : null;
+    const repliedMessage = item.reply_to_id ? messagesByIdRef.current.get(item.reply_to_id) : null;
 
     return (
       <View>
@@ -2607,9 +2104,7 @@ export default function ChatConversationScreen() {
     searchVisible,
     currentSearchMatchId,
     getDateString,
-    messages,
     firstUnreadMessageId,
-    messagesById,
     formatDateDivider,
     handleSwipeReply,
     handleAddReaction,
@@ -2621,7 +2116,7 @@ export default function ChatConversationScreen() {
     viewedOnceMessages,
   ]);
 
-  const emitTyping = (isTyping) => {
+  const emitTyping = useCallback((isTyping) => {
     const socket = token ? getSocket(token) : null;
     if (!socket || !conversationId) return;
     try {
@@ -2631,7 +2126,7 @@ export default function ChatConversationScreen() {
         typing: isTyping,
       });
     } catch {}
-  };
+  }, [token, conversationId]);
 
   // Report message handlers
   const handleOpenReportModal = (message) => {
@@ -2699,7 +2194,13 @@ export default function ChatConversationScreen() {
     }
   };
 
-  const handleComposerChange = (text) => {
+  // useCallback (rather than a plain function, like the "stable no-dep
+  // callbacks" further below) so ComposerInputBar's React.memo actually gets
+  // a stable onComposerChange/onSend/onKeyPress across unrelated re-renders
+  // (a new message arriving, typing indicator from the other user, upload
+  // progress ticking, etc.) instead of new closures forcing it to re-render
+  // on every parent render regardless of whether the composer changed.
+  const handleComposerChange = useCallback((text) => {
     setComposer(text);
     // Start typing
     emitTyping(true);
@@ -2709,7 +2210,7 @@ export default function ChatConversationScreen() {
     typingTimeoutRef.current = setTimeout(() => {
       emitTyping(false);
     }, 1500);
-  };
+  }, [emitTyping]);
 
   // Blind Connect reveal handlers - USE SOCKET for real-time updates
   const handleRevealProfile = async () => {
@@ -2766,7 +2267,7 @@ export default function ChatConversationScreen() {
     setLastPromptDismissedAt(blindDateMessageCount);
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = useCallback((e) => {
     if (Platform.OS !== "web") return;
     const key = e?.nativeEvent?.key || e?.key;
     const shift = !!(e?.nativeEvent?.shiftKey ?? e?.shiftKey);
@@ -2774,7 +2275,7 @@ export default function ChatConversationScreen() {
       e.preventDefault?.();
       handleSend();
     }
-  };
+  }, [handleSend]);
 
   const handleStartEdit = () => {
     if (!actionMessage) return;
@@ -3249,6 +2750,59 @@ export default function ChatConversationScreen() {
     }
   }, [messages.length]);
 
+  // Stable no-dependency callbacks for the extracted presentational
+  // components below -- these only ever call setState setters (which React
+  // guarantees are referentially stable), so wrapping them here (instead of
+  // as fresh inline closures in the JSX every render) is what actually lets
+  // each component's React.memo bail out on unrelated re-renders (e.g. a
+  // composer keystroke) rather than recreating and diffing them every time.
+  const closeSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedMessageIds([]);
+  }, []);
+  const cancelEditingMessage = useCallback(() => {
+    setEditingMessage(null);
+    setComposer("");
+  }, []);
+  const cancelReplyToMessage = useCallback(() => setReplyToMessage(null), []);
+  const openMediaOptions = useCallback(() => setShowMediaOptions(true), []);
+  const closeMediaOptions = useCallback(() => setShowMediaOptions(false), []);
+  const closeMediaViewer = useCallback(() => setMediaViewerVisible(false), []);
+  const closeQuickReaction = useCallback(() => setReactionTarget(null), []);
+  const openAllReactionsFromQuickRow = useCallback(() => setShowAllReactions(true), []);
+  const closeMessageActionsSheet = useCallback(() => {
+    setShowMessageActions(false);
+    setActionMessage(null);
+  }, []);
+  const closeBlockedInfoModal = useCallback(() => setShowBlockedInfoModal(false), []);
+
+  const reactFromQuickRow = useCallback((emoji) => {
+    handleAddReaction(reactionTarget.id, emoji);
+    setReactionTarget(null);
+    setShowAllReactions(false);
+  }, [reactionTarget, handleAddReaction]);
+
+  const reactFromActionsSheet = useCallback((emoji) => {
+    handleAddReaction(actionMessage.id, emoji);
+    setShowMessageActions(false);
+    setActionMessage(null);
+  }, [actionMessage, handleAddReaction]);
+  const openAllReactionsFromActionsSheet = useCallback(() => {
+    setReactionTarget(actionMessage);
+    setShowAllReactions(true);
+    setShowMessageActions(false);
+    setActionMessage(null);
+  }, [actionMessage]);
+  const replyFromActionsSheet = useCallback(() => {
+    setReplyToMessage(actionMessage);
+    setShowMessageActions(false);
+    setActionMessage(null);
+  }, [actionMessage]);
+  const selectFromActionsSheet = useCallback(() => {
+    toggleSelectMessage(actionMessage.id);
+    setShowMessageActions(false);
+  }, [actionMessage, toggleSelectMessage]);
+
   return (
     <LinearGradient
       colors={backgroundGradient}
@@ -3268,366 +2822,63 @@ export default function ChatConversationScreen() {
         style={[styles.safeArea, { flex: 0, backgroundColor: "transparent" }]}
         edges={['top']}
       >
-        <View
-          style={[
-            styles.header,
-            {
-              borderBottomColor: "transparent",
-              backgroundColor: "transparent",
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: theme.surface }]}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/secure/(tabs)/match');
-              }
-            }}
-          >
-            <Ionicons
-              name="arrow-back-outline"
-              size={20}
-              color={theme.textPrimary}
-            />
-          </TouchableOpacity>
+        <ChatHeader
+          router={router}
+          theme={theme}
+          isBlindDate={isBlindDate}
+          bothRevealed={bothRevealed}
+          otherUserProfile={otherUserProfile}
+          paramOtherUserId={paramOtherUserId}
+          justRevealed={justRevealed}
+          avatarUrl={avatarUrl}
+          revealAnim={revealAnim}
+          conversationName={conversationName}
+          otherUserVerified={otherUserVerified}
+          blindDateInfo={blindDateInfo}
+          isOnline={isOnline}
+          onlineLabelOpacity={onlineLabelOpacity}
+          canRevealFromHeader={canRevealFromHeader}
+          handleHeaderRevealPress={handleHeaderRevealPress}
+          jamSession={jamSession}
+          conversationId={conversationId}
+          setJamExpanded={setJamExpanded}
+          startJamSession={startJamSession}
+          name={name}
+          setSearchVisible={setSearchVisible}
+        />
 
-          <TouchableOpacity
-            style={{ position: 'relative' }}
-            onPress={() => {
-              // Allow profile view if not blind date OR if both revealed
-              const canViewProfile = !isBlindDate || bothRevealed;
-              const profileId = otherUserProfile?.id || paramOtherUserId;
-              if (canViewProfile && profileId) {
-                router.push(`/secure/user-profile/${profileId}`);
-              }
-            }}
-            disabled={!paramOtherUserId && !otherUserProfile?.id}
-          >
-            {(() => {
-              // Use revealed profile photo if available, otherwise use
-              // avatarUrl -- which, for an ongoing (unrevealed) blind date,
-              // is already a server-side-blurred image passed through from
-              // the chat list's route params (see anonAvatar.service.ts /
-              // chat-list.routes.ts), not the real photo blurred client-side
-              // at render time. That used to need its own blurRadius +
-              // BlurView-overlay treatment here, which rendered
-              // inconsistently across platforms (an unclipped, wrong-shaped
-              // box instead of an actual blurred circular photo). A
-              // pre-blurred image just needs the same plain clipping every
-              // other avatar in the app gets.
-              const revealedAvatarUrl = otherUserProfile?.profile_photo_url;
-              const displayAvatarUrl = bothRevealed && revealedAvatarUrl
-                ? revealedAvatarUrl
-                : avatarUrl;
+        <ChatSearchBar
+          visible={searchVisible}
+          theme={theme}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          searchMatches={searchMatches}
+          searchMatchIndex={searchMatchIndex}
+          goToPreviousSearchMatch={goToPreviousSearchMatch}
+          goToNextSearchMatch={goToNextSearchMatch}
+          closeSearch={closeSearch}
+        />
 
-              // Reveal moment: crossfade the old blurred/masked photo into
-              // the real one instead of an instant hard swap. avatarUrl is
-              // the original masked snapshot from route params, which stays
-              // stable even after bothRevealed flips, so it's safe to use
-              // as the "before" layer here.
-              if (justRevealed && revealedAvatarUrl) {
-                return (
-                  <View style={styles.headerAvatarCrossfadeContainer}>
-                    {avatarUrl && (
-                      <ExpoImage
-                        source={{ uri: avatarUrl }}
-                        style={styles.headerAvatarCrossfadeImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                      />
-                    )}
-                    <Animated.View style={[styles.headerAvatarCrossfadeImage, { opacity: revealAnim }]}>
-                      <ExpoImage
-                        source={{ uri: revealedAvatarUrl }}
-                        style={styles.headerAvatarCrossfadeImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                      />
-                    </Animated.View>
-                  </View>
-                );
-              }
-
-              if (displayAvatarUrl) {
-                return (
-                  <View style={{ overflow: 'hidden', borderRadius: 12 }}>
-                    <ExpoImage
-                      source={{ uri: displayAvatarUrl }}
-                      style={styles.headerAvatarImage}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={100}
-                    />
-                  </View>
-                );
-              }
-              return (
-                <View style={[styles.headerAvatarFallback, { backgroundColor: theme.primary }]}>
-                  <Text style={styles.headerAvatarFallbackText}>
-                    {(bothRevealed && otherUserProfile?.first_name
-                      ? otherUserProfile.first_name
-                      : conversationName
-                    ).charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              );
-            })()}
-          </TouchableOpacity>
-
-          <View style={styles.headerInfo}>
-            <View style={styles.headerNameRow}>
-              <Animated.Text
-                style={[styles.headerTitle, { color: theme.textPrimary, opacity: revealAnim }]}
-                numberOfLines={1}
-              >
-                {bothRevealed && otherUserProfile?.first_name
-                  ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
-                  : isBlindDate && otherUserProfile?.first_name
-                    ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
-                    : conversationName
-                }
-              </Animated.Text>
-              {(otherUserVerified || (bothRevealed && otherUserProfile?.is_verified)) && (
-                <VerifiedBadge size={18} style={{ marginLeft: 4 }} />
-              )}
-              {bothRevealed && (
-                <View style={styles.friendBadge}>
-                  <Ionicons name="people" size={12} color="#4CAF50" />
-                  <Text style={styles.friendBadgeText}>Friends</Text>
-                </View>
-              )}
-            </View>
-            {isBlindDate && !bothRevealed && (blindDateInfo || otherUserProfile) ? (
-              <Text
-                style={[styles.headerSubtitle, { color: theme.primary }]}
-                numberOfLines={1}
-              >
-                {[
-                  blindDateInfo?.matchReason ? `Looking for ${blindDateInfo.matchReason}` : (otherUserProfile?.needs ? `Looking for ${otherUserProfile.needs}` : null),
-                  blindDateInfo?.gender || otherUserProfile?.gender ? (blindDateInfo?.gender || otherUserProfile?.gender).charAt(0).toUpperCase() + (blindDateInfo?.gender || otherUserProfile?.gender).slice(1) : null,
-                  blindDateInfo?.age || otherUserProfile?.age ? `${blindDateInfo?.age || otherUserProfile?.age} yrs` : null,
-                ].filter(Boolean).join(' • ')}
-              </Text>
-            ) : bothRevealed && otherUserProfile ? (
-              <Text
-                style={[styles.headerSubtitle, { color: '#4CAF50' }]}
-                numberOfLines={1}
-              >
-                {[
-                  otherUserProfile.gender ? otherUserProfile.gender.charAt(0).toUpperCase() + otherUserProfile.gender.slice(1) : null,
-                  otherUserProfile.age ? `${otherUserProfile.age} yrs` : null,
-                  '• Tap to view profile'
-                ].filter(Boolean).join(' ')}
-              </Text>
-            ) : isBlindDate ? (
-              <Text
-                style={[styles.headerSubtitle, { color: theme.primary }]}
-                numberOfLines={1}
-              >
-                Blind Connect • Anonymous Chat
-              </Text>
-            ) : (
-              <Animated.View
-                style={{ flexDirection: "row", alignItems: "center", opacity: onlineLabelOpacity }}
-              >
-                {isOnline && (
-                  <View style={[styles.onlineStatusDotInline, { backgroundColor: theme.success }]} />
-                )}
-                <Text
-                  style={[
-                    styles.headerSubtitle,
-                    { color: isOnline ? theme.success : theme.textSecondary },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {isOnline ? "Online" : "Offline"}
-                </Text>
-              </Animated.View>
-            )}
-          </View>
-
-          {canRevealFromHeader && (
-            <TouchableOpacity
-              style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
-              onPress={handleHeaderRevealPress}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="eye-outline" size={20} color={theme.primary} />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
-            onPress={() => {
-              // jamSession is now tracked app-wide, so it may belong to a DIFFERENT chat
-              // than the one currently open (e.g. the user is still listening elsewhere) —
-              // only treat it as "this chat's session" (and just expand it) when its
-              // chat_id actually matches; otherwise start a fresh one for this chat, which
-              // deliberately takes over tracking (see startSession's comment).
-              if (jamSession && jamSession.chat_id === conversationId) {
-                setJamExpanded(true);
-              } else {
-                startJamSession(conversationId, paramOtherUserId, name);
-              }
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="musical-notes-outline" size={20} color={theme.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.headerRevealButton, { backgroundColor: theme.surface }]}
-            onPress={() => setSearchVisible(true)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="search-outline" size={20} color={theme.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {searchVisible && (
-          <View style={[styles.searchBarRow, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-            <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
-            <TextInput
-              autoFocus
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search messages"
-              placeholderTextColor={theme.textPlaceholder}
-              style={[styles.searchBarInput, { color: theme.textPrimary }]}
-              returnKeyType="search"
-            />
-            {searchQuery.trim().length > 0 && (
-              <Text style={[styles.searchMatchCount, { color: theme.textSecondary }]}>
-                {searchMatches.length > 0 ? `${searchMatchIndex + 1}/${searchMatches.length}` : '0/0'}
-              </Text>
-            )}
-            <TouchableOpacity
-              onPress={goToPreviousSearchMatch}
-              disabled={searchMatchIndex <= 0}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.searchNavButton}
-            >
-              <Ionicons name="chevron-up" size={20} color={searchMatchIndex > 0 ? theme.textPrimary : theme.textPlaceholder} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={goToNextSearchMatch}
-              disabled={searchMatchIndex >= searchMatches.length - 1}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.searchNavButton}
-            >
-              <Ionicons name="chevron-down" size={20} color={searchMatchIndex < searchMatches.length - 1 ? theme.textPrimary : theme.textPlaceholder} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.searchNavButton}>
-              <Ionicons name="close" size={22} color={theme.textPrimary} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Transient "revealed" toast -- replaces the old blocking
-            Alert.alert that fired the instant both sides revealed. Fades in
-            with the header crossfade, sits for a couple seconds, fades out;
-            tapping it jumps straight to the now-visible profile. */}
-        {justRevealed && (
-          <Animated.View
-            style={[
-              styles.revealToast,
-              { backgroundColor: theme.primary, opacity: revealToastAnim, transform: [{ translateY: revealToastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }] },
-            ]}
-            pointerEvents="box-none"
-          >
-            <TouchableOpacity
-              style={styles.revealToastContent}
-              activeOpacity={0.85}
-              onPress={() => {
-                const profileId = otherUserProfile?.id || paramOtherUserId;
-                if (profileId) router.push(`/secure/user-profile/${profileId}`);
-              }}
-            >
-              <Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.revealToastText}>Identity revealed! Tap to view profile</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        )}
-
-        {/* Anonymous meme-connect reveal banner -- separate from Blind Dating's
-            reveal system above; lighter weight (no message filtering, no
-            auto-unblur), just a status line + reveal button. */}
-        {isMemeConnect && !memeConnectBothRevealed && memeConnectRequest && (
-          <View style={[styles.revealStatusBanner, { backgroundColor: theme.primary }]}>
-            <Ionicons name="eye-off-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.revealStatusText}>
-              {memeConnectSelfRevealed
-                ? 'You revealed your identity. Waiting for them...'
-                : 'Anonymous connection. Reveal to see each other\'s identity.'}
-            </Text>
-            {!memeConnectSelfRevealed && (
-              <TouchableOpacity
-                onPress={handleMemeConnectReveal}
-                disabled={revealingMemeConnect}
-                style={styles.revealStatusButton}
-              >
-                <Text style={styles.revealStatusButtonText}>
-                  {revealingMemeConnect ? '...' : 'Reveal'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Blind Connect Reveal Status Banner */}
-        {isBlindDate && !bothRevealed && (hasRevealedSelf || otherHasRevealed) && (
-          <View style={[
-            styles.revealStatusBanner,
-            { 
-              backgroundColor: hasRevealedSelf && otherHasRevealed 
-                ? '#4CAF50' 
-                : otherHasRevealed 
-                  ? theme.primary 
-                  : '#FF9800'
-            }
-          ]}>
-            <Ionicons 
-              name={hasRevealedSelf ? "eye" : "eye-outline"} 
-              size={16} 
-              color="#fff" 
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.revealStatusText}>
-              {hasRevealedSelf && !otherHasRevealed 
-                ? "✨ You revealed your identity. Waiting for them..."
-                : !hasRevealedSelf && otherHasRevealed
-                  ? "🎭 They revealed their identity! Tap to reveal yours"
-                  : "🎉 Both revealed!"
-              }
-            </Text>
-            {!hasRevealedSelf && otherHasRevealed && (
-              <TouchableOpacity 
-                style={styles.revealStatusButton}
-                onPress={handleRevealProfile}
-                disabled={isRevealSubmitting}
-              >
-                {isRevealSubmitting ? (
-                  <Loader size={16} color="#fff" />
-                ) : (
-                  <Text style={styles.revealStatusButtonText}>Reveal</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-        
-        {/* Both Revealed Success Banner */}
-        {isBlindDate && bothRevealed && (
-          <View style={[styles.revealStatusBanner, { backgroundColor: '#4CAF50' }]}>
-            <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.revealStatusText}>
-              🎉 Profiles revealed! You can now see each other's full profiles.
-            </Text>
-          </View>
-        )}
+        <RevealBanners
+          justRevealed={justRevealed}
+          theme={theme}
+          revealToastAnim={revealToastAnim}
+          otherUserProfile={otherUserProfile}
+          paramOtherUserId={paramOtherUserId}
+          router={router}
+          isMemeConnect={isMemeConnect}
+          memeConnectBothRevealed={memeConnectBothRevealed}
+          memeConnectRequest={memeConnectRequest}
+          memeConnectSelfRevealed={memeConnectSelfRevealed}
+          handleMemeConnectReveal={handleMemeConnectReveal}
+          revealingMemeConnect={revealingMemeConnect}
+          isBlindDate={isBlindDate}
+          bothRevealed={bothRevealed}
+          hasRevealedSelf={hasRevealedSelf}
+          otherHasRevealed={otherHasRevealed}
+          handleRevealProfile={handleRevealProfile}
+          isRevealSubmitting={isRevealSubmitting}
+        />
       </SafeAreaView>
 
       {/* Bottom area for messages + composer */}
@@ -3652,7 +2903,11 @@ export default function ChatConversationScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onStartReached={loadMore}
-            onStartReachedThreshold={0.5}
+            // Trigger a couple of screens before the actual top (not 0.5,
+            // i.e. half a screen) so the network fetch for older messages has
+            // time to land before a fast upward swipe reaches the top --
+            // otherwise the user outruns the fetch and sees a blank gap.
+            onStartReachedThreshold={2}
             maintainVisibleContentPosition={{
               autoscrollToBottomThreshold: 0.3,
               startRenderingFromBottom: true,
@@ -3663,469 +2918,98 @@ export default function ChatConversationScreen() {
           />
 
           {/* Scroll to bottom floating button with new message badge */}
-          {showScrollToBottom && (
-            <TouchableOpacity
-              style={[styles.scrollToBottomButton, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }]}
-              onPress={scrollToBottom}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chevron-down" size={22} color={isDarkMode ? '#111111' : '#FFFFFF'} />
-              {newMessageCount > 0 && (
-                <View style={[styles.newMessageBadge, { borderColor: isDarkMode ? '#0B0B0F' : '#FFFFFF' }]}>
-                  <Text style={styles.newMessageBadgeText}>
-                    {newMessageCount > 99 ? '99+' : newMessageCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+          <ScrollToBottomButton
+            visible={showScrollToBottom}
+            isDarkMode={isDarkMode}
+            newMessageCount={newMessageCount}
+            onPress={scrollToBottom}
+          />
 
           <JamMiniPlayerBar style={styles.jamBarAboveComposer} />
 
           <View
             style={[styles.composerContainer, { borderTopColor: "transparent" }]}
           >
-            {selectionMode && selectedMessageIds.length > 0 && (
-              <View style={styles.selectionToolbar}>
-                <Text style={styles.selectionToolbarText}>
-                  {selectedMessageIds.length} selected
-                </Text>
-                <View style={styles.selectionToolbarActions}>
-                  <TouchableOpacity
-                    onPress={handleDeleteMessages}
-                    style={[styles.selectionToolbarButton, { backgroundColor: "#FEE2E2" }]}
-                  >
-                    <Text
-                      style={[
-                        styles.selectionToolbarButtonText,
-                        styles.deleteText,
-                      ]}
-                    >
-                      Delete
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSelectionMode(false);
-                      setSelectedMessageIds([]);
-                    }}
-                    style={styles.selectionToolbarButton}
-                  >
-                    <Text style={styles.selectionToolbarButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {editingMessage && (
-              <View style={styles.editBanner}>
-                <View style={styles.editBannerTextContainer}>
-                  <Text style={styles.editBannerLabel}>Editing message</Text>
-                  <Text
-                    style={styles.editBannerPreview}
-                    numberOfLines={1}
-                  >
-                    {editingMessage.text || ""}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingMessage(null);
-                    setComposer("");
-                  }}
-                >
-                  <Text style={styles.editBannerCancel}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {/* Reply preview banner */}
-            {replyToMessage && (
-              <View style={[
-                styles.replyBanner,
-                { backgroundColor: isDarkMode ? '#2D2D3A' : '#F3F4F6' }
-              ]}>
-                <View style={styles.replyBannerBar} />
-                <View style={styles.replyBannerContent}>
-                  <Text style={[
-                    styles.replyBannerLabel,
-                    { color: isDarkMode ? '#A78BFA' : '#7C3AED' }
-                  ]}>
-                    Replying to {replyToMessage.senderId === myUserId ? 'yourself' : conversationName}
-                  </Text>
-                  <Text style={[
-                    styles.replyBannerText,
-                    { color: isDarkMode ? '#9CA3AF' : '#6B7280' },
-                    replyToMessage.isViewOnce && { fontStyle: 'italic' }
-                  ]} numberOfLines={1}>
-                    {replyToMessage.text || 
-                     (replyToMessage.isViewOnce 
-                       ? (replyToMessage.mediaType === 'video' ? 'View once video' : 'View once photo')
-                       : (replyToMessage.mediaType === 'video' ? '📹 Video' : replyToMessage.mediaUrl ? '📷 Image' : 'Message')
-                     )}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.replyBannerClose}
-                  onPress={() => setReplyToMessage(null)}
-                >
-                  <Ionicons name="close" size={20} color={isDarkMode ? '#9CA3AF' : '#666'} />
-                </TouchableOpacity>
-              </View>
-            )}
+            <SelectionToolbar
+              visible={selectionMode && selectedMessageIds.length > 0}
+              selectedCount={selectedMessageIds.length}
+              onDelete={handleDeleteMessages}
+              onCancel={closeSelectionMode}
+            />
+            <ComposerBanners
+              editingMessage={editingMessage}
+              onCancelEdit={cancelEditingMessage}
+              replyToMessage={replyToMessage}
+              myUserId={myUserId}
+              conversationName={conversationName}
+              isDarkMode={isDarkMode}
+              onCancelReply={cancelReplyToMessage}
+            />
             {/* Sending indicator - smooth animated fill, no percentage text */}
             {isUploadingMedia && (
               <MediaSendingIndicator progress={uploadProgress} label="Sending..." />
             )}
-            
-            {/* Media preview section */}
-            {showMediaPreview && selectedMedia.length > 0 && (
-              <View style={[styles.mediaPreviewContainer, { backgroundColor: isDarkMode ? '#1F1F2E' : '#F9FAFB' }]}>
-                <View style={styles.mediaPreviewHeader}>
-                  <Text style={[styles.mediaPreviewTitle, { color: isDarkMode ? '#FFFFFF' : '#1F2937' }]}>
-                    {selectedMedia.length} {selectedMedia.length === 1 ? 'item' : 'items'} selected
-                  </Text>
-                  <TouchableOpacity onPress={handleCancelMediaPreview}>
-                    <Ionicons name="close" size={24} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.mediaPreviewScroll}
-                  contentContainerStyle={styles.mediaPreviewScrollContent}
-                >
-                  {selectedMedia.map((media, index) => (
-                    <View key={index} style={styles.mediaPreviewItem}>
-                      <Image
-                        source={{ uri: media.uri }}
-                        style={styles.mediaPreviewImage}
-                        resizeMode="cover"
-                      />
-                      {media.type === 'video' && (
-                        <View style={styles.mediaPreviewVideoIcon}>
-                          <Ionicons name="play-circle" size={24} color="#fff" />
-                        </View>
-                      )}
-                      {media.type === 'video' && (
-                        <TouchableOpacity
-                          style={styles.mediaPreviewTrim}
-                          onPress={() => handleTrimVideo(index)}
-                        >
-                          <Ionicons name="cut-outline" size={18} color="#fff" />
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        style={styles.mediaPreviewRemove}
-                        onPress={() => handleRemoveMedia(index)}
-                      >
-                        <Ionicons name="close-circle" size={22} color="#fff" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  <TouchableOpacity 
-                    style={[styles.mediaPreviewAddMore, { borderColor: isDarkMode ? '#374151' : '#D1D5DB' }]}
-                    onPress={handleAddMoreMedia}
-                  >
-                    <Ionicons name="add" size={28} color={theme.primary} />
-                    <Text style={[styles.mediaPreviewAddMoreText, { color: theme.primary }]}>Add</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-                <View style={styles.mediaPreviewActions}>
-                  <TouchableOpacity
-                    style={[styles.mediaPreviewSendButton, { backgroundColor: theme.primary }]}
-                    onPress={handleSendMedia}
-                    disabled={isUploadingMedia}
-                  >
-                    {isUploadingMedia ? (
-                      <Loader size={16} color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="send" size={18} color="#fff" />
-                        <Text style={styles.mediaPreviewSendText}>Send</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
 
-            <View style={styles.composerInner}>
-              {/* Media attachment button - black/white circular pill, "Room Chat" style */}
-              <TouchableOpacity
-                style={[styles.attachButton, !canMessage && styles.attachButtonDisabled]}
-                onPress={() => setShowMediaOptions(true)}
-                disabled={!canMessage || isUploadingMedia}
-              >
-                <View style={[
-                  styles.attachButtonInner,
-                  { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }
-                ]}>
-                  <Ionicons
-                    name="add"
-                    size={22}
-                    color={isDarkMode ? '#111111' : '#FFFFFF'}
-                  />
-                </View>
-              </TouchableOpacity>
+            <MediaPreviewStrip
+              visible={showMediaPreview && selectedMedia.length > 0}
+              isDarkMode={isDarkMode}
+              selectedMedia={selectedMedia}
+              onCancel={handleCancelMediaPreview}
+              onTrimVideo={handleTrimVideo}
+              onRemoveMedia={handleRemoveMedia}
+              onAddMoreMedia={handleAddMoreMedia}
+              theme={theme}
+              onSendMedia={handleSendMedia}
+              isUploadingMedia={isUploadingMedia}
+            />
 
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    color: theme.textPrimary,
-                    backgroundColor: theme.surfaceSecondary,
-                  },
-                ]}
-                value={composer}
-                onChangeText={handleComposerChange}
-                placeholder={
-                  canMessage
-                    ? "Type message..."
-                    : "You can only message users you are friends with"
-                }
-                placeholderTextColor={theme.textPlaceholder}
-                multiline
-                onKeyPress={handleKeyPress}
-                editable={canMessage && !isUploadingMedia}
-              />
+            <ComposerInputBar
+              isDarkMode={isDarkMode}
+              canMessage={canMessage}
+              onAttachPress={openMediaOptions}
+              isUploadingMedia={isUploadingMedia}
+              theme={theme}
+              composer={composer}
+              onComposerChange={handleComposerChange}
+              onKeyPress={handleKeyPress}
+              onSend={handleSend}
+            />
 
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  (!composer.trim() || !canMessage || isUploadingMedia) && styles.sendButtonDisabled,
-                ]}
-                onPress={handleSend}
-                disabled={!composer.trim() || !canMessage || isUploadingMedia}
-              >
-                <View style={[styles.sendButtonInner, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }]}>
-                  <Feather
-                    name="send"
-                    size={17}
-                    color={isDarkMode ? '#111111' : '#FFFFFF'}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
-            
             {/* Media options modal */}
-            <Modal
+            <MediaOptionsSheet
               visible={showMediaOptions}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowMediaOptions(false)}
-            >
-              <TouchableOpacity 
-                style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}
-                activeOpacity={1}
-                onPress={() => setShowMediaOptions(false)}
-              >
-                <TouchableOpacity 
-                  activeOpacity={1}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <View style={{ backgroundColor: isDarkMode ? '#1F1F2E' : '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: isDarkMode ? '#FFFFFF' : '#000000' }}>
-                      Share Media
-                    </Text>
-                    
-                    <TouchableOpacity 
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 15 }}
-                      onPress={handlePickMedia}
-                    >
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#7C3AED20', alignItems: 'center', justifyContent: 'center', marginRight: 15 }}>
-                        <Ionicons name="images-outline" size={24} color="#7C3AED" />
-                      </View>
-                      <View>
-                        <Text style={{ fontSize: 16, fontWeight: '600', color: isDarkMode ? '#FFFFFF' : '#000000' }}>
-                          Photo & Video Library
-                        </Text>
-                        <Text style={{ fontSize: 14, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>
-                          Choose from your gallery
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 15 }}
-                      onPress={handleTakePhoto}
-                    >
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#10B98120', alignItems: 'center', justifyContent: 'center', marginRight: 15 }}>
-                        <Ionicons name="camera-outline" size={24} color="#10B981" />
-                      </View>
-                      <View>
-                        <Text style={{ fontSize: 16, fontWeight: '600', color: isDarkMode ? '#FFFFFF' : '#000000' }}>
-                          Take Photo
-                        </Text>
-                        <Text style={{ fontSize: 14, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>
-                          Use your camera
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 15 }}
-                      onPress={handlePickViewOnceMedia}
-                    >
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EF444420', alignItems: 'center', justifyContent: 'center', marginRight: 15 }}>
-                        <Ionicons name="eye-off-outline" size={24} color="#EF4444" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 16, fontWeight: '600', color: isDarkMode ? '#FFFFFF' : '#000000' }}>
-                          View Once Media
-                        </Text>
-                        <Text style={{ fontSize: 14, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>
-                          Can only be viewed once (App only)
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={{ borderTopWidth: 1, borderTopColor: isDarkMode ? '#374151' : '#E5E7EB', paddingTop: 15, marginTop: 10, alignItems: 'center' }}
-                      onPress={() => setShowMediaOptions(false)}
-                    >
-                      <Text style={{ fontSize: 16, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            </Modal>
+              onClose={closeMediaOptions}
+              isDarkMode={isDarkMode}
+              onPickMedia={handlePickMedia}
+              onTakePhoto={handleTakePhoto}
+              onPickViewOnceMedia={handlePickViewOnceMedia}
+            />
 
             {/* Media viewer modal */}
-            <Modal
+            <MediaViewerModal
               visible={mediaViewerVisible}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setMediaViewerVisible(false)}
-            >
-              <View style={styles.mediaViewerOverlay}>
-                {/* Never offer to save view-once media — the whole point is
-                    it's gone after this one viewing. */}
-                {currentGalleryItem && !viewingMedia?.isViewOnce && (
-                  <TouchableOpacity
-                    style={styles.mediaViewerDownloadButton}
-                    onPress={() => handleDownloadMedia(currentGalleryItem.url, currentGalleryItem.type)}
-                  >
-                    <Ionicons name="download-outline" size={26} color="#fff" />
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.mediaViewerCloseButton}
-                  onPress={() => setMediaViewerVisible(false)}
-                >
-                  <Ionicons name="close" size={28} color="#fff" />
-                </TouchableOpacity>
-                {/* view-once media is deliberately excluded from mediaItems
-                    (it's not part of the swipeable gallery), and its viewer
-                    open never sets mediaViewerIndex — so gate on isViewOnce
-                    explicitly here, otherwise a chat with any regular media
-                    at all would render the FlatList gallery (showing some
-                    unrelated stale item) instead of the actual consumed
-                    view-once content. */}
-                {!viewingMedia?.isViewOnce && mediaItems.length > 0 ? (
-                  <FlatList
-                    data={mediaItems}
-                    horizontal
-                    pagingEnabled
-                    style={{ flex: 1, width: '100%' }}
-                    showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={Math.min(Math.max(mediaViewerIndex, 0), Math.max(mediaItems.length - 1, 0))}
-                    getItemLayout={(_, index) => ({ length: mediaViewerWidth, offset: mediaViewerWidth * index, index })}
-                    keyExtractor={(item) => String(item.id || item.url)}
-                    viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-                    onViewableItemsChanged={({ viewableItems }) => {
-                      const first = viewableItems?.[0];
-                      if (first?.index != null) {
-                        setMediaViewerIndex(first.index);
-                      }
-                    }}
-                    renderItem={({ item }) => (
-                      <View style={[styles.mediaViewerPage, { width: mediaViewerWidth }]}>
-                        {item.type === 'video' ? (
-                          <ChatVideoPlayer
-                            key={(currentGalleryItem?.id === item.id ? (resolvedViewingMediaUrl || item.url) : item.url)}
-                            uri={(currentGalleryItem?.id === item.id ? (resolvedViewingMediaUrl || item.url) : item.url)}
-                            style={styles.mediaViewerVideo}
-                            autoPlay={currentGalleryItem?.id === item.id}
-                          />
-                        ) : (
-                          <ExpoImage
-                            source={{ uri: item.url }}
-                            style={styles.mediaViewerImage}
-                            contentFit="contain"
-                            cachePolicy="disk"
-                          />
-                        )}
-                      </View>
-                    )}
-                  />
-                ) : (
-                  viewingMedia && (
-                    <View style={styles.mediaViewerContent}>
-                      {viewingMedia.type === 'video' ? (
-                        <ChatVideoPlayer
-                          key={resolvedViewingMediaUrl || viewingMedia.url}
-                          uri={resolvedViewingMediaUrl || viewingMedia.url}
-                          style={styles.mediaViewerVideo}
-                          autoPlay
-                        />
-                      ) : (
-                        <ExpoImage
-                          source={{ uri: viewingMedia.url }}
-                          style={styles.mediaViewerImage}
-                          contentFit="contain"
-                          cachePolicy="disk"
-                        />
-                      )}
-                    </View>
-                  )
-                )}
-              </View>
-            </Modal>
+              onClose={closeMediaViewer}
+              currentGalleryItem={currentGalleryItem}
+              viewingMedia={viewingMedia}
+              onDownload={handleDownloadMedia}
+              mediaItems={mediaItems}
+              mediaViewerIndex={mediaViewerIndex}
+              setMediaViewerIndex={setMediaViewerIndex}
+              mediaViewerWidth={mediaViewerWidth}
+              resolvedViewingMediaUrl={resolvedViewingMediaUrl}
+            />
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
       {/* Quick-reaction row for double-tap, as a Modal for the same reason
           the long-press actions sheet is one -- see comment below. */}
-      <Modal
-        visible={!!reactionTarget && !showAllReactions}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setReactionTarget(null)}
-      >
-        {reactionTarget && (
-          <View style={styles.reactionOverlayContainer}>
-            <TouchableOpacity
-              style={styles.reactionOverlayBackdrop}
-              activeOpacity={1}
-              onPress={() => setReactionTarget(null)}
-            >
-              <View style={styles.reactionOverlay}>
-                {REACTION_EMOJIS.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    style={styles.reactionOverlayButton}
-                    onPress={() => {
-                      handleAddReaction(reactionTarget.id, emoji);
-                      setReactionTarget(null);
-                      setShowAllReactions(false);
-                    }}
-                  >
-                    <Text style={styles.reactionOverlayEmoji}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-                {/* + icon to open full emoji sheet */}
-                <TouchableOpacity
-                  style={styles.reactionOverlayButton}
-                  onPress={() => setShowAllReactions(true)}
-                >
-                  <Text style={[styles.reactionOverlayEmoji, { fontWeight: "600" }]}>＋</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-      </Modal>
+      <QuickReactionRow
+        reactionTarget={reactionTarget}
+        showAllReactions={showAllReactions}
+        onClose={closeQuickReaction}
+        onShowAllReactions={openAllReactionsFromQuickRow}
+        onReact={reactFromQuickRow}
+      />
       {/* Message actions sheet for long-press. A native Modal (like the other
           sheets in this screen -- media options, report) instead of a plain
           absolutely-positioned View: a raw View sibling of the
@@ -4135,339 +3019,53 @@ export default function ChatConversationScreen() {
           sliver at the very bottom instead of the full sheet). Modal
           presents in its own native layer above the keyboard and everything
           else, which sidesteps that race entirely. */}
-      <Modal
+      <MessageActionsSheet
         visible={showMessageActions && !!actionMessage}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setShowMessageActions(false);
-          setActionMessage(null);
-        }}
-      >
-        {actionMessage && (
-          <View style={styles.actionsOverlayContainer}>
-            <TouchableOpacity
-              style={styles.actionsOverlayBackdrop}
-              activeOpacity={1}
-              onPress={() => {
-                setShowMessageActions(false);
-                setActionMessage(null);
-              }}
-            >
-              <View
-                style={[
-                  styles.actionsSheet,
-                  {
-                    backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
-                    paddingBottom: styles.actionsSheet.paddingBottom + insets.bottom,
-                  },
-                ]}
-              >
-                {/* Quick-reaction row, WhatsApp-style -- react without
-                    leaving the long-press menu. */}
-                <View
-                  style={[
-                    styles.actionsSheetReactionRow,
-                    { borderBottomColor: isDarkMode ? '#38383A' : '#E5E7EB' },
-                  ]}
-                >
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <TouchableOpacity
-                      key={emoji}
-                      style={styles.actionsSheetReactionButton}
-                      onPress={() => {
-                        handleAddReaction(actionMessage.id, emoji);
-                        setShowMessageActions(false);
-                        setActionMessage(null);
-                      }}
-                    >
-                      <Text style={styles.actionsSheetReactionEmoji}>{emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={styles.actionsSheetReactionButton}
-                    onPress={() => {
-                      setReactionTarget(actionMessage);
-                      setShowAllReactions(true);
-                      setShowMessageActions(false);
-                      setActionMessage(null);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.actionsSheetReactionEmoji,
-                        { fontWeight: "600", color: isDarkMode ? '#F9FAFB' : '#000000' },
-                      ]}
-                    >
-                      ＋
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {/* Reply option */}
-                <TouchableOpacity
-                  style={styles.actionsSheetButton}
-                  onPress={() => {
-                    setReplyToMessage(actionMessage);
-                    setShowMessageActions(false);
-                    setActionMessage(null);
-                  }}
-                >
-                  <Text style={[styles.actionsSheetText, { color: '#7C3AED' }]}>Reply</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionsSheetButton}
-                  onPress={() => {
-                    toggleSelectMessage(actionMessage.id);
-                    setShowMessageActions(false);
-                  }}
-                >
-                  <Text style={[styles.actionsSheetText, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Select</Text>
-                </TouchableOpacity>
-                {myUserId &&
-                  actionMessage.senderId != null &&
-                  String(actionMessage.senderId) === myUserId &&
-                  !actionMessage.sharedMemeId && (
-                    <TouchableOpacity
-                      style={styles.actionsSheetButton}
-                      onPress={handleStartEdit}
-                    >
-                      <Text style={[styles.actionsSheetText, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Edit</Text>
-                    </TouchableOpacity>
-                  )}
-                <TouchableOpacity
-                  style={styles.actionsSheetButton}
-                  onPress={handleDeleteMessages}
-                >
-                  <Text style={[styles.actionsSheetText, styles.deleteText]}>Delete</Text>
-                </TouchableOpacity>
-                {/* Only show Report button for messages from other users */}
-                {myUserId &&
-                  actionMessage.senderId != null &&
-                  String(actionMessage.senderId) !== myUserId && (
-                    <TouchableOpacity
-                      style={styles.actionsSheetButton}
-                      onPress={() => handleOpenReportModal(actionMessage)}
-                    >
-                      <Text style={[styles.actionsSheetText, { color: '#FF6B6B' }]}>Report</Text>
-                    </TouchableOpacity>
-                  )}
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-      </Modal>
+        onClose={closeMessageActionsSheet}
+        actionMessage={actionMessage}
+        isDarkMode={isDarkMode}
+        insets={insets}
+        onReactEmoji={reactFromActionsSheet}
+        onOpenAllReactions={openAllReactionsFromActionsSheet}
+        onReply={replyFromActionsSheet}
+        onSelect={selectFromActionsSheet}
+        myUserId={myUserId}
+        onEdit={handleStartEdit}
+        onDelete={handleDeleteMessages}
+        onReport={() => handleOpenReportModal(actionMessage)}
+      />
 
       {/* Report Message Modal */}
-      <Modal
+      <ReportMessageModal
         visible={showReportModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseReportModal}
-      >
-        <View style={styles.reportModalOverlay}>
-          <View style={[styles.reportModalContainer, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}>
-            <View style={styles.reportModalHeader}>
-              <Text style={[styles.reportModalTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Report Message
-              </Text>
-              <TouchableOpacity onPress={handleCloseReportModal} style={styles.reportModalCloseBtn}>
-                <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            </View>
+        onClose={handleCloseReportModal}
+        isDarkMode={isDarkMode}
+        selectedReportReason={selectedReportReason}
+        setSelectedReportReason={setSelectedReportReason}
+        reportAdditionalDetails={reportAdditionalDetails}
+        setReportAdditionalDetails={setReportAdditionalDetails}
+        isSubmittingReport={isSubmittingReport}
+        onSubmit={handleSubmitReport}
+      />
 
-            <Text style={[styles.reportModalSubtitle, { color: isDarkMode ? '#aaa' : '#666' }]}>
-              Why are you reporting this message?
-            </Text>
-
-            <ScrollView style={styles.reportReasonsContainer}>
-              {REPORT_REASONS.map((reason) => (
-                <TouchableOpacity
-                  key={reason.type}
-                  style={[
-                    styles.reportReasonItem,
-                    { 
-                      backgroundColor: selectedReportReason?.type === reason.type 
-                        ? (isDarkMode ? '#3a3a5e' : '#e8f4fd') 
-                        : (isDarkMode ? '#2a2a4e' : '#f5f5f5'),
-                      borderColor: selectedReportReason?.type === reason.type 
-                        ? '#007AFF' 
-                        : 'transparent',
-                      borderWidth: selectedReportReason?.type === reason.type ? 2 : 0,
-                    }
-                  ]}
-                  onPress={() => setSelectedReportReason(reason)}
-                >
-                  <View style={styles.reportReasonContent}>
-                    <Text style={[styles.reportReasonLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
-                      {reason.label}
-                    </Text>
-                    <Text style={[styles.reportReasonDesc, { color: isDarkMode ? '#aaa' : '#666' }]}>
-                      {reason.description}
-                    </Text>
-                  </View>
-                  {selectedReportReason?.type === reason.type && (
-                    <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <TextInput
-              style={[
-                styles.reportAdditionalInput,
-                { 
-                  backgroundColor: isDarkMode ? '#2a2a4e' : '#f5f5f5',
-                  color: isDarkMode ? '#fff' : '#000',
-                  borderColor: isDarkMode ? '#3a3a5e' : '#ddd'
-                }
-              ]}
-              placeholder="Additional details (optional)"
-              placeholderTextColor={isDarkMode ? '#888' : '#999'}
-              value={reportAdditionalDetails}
-              onChangeText={setReportAdditionalDetails}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-
-            <TouchableOpacity
-              style={[
-                styles.reportSubmitBtn,
-                { 
-                  backgroundColor: selectedReportReason ? '#FF6B6B' : '#ccc',
-                  opacity: isSubmittingReport ? 0.7 : 1
-                }
-              ]}
-              onPress={handleSubmitReport}
-              disabled={!selectedReportReason || isSubmittingReport}
-            >
-              {isSubmittingReport ? (
-                <Loader size={16} color="#fff" />
-              ) : (
-                <Text style={styles.reportSubmitBtnText}>Submit Report</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
+      <BlockedInfoModal
         visible={showBlockedInfoModal && isBlindDate}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowBlockedInfoModal(false)}
-      >
-        <View style={styles.blockedModalOverlay}>
-          <View
-            style={[
-              styles.blockedModalContainer,
-              { backgroundColor: isDarkMode ? "#1a1a2e" : "#ffffff" },
-            ]}
-          >
-            <View style={styles.blockedModalTag}>
-              <Text style={styles.blockedModalTagText}>Blind Connect safety</Text>
-            </View>
-
-            <View style={styles.blockedModalIconWrapper}>
-              <Text style={styles.blockedModalIcon}>🔒</Text>
-            </View>
-
-            <Text
-              style={[
-                styles.blockedModalTitle,
-                { color: isDarkMode ? "#fff" : "#000" },
-              ]}
-              numberOfLines={1}
-            >
-              No personal info yet
-            </Text>
-            <Text
-              style={[
-                styles.blockedModalSubtitle,
-                { color: isDarkMode ? "#aaa" : "#666" },
-              ]}
-            >
-              {blockedInfoMessage ||
-                "In Blind Connect chats, messages with personal details like phone numbers, social media or email are blocked until both of you choose to reveal your profiles."}
-            </Text>
-            <TouchableOpacity
-              style={styles.blockedModalButton}
-              onPress={() => setShowBlockedInfoModal(false)}
-            >
-              <Text style={styles.blockedModalButtonText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={closeBlockedInfoModal}
+        isDarkMode={isDarkMode}
+        blockedInfoMessage={blockedInfoMessage}
+      />
 
       {/* Blind Connect Reveal Prompt Modal */}
-      <Modal
+      <RevealPromptModal
         visible={showRevealPrompt && isBlindDate && !hasRevealedSelf && !bothRevealed}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleSkipReveal}
-      >
-        <View style={styles.revealModalOverlay}>
-          <View style={[styles.revealModalContainer, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}>
-            <View style={styles.revealModalIcon}>
-              <Text style={{ fontSize: 48 }}>{otherHasRevealed ? '🎉' : '🎭'}</Text>
-            </View>
-            
-            <Text style={[styles.revealModalTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-              {otherHasRevealed ? 'They Revealed!' : 'Time to Reveal?'}
-            </Text>
-            
-            <Text style={[styles.revealModalSubtitle, { color: isDarkMode ? '#aaa' : '#666' }]}>
-              {otherHasRevealed 
-                ? 'Your match has revealed their identity! Would you like to reveal yours too?'
-                : `You've exchanged ${blindDateMessageCount} messages! Would you like to reveal your profile to your match?`
-              }
-            </Text>
-            
-            <Text style={[styles.revealModalNote, { color: isDarkMode ? '#888' : '#999' }]}>
-              {otherHasRevealed
-                ? 'Once you reveal, you\'ll both see each other\'s full profiles and can continue as friends!'
-                : 'Both of you need to agree to reveal. Once revealed, you\'ll see each other\'s full profiles and can continue as friends!'
-              }
-            </Text>
-            
-            <TouchableOpacity
-              style={[
-                styles.revealBtn, 
-                { 
-                  opacity: isRevealSubmitting ? 0.7 : 1,
-                  backgroundColor: otherHasRevealed ? '#4CAF50' : '#007AFF'
-                }
-              ]}
-              onPress={handleRevealProfile}
-              disabled={isRevealSubmitting}
-            >
-              {isRevealSubmitting ? (
-                <Loader size={16} color="#fff" />
-              ) : (
-                <Text style={styles.revealBtnText}>
-                  {otherHasRevealed ? '🎉 Reveal & Connect!' : '✨ Reveal My Profile'}
-                </Text>
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.skipRevealBtn}
-              onPress={handleSkipReveal}
-            >
-              <Text style={[styles.skipRevealBtnText, { color: isDarkMode ? '#aaa' : '#666' }]}>
-                Maybe Later
-              </Text>
-            </TouchableOpacity>
-            
-            {!otherHasRevealed && (
-              <Text style={[styles.revealModalHint, { color: isDarkMode ? '#666' : '#999' }]}>
-                We'll ask again after {REVEAL_INTERVAL} more messages
-              </Text>
-            )}
-          </View>
-        </View>
-      </Modal>
+        onSkip={handleSkipReveal}
+        isDarkMode={isDarkMode}
+        otherHasRevealed={otherHasRevealed}
+        blindDateMessageCount={blindDateMessageCount}
+        isRevealSubmitting={isRevealSubmitting}
+        onReveal={handleRevealProfile}
+      />
+
 
       <ReactionPicker
         visible={!!(reactionTarget && showAllReactions)}
@@ -4488,1120 +3086,3 @@ export default function ChatConversationScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  jamBarAboveComposer: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  headerRevealButton: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  searchBarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  searchBarInput: {
-    flex: 1,
-    fontSize: 15,
-    padding: 0,
-  },
-  searchMatchCount: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  searchNavButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerAvatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 12, // rounded-square (squircle), not a circle -- matches this app's avatar convention (see AVATAR_RADIUS in chat/index.jsx)
-    marginRight: 8,
-  },
-  headerAvatarCrossfadeContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    marginRight: 8,
-    overflow: 'hidden',
-  },
-  headerAvatarCrossfadeImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-  },
-  headerAvatarFallback: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginRight: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  onlineStatusDotInline: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginRight: 5,
-  },
-  headerAvatarFallbackText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-  headerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-  },
-  messagesContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  messageRow: {
-    flexDirection: "row",
-    marginVertical: 4,
-    position: "relative",
-  },
-  messageRowMine: {
-    justifyContent: "flex-end",
-  },
-  messageRowTheirs: {
-    justifyContent: "flex-start",
-  },
-  messageBubble: {
-    maxWidth: SCREEN_WIDTH * 0.8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    // Without this, children (header row, message text) default to
-    // alignItems:'stretch' and get stretched to the bubble's shrink-to-fit
-    // width instead of measuring at their own natural size — that
-    // stretch-then-relayout round trip is what caused short text (e.g. a
-    // URL) to wrap onto a second line even though the bubble looked wide
-    // enough. flex-start makes every child size to its own content instead.
-    alignItems: "flex-start",
-  },
-  myMessageBubble: {
-    // Background (near-black / white in dark mode) comes from AnimatedMessageBubble.
-    borderTopRightRadius: 4,
-  },
-  theirMessageBubble: {
-    // Background (white / dark surface in dark mode) comes from AnimatedMessageBubble.
-    borderTopLeftRadius: 4,
-  },
-  myMessageText: {
-    fontSize: 15,
-    color: "#fff",
-  },
-  myMessageTextDark: {
-    color: "#111111",
-  },
-  theirMessageText: {
-    fontSize: 15,
-    color: "#111111",
-  },
-  theirMessageTextDark: {
-    color: "#F1F5F9",
-  },
-  bubbleHeaderRow: {
-    // Deliberately NOT justifyContent:'space-between' and NOT width:'100%'.
-    // This row sits inside a bubble that shrink-wraps to whichever is wider
-    // (header vs. message text). Both of those properties feed back into
-    // that shrink-to-fit sizing pass ambiguously — space-between alone made
-    // short messages wrap to two lines (bubble width got locked to the
-    // header's own ill-defined intrinsic size); adding width:'100%' to try
-    // to fix that instead made EVERY sent bubble stretch edge-to-edge
-    // (percentages on a child of an auto-sized parent make the whole
-    // ancestor chain's width indefinite, which flex-end resolves by
-    // stretching — received bubbles use justifyContent:'flex-start' and
-    // happened not to visibly hit this, but it's the same underlying
-    // ambiguity). A fixed gap (bubbleHeaderRight's marginLeft) makes the
-    // row's natural width a deterministic sum instead — no percentages,
-    // no space-between, no ambiguity.
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  bubbleHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 10,
-  },
-  bubbleSenderName: {
-    fontSize: 13,
-    fontWeight: "700",
-    flexShrink: 1,
-  },
-  bubbleTimeText: {
-    fontSize: 11,
-  },
-  viewOnceMessageText: {
-    fontStyle: 'italic',
-    opacity: 0.9,
-  },
-  // Media message styles
-  mediaContainer: {
-    marginBottom: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  mediaImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 12,
-  },
-  videoContainer: {
-    position: 'relative',
-    width: 200,
-    height: 200,
-  },
-  videoPlayOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 12,
-  },
-  videoPlayButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageContainer: {
-    position: 'relative',
-  },
-  viewOnceIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  viewOnceText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  composerContainer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  composerInner: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16, // rounded-square, matching send/attach/avatar buttons
-    maxHeight: 120,
-  },
-  sendButton: {
-    marginLeft: 8,
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  sendButtonInner: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: {
-    opacity: 0.45,
-  },
-  // Attach button styles
-  attachButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  attachButtonInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  attachButtonDisabled: {
-    opacity: 0.4,
-  },
-
-  // Media preview styles
-  mediaPreviewContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
-  },
-  mediaPreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  mediaPreviewTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  mediaPreviewScroll: {
-    marginBottom: 12,
-  },
-  mediaPreviewScrollContent: {
-    paddingRight: 12,
-  },
-  mediaPreviewItem: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-    marginRight: 10,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  mediaPreviewImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 10,
-  },
-  mediaPreviewVideoIcon: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  mediaPreviewRemove: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 11,
-  },
-  mediaPreviewAddMore: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediaPreviewAddMoreText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  mediaPreviewActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  mediaPreviewSendButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  mediaPreviewSendText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  // Date and Unread Dividers - WhatsApp/Instagram style
-  dividerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  dividerPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  dividerText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  unreadDividerPill: {
-    backgroundColor: '#7C3AED',
-    paddingHorizontal: 16,
-  },
-  unreadDividerText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  scrollToBottomButton: {
-    position: 'absolute',
-    right: 16,
-    bottom: 80, // Above the composer
-    width: 44,
-    height: 44,
-    borderRadius: 16, // rounded-square, matching send/attach/avatar buttons
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    zIndex: 100,
-  },
-  newMessageBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#EF4444', // Red badge
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    borderWidth: 2,
-  },
-  newMessageBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  // Loading more messages indicator
-  loadingMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-  },
-  loadingMoreText: {
-    fontSize: 13,
-    marginLeft: 10,
-    fontWeight: '500',
-  },
-  noMoreMessagesText: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  statusRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-  },
-  messageBubbleSelected: {
-    borderWidth: 1,
-    borderColor: "#7C3AED",
-  },
-  messageBubbleHighlighted: {
-    backgroundColor: '#FEF3C7', // Light yellow highlight
-    borderWidth: 2,
-    borderColor: '#F59E0B', // Amber border
-  },
-  reactionEmoji: {
-    fontSize: 12,
-  },
-  reactionSummaryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 4,
-  },
-  reactionBubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EEF2FF",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginRight: 4,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  reactionBubbleMine: {
-    backgroundColor: "#DDD6FE",
-    borderColor: "#7C3AED",
-  },
-  reactionCount: {
-    fontSize: 11,
-    marginLeft: 3,
-    color: "#374151",
-  },
-  reactionOverlayContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  reactionOverlayBackdrop: {
-    flex: 1,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.25)",
-  },
-  reactionOverlay: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 32,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  reactionOverlayButton: {
-    marginHorizontal: 6,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reactionOverlayEmoji: {
-    fontSize: 30,
-  },
-  actionsOverlayContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
-  actionsOverlayBackdrop: {
-    flex: 1,
-    width: "100%",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.25)",
-  },
-  actionsSheet: {
-    width: "100%",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  actionsSheetButton: {
-    paddingVertical: 12,
-  },
-  actionsSheetReactionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginBottom: 4,
-  },
-  actionsSheetReactionButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionsSheetReactionEmoji: {
-    fontSize: 26,
-  },
-  actionsSheetText: {
-    fontSize: 16,
-  },
-  deleteText: {
-    color: "#EF4444",
-  },
-  selectionToolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: "#EFF6FF",
-    marginBottom: 10,
-  },
-  selectionToolbarText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  selectionToolbarActions: {
-    flexDirection: "row",
-  },
-  selectionToolbarButton: {
-    marginLeft: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  selectionToolbarButtonText: {
-    fontSize: 14,
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-  editBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "#E5E7EB",
-    marginBottom: 6,
-  },
-  editBannerTextContainer: {
-    flex: 1,
-    marginRight: 8,
-  },
-  editBannerLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  editBannerPreview: {
-    fontSize: 12,
-    color: "#4B5563",
-  },
-  editBannerCancel: {
-    fontSize: 12,
-    color: "#EF4444",
-    fontWeight: "600",
-  },
-  // Swipe-to-reply styles
-  replyIconContainer: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -16,
-    zIndex: 1,
-  },
-  replyIconLeft: {
-    left: 8,
-  },
-  replyIconRight: {
-    right: 8,
-  },
-  replyIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#7C3AED',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Reply preview inside message bubble - nested card, quoting the original
-  replyPreviewInBubble: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  // "Mine" bubble is near-black in light mode / white in dark mode (see
-  // AnimatedMessageBubble), so its reply-preview overlay/bar/text need to
-  // invert too - a dark overlay that worked on the old light lilac bubble
-  // would be invisible against black.
-  replyPreviewInBubbleMine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.14)', // light overlay on black bubble
-  },
-  replyPreviewInBubbleTheirs: {
-    backgroundColor: 'rgba(124, 58, 237, 0.08)', // Light purple tint on white bubble
-  },
-  replyPreviewInBubbleMineDark: {
-    backgroundColor: 'rgba(0, 0, 0, 0.08)', // dark overlay on white bubble (dark mode)
-  },
-  replyPreviewInBubbleTheirsDark: {
-    backgroundColor: 'rgba(124, 58, 237, 0.18)', // purple tint on dark surface bubble
-  },
-  replyPreviewBar: {
-    width: 4,
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
-  },
-  replyPreviewBarMine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // visible on black bubble (light mode)
-  },
-  replyPreviewBarMineDark: {
-    backgroundColor: 'rgba(0, 0, 0, 0.45)', // visible on white bubble (dark mode)
-  },
-  replyPreviewBarTheirs: {
-    backgroundColor: '#7C3AED', // Purple accent, visible on white/dark-surface bubble
-  },
-  replyPreviewContent: {
-    flex: 1,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-  },
-  replyPreviewNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  replyPreviewNameIcon: {
-    marginRight: 4,
-  },
-  replyPreviewName: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  replyPreviewNameMine: {
-    color: 'rgba(255, 255, 255, 0.85)', // light mode: on black bubble
-  },
-  replyPreviewNameTheirs: {
-    color: '#7C3AED', // Purple for their messages
-  },
-  replyPreviewText: {
-    fontSize: 13,
-  },
-  replyPreviewTextMine: {
-    color: 'rgba(255, 255, 255, 0.75)', // light mode: on black bubble
-  },
-  replyPreviewTextTheirs: {
-    color: '#111111',
-  },
-  replyPreviewNameMineDark: {
-    color: '#111111', // dark mode: on white bubble
-  },
-  replyPreviewNameTheirsDark: {
-    color: '#C4B5FD', // lighter purple for legibility on dark surface
-  },
-  replyPreviewTextMineDark: {
-    color: '#111111', // dark mode: on white bubble
-  },
-  replyPreviewTextTheirsDark: {
-    color: '#F1F5F9', // light text on dark surface bubble
-  },
-  // Reply banner in composer
-  replyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  replyBannerBar: {
-    width: 3,
-    height: '100%',
-    minHeight: 32,
-    backgroundColor: '#7C3AED',
-    borderRadius: 2,
-    marginRight: 10,
-  },
-  replyBannerContent: {
-    flex: 1,
-  },
-  replyBannerLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#7C3AED',
-    marginBottom: 2,
-  },
-  replyBannerText: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  replyBannerClose: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  // Report Modal Styles
-  reportModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  reportModalContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
-    maxHeight: '80%',
-  },
-  reportModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reportModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  reportModalCloseBtn: {
-    padding: 4,
-  },
-  reportModalSubtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  reportReasonsContainer: {
-    maxHeight: 280,
-    marginBottom: 16,
-  },
-  reportReasonItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  reportReasonContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  reportReasonLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  reportReasonDesc: {
-    fontSize: 13,
-  },
-  reportAdditionalInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 80,
-    marginBottom: 16,
-  },
-  reportSubmitBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reportSubmitBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Reveal Modal Styles
-  revealModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  revealModalContainer: {
-    borderRadius: 24,
-    padding: 28,
-    width: '100%',
-    maxWidth: 340,
-    alignItems: 'center',
-  },
-  revealModalIcon: {
-    marginBottom: 16,
-  },
-  revealModalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  revealModalSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  revealModalNote: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 18,
-  },
-  revealBtn: {
-    backgroundColor: '#7C3AED',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  revealBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skipRevealBtn: {
-    paddingVertical: 10,
-  },
-  skipRevealBtnText: {
-    fontSize: 14,
-  },
-  revealModalHint: {
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  revealStatusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  revealToast: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  revealToastContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  revealToastText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  revealStatusText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '500',
-    flex: 1,
-  },
-  revealStatusButton: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    marginLeft: 10,
-  },
-  revealStatusButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  friendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  friendBadgeText: {
-    color: '#4CAF50',
-    fontSize: 11,
-    fontWeight: '600',
-    marginLeft: 3,
-  },
-  blockedModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  blockedModalContainer: {
-    borderRadius: 20,
-    padding: 24,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-  },
-  blockedModalTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 12,
-  },
-  blockedModalTagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#4C1D95',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  blockedModalIconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3E8FF',
-    marginBottom: 12,
-  },
-  blockedModalIcon: {
-    fontSize: 30,
-  },
-  blockedModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  blockedModalSubtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 21,
-  },
-  blockedModalButton: {
-    backgroundColor: "#7C3AED",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  blockedModalButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  // Upload progress styles
-  // Media viewer styles
-  mediaViewerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mediaViewerCloseButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  mediaViewerDownloadButton: {
-    position: 'absolute',
-    top: 50,
-    right: 64,
-    zIndex: 10,
-    padding: 10,
-  },
-  mediaViewerContent: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mediaViewerPage: {
-    flex: 1,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mediaViewerImage: {
-    width: '100%',
-    height: '80%',
-  },
-  mediaViewerVideo: {
-    width: '100%',
-    height: '80%',
-  },
-});
-

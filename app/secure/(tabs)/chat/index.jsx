@@ -842,6 +842,15 @@ export default function ChatListScreen() {
       loadInbox(true);
     };
 
+    // The daily matching pass can find this user's Blind Connect match while
+    // they already have the Chats tab open -- loadBlindDateStatus() only ran
+    // on mount/pull-to-refresh, so the "No Blind Connect match found today"
+    // banner stayed stale until the user manually refreshed or remounted the
+    // screen, even though the match already existed server-side.
+    const handleNewBlindDateMatch = () => {
+      loadBlindDateStatus();
+    };
+
     try {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
@@ -866,6 +875,7 @@ export default function ChatListScreen() {
         socket.on('meme_connect:responded', handleMemeConnectResponded);
         socket.on('meme_connect:revealed', handleChatRevealedRealtime);
         socket.on('blind_date:revealed', handleChatRevealedRealtime);
+        socket.on('blind_date:new_match', handleNewBlindDateMatch);
 
       } else {
         console.error('❌ [ChatList] Socket.on not available');
@@ -899,6 +909,7 @@ export default function ChatListScreen() {
           socket.off('meme_connect:responded', handleMemeConnectResponded);
           socket.off('meme_connect:revealed', handleChatRevealedRealtime);
           socket.off('blind_date:revealed', handleChatRevealedRealtime);
+          socket.off('blind_date:new_match', handleNewBlindDateMatch);
         }
       } catch (error) {
       }
