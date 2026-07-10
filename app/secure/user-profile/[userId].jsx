@@ -32,6 +32,15 @@ import {
 import Loader from '@/components/Loader';
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Falls back to 'Recently joined' rather than rendering "Invalid Date" if
+// the backend ever sends a date string this engine's Date parser rejects.
+function formatJoinedDate(rawDate) {
+  if (!rawDate) return 'Recently joined';
+  const date = new Date(rawDate);
+  if (Number.isNaN(date.getTime())) return 'Recently joined';
+  return `Joined ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+}
+
 export default function UserProfileScreen() {
   const router = useRouter();
   const { userId } = useLocalSearchParams();
@@ -149,9 +158,7 @@ export default function UserProfileScreen() {
           age: data.age,
           gender: data.gender,
           location: data.location || 'Location not specified',
-          joinedDate: data.joinedDate 
-            ? `Joined ${new Date(data.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` 
-            : 'Recently joined',
+          joinedDate: formatJoinedDate(data.joinedDate),
           stats: {
             chats: data.stats?.chats || 0,
             friends: data.stats?.friends || 0,

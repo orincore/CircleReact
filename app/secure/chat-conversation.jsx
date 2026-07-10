@@ -19,9 +19,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Gesture, GestureDetector, ScrollView as GestureScrollView } from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { FlashList } from "@shopify/flash-list";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import Loader from "@/components/Loader";
@@ -76,7 +77,7 @@ const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 // around a GestureDetector descendant is a known RNGH conflict: the native
 // pan recognizer intercepts the touch stream before Pressable's JS long-press
 // timer resolves, so onLongPress silently never fires (mostly on Android).
-function SwipeableMessage({ children, isMine, onSwipeReply, message, onPress, onLongPress }) {
+const SwipeableMessage = React.memo(function SwipeableMessage({ children, isMine, onSwipeReply, message, onPress, onLongPress }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const [isPressed, setIsPressed] = useState(false);
   // Separate opacity per side: previously both used one direction-agnostic
@@ -250,9 +251,9 @@ function SwipeableMessage({ children, isMine, onSwipeReply, message, onPress, on
       </GestureDetector>
     </>
   );
-}
+});
 
-function MessageBubble({
+const MessageBubble = React.memo(function MessageBubble({
   message,
   isMine,
   senderName,
@@ -264,7 +265,6 @@ function MessageBubble({
   selectionMode,
   onToggleSelect,
   replyToMessage,
-  allMessages,
   isDarkMode,
   onReplyTap,
   isHighlighted,
@@ -319,13 +319,13 @@ function MessageBubble({
   const handlePress = () => {
     // In selection mode, tapping toggles selection instead of reacting
     if (selectionMode && onToggleSelect) {
-      onToggleSelect();
+      onToggleSelect(message.id);
       return;
     }
 
     const now = Date.now();
     if (now - lastTapRef.current < 250) {
-      if (onDoubleTap) onDoubleTap();
+      if (onDoubleTap) onDoubleTap(message);
     }
     lastTapRef.current = now;
   };
@@ -337,6 +337,10 @@ function MessageBubble({
         typeof message.createdAt === "number"
           ? new Date(message.createdAt)
           : new Date(message.createdAt);
+      // A malformed/unparseable createdAt doesn't throw here -- it silently
+      // produces NaN fields below (e.g. "NaN:NaN AM") instead of an error,
+      // so this needs an explicit check rather than relying on the catch.
+      if (Number.isNaN(d.getTime())) return "";
       let hours = d.getHours();
       const minutes = d.getMinutes().toString().padStart(2, "0");
       const ampm = hours >= 12 ? "PM" : "AM";
@@ -349,10 +353,10 @@ function MessageBubble({
     }
   };
 
-  // Find the replied-to message if this message is a reply
-  const repliedMessage = message.reply_to_id && allMessages
-    ? allMessages.find(m => m.id === message.reply_to_id)
-    : null;
+  // Replied-to message is resolved once by the parent (an O(1) Map lookup)
+  // and handed down directly, instead of every bubble scanning the entire
+  // message list on every render.
+  const repliedMessage = message.reply_to_id ? replyToMessage : null;
 
   return (
     <View
@@ -375,7 +379,7 @@ function MessageBubble({
         onSwipeReply={onSwipeReply}
         onPress={handlePress}
         onLongPress={() => {
-          if (onLongPress) onLongPress();
+          if (onLongPress) onLongPress(message);
         }}
       >
       <AnimatedMessageBubble
@@ -541,7 +545,7 @@ function MessageBubble({
                   styles.reactionBubble,
                   myReactionEmojis.has(emoji) && styles.reactionBubbleMine,
                 ]}
-                onPress={() => onReact && onReact(emoji)}
+                onPress={() => onReact && onReact(message.id, emoji)}
               >
                 <Text style={styles.reactionEmoji}>{emoji}</Text>
                 {count > 1 && (
@@ -555,7 +559,7 @@ function MessageBubble({
       </SwipeableMessage>
     </View>
   );
-}
+});
 
 export default function ChatConversationScreen() {
   const router = useRouter();
@@ -924,14 +928,8 @@ export default function ChatConversationScreen() {
   const typingTimeoutRef = useRef(null);
   const processedMessageIdsRef = useRef(new Set());
   const listRef = useRef(null);
-  // Message id -> y-offset within the ScrollView's content, recorded via
-  // onLayout on each row. Needed because scrollToIndex (FlatList-only) never
-  // worked here — this screen renders messages via `.map()` inside a
-  // ScrollView, which has no index-based scrolling API.
-  const messagePositionsRef = useRef({});
   const typingIndicatorTimeoutRef = useRef(null);
   const isNearBottomRef = useRef(true); // Track if user is near bottom for auto-scroll
-  const hasInitialScrollRef = useRef(false);
   // Track in-flight optimistic sends so we can fail them loudly if the server
   // never confirms (e.g. dropped/blocked) instead of leaving a silent clock.
   const pendingSendTimeoutsRef = useRef(new Map()); // tempId -> setTimeout handle
@@ -1157,12 +1155,6 @@ export default function ChatConversationScreen() {
   const backgroundGradient = isDarkMode
     ? ["#241E33", "#150F1F", "#0A0A0D"]
     : ["#D9CCFF", "#EDE6FF", "#FFFFFF"];
-
-  // The swipe-to-reply-vs-scroll gesture conflict this fixes is a mobile
-  // touch-arbitration issue; web has no such ambiguity (mouse/wheel scroll
-  // doesn't compete with the pan gesture the same way), so use the plain
-  // ScrollView there rather than gesture-handler's wrapper.
-  const MessageListScrollView = Platform.OS === "web" ? ScrollView : GestureScrollView;
 
   // Neither KeyboardAvoidingView's "height" behavior nor the manifest's
   // windowSoftInputMode="adjustResize" actually resize anything here —
@@ -2277,7 +2269,7 @@ export default function ChatConversationScreen() {
     }
   };
 
-  const handleAddReaction = async (messageId, emoji) => {
+  const handleAddReaction = useCallback(async (messageId, emoji) => {
     if (!token || !messageId || !emoji) return;
 
     // Optimistic local update so the reaction toggles immediately instead of
@@ -2322,7 +2314,25 @@ export default function ChatConversationScreen() {
     } catch (error) {
       // Silent error for now
     }
-  };
+  }, [token, myUserId, conversationId]);
+
+  // id -> message lookup, rebuilt only when `messages` itself changes (not on
+  // every render) — used for O(1) reply-preview resolution inside each bubble
+  // (instead of an O(n) `.find()` per bubble, per render) and to resolve a
+  // message id into the actual item object FlashList's scrollToItem needs.
+  const messagesById = React.useMemo(() => {
+    const map = new Map();
+    for (const m of messages) map.set(m.id, m);
+    return map;
+  }, [messages]);
+
+  const scrollToMessageId = useCallback((messageId) => {
+    const item = messageId ? messagesById.get(messageId) : null;
+    if (!item || !listRef.current) return;
+    try {
+      listRef.current.scrollToItem({ item, animated: true, viewPosition: 0.5 });
+    } catch {}
+  }, [messagesById]);
 
   // Handle swipe-to-reply
   const handleSwipeReply = useCallback((message) => {
@@ -2332,28 +2342,18 @@ export default function ChatConversationScreen() {
 
   // Handle tap on reply preview to scroll to and highlight the original message
   const handleReplyTap = useCallback((replyToId) => {
-    if (!replyToId || !listRef.current) return;
+    if (!replyToId || !messagesById.has(replyToId)) return;
 
-    // Find the replied message so we at least confirm it still exists
-    const messageIndex = messages.findIndex(m => m.id === replyToId);
-    if (messageIndex === -1) return;
-
-    // This screen renders messages via `.map()` inside a ScrollView (not a
-    // FlatList), which has no index-based scrolling API — scroll to the
-    // y-offset recorded by that row's onLayout instead.
-    const y = messagePositionsRef.current[replyToId];
-    if (typeof y === "number") {
-      listRef.current.scrollTo({ y: Math.max(0, y - 80), animated: true });
-    }
+    scrollToMessageId(replyToId);
 
     // Highlight the message
     setHighlightedMessageId(replyToId);
-    
+
     // Remove highlight after 1.5 seconds
     setTimeout(() => {
       setHighlightedMessageId(null);
     }, 1500);
-  }, [messages]);
+  }, [messagesById, scrollToMessageId]);
 
   // In-chat message search: matches follow `messages`' own order (oldest
   // first, same as render order), so index 0 is the oldest match and the
@@ -2377,16 +2377,11 @@ export default function ChatConversationScreen() {
   const currentSearchMatchId = searchMatches[searchMatchIndex]?.id ?? null;
 
   // Scroll to (and highlight, via the same mechanism as reply-tap) whichever
-  // message is currently selected in the search results -- reuses
-  // messagePositionsRef/listRef.scrollTo since this screen has no
-  // index-based scrolling API (see the comment on handleReplyTap above).
+  // message is currently selected in the search results.
   useEffect(() => {
     if (!searchVisible || !currentSearchMatchId) return;
-    const y = messagePositionsRef.current[currentSearchMatchId];
-    if (typeof y === "number" && listRef.current) {
-      listRef.current.scrollTo({ y: Math.max(0, y - 100), animated: true });
-    }
-  }, [currentSearchMatchId, searchVisible]);
+    scrollToMessageId(currentSearchMatchId);
+  }, [currentSearchMatchId, searchVisible, scrollToMessageId]);
 
   const goToPreviousSearchMatch = useCallback(() => {
     setSearchMatchIndex((i) => Math.max(0, i - 1));
@@ -2405,6 +2400,9 @@ export default function ChatConversationScreen() {
   // Helper function to format date for dividers
   const formatDateDivider = useCallback((timestamp) => {
     const date = new Date(timestamp);
+    // An unparseable timestamp doesn't throw -- it silently renders the
+    // literal string "Invalid Date" as the divider label instead.
+    if (Number.isNaN(date.getTime())) return '';
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -2436,6 +2434,55 @@ export default function ChatConversationScreen() {
     return new Date(timestamp).toDateString();
   }, []);
 
+  // Stable per-bubble handlers, shared by every row via the same function
+  // reference across renders (the message/id is passed in at call time by
+  // MessageBubble itself) -- required for MessageBubble's React.memo to
+  // actually hold. Passing a fresh inline closure per row per render, as
+  // renderItem used to, would give React.memo a new prop reference every
+  // time regardless of memoization on the component itself.
+  const handleDoubleTapMessage = useCallback((message) => {
+    setReactionTarget(message);
+  }, []);
+
+  const handleLongPressMessage = useCallback((message) => {
+    // The actions sheet is a native Modal (see render below), which presents
+    // in its own layer above the keyboard, so no dismiss-timing dance is
+    // needed here -- just close the keyboard for a cleaner look.
+    Keyboard.dismiss();
+    setActionMessage(message);
+    setShowMessageActions(true);
+  }, []);
+
+  const handleMediaPressMessage = useCallback((url, type, isViewOnce, messageId) => {
+    if (isViewOnce) {
+      if (Platform.OS === 'web') {
+        Alert.alert(
+          'App Only Feature',
+          'View Once media can only be viewed on the mobile app. Please use the iOS or Android app to view this media.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      if (viewedOnceMessages.has(messageId)) {
+        Alert.alert(
+          'Already Viewed',
+          'This view-once media has already been opened and can no longer be viewed.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      consumeViewOnceMedia(messageId, type);
+      return;
+    }
+
+    const idx = mediaItems.findIndex((m) => m.url === url || m.id === messageId);
+    if (idx >= 0) setMediaViewerIndex(idx);
+    setViewingMedia({ url, type, isViewOnce, messageId });
+    setMediaViewerVisible(true);
+  }, [viewedOnceMessages, consumeViewOnceMedia, mediaItems]);
+
   // Find the first unread message from other user
   const firstUnreadMessageId = useMemo(() => {
     if (!messages.length || !myUserId) return null;
@@ -2449,7 +2496,7 @@ export default function ChatConversationScreen() {
     return null;
   }, [messages, myUserId]);
 
-  const renderItem = ({ item, index }) => {
+  const renderItem = useCallback(({ item, index }) => {
     const isScreenshotDivider =
       item?.type === "system_screenshot" ||
       (typeof item?.text === "string" &&
@@ -2490,16 +2537,19 @@ export default function ChatConversationScreen() {
     const isSelected = selectedMessageIds.includes(item.id);
     const isEditing = editingMessage && editingMessage.id === item.id;
     const isHighlighted = highlightedMessageId === item.id || (searchVisible && currentSearchMatchId === item.id);
-    
+
     // Check if we need to show date divider
     const currentDate = getDateString(item.createdAt);
     const prevMessage = index > 0 ? messages[index - 1] : null;
     const prevDate = prevMessage ? getDateString(prevMessage.createdAt) : null;
     const showDateDivider = !prevMessage || currentDate !== prevDate;
-    
+
     // Check if this is the first unread message
     const showUnreadDivider = item.id === firstUnreadMessageId;
-    
+
+    // O(1) lookup instead of scanning the whole message list per bubble.
+    const repliedMessage = item.reply_to_id ? messagesById.get(item.reply_to_id) : null;
+
     return (
       <View>
         {/* Date Divider */}
@@ -2512,7 +2562,7 @@ export default function ChatConversationScreen() {
             </View>
           </View>
         )}
-        
+
         {/* Unread Messages Divider */}
         {showUnreadDivider && (
           <View style={styles.dividerContainer}>
@@ -2521,66 +2571,55 @@ export default function ChatConversationScreen() {
             </View>
           </View>
         )}
-        
+
           <MessageBubble
             message={item}
             isMine={isMine}
             senderName={isMine ? "You" : otherDisplayName}
             myUserId={myUserId}
             onSwipeReply={handleSwipeReply}
-            onReact={(emoji) => handleAddReaction(item.id, emoji)}
-            onDoubleTap={() => setReactionTarget(item)}
-            onLongPress={() => {
-              // The actions sheet is a native Modal now (see render below),
-              // which presents in its own layer above the keyboard, so no
-              // dismiss-timing dance is needed here -- just close the
-              // keyboard for a cleaner look and show the sheet.
-              Keyboard.dismiss();
-              setActionMessage(item);
-              setShowMessageActions(true);
-            }}
+            onReact={handleAddReaction}
+            onDoubleTap={handleDoubleTapMessage}
+            onLongPress={handleLongPressMessage}
             isSelected={isSelected}
             isEditing={!!isEditing}
             selectionMode={selectionMode}
-            onToggleSelect={() => toggleSelectMessage(item.id)}
-            allMessages={messages}
+            onToggleSelect={toggleSelectMessage}
+            replyToMessage={repliedMessage}
             isDarkMode={isDarkMode}
             onReplyTap={handleReplyTap}
             isHighlighted={isHighlighted}
-            onMediaPress={(url, type, isViewOnce, messageId) => {
-              if (isViewOnce) {
-                if (Platform.OS === 'web') {
-                  Alert.alert(
-                    'App Only Feature',
-                    'View Once media can only be viewed on the mobile app. Please use the iOS or Android app to view this media.',
-                    [{ text: 'OK' }]
-                  );
-                  return;
-                }
-
-                if (viewedOnceMessages.has(messageId)) {
-                  Alert.alert(
-                    'Already Viewed',
-                    'This view-once media has already been opened and can no longer be viewed.',
-                    [{ text: 'OK' }]
-                  );
-                  return;
-                }
-
-                consumeViewOnceMedia(messageId, type);
-                return;
-              }
-
-              const idx = mediaItems.findIndex((m) => m.url === url || m.id === messageId);
-              if (idx >= 0) setMediaViewerIndex(idx);
-              setViewingMedia({ url, type, isViewOnce, messageId });
-              setMediaViewerVisible(true);
-            }}
+            onMediaPress={handleMediaPressMessage}
             viewedOnceMessages={viewedOnceMessages}
           />
       </View>
     );
-  };
+  }, [
+    isDarkMode,
+    myUserId,
+    bothRevealed,
+    otherUserProfile,
+    isBlindDate,
+    conversationName,
+    selectedMessageIds,
+    editingMessage,
+    highlightedMessageId,
+    searchVisible,
+    currentSearchMatchId,
+    getDateString,
+    messages,
+    firstUnreadMessageId,
+    messagesById,
+    formatDateDivider,
+    handleSwipeReply,
+    handleAddReaction,
+    handleDoubleTapMessage,
+    handleLongPressMessage,
+    toggleSelectMessage,
+    handleReplyTap,
+    handleMediaPressMessage,
+    viewedOnceMessages,
+  ]);
 
   const emitTyping = (isTyping) => {
     const socket = token ? getSocket(token) : null;
@@ -2751,7 +2790,7 @@ export default function ChatConversationScreen() {
     setShowMessageActions(false);
   };
 
-  const toggleSelectMessage = (messageId) => {
+  const toggleSelectMessage = useCallback((messageId) => {
     setSelectionMode(true);
     setSelectedMessageIds((prev) => {
       if (prev.includes(messageId)) {
@@ -2763,7 +2802,7 @@ export default function ChatConversationScreen() {
       }
       return [...prev, messageId];
     });
-  };
+  }, []);
 
   const handleDeleteMessages = () => {
     const idsToDelete =
@@ -2897,59 +2936,49 @@ export default function ChatConversationScreen() {
   const lastMessageCountRef = useRef(0);
   const isLoadingOlderRef = useRef(false);
   
-  // Auto-scroll to bottom ONLY when a new message is added at the END - not on status updates or older messages
+  // Track new messages ONLY to drive the "N new messages" scroll-to-bottom
+  // badge when the user has scrolled away from the bottom. Actually keeping
+  // the view pinned to the bottom as new messages arrive is handled by
+  // FlashList's own `maintainVisibleContentPosition.autoscrollToBottomThreshold`
+  // (see the FlashList props below) -- that's the library's dedicated,
+  // tested mechanism for exactly this, including the case where async
+  // content (avatars/media/reaction pills) keeps resolving after the
+  // message first mounts. Driving our own scrollToOffset/scrollToEnd here
+  // as well would just race against it, which is the same kind of
+  // uncoordinated-scroll-commands bug that caused the visible jitter this
+  // migration is fixing in the first place.
   useEffect(() => {
-    if (!listRef.current || messages.length === 0) return;
-    
-    // Don't scroll if we're loading older messages
+    if (messages.length === 0) return;
+
+    // Don't count if we're loading older messages
     if (loadingMore || isLoadingOlderRef.current) {
       lastMessageIdRef.current = messages[messages.length - 1]?.id;
       lastMessageCountRef.current = messages.length;
       return;
     }
-    
+
     const lastMessage = messages[messages.length - 1];
     const lastMessageId = lastMessage?.id;
-    
+
     // Check if this is a new message at the END (not older messages loaded at the beginning)
     // A new message means: different last message ID AND the message count increased
-    const isNewMessageAtEnd = lastMessageId !== lastMessageIdRef.current && 
+    const isNewMessageAtEnd = lastMessageId !== lastMessageIdRef.current &&
                               messages.length > lastMessageCountRef.current;
-    
+
     if (isNewMessageAtEnd) {
       if (isNearBottomRef.current) {
-        // User is near bottom - scroll to show new message
-        try {
-          setTimeout(() => {
-            listRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        } catch {}
-        // Reset new message count since we're scrolling to bottom
+        // User is near bottom - FlashList keeps it pinned automatically.
         setNewMessageCount(0);
       } else {
         // User is scrolled up - increment new message counter
         setNewMessageCount((prev) => prev + 1);
       }
     }
-    
+
     // Update refs
     lastMessageIdRef.current = lastMessageId;
     lastMessageCountRef.current = messages.length;
   }, [messages, loadingMore]);
-
-  // On initial load of this conversation, ensure we start at the latest (bottom) message
-  useEffect(() => {
-    if (!listRef.current || messages.length === 0) return;
-    if (hasInitialScrollRef.current) return;
-
-    hasInitialScrollRef.current = true;
-    try {
-      // Small delay to allow layout to settle before scrolling
-      setTimeout(() => {
-        listRef.current?.scrollToEnd({ animated: false });
-      }, 50);
-    } catch {}
-  }, [messages.length]);
 
   // Clear typing indicator if it gets stuck (no updates for a while)
   useEffect(() => {
@@ -3132,8 +3161,8 @@ export default function ChatConversationScreen() {
     [token, conversationId, myUserId]
   );
 
-  // Debounce ref for load more to prevent rapid calls
-  const loadMoreTimeoutRef = useRef(null);
+  // Debounce guard for load more to prevent rapid calls (FlashList's
+  // onStartReached can fire more than once in quick succession).
   const lastLoadTimeRef = useRef(0);
 
   // Cleanup timeouts on unmount
@@ -3141,9 +3170,6 @@ export default function ChatConversationScreen() {
     return () => {
       if (receiptTimeoutRef.current) {
         clearTimeout(receiptTimeoutRef.current);
-      }
-      if (loadMoreTimeoutRef.current) {
-        clearTimeout(loadMoreTimeoutRef.current);
       }
       // Clear the sent receipts set when leaving the chat
       sentReceiptsRef.current.clear();
@@ -3196,45 +3222,21 @@ export default function ChatConversationScreen() {
     }, 300);
   }, [loadingMore, hasMore, conversationId, token, oldestAt]);
 
+  // Pagination (loading older messages, prepended at the start of `messages`)
+  // is handled by FlashList's own onStartReached below instead of a manual
+  // "near top" scroll check.
   const handleScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     if (!contentOffset || !contentSize || !layoutMeasurement) return;
-    
+
     // Calculate distance from bottom
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    
+
     // Track if user is near bottom (within 100px) for auto-scroll decision
     isNearBottomRef.current = distanceFromBottom < 100;
-    
+
     // Show scroll to bottom button when user scrolls up more than 200px from bottom
     setShowScrollToBottom(distanceFromBottom > 200);
-    
-    // Load more when near top (scrolled up) - with debounce
-    if (contentOffset.y < 150 && !loadingMore && hasMore) {
-      if (loadMoreTimeoutRef.current) {
-        clearTimeout(loadMoreTimeoutRef.current);
-      }
-      loadMoreTimeoutRef.current = setTimeout(() => {
-        loadMore();
-      }, 200);
-    }
-  }, [loadMore, loadingMore, hasMore]);
-
-  // Android-only: re-anchor to the bottom whenever content height changes
-  // while the user is (or was just placed) near the bottom. The initial
-  // open-chat scrollToEnd (see hasInitialScrollRef below) fires off a fixed
-  // timeout, but message rows contain async-loading content -- avatars,
-  // media thumbnails, reaction pills -- that can still grow taller after
-  // that timeout fires. On Android that late growth doesn't auto-correct
-  // the ScrollView's offset the way it visually seems to on iOS, so the
-  // already-scrolled-to-bottom view appears to hop upward a moment after
-  // opening the chat as that content settles. Re-scrolling on every content
-  // size change (guarded by isNearBottomRef so it never yanks someone who's
-  // deliberately reading old messages) keeps it pinned through that settle.
-  const handleContentSizeChange = useCallback(() => {
-    if (Platform.OS !== "android") return;
-    if (!isNearBottomRef.current) return;
-    listRef.current?.scrollToEnd({ animated: false });
   }, []);
 
   // Scroll to bottom of chat
@@ -3638,29 +3640,27 @@ export default function ChatConversationScreen() {
           behavior={keyboardBehavior}
           keyboardVerticalOffset={keyboardOffset}
         >
-          <MessageListScrollView
+          <FlashList
             ref={listRef}
+            data={messages}
+            renderItem={renderItem}
+            keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.messagesContainer}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
             onScroll={handleScroll}
-            onContentSizeChange={handleContentSizeChange}
             scrollEventThrottle={16}
-          >
-            {messages.map((item, index) => (
-              <View
-                key={item.id || index}
-                onLayout={(e) => {
-                  if (item.id) messagePositionsRef.current[item.id] = e.nativeEvent.layout.y;
-                }}
-              >
-                {renderItem({ item, index })}
-              </View>
-            ))}
-
-            <TypingIndicator visible={typingUsers.length > 0} avatarUrl={avatarUrl} />
-          </MessageListScrollView>
+            onStartReached={loadMore}
+            onStartReachedThreshold={0.5}
+            maintainVisibleContentPosition={{
+              autoscrollToBottomThreshold: 0.3,
+              startRenderingFromBottom: true,
+            }}
+            ListFooterComponent={
+              <TypingIndicator visible={typingUsers.length > 0} avatarUrl={avatarUrl} />
+            }
+          />
 
           {/* Scroll to bottom floating button with new message badge */}
           {showScrollToBottom && (

@@ -29,7 +29,16 @@ import VerifiedBadge from '../../components/VerifiedBadge';
 import LinkedSocialAccounts from './LinkedSocialAccounts';
 import SpotifyProfile from './SpotifyProfile';
 
-export default function UserProfileModal({ 
+// Falls back to 'Recently joined' rather than rendering "Invalid Date" if
+// the backend ever sends a date string this engine's Date parser rejects.
+function formatJoinedDate(rawDate) {
+  if (!rawDate) return 'Recently joined';
+  const date = new Date(rawDate);
+  if (Number.isNaN(date.getTime())) return 'Recently joined';
+  return `Joined ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+}
+
+export default function UserProfileModal({
   visible, 
   onClose, 
   userId,
@@ -422,7 +431,7 @@ export default function UserProfileModal({
         location: actualUserData?.location || 'Location not specified',
         phone: actualUserData?.phone || null,
         email: actualUserData?.email || null,
-        joinedDate: actualUserData?.joinedDate ? `Joined ${new Date(actualUserData.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
+        joinedDate: formatJoinedDate(actualUserData?.joinedDate),
         stats: {
           chats: actualUserData?.stats?.chats || 0,
           friends: actualUserData?.stats?.friends || 0,
