@@ -7,6 +7,7 @@ import { MIN_AGE, calculateAge, formatDateOfBirth, isValidDateOfBirth, maxDateOf
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from 'expo-image-picker';
+import { ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate';
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -244,7 +245,7 @@ export default function EditProfileScreen() {
         input.click();
       } else {
         // For mobile, use ImagePicker
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status } = await ensureImagePickerMediaLibraryPermission();
         if (status !== 'granted') {
           if (Platform.OS === 'web') {
             window.alert('Permission Required\n\nPlease grant photo library permissions.');

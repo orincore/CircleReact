@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, FlatList, Image, StyleSheet, ActivityIndicator,
-  BackHandler, Platform, PanResponder,
+  BackHandler, Platform, PanResponder, Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJamSession } from '@/contexts/JamSessionContext';
+import { unreadCountService } from '@/src/services/unreadCountService';
 
 const SEARCH_DEBOUNCE_MS = 450;
 
@@ -20,14 +22,140 @@ function formatDuration(seconds) {
 export default function JamSessionModal({ otherUserId, otherUserName }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const {
     session, queue, currentQueueItem, positionMs, isExpanded, setIsExpanded,
     searchResults, isSearching, search, addTrack, removeTrack,
     play, pause, seek, next, previous, endSession, error, clearError, isOtherPresent,
     needsAudioUnlock, unlockAudio, setPlayerSlot,
+    playlists, isLoadingPlaylists, refreshPlaylists, createPlaylist, deletePlaylist,
+    getPlaylistDetail, addTrackToPlaylist, removeTrackFromPlaylist, reorderTracksInPlaylist,
+    loadPlaylistIntoSession,
   } = useJamSession();
 
   const [query, setQuery] = useState('');
+
+  // Playlists: 'player' shows now-playing + the session's live queue (existing
+  // behavior); 'playlists' shows the chat's saved, mutually-editable playlist library.
+  const [libraryTab, setLibraryTab] = useState('player');
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
+  const [selectedPlaylistDetail, setSelectedPlaylistDetail] = useState(null);
+  const [isLoadingPlaylistDetail, setIsLoadingPlaylistDetail] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [showNewPlaylistInput, setShowNewPlaylistInput] = useState(false);
+  // A search result the user tapped "add to playlist" on -- non-null opens the picker
+  // overlay listing playlists to add it to (or create a new one).
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
+
+  useEffect(() => {
+    if (libraryTab === 'playlists' && !selectedPlaylistId) refreshPlaylists();
+  }, [libraryTab, selectedPlaylistId, refreshPlaylists]);
+
+  useEffect(() => {
+    if (addToPlaylistTrack) refreshPlaylists();
+  }, [addToPlaylistTrack, refreshPlaylists]);
+
+  useEffect(() => {
+    if (!selectedPlaylistId) {
+      setSelectedPlaylistDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingPlaylistDetail(true);
+    (async () => {
+      const data = await getPlaylistDetail(selectedPlaylistId);
+      if (cancelled) return;
+      setSelectedPlaylistDetail(data);
+      setIsLoadingPlaylistDetail(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPlaylistId, getPlaylistDetail]);
+
+  const handleSubmitNewPlaylist = useCallback(async () => {
+    const name = newPlaylistName.trim();
+    if (!name) return;
+    const created = await createPlaylist(name);
+    setNewPlaylistName('');
+    setShowNewPlaylistInput(false);
+    if (!created) return;
+    if (addToPlaylistTrack) {
+      await addTrackToPlaylist(created.id, addToPlaylistTrack);
+      setAddToPlaylistTrack(null);
+    } else {
+      setLibraryTab('playlists');
+      setSelectedPlaylistId(created.id);
+    }
+  }, [newPlaylistName, createPlaylist, addToPlaylistTrack, addTrackToPlaylist]);
+
+  const handleAddToExistingPlaylist = useCallback(async (playlistId) => {
+    if (!addToPlaylistTrack) return;
+    await addTrackToPlaylist(playlistId, addToPlaylistTrack);
+    setAddToPlaylistTrack(null);
+  }, [addToPlaylistTrack, addTrackToPlaylist]);
+
+  const handleDeletePlaylist = useCallback(async (playlistId) => {
+    await deletePlaylist(playlistId);
+    if (selectedPlaylistId === playlistId) setSelectedPlaylistId(null);
+  }, [deletePlaylist, selectedPlaylistId]);
+
+  const handlePlayPlaylist = useCallback(async (mode) => {
+    if (!selectedPlaylistId) return;
+    await loadPlaylistIntoSession(selectedPlaylistId, mode);
+    setSelectedPlaylistId(null);
+    setLibraryTab('player');
+  }, [selectedPlaylistId, loadPlaylistIntoSession]);
+
+  const handleRemoveTrackFromDetail = useCallback(async (trackId) => {
+    if (!selectedPlaylistId) return;
+    await removeTrackFromPlaylist(selectedPlaylistId, trackId);
+    setSelectedPlaylistDetail((prev) => (prev ? { ...prev, tracks: prev.tracks.filter((t) => t.id !== trackId) } : prev));
+  }, [selectedPlaylistId, removeTrackFromPlaylist]);
+
+  // Optimistic swap-with-neighbor reorder (simpler and more reliable on mobile than
+  // drag-and-drop, and needs no extra dependency) -- either participant can do this on a
+  // shared playlist, same as they can add/remove tracks. Reconciles with the
+  // server-confirmed order once the request lands.
+  const moveTrack = useCallback(async (index, direction) => {
+    if (!selectedPlaylistDetail || !selectedPlaylistId) return;
+    const tracks = [...selectedPlaylistDetail.tracks];
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= tracks.length) return;
+    [tracks[index], tracks[newIndex]] = [tracks[newIndex], tracks[index]];
+    setSelectedPlaylistDetail((prev) => (prev ? { ...prev, tracks } : prev));
+    const confirmed = await reorderTracksInPlaylist(selectedPlaylistId, tracks.map((t) => t.id));
+    if (confirmed) setSelectedPlaylistDetail((prev) => (prev ? { ...prev, tracks: confirmed } : prev));
+  }, [selectedPlaylistDetail, selectedPlaylistId, reorderTracksInPlaylist]);
+
+  // Live unread count for this session's chat, so a message from the other participant
+  // doesn't go unnoticed while this full-screen player is covering the chat itself.
+  const chatId = session?.chat_id ?? null;
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  useEffect(() => {
+    if (!chatId) {
+      setChatUnreadCount(0);
+      return;
+    }
+    const unsubscribe = unreadCountService.subscribe(({ chatUnreadCounts }) => {
+      setChatUnreadCount(chatUnreadCounts[chatId] || 0);
+    });
+    return unsubscribe;
+  }, [chatId]);
+
+  // Collapses this full-screen overlay and opens the chat -- the persistent player/mini bar
+  // keeps running underneath (same as collapsing via the chevron), so this never interrupts
+  // playback, just gets the chat conversation in front of it.
+  const openChat = useCallback(() => {
+    if (!chatId) return;
+    setIsExpanded(false);
+    router.push({
+      pathname: '/secure/chat-conversation',
+      params: {
+        id: chatId,
+        name: otherUserName || 'Chat',
+        ...(otherUserId ? { otherUserId: String(otherUserId) } : {}),
+      },
+    });
+  }, [chatId, router, setIsExpanded, otherUserId, otherUserName]);
   const debounceRef = useRef(null);
   const trackWidthRef = useRef(0);
   const videoSlotRef = useRef(null);
@@ -134,19 +262,240 @@ export default function JamSessionModal({ otherUserId, otherUserName }) {
   const durationSeconds = currentQueueItem?.duration_seconds;
   const displayPositionMs = dragPositionMs ?? positionMs;
   const progress = durationSeconds ? Math.min(1, displayPositionMs / 1000 / durationSeconds) : 0;
+  // While actively searching, the results dropdown replaces the now-playing block below
+  // the search bar (rather than being pushed further down the screen, after it) -- the
+  // search row itself lives right under the header, so it and its results stay above the
+  // keyboard. Previously the search bar/results sat below the full-width video player,
+  // notice bars, and transport controls, so the keyboard (covering roughly the bottom
+  // half of the screen) hid both the input and the whole dropdown of matches.
+  const isSearchActive = query.trim().length >= 2;
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setIsExpanded(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="chevron-down" size={26} color={theme.textPrimary} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Jam Session</Text>
-          <TouchableOpacity onPress={endSession} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.endText, { color: theme.error }]}>End</Text>
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            {chatUnreadCount > 0 && (
+              <TouchableOpacity
+                onPress={openChat}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={[styles.chatBadge, { backgroundColor: theme.primary }]}
+              >
+                <Ionicons name="chatbubble-ellipses" size={13} color="#fff" />
+                <Text style={styles.chatBadgeText}>{chatUnreadCount > 9 ? '9+' : chatUnreadCount}</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={endSession} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={[styles.endText, { color: theme.error }]}>End</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
+        {/* Search -- kept at the top, directly under the header, so it and its results
+            list never end up below content tall enough for the keyboard to cover. */}
+        <View style={[styles.searchRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+          <TextInput
+            value={query}
+            onChangeText={onChangeQuery}
+            placeholder="Search for a song"
+            placeholderTextColor={theme.textPlaceholder}
+            style={[styles.searchInput, { color: theme.textPrimary }]}
+          />
+          {isSearching && <ActivityIndicator size="small" color={theme.primary} />}
+          {query.length > 0 && !isSearching && (
+            <TouchableOpacity onPress={() => onChangeQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {!isSearchActive && (
+          <View style={styles.tabRow}>
+            <TouchableOpacity
+              style={[styles.tabButton, libraryTab === 'player' && { borderBottomColor: theme.primary }]}
+              onPress={() => setLibraryTab('player')}
+            >
+              <Text style={[styles.tabButtonText, { color: libraryTab === 'player' ? theme.primary : theme.textTertiary }]}>Now Playing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, libraryTab === 'playlists' && { borderBottomColor: theme.primary }]}
+              onPress={() => setLibraryTab('playlists')}
+            >
+              <Text style={[styles.tabButtonText, { color: libraryTab === 'playlists' ? theme.primary : theme.textTertiary }]}>Playlists</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isSearchActive ? (
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item.videoId}
+            style={styles.list}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={!isSearching ? (
+              <Text style={[styles.emptyText, { color: theme.textTertiary }]}>No matches yet</Text>
+            ) : null}
+            renderItem={({ item }) => (
+              <View style={styles.resultRow}>
+                <TouchableOpacity style={styles.resultTapArea} onPress={() => { addTrack(item); setQuery(''); }}>
+                  <Image source={{ uri: item.thumbnailUrl }} style={styles.resultThumb} />
+                  <View style={styles.resultInfo}>
+                    <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.title}</Text>
+                    <Text numberOfLines={1} style={[styles.resultChannel, { color: theme.textTertiary }]}>{item.channelTitle}</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => setAddToPlaylistTrack(item)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="list-outline" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => { addTrack(item); setQuery(''); }}>
+                  <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        ) : libraryTab === 'playlists' ? (
+          selectedPlaylistId ? (
+            <View style={styles.list}>
+              <View style={styles.playlistDetailHeader}>
+                <TouchableOpacity onPress={() => setSelectedPlaylistId(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="chevron-back" size={22} color={theme.textPrimary} />
+                </TouchableOpacity>
+                <Text numberOfLines={1} style={[styles.playlistDetailTitle, { color: theme.textPrimary }]}>
+                  {selectedPlaylistDetail?.playlist?.name || 'Playlist'}
+                </Text>
+                <TouchableOpacity onPress={() => handleDeletePlaylist(selectedPlaylistId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="trash-outline" size={20} color={theme.error} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.playlistActionsRow}>
+                <TouchableOpacity
+                  style={[styles.playlistActionButton, { backgroundColor: theme.primary }]}
+                  disabled={!selectedPlaylistDetail?.tracks?.length}
+                  onPress={() => handlePlayPlaylist('sequence')}
+                >
+                  <Ionicons name="play" size={16} color="#fff" />
+                  <Text style={styles.playlistActionText}>Play in order</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.playlistActionButton, { backgroundColor: theme.primary }]}
+                  disabled={!selectedPlaylistDetail?.tracks?.length}
+                  onPress={() => handlePlayPlaylist('shuffle')}
+                >
+                  <Ionicons name="shuffle" size={16} color="#fff" />
+                  <Text style={styles.playlistActionText}>Shuffle</Text>
+                </TouchableOpacity>
+              </View>
+
+              {isLoadingPlaylistDetail ? (
+                <ActivityIndicator size="small" color={theme.primary} style={{ marginTop: 20 }} />
+              ) : (
+                <FlatList
+                  data={selectedPlaylistDetail?.tracks || []}
+                  keyExtractor={(item) => item.id}
+                  style={styles.list}
+                  ListEmptyComponent={(
+                    <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
+                      No songs yet -- search a song and tap the list icon to add it here.
+                    </Text>
+                  )}
+                  renderItem={({ item, index }) => (
+                    <View style={styles.resultRow}>
+                      <Image source={{ uri: item.thumbnail_url }} style={styles.resultThumb} />
+                      <View style={styles.resultInfo}>
+                        <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.title}</Text>
+                        <Text numberOfLines={1} style={[styles.resultChannel, { color: theme.textTertiary }]}>{item.channel_title}</Text>
+                      </View>
+                      <View style={styles.reorderButtons}>
+                        <TouchableOpacity disabled={index === 0} onPress={() => moveTrack(index, -1)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                          <Ionicons name="chevron-up" size={18} color={index === 0 ? theme.textPlaceholder : theme.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          disabled={index === (selectedPlaylistDetail?.tracks?.length || 1) - 1}
+                          onPress={() => moveTrack(index, 1)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons
+                            name="chevron-down"
+                            size={18}
+                            color={index === (selectedPlaylistDetail?.tracks?.length || 1) - 1 ? theme.textPlaceholder : theme.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity onPress={() => handleRemoveTrackFromDetail(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle-outline" size={22} color={theme.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                />
+              )}
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {showNewPlaylistInput ? (
+                <View style={[styles.newPlaylistRow, { borderColor: theme.border }]}>
+                  <TextInput
+                    autoFocus
+                    value={newPlaylistName}
+                    onChangeText={setNewPlaylistName}
+                    placeholder="Playlist name"
+                    placeholderTextColor={theme.textPlaceholder}
+                    style={[styles.searchInput, { color: theme.textPrimary }]}
+                    onSubmitEditing={handleSubmitNewPlaylist}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity onPress={handleSubmitNewPlaylist} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setShowNewPlaylistInput(false); setNewPlaylistName(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={22} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.newPlaylistButton} onPress={() => setShowNewPlaylistInput(true)}>
+                  <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.newPlaylistButtonText, { color: theme.primary }]}>New playlist</Text>
+                </TouchableOpacity>
+              )}
+              <FlatList
+                data={playlists}
+                keyExtractor={(item) => item.id}
+                style={styles.list}
+                refreshing={isLoadingPlaylists}
+                onRefresh={refreshPlaylists}
+                ListEmptyComponent={!isLoadingPlaylists ? (
+                  <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
+                    No playlists yet -- create one, or add a searched song to a new playlist.
+                  </Text>
+                ) : null}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.resultRow} onPress={() => setSelectedPlaylistId(item.id)}>
+                    <View style={[styles.playlistIcon, { backgroundColor: theme.surfaceSecondary }]}>
+                      <Ionicons name="musical-notes-outline" size={18} color={theme.primary} />
+                    </View>
+                    <View style={styles.resultInfo}>
+                      <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.name}</Text>
+                      <Text style={[styles.resultChannel, { color: theme.textTertiary }]}>
+                        {item.track_count} song{item.track_count === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )
+        ) : (
+        <>
         {needsAudioUnlock && (
           <TouchableOpacity style={[styles.noticeBar, { backgroundColor: theme.primary + '22' }]} onPress={unlockAudio}>
             <Ionicons name="volume-mute-outline" size={16} color={theme.primary} />
@@ -234,12 +583,13 @@ export default function JamSessionModal({ otherUserId, otherUserName }) {
             <TouchableOpacity
               onPress={() => (session.is_playing ? pause() : play())}
               // Blocked (not just left to fail server-side and show an error after the
-              // fact) whenever the other listener isn't here — pausing is always allowed.
-              disabled={!session.is_playing && !otherPresent}
+              // fact) whenever the other listener isn't here, or there's nothing queued
+              // to play at all -- pausing is always allowed.
+              disabled={!session.is_playing && (!otherPresent || !currentQueueItem)}
               style={[
                 styles.playButton,
                 { backgroundColor: theme.primary },
-                !session.is_playing && !otherPresent && styles.playButtonDisabled,
+                !session.is_playing && (!otherPresent || !currentQueueItem) && styles.playButtonDisabled,
               ]}
             >
               <Ionicons name={session.is_playing ? 'pause' : 'play'} size={28} color="#fff" />
@@ -250,70 +600,93 @@ export default function JamSessionModal({ otherUserId, otherUserName }) {
           </View>
         </View>
 
-        {/* Search */}
-        <View style={[styles.searchRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
-          <TextInput
-            value={query}
-            onChangeText={onChangeQuery}
-            placeholder="Search for a song"
-            placeholderTextColor={theme.textPlaceholder}
-            style={[styles.searchInput, { color: theme.textPrimary }]}
-          />
-          {isSearching && <ActivityIndicator size="small" color={theme.primary} />}
-        </View>
+        <FlatList
+          data={queue}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          ListHeaderComponent={queue.length ? (
+            <Text style={[styles.queueHeader, { color: theme.textTertiary }]}>Up next</Text>
+          ) : null}
+          ListEmptyComponent={(
+            <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
+              Search above to queue the first song
+            </Text>
+          )}
+          renderItem={({ item }) => (
+            <View style={[styles.resultRow, item.id === session.current_queue_item_id && { opacity: 0.5 }]}>
+              <Image source={{ uri: item.thumbnail_url }} style={styles.resultThumb} />
+              <View style={styles.resultInfo}>
+                <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.title}</Text>
+                <Text numberOfLines={1} style={[styles.resultChannel, { color: theme.textTertiary }]}>
+                  {item.channel_title}{item.is_auto_recommended ? ' · Recommended' : ''}
+                </Text>
+              </View>
+              {item.id !== session.current_queue_item_id && (
+                <TouchableOpacity onPress={() => removeTrack(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle-outline" size={22} color={theme.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        />
+        </>
+        )}
 
-        {query.length >= 2 && searchResults.length > 0 ? (
-          <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item.videoId}
-            style={styles.list}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.resultRow}
-                onPress={() => { addTrack(item); setQuery(''); }}
-              >
-                <Image source={{ uri: item.thumbnailUrl }} style={styles.resultThumb} />
-                <View style={styles.resultInfo}>
-                  <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.title}</Text>
-                  <Text numberOfLines={1} style={[styles.resultChannel, { color: theme.textTertiary }]}>{item.channelTitle}</Text>
-                </View>
-                <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
-              </TouchableOpacity>
-            )}
-          />
-        ) : (
-          <FlatList
-            data={queue}
-            keyExtractor={(item) => item.id}
-            style={styles.list}
-            ListHeaderComponent={queue.length ? (
-              <Text style={[styles.queueHeader, { color: theme.textTertiary }]}>Up next</Text>
-            ) : null}
-            ListEmptyComponent={(
-              <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
-                Search above to queue the first song
+        {/* "Add to playlist" picker -- opened from a search result's list icon. A plain
+            overlay (not a native Modal) so it stacks correctly above this already-overlaid
+            full-screen jam player. */}
+        {addToPlaylistTrack && (
+          <View style={StyleSheet.absoluteFill}>
+            <TouchableWithoutFeedback onPress={() => setAddToPlaylistTrack(null)}>
+              <View style={[StyleSheet.absoluteFill, styles.pickerBackdrop]} />
+            </TouchableWithoutFeedback>
+            <View style={[styles.pickerCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text numberOfLines={1} style={[styles.pickerTitle, { color: theme.textPrimary }]}>
+                Add "{addToPlaylistTrack.title}" to
               </Text>
-            )}
-            renderItem={({ item }) => (
-              <View style={[styles.resultRow, item.id === session.current_queue_item_id && { opacity: 0.5 }]}>
-                <Image source={{ uri: item.thumbnail_url }} style={styles.resultThumb} />
-                <View style={styles.resultInfo}>
-                  <Text numberOfLines={1} style={[styles.resultTitle, { color: theme.textPrimary }]}>{item.title}</Text>
-                  <Text numberOfLines={1} style={[styles.resultChannel, { color: theme.textTertiary }]}>
-                    {item.channel_title}{item.is_auto_recommended ? ' · Recommended' : ''}
-                  </Text>
+              {showNewPlaylistInput ? (
+                <View style={[styles.newPlaylistRow, { borderColor: theme.border }]}>
+                  <TextInput
+                    autoFocus
+                    value={newPlaylistName}
+                    onChangeText={setNewPlaylistName}
+                    placeholder="Playlist name"
+                    placeholderTextColor={theme.textPlaceholder}
+                    style={[styles.searchInput, { color: theme.textPrimary }]}
+                    onSubmitEditing={handleSubmitNewPlaylist}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity onPress={handleSubmitNewPlaylist} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
+                  </TouchableOpacity>
                 </View>
-                {item.id !== session.current_queue_item_id && (
-                  <TouchableOpacity onPress={() => removeTrack(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="close-circle-outline" size={22} color={theme.textMuted} />
+              ) : (
+                <TouchableOpacity style={styles.newPlaylistButton} onPress={() => setShowNewPlaylistInput(true)}>
+                  <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.newPlaylistButtonText, { color: theme.primary }]}>New playlist</Text>
+                </TouchableOpacity>
+              )}
+              <FlatList
+                data={playlists}
+                keyExtractor={(item) => item.id}
+                style={styles.pickerList}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={!isLoadingPlaylists ? (
+                  <Text style={[styles.emptyText, { color: theme.textTertiary }]}>No playlists yet</Text>
+                ) : null}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.pickerRow} onPress={() => handleAddToExistingPlaylist(item.id)}>
+                    <Ionicons name="musical-notes-outline" size={16} color={theme.primary} />
+                    <Text numberOfLines={1} style={[styles.pickerRowText, { color: theme.textPrimary }]}>{item.name}</Text>
+                    <Text style={[styles.resultChannel, { color: theme.textTertiary }]}>{item.track_count}</Text>
                   </TouchableOpacity>
                 )}
-              </View>
-            )}
-          />
+              />
+            </View>
+          </View>
         )}
       </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -326,7 +699,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
   },
   headerTitle: { fontSize: 16, fontWeight: '700' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   endText: { fontSize: 15, fontWeight: '600' },
+  chatBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+  },
+  chatBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   noticeBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginHorizontal: 16, marginBottom: 8, padding: 8, borderRadius: 8,
@@ -376,4 +755,45 @@ const styles = StyleSheet.create({
   resultInfo: { flex: 1 },
   resultTitle: { fontSize: 14, fontWeight: '600' },
   resultChannel: { fontSize: 12, marginTop: 1 },
+  resultTapArea: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconButton: { padding: 2 },
+
+  tabRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, gap: 20 },
+  tabButton: { paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabButtonText: { fontSize: 13, fontWeight: '700' },
+
+  playlistDetailHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  playlistDetailTitle: { flex: 1, marginHorizontal: 10, fontSize: 15, fontWeight: '700' },
+  playlistActionsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginBottom: 4 },
+  playlistActionButton: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 9, borderRadius: 10,
+  },
+  playlistActionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  reorderButtons: { alignItems: 'center', justifyContent: 'center' },
+
+  newPlaylistButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10,
+  },
+  newPlaylistButtonText: { fontSize: 14, fontWeight: '700' },
+  newPlaylistRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16,
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 4,
+  },
+  playlistIcon: {
+    width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+  },
+
+  pickerBackdrop: { backgroundColor: 'rgba(0,0,0,0.4)' },
+  pickerCard: {
+    position: 'absolute', left: 16, right: 16, bottom: '20%', maxHeight: '55%',
+    borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14,
+  },
+  pickerTitle: { fontSize: 14, fontWeight: '700', marginBottom: 10 },
+  pickerList: { flexGrow: 0 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  pickerRowText: { flex: 1, fontSize: 14, fontWeight: '600' },
 });

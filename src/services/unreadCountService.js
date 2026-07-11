@@ -3,11 +3,20 @@
  * Manages unread message counts across the app with zero-delay updates
  */
 
+// How long a locally-cleared chat is protected from being reverted by a
+// REST inbox snapshot (initializeCounts). Read receipts are inserted and
+// their cache invalidated asynchronously on the server; a poll/AppState/
+// reconnect refresh landing in that short window can still return the
+// pre-read count, which would otherwise silently resurrect a badge the
+// user just cleared by opening the chat.
+const CLEAR_GRACE_MS = 10000;
+
 class UnreadCountService {
   constructor() {
     this.listeners = new Set();
     this.chatUnreadCounts = {};
     this.totalUnreadCount = 0;
+    this.recentlyClearedAt = {};
   }
 
   // Subscribe to unread count changes
@@ -43,22 +52,33 @@ class UnreadCountService {
 
   // Initialize counts from API response
   initializeCounts(inboxData) {
-    this.chatUnreadCounts = {};
-    
+    const now = Date.now();
+    const next = {};
+
     if (Array.isArray(inboxData)) {
       inboxData.forEach(item => {
-        if (item.chat && item.chat.id && item.unreadCount > 0) {
-          this.chatUnreadCounts[item.chat.id] = item.unreadCount;
+        const chatId = item.chat && item.chat.id;
+        if (!chatId) return;
+        const clearedAt = this.recentlyClearedAt[chatId];
+        if (clearedAt && now - clearedAt < CLEAR_GRACE_MS) {
+          // Trust the local clear over a REST snapshot that may have been
+          // served just before the server-side cache invalidation landed.
+          return;
+        }
+        if (item.unreadCount > 0) {
+          next[chatId] = item.unreadCount;
         }
       });
     }
-    
+
+    this.chatUnreadCounts = next;
     this.totalUnreadCount = Object.values(this.chatUnreadCounts).reduce((sum, count) => sum + count, 0);
     this.notifyListeners();
   }
 
   // Clear unread count for a specific chat (called when messages are read)
   clearChatUnreadCount(chatId) {
+    this.recentlyClearedAt[chatId] = Date.now();
     if (this.chatUnreadCounts[chatId]) {
       delete this.chatUnreadCounts[chatId];
       this.totalUnreadCount = Object.values(this.chatUnreadCounts).reduce((sum, count) => sum + count, 0);
@@ -71,13 +91,14 @@ class UnreadCountService {
     if (this.chatUnreadCounts[chatId]) {
       const currentCount = this.chatUnreadCounts[chatId];
       const newCount = Math.max(0, currentCount - reduceBy);
-      
+
       if (newCount === 0) {
+        this.recentlyClearedAt[chatId] = Date.now();
         delete this.chatUnreadCounts[chatId];
       } else {
         this.chatUnreadCounts[chatId] = newCount;
       }
-      
+
       this.totalUnreadCount = Object.values(this.chatUnreadCounts).reduce((sum, count) => sum + count, 0);
       this.notifyListeners();
     }
@@ -86,13 +107,14 @@ class UnreadCountService {
   // Set unread count for a specific chat (from server updates)
   setChatUnreadCount(chatId, count) {
     if (count === 0) {
+      this.recentlyClearedAt[chatId] = Date.now();
       if (this.chatUnreadCounts[chatId]) {
         delete this.chatUnreadCounts[chatId];
       }
     } else {
       this.chatUnreadCounts[chatId] = count;
     }
-    
+
     this.totalUnreadCount = Object.values(this.chatUnreadCounts).reduce((sum, count) => sum + count, 0);
     this.notifyListeners();
   }

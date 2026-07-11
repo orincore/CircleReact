@@ -2,6 +2,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../config/api.js';
+import { ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate';
 
 const MAX_PHOTOS = 6;
 const MAX_IMAGE_SIZE = 1920; // Max width/height
@@ -89,7 +90,7 @@ class PhotoGalleryService {
         });
       } else {
         // For mobile, use ImagePicker
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status } = await ensureImagePickerMediaLibraryPermission();
         if (status !== 'granted') {
           throw new Error('Permission to access media library was denied');
         }

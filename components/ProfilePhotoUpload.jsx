@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate'
 import { useState } from 'react'
 import {
   Alert,
@@ -33,7 +34,7 @@ export default function ProfilePhotoUpload({ currentPhotoUrl, onUploadSuccess })
    */
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      const { status } = await ensureImagePickerMediaLibraryPermission()
       if (status !== 'granted') {
         Alert.alert(
           'Permission Required',
@@ -77,7 +78,7 @@ export default function ProfilePhotoUpload({ currentPhotoUrl, onUploadSuccess })
       const hasPermission = await requestPermissions()
       if (!hasPermission) return
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      const { status } = await ensureImagePickerCameraPermission()
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera permissions to take photos.')
         return

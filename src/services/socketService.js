@@ -52,14 +52,21 @@ class SocketService {
     this.messageHandlers.delete(id);
   }
 
-  // Navigate to chat
-  navigateToChat(chatId, senderName) {
+  // Navigate to chat. `/secure/chat/[id]` is not a real route (the actual
+  // conversation screen is `/secure/chat-conversation`, which reads `id`/
+  // `name`/`avatar`/`otherUserId` params) -- this used to push a dead route,
+  // so tapping a message notification silently did nothing beyond opening
+  // the app. Also forwards avatar/otherUserId (when known) so the header
+  // doesn't fall back to placeholder values.
+  navigateToChat(chatId, senderName, opts = {}) {
     try {
       router.push({
-        pathname: '/secure/chat/[id]',
-        params: { 
-          id: chatId, 
+        pathname: '/secure/chat-conversation',
+        params: {
+          id: chatId,
           name: senderName || 'Chat',
+          ...(opts.avatar ? { avatar: opts.avatar } : {}),
+          ...(opts.otherUserId ? { otherUserId: String(opts.otherUserId) } : {}),
         },
       });
     } catch (error) {

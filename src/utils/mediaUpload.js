@@ -3,6 +3,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../api/config';
+import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate';
 import MediaCacheService from '../services/MediaCacheService';
 import { processVideoForUpload } from './videoProcessor';
 
@@ -113,7 +114,7 @@ export const pickImage = async () => {
     }
 
     // Mobile support
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const { status } = await ensureImagePickerMediaLibraryPermission();
     if (status !== 'granted') {
       throw new Error('Permission to access media library was denied');
     }
@@ -171,7 +172,7 @@ export const pickVideo = async () => {
     }
 
     // Mobile support
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const { status } = await ensureImagePickerMediaLibraryPermission();
     if (status !== 'granted') {
       throw new Error('Permission to access media library was denied');
     }
@@ -231,7 +232,7 @@ export const pickMedia = async () => {
     }
 
     // Mobile support
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const { status } = await ensureImagePickerMediaLibraryPermission();
     if (status !== 'granted') {
       throw new Error('Permission to access media library was denied');
     }
@@ -292,7 +293,7 @@ export const takePhoto = async () => {
     }
 
     // Mobile support
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status } = await ensureImagePickerCameraPermission();
     if (status !== 'granted') {
       throw new Error('Permission to access camera was denied');
     }

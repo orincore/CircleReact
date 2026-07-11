@@ -261,9 +261,30 @@ export const JamSessionProvider = ({ children }) => {
       applyPlayerSync({ isPlaying: false, positionMs });
     };
 
-    const onPlaybackState = ({ sessionId, isPlaying, positionMs, currentQueueItemId, serverTime }) => {
+    const onPlaybackState = ({ sessionId, isPlaying, positionMs, currentQueueItemId, serverTime, reason }) => {
       if (!belongsToThisSession(sessionId)) return;
-      setSession((prev) => prev && { ...prev, is_playing: isPlaying, playback_position_ms: positionMs, current_queue_item_id: currentQueueItemId, paused_for_presence: false });
+      // `positionMs` is a snapshot from the moment the server broadcast it (serverTime) --
+      // by the time this event is processed here, playback (if running) has already moved
+      // past that snapshot by however long the round trip + event loop took. Landing a seek
+      // exactly on the stale value left the receiving side consistently a beat behind the
+      // sender, which is exactly the "not precise" sync users noticed. Compensate by adding
+      // the elapsed wall-clock time back in whenever playback is actually running.
+      const elapsedSinceServer = typeof serverTime === 'number' ? Math.max(0, Date.now() - serverTime) : 0;
+      const adjustedPositionMs = isPlaying ? positionMs + elapsedSinceServer : positionMs;
+
+      setSession((prev) => prev && { ...prev, is_playing: isPlaying, playback_position_ms: adjustedPositionMs, current_queue_item_id: currentQueueItemId, paused_for_presence: false });
+
+      // An explicit seek (reason: 'seek') is a deliberate, exact repositioning the other
+      // participant must mirror immediately -- it must always hard-seek. The drift-tolerance
+      // check below exists only to stop the periodic background reconciliation
+      // (jam:sync:request, reason: 'sync') from causing constant micro-seeking on ordinary
+      // network jitter; applying that same leniency to a real seek used to silently drop any
+      // scrub smaller than DRIFT_TOLERANCE_MS (1.5s) on the other device entirely.
+      if (reason === 'seek') {
+        applyPlayerSync({ positionMs: adjustedPositionMs, isPlaying });
+        return;
+      }
+
       // Without a fresh local reading, we don't actually know where the player really is (it
       // may still be buffering/loading) — force-seeking on a guess here is what was causing
       // the player to be interrupted before it ever reached 'playing'. Only apply a
@@ -271,8 +292,8 @@ export const JamSessionProvider = ({ children }) => {
       // pausing at the reported position is always safe regardless (pause doesn't restart
       // a buffering cycle the way an active-playback seek does).
       const hasFreshLocalReading = Date.now() - lastTimeUpdateAtRef.current < 4000;
-      const drifted = hasFreshLocalReading && Math.abs(positionMsRef.current - positionMs) > DRIFT_TOLERANCE_MS;
-      applyPlayerSync({ positionMs: drifted || !isPlaying ? positionMs : undefined, isPlaying });
+      const drifted = hasFreshLocalReading && Math.abs(positionMsRef.current - adjustedPositionMs) > DRIFT_TOLERANCE_MS;
+      applyPlayerSync({ positionMs: drifted || !isPlaying ? adjustedPositionMs : undefined, isPlaying });
     };
 
     const onTrackChanged = ({ sessionId, queueItem, positionMs }) => {
@@ -359,10 +380,23 @@ export const JamSessionProvider = ({ children }) => {
 
   const endSession = useCallback(async () => {
     if (!session) return;
+    const sessionId = session.id;
+    // Optimistic: the server only broadcasts 'jam:session:ended' to the
+    // OTHER chat member (see notifyOtherMember in jam.routes.ts), never
+    // back to the person who just tapped "end" -- their own client used to
+    // just sit on the stale session until the next 5s periodic refresh()
+    // tick happened to notice it was gone, which read as "the close button
+    // takes a while." Clear local state immediately instead of waiting on
+    // any round trip.
+    setSession(null);
+    setQueue([]);
+    setIsExpanded(false);
+    playerRef.current?.pause();
     try {
-      await jamApi.endSession(session.id, token);
+      await jamApi.endSession(sessionId, token);
     } catch (err) {
       console.error('Failed to end jam session:', err);
+      setError(err?.message || 'Failed to end jam session');
     }
   }, [session, token]);
 
@@ -418,6 +452,124 @@ export const JamSessionProvider = ({ children }) => {
       if (data?.queue) setQueue(data.queue);
     } catch (err) {
       setError(err?.message || 'Failed to remove track');
+    }
+  }, [session, token]);
+
+  // --- Playlists: user-owned, reusable across sessions -- unlike the session's own
+  // queue, these are never cleared when a session ends (see jam_playlists' migration
+  // comment and playlist.repo.ts). ---
+  const [playlists, setPlaylists] = useState([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+
+  const refreshPlaylists = useCallback(async () => {
+    if (!token || !session?.chat_id) return;
+    setIsLoadingPlaylists(true);
+    try {
+      const data = await jamApi.getPlaylists(session.chat_id, token);
+      setPlaylists(data.playlists || []);
+    } catch (err) {
+      console.error('Failed to load playlists:', err);
+    } finally {
+      setIsLoadingPlaylists(false);
+    }
+  }, [token, session?.chat_id]);
+
+  const createPlaylist = useCallback(async (name) => {
+    if (!token || !session?.chat_id || !name?.trim()) return null;
+    try {
+      const data = await jamApi.createPlaylist(session.chat_id, name.trim(), token);
+      setPlaylists((prev) => [{ ...data.playlist, track_count: 0 }, ...prev]);
+      return data.playlist;
+    } catch (err) {
+      setError(err?.message || 'Failed to create playlist');
+      return null;
+    }
+  }, [token, session?.chat_id]);
+
+  const deletePlaylist = useCallback(async (playlistId) => {
+    if (!token) return;
+    try {
+      await jamApi.deletePlaylist(playlistId, token);
+      setPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+    } catch (err) {
+      setError(err?.message || 'Failed to delete playlist');
+    }
+  }, [token]);
+
+  const getPlaylistDetail = useCallback(async (playlistId) => {
+    if (!token) return null;
+    try {
+      return await jamApi.getPlaylist(playlistId, token);
+    } catch (err) {
+      setError(err?.message || 'Failed to load playlist');
+      return null;
+    }
+  }, [token]);
+
+  const addTrackToPlaylist = useCallback(async (playlistId, track) => {
+    if (!token) return false;
+    try {
+      await jamApi.addPlaylistTrack(playlistId, {
+        videoId: track.videoId,
+        title: track.title,
+        channelTitle: track.channelTitle,
+        thumbnailUrl: track.thumbnailUrl,
+        durationSeconds: track.durationSeconds,
+      }, token);
+      // Bump the local track count so the playlist list reflects it without a refetch.
+      setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? { ...p, track_count: (p.track_count || 0) + 1 } : p)));
+      return true;
+    } catch (err) {
+      setError(err?.message || 'Failed to add track to playlist');
+      return false;
+    }
+  }, [token]);
+
+  const removeTrackFromPlaylist = useCallback(async (playlistId, trackId) => {
+    if (!token) return;
+    try {
+      await jamApi.removePlaylistTrack(playlistId, trackId, token);
+      setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? { ...p, track_count: Math.max(0, (p.track_count || 1) - 1) } : p)));
+    } catch (err) {
+      setError(err?.message || 'Failed to remove track');
+    }
+  }, [token]);
+
+  // Rewrites the whole track order -- either participant can reorder a shared playlist,
+  // mirroring the mutual-editing model of the rest of this feature. Returns the
+  // server-confirmed track list (with recomputed positions) so the caller can sync its
+  // local optimistic reorder to the authoritative order.
+  const reorderTracksInPlaylist = useCallback(async (playlistId, trackIds) => {
+    if (!token) return null;
+    try {
+      const data = await jamApi.reorderPlaylistTracks(playlistId, trackIds, token);
+      return data.tracks || null;
+    } catch (err) {
+      setError(err?.message || 'Failed to reorder playlist');
+      return null;
+    }
+  }, [token]);
+
+  // Loads a saved playlist's tracks into the CURRENT live session's queue, in order or
+  // shuffled. Mirrors addTrack's own becameCurrent handling for the case where the queue
+  // was empty and the first loaded track starts playing immediately.
+  const loadPlaylistIntoSession = useCallback(async (playlistId, mode) => {
+    if (!session || !token) return;
+    try {
+      const data = await jamApi.loadPlaylistIntoSession(session.id, playlistId, mode, token);
+      if (data?.queue) setQueue(data.queue);
+      if (data?.session) setSession(data.session);
+      if (data?.becameCurrent) {
+        const first = (data.queue || []).find((q) => q.id === data.session?.current_queue_item_id);
+        if (first?.youtube_video_id) {
+          audioUnlockedRef.current = true;
+          setNeedsAudioUnlock(false);
+          positionMsRef.current = 0;
+          playerRef.current?.load(first.youtube_video_id, 0, true);
+        }
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to load playlist');
     }
   }, [session, token]);
 
@@ -512,6 +664,16 @@ export const JamSessionProvider = ({ children }) => {
     setActiveChat,
     activeChatOtherUserId: activeChat?.otherUserId ?? null,
     activeChatOtherUserName: activeChat?.otherUserName ?? null,
+    playlists,
+    isLoadingPlaylists,
+    refreshPlaylists,
+    createPlaylist,
+    deletePlaylist,
+    getPlaylistDetail,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
+    reorderTracksInPlaylist,
+    loadPlaylistIntoSession,
   };
 
   return (

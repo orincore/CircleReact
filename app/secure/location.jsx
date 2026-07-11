@@ -5,6 +5,7 @@ import { nearbyUsersGql } from '@/src/api/graphql';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { ensureLocationPermission } from '@/utils/permissionGate';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -179,7 +180,7 @@ export default function LocationPage() {
       // Wrap permission request in try-catch for production builds
       let status = 'denied';
       try {
-        const result = await Location.requestForegroundPermissionsAsync();
+        const result = await ensureLocationPermission();
         status = result?.status || 'denied';
       } catch (permError) {
         console.error('Location permission error:', permError);
@@ -672,7 +673,7 @@ export default function LocationPage() {
     setRefreshing(true);
     try {
       // Get current user location for loading nearby users
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await ensureLocationPermission();
       if (status === 'granted') {
         const position = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -1340,7 +1341,7 @@ export default function LocationPage() {
                         <TouchableOpacity 
                           style={styles.floatingButton}
                           onPress={async () => {
-                            const { status } = await Location.requestForegroundPermissionsAsync();
+                            const { status } = await ensureLocationPermission();
                             if (status === 'granted') {
                               const position = await Location.getCurrentPositionAsync();
                               setMapRegion({

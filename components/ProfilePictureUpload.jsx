@@ -12,6 +12,7 @@ import Loader from '@/components/Loader';
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import * as ImagePicker from 'expo-image-picker'
+import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate'
 
 const PRIMARY_BUTTON_COLOR = '#8B5CF6'
 
@@ -26,7 +27,7 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
 
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      const { status } = await ensureImagePickerMediaLibraryPermission()
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera roll permissions to upload photos.')
         return false
@@ -71,7 +72,7 @@ export default function ProfilePictureUpload({ currentImage, onImageSelected, si
         return
       }
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      const { status } = await ensureImagePickerCameraPermission()
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera permissions to take photos.')
         setLoading(false)

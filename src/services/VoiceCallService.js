@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getSocket } from '../api/socket';
 import { callAudioManager } from './CallAudioManager';
+import { ensureNotificationPermission, ensureMicrophonePermission } from '@/utils/permissionGate';
 
 // Import WebRTC for React Native (development build)
 let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
@@ -82,7 +83,7 @@ class VoiceCallService {
           let finalStatus = existingStatus;
           
           if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
+            const { status } = await ensureNotificationPermission();
             finalStatus = status;
           }
           
@@ -230,9 +231,14 @@ class VoiceCallService {
       if (!this.isWebRTCAvailable) {
         throw new Error('WebRTC is not available. Voice calls require a development build with react-native-webrtc.');
       }
-      
+
       if (!this.socket || !this.socket.connected) {
         throw new Error('Socket not connected');
+      }
+
+      const { status: micStatus } = await ensureMicrophonePermission();
+      if (micStatus !== 'granted') {
+        throw new Error('Microphone permission is required to make a call.');
       }
 
       // Generate call ID
@@ -279,6 +285,13 @@ class VoiceCallService {
       // Prevent multiple accept calls
       if (this.callState !== 'incoming') {
         //console.log('⚠️ Call already accepted or in wrong state:', this.callState);
+        return false;
+      }
+
+      const { status: micStatus } = await ensureMicrophonePermission();
+      if (micStatus !== 'granted') {
+        if (this.onError) this.onError('Microphone permission is required to accept a call.');
+        this.declineCall();
         return false;
       }
 

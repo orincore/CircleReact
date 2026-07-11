@@ -405,6 +405,13 @@ export default function ChatListScreen() {
           const parsedCounts = JSON.parse(cachedUnreadCounts);
           if (parsedCounts && typeof parsedCounts === 'object') {
             setUnreadCounts(parsedCounts);
+            // Seed the shared service too, so the subscription below (and the
+            // navbar badge, which reads only from the service) show these
+            // counts immediately instead of flashing empty until loadInbox()'s
+            // fresh fetch completes.
+            Object.entries(parsedCounts).forEach(([chatId, count]) => {
+              if (count > 0) unreadCountService.setChatUnreadCount(chatId, count);
+            });
           }
         }
       } catch (error) {
@@ -435,6 +442,20 @@ export default function ChatListScreen() {
       if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
     };
   }, [conversations, isCacheLoaded, user?.id]);
+
+  // Mirror the shared unread count service into local state. This is what
+  // makes the chat list badge update instantly (zero network round trip)
+  // from calls like unreadCountService.clearChatUnreadCount() that
+  // chat-conversation.jsx makes synchronously the moment a chat is opened,
+  // instead of waiting on a socket round trip per message. It's also the
+  // single point of truth every handler above now funnels through, so this
+  // screen and the navbar badge can never diverge.
+  useEffect(() => {
+    const unsubscribe = unreadCountService.subscribe(({ chatUnreadCounts }) => {
+      setUnreadCounts(chatUnreadCounts);
+    });
+    return unsubscribe;
+  }, []);
 
   // Save unread counts to cache
   useEffect(() => {
@@ -499,24 +520,12 @@ export default function ChatListScreen() {
       });
       
       setConversations(sortedConversations);
-      
-      // Initialize unread counts from server data
-      const initialUnreadCounts = {};
-      sortedConversations.forEach(conv => {
-        try {
-          if (conv?.unreadCount > 0 && conv?.chat?.id) {
-            initialUnreadCounts[conv.chat.id] = conv.unreadCount;
-          }
-        } catch (err) {
-          console.error('[ChatList] Error processing conversation unread count:', err);
-        }
-      });
-      
-      // Initialize the unread count service with the data
+
+      // Initialize the shared unread count service with fresh server data;
+      // the subscription below mirrors it into local `unreadCounts` state,
+      // so this is the single source of truth (also protects against
+      // reviving a count the user just cleared, via its clear-grace guard).
       unreadCountService.initializeCounts(sortedConversations);
-      
-      // Also update local state
-      setUnreadCounts(prev => ({ ...prev, ...initialUnreadCounts }));
     } catch (error) {
       console.error('[ChatList] Failed to load inbox:', error);
       // Set empty conversations on error to stop loading state
@@ -603,7 +612,6 @@ export default function ChatListScreen() {
           loadInbox(true);
           if (message.senderId !== user.id) {
             unreadCountService.incrementChatUnreadCount(message.chatId);
-            setUnreadCounts(prev => ({ ...prev, [message.chatId]: (prev[message.chatId] || 0) + 1 }));
           }
           return;
         }
@@ -679,20 +687,11 @@ export default function ChatListScreen() {
         console.error('[ChatList] Error in handleNewMessage:', error);
       }
 
-      // Update unread count if message is not from current user
+      // Update unread count if message is not from current user. The shared
+      // service is the single source of truth; the subscription effect below
+      // mirrors it into local `unreadCounts` state for rendering.
       if (message.senderId !== user.id) {
-        // Update via service for global consistency
         unreadCountService.incrementChatUnreadCount(message.chatId);
-        
-        // Also update local state for immediate UI response
-        setUnreadCounts(prev => {
-          const newCount = (prev[message.chatId] || 0) + 1;
-          //console.log(`📊 [ChatList] Updated unread count for chat ${message.chatId}: ${newCount}`);
-          return {
-            ...prev,
-            [message.chatId]: newCount
-          };
-        });
       }
     };
 
@@ -725,38 +724,23 @@ export default function ChatListScreen() {
       });
     };
 
-    // Handle read receipts to clear unread counts
+    // Handle read receipts to clear unread counts. Routed through the shared
+    // service (instead of writing local state directly) so this stays in
+    // sync with the navbar badge, which reads only from the service.
     const handleRead = ({ chatId, messageId, by }) => {
       if (by === user.id) {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [chatId]: 0
-        }));
+        unreadCountService.setChatUnreadCount(chatId, 0);
       }
     };
-    
+
     // Handle unread count updates from server
     const handleUnreadCountUpdate = ({ chatId, unreadCount }) => {
-      setUnreadCounts(prev => ({
-        ...prev,
-        [chatId]: unreadCount
-      }));
+      unreadCountService.setChatUnreadCount(chatId, unreadCount);
     };
 
     // Handle local unread clearing for instant updates
     const handleLocalUnreadCleared = ({ chatId, clearedCount }) => {
-      // Update via service for consistency
       unreadCountService.reduceChatUnreadCount(chatId, clearedCount);
-      
-      // Also update local state for immediate UI response
-      setUnreadCounts(prev => {
-        const currentCount = prev[chatId] || 0;
-        const newCount = Math.max(0, currentCount - clearedCount);
-        return {
-          ...prev,
-          [chatId]: newCount
-        };
-      });
     };
 
     // Handle message status updates for chat list
@@ -1386,19 +1370,15 @@ export default function ChatListScreen() {
                 // treatment since its photo is the real, unblurred one.
                 const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
-                // `unreadCounts[chatId] || item.unreadCount || 0` looked
-                // right but `||` treats 0 as falsy: the moment a read event
-                // (socket or optimistic) correctly clears this chat's count
-                // to 0, that 0 got silently discarded in favor of
-                // item.unreadCount -- the stale count baked into the
-                // `conversations` array from the last full inbox load, which
-                // only refreshes on a full reload, not on a read. That's why
-                // the badge looked stuck instead of clearing in real time.
-                // undefined (no live override recorded yet) is the only case
-                // that should fall back to the REST snapshot; a recorded 0
-                // must be respected.
-                const liveUnreadCount = unreadCounts[chatId];
-                const currentUnreadCount = liveUnreadCount !== undefined ? liveUnreadCount : (item.unreadCount || 0);
+                // `unreadCounts` is a live mirror of unreadCountService (see
+                // the subscription effect above) -- the single source of
+                // truth every read/increment/clear path funnels through. A
+                // cleared chat is *removed* from that map (not set to a
+                // literal 0), so absence here means 0, not "no data yet";
+                // falling back to item.unreadCount (a stale REST snapshot
+                // baked into `conversations` at the last full inbox load)
+                // would silently resurrect a just-cleared badge.
+                const currentUnreadCount = unreadCounts[chatId] || 0;
                 const cachedVerified = item.otherId ? otherVerificationCache[item.otherId] : undefined;
                 const isOtherUserVerified =
                   cachedVerified === true ||

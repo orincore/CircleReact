@@ -137,16 +137,15 @@ export function AuthProvider({ children }) {
       console.error('Failed to save push token:', error);
     }
     
-    // Initialize location tracking if it was previously enabled
+    // Resume location tracking if it was previously enabled -- never
+    // prompts for permission here (no in-app disclosure precedes this
+    // path), it only continues if permission is already granted.
     try {
-      const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
-      if (trackingEnabled) {
-        await LocationTrackingService.startTracking(resp.access_token);
-      }
+      await LocationTrackingService.resumeTrackingIfPermitted(resp.access_token);
     } catch (error) {
       console.error('Failed to resume location tracking:', error);
     }
-    
+
     try {
       await Promise.all([
         AsyncStorage.setItem(AUTH_STORAGE_KEY, "true"),
@@ -279,16 +278,15 @@ export function AuthProvider({ children }) {
       console.error('Failed to save push token:', error);
     }
     
-    // Initialize location tracking if it was previously enabled
+    // Resume location tracking if it was previously enabled -- never
+    // prompts for permission here (no in-app disclosure precedes this
+    // path), it only continues if permission is already granted.
     try {
-      const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
-      if (trackingEnabled) {
-        await LocationTrackingService.startTracking(resp.access_token);
-      }
+      await LocationTrackingService.resumeTrackingIfPermitted(resp.access_token);
     } catch (error) {
-      console.error('Failed to start location tracking:', error);
+      console.error('Failed to resume location tracking:', error);
     }
-    
+
     // Update storage to mark as authenticated
     try {
       await Promise.all([
@@ -299,10 +297,10 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.warn("Failed to persist auth state", error);
     }
-    
+
     // Navigate to main app
     router.replace("/secure/(tabs)/match");
-    
+
     return resp;
   }, [router]);
 
@@ -325,12 +323,11 @@ export function AuthProvider({ children }) {
         console.error('Failed to save push token:', error);
       }
       
-      // Initialize location tracking if it was previously enabled
+      // Resume location tracking if it was previously enabled -- never
+      // prompts for permission here (no in-app disclosure precedes this
+      // path), it only continues if permission is already granted.
       try {
-        const trackingEnabled = await LocationTrackingService.isTrackingEnabled();
-        if (trackingEnabled) {
-          await LocationTrackingService.startTracking(token);
-        }
+        await LocationTrackingService.resumeTrackingIfPermitted(token);
       } catch (error) {
         console.error('Failed to resume location tracking:', error);
       }

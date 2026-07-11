@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ProfilePictureService } from '@/src/services/profilePictureService'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useState } from 'react'
 import {
@@ -29,7 +30,7 @@ export default function ProfilePhotoManager({ size = 150 }) {
    */
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      const { status } = await ensureImagePickerMediaLibraryPermission()
       if (status !== 'granted') {
         Alert.alert(
           'Permission Required',
@@ -84,7 +85,7 @@ export default function ProfilePhotoManager({ size = 150 }) {
         return
       }
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      const { status } = await ensureImagePickerCameraPermission()
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera permissions to take photos.')
         setUploading(false)

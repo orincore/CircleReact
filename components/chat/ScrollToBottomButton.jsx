@@ -4,12 +4,12 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { styles } from "./chatConversationStyles";
 
 // Floating scroll-to-bottom button with a new-message count badge.
-function ScrollToBottomButton({ visible, isDarkMode, newMessageCount, onPress }) {
+function ScrollToBottomButton({ visible, isDarkMode, newMessageCount, onPress, style }) {
   if (!visible) return null;
 
   return (
     <TouchableOpacity
-      style={[styles.scrollToBottomButton, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }]}
+      style={[styles.scrollToBottomButton, { backgroundColor: isDarkMode ? '#FFFFFF' : '#111111' }, style]}
       onPress={onPress}
       activeOpacity={0.8}
     >

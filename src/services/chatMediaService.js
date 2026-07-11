@@ -12,6 +12,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform, Alert } from 'react-native';
 import { API_BASE_URL } from '../api/config';
+import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate';
 // Hardware-accelerated compression (AVAssetExportSession on iOS,
 // MediaCodec on Android) — already a project dependency but previously
 // unused, so video "compression" was a no-op that just warned when a video
@@ -40,7 +41,7 @@ class ChatMediaService {
       }
 
       console.log('📸 Requesting media library permissions...');
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ensureImagePickerMediaLibraryPermission();
       console.log('📸 Permission status:', status);
       
       if (status !== 'granted') {
@@ -90,7 +91,7 @@ class ChatMediaService {
         return this._pickImageWeb();
       }
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ensureImagePickerMediaLibraryPermission();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please allow access to your photo library to share images.');
         return null;
@@ -129,7 +130,7 @@ class ChatMediaService {
         return this._pickVideoWeb();
       }
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ensureImagePickerMediaLibraryPermission();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please allow access to your photo library to share videos.');
         return null;
@@ -173,7 +174,7 @@ class ChatMediaService {
       }
 
       console.log('📷 Requesting camera permissions...');
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status } = await ensureImagePickerCameraPermission();
       console.log('📷 Camera permission status:', status);
       
       if (status !== 'granted') {

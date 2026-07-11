@@ -138,19 +138,149 @@ export const chatApi = {
     if (limit) params.set("limit", String(limit));
     if (before) params.set("before", before);
     const resp = await http.get<{
-      messages: Array<{ id: string; chat_id: string; sender_id: string; text: string; created_at: string }>;
+      messages: Array<{
+        id: string;
+        chat_id: string;
+        sender_id: string;
+        text: string;
+        media_url?: string;
+        media_type?: string;
+        thumbnail?: string;
+        reply_to_id?: string;
+        created_at: string;
+        updated_at?: string;
+        is_edited?: boolean;
+        is_deleted?: boolean;
+        is_view_once?: boolean;
+        view_once_viewed_at?: string;
+        shared_meme_id?: string;
+        reactions?: Array<{ id: string; message_id: string; user_id: string; emoji: string; created_at: string }>;
+        receipts?: Array<{ user_id: string; status: string }>;
+      }>;
     }>(`/chat/${encodeURIComponent(chatId)}/messages?${params.toString()}`, token);
+    // Previously this dropped everything but id/chatId/senderId/text/createdAt,
+    // so any message loaded via scroll-back pagination silently lost its
+    // reactions, edited/deleted flags, media, and receipts -- reactions in
+    // particular would just vanish once a message scrolled into an
+    // older, paginated-in page.
     const mapped = resp.messages.map((r) => ({
       id: r.id,
       chatId: r.chat_id,
       senderId: r.sender_id,
       text: r.text,
+      mediaUrl: r.media_url,
+      mediaType: r.media_type,
+      thumbnail: r.thumbnail,
+      reply_to_id: r.reply_to_id,
       createdAt: new Date(r.created_at).getTime(),
+      updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
+      isEdited: r.is_edited,
+      isDeleted: r.is_deleted,
+      is_deleted: r.is_deleted,
+      isViewOnce: r.is_view_once,
+      view_once_viewed_at: r.view_once_viewed_at,
+      sharedMemeId: r.shared_meme_id,
+      reactions: (r.reactions || []).map((rx) => ({
+        id: rx.id,
+        messageId: rx.message_id,
+        userId: rx.user_id,
+        emoji: rx.emoji,
+        createdAt: rx.created_at,
+      })),
+      receipts: r.receipts,
+    }));
+    return { messages: mapped };
+  },
+  // Full-history text search within a chat -- unlike filtering the client's
+  // already-loaded `messages` array, this reaches messages that scrolled out
+  // of the ~30-50 message pagination window long ago.
+  searchMessages: async (
+    chatId: string,
+    query: string,
+    token?: string | null,
+  ): Promise<{ messages: Array<{ id: string; chatId: string; senderId: string; text: string; createdAt: number }> }> => {
+    const params = new URLSearchParams({ q: query });
+    const resp = await http.get<{
+      messages: Array<{ id: string; chat_id: string; sender_id: string; text: string; created_at: string }>;
+    }>(`/chat/${encodeURIComponent(chatId)}/messages/search?${params.toString()}`, token);
+    return {
+      messages: resp.messages.map((r) => ({
+        id: r.id,
+        chatId: r.chat_id,
+        senderId: r.sender_id,
+        text: r.text,
+        createdAt: new Date(r.created_at).getTime(),
+      })),
+    };
+  },
+  // A window of messages around a specific one (reactions/media included, same
+  // shape as getMessagesPaginated), for hydrating a search result that has
+  // scrolled outside the currently-loaded pagination window before scrolling to it.
+  getMessagesAround: async (
+    chatId: string,
+    messageId: string,
+    token?: string | null,
+  ): Promise<{ messages: ChatMessage[] }> => {
+    const resp = await http.get<{
+      messages: Array<{
+        id: string;
+        chat_id: string;
+        sender_id: string;
+        text: string;
+        media_url?: string;
+        media_type?: string;
+        thumbnail?: string;
+        reply_to_id?: string;
+        created_at: string;
+        updated_at?: string;
+        is_edited?: boolean;
+        is_deleted?: boolean;
+        is_view_once?: boolean;
+        view_once_viewed_at?: string;
+        shared_meme_id?: string;
+        reactions?: Array<{ id: string; message_id: string; user_id: string; emoji: string; created_at: string }>;
+        receipts?: Array<{ user_id: string; status: string }>;
+      }>;
+    }>(`/chat/${encodeURIComponent(chatId)}/messages/around/${encodeURIComponent(messageId)}`, token);
+    const mapped = resp.messages.map((r) => ({
+      id: r.id,
+      chatId: r.chat_id,
+      senderId: r.sender_id,
+      text: r.text,
+      mediaUrl: r.media_url,
+      mediaType: r.media_type,
+      thumbnail: r.thumbnail,
+      reply_to_id: r.reply_to_id,
+      createdAt: new Date(r.created_at).getTime(),
+      updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
+      isEdited: r.is_edited,
+      isDeleted: r.is_deleted,
+      is_deleted: r.is_deleted,
+      isViewOnce: r.is_view_once,
+      view_once_viewed_at: r.view_once_viewed_at,
+      sharedMemeId: r.shared_meme_id,
+      reactions: (r.reactions || []).map((rx) => ({
+        id: rx.id,
+        messageId: rx.message_id,
+        userId: rx.user_id,
+        emoji: rx.emoji,
+        createdAt: rx.created_at,
+      })),
+      receipts: r.receipts,
     }));
     return { messages: mapped };
   },
   deleteChat: (chatId: string, token?: string | null) =>
     http.delete<{ success: boolean }>(`/chat/${encodeURIComponent(chatId)}`, token),
+  // Used to hydrate the chat header (name/avatar/otherUserId) when a screen
+  // navigates in with only a chatId and no other params -- e.g. a
+  // notification tap, which only ever carries chatId/senderId, not the
+  // other member's current name/photo.
+  getMembers: (chatId: string, token?: string | null) =>
+    http.get<{ members: Array<{ user_id: string; first_name?: string; last_name?: string; profile_photo_url?: string; username?: string }> }>(
+      `/chat/${encodeURIComponent(chatId)}/members`,
+      token
+    ),
   // New chat-list APIs
   getChatList: (
     opts: { includeCounts?: boolean; includeArchived?: boolean } = {},

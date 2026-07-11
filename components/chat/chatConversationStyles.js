@@ -465,6 +465,13 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     zIndex: 100,
   },
+  // When JamMiniPlayerBar is showing above the composer, the button's normal fixed
+  // `bottom` offset lands it right on top of that bar instead of above it -- push it up
+  // by roughly the bar's own height + margins (see jamBarAboveComposer/JamMiniPlayerBar's
+  // thumb+padding sizing).
+  scrollToBottomAboveJamBar: {
+    bottom: 150,
+  },
   newMessageBadge: {
     position: 'absolute',
     top: -6,

@@ -39,6 +39,7 @@ import { useHeaderWeather } from "@/hooks/useHeaderWeather";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
+import { ensureLocationPermission } from "@/utils/permissionGate";
 import { useRouter } from "expo-router";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
@@ -1156,7 +1157,7 @@ export default function MatchScreen() {
   // Record user location when app opens
   const recordUserLocation = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await ensureLocationPermission();
       if (status !== 'granted') {
         //console.log('Location permission denied');
         return;
@@ -1219,7 +1220,7 @@ export default function MatchScreen() {
           longitude = userLocation.longitude;
         } else {
           // Request location permission and get current location
-          const { status } = await Location.requestForegroundPermissionsAsync();
+          const { status } = await ensureLocationPermission();
           if (status === 'granted') {
             const location = await Location.getCurrentPositionAsync({});
             latitude = location.coords.latitude;

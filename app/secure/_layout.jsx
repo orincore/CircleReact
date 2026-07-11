@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { View } from "react-native";
 import { useVoiceCall } from "@/src/hooks/useVoiceCall";
@@ -5,13 +6,23 @@ import { usePromptMatching } from "@/src/hooks/usePromptMatching";
 import GiverRequestModal from "@/components/GiverRequestModal";
 import DateOfBirthMigrationModal from "@/components/DateOfBirthMigrationModal";
 import { JamSessionProvider } from "@/contexts/JamSessionContext";
+import androidNotificationService from "@/src/services/AndroidNotificationService";
 
 export default function SecureLayout() {
   // Initialize voice call service for all logged-in users
   useVoiceCall();
-  
+
   // Initialize prompt matching socket listeners globally
   const { incomingRequest, respondToRequest, dismissIncomingRequest } = usePromptMatching();
+
+  useEffect(() => {
+    // Handles the case where the app was fully killed and relaunched by
+    // tapping a push notification (new message / meme share / etc.) -- see
+    // consumeColdStartResponseIfAny() for why this can't be done earlier.
+    // This effect only runs once this Stack (the authenticated navigator)
+    // has actually mounted, so the resulting router.push has somewhere to go.
+    androidNotificationService.consumeColdStartResponseIfAny();
+  }, []);
 
   const handleAcceptRequest = async () => {
     if (!incomingRequest) return;

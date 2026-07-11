@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PermissionDisclosureProvider } from "@/contexts/PermissionDisclosureContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { VerificationProvider } from "@/contexts/VerificationContext";
@@ -267,17 +268,19 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <ThemeProvider>
-            <AuthProvider>
-              <VerificationProvider>
-                <SubscriptionProvider>
-                <BrowserNotificationProvider>
-                  <ConnectionStatus />
-                  <Stack screenOptions={{ headerShown: false }} />
-                  <NotificationManager />
-                </BrowserNotificationProvider>
-                </SubscriptionProvider>
-              </VerificationProvider>
-            </AuthProvider>
+            <PermissionDisclosureProvider>
+              <AuthProvider>
+                <VerificationProvider>
+                  <SubscriptionProvider>
+                  <BrowserNotificationProvider>
+                    <ConnectionStatus />
+                    <Stack screenOptions={{ headerShown: false }} />
+                    <NotificationManager />
+                  </BrowserNotificationProvider>
+                  </SubscriptionProvider>
+                </VerificationProvider>
+              </AuthProvider>
+            </PermissionDisclosureProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

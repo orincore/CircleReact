@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { chatApi } from '../api/chat';
 import socketService from './socketService';
+import { ensureNotificationPermission } from '@/utils/permissionGate';
 
 // Deduplication cache for push notifications (messageId -> timestamp)
 const recentPushNotifications = new Map();
@@ -271,7 +272,7 @@ class AndroidNotificationService {
       let finalStatus = existingStatus;
       
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await ensureNotificationPermission();
         finalStatus = status;
       }
       
@@ -397,11 +398,38 @@ class AndroidNotificationService {
       this.handleNotificationReceived(notification);
     });
 
-    // Listener for when a user taps on or interacts with a notification
+    // Listener for when a user taps on or interacts with a notification.
+    // This only fires for taps that happen while this listener is already
+    // registered (app in foreground/background) -- it does NOT fire for the
+    // tap that launched the app from a fully killed state, since that tap
+    // happened before this JS listener existed. Cold-start taps are handled
+    // separately via consumeColdStartResponseIfAny(), per Expo's docs:
+    // https://docs.expo.dev/versions/latest/sdk/notifications/#retrieve-the-last-notification-response
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       //console.log('👆 Notification response received:', response);
       this.handleNotificationResponse(response);
     });
+  }
+
+  /**
+   * Handles the notification response (if any) that launched the app from a
+   * killed state. Must be called from a mounted screen inside the
+   * authenticated navigator (see app/secure/_layout.jsx) rather than from
+   * initialize() -- at that point the router/Stack isn't mounted yet
+   * (AuthProvider renders null until session restore finishes), so any
+   * router.push triggered from here earlier would silently fail. Clears the
+   * stored response after handling so it isn't reprocessed on remount.
+   */
+  async consumeColdStartResponseIfAny() {
+    try {
+      const response = Notifications.getLastNotificationResponse();
+      if (!response) return;
+
+      await this.handleNotificationResponse(response);
+      Notifications.clearLastNotificationResponse();
+    } catch (error) {
+      console.error('❌ Failed to handle cold-start notification response:', error);
+    }
   }
 
   handleNotificationReceived(notification) {
@@ -422,8 +450,13 @@ class AndroidNotificationService {
     if (data?.type) {
       switch (data.type) {
         case 'friend_request':
-          // Navigate to friend requests
-          //console.log('📱 Opening friend requests');
+        case 'friend_request_accepted':
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/(tabs)/profile/friends');
+          } catch (error) {
+            console.error('❌ Failed to navigate to friends from notification tap:', error);
+          }
           break;
         case 'message':
         case 'new_message': {
@@ -453,44 +486,174 @@ class AndroidNotificationService {
                 (typeof rawTitle === 'string'
                   ? rawTitle.replace(/^💬\s*/, '')
                   : 'Chat');
-              socketService.navigateToChat(String(data.chatId), senderName);
+              socketService.navigateToChat(String(data.chatId), senderName, {
+                avatar: data.senderAvatar,
+                otherUserId: data.senderId,
+              });
             } catch (error) {
               console.error('❌ Failed to navigate to chat from notification tap:', error);
             }
           }
           break;
         }
+        case 'jam_session_started':
+        case 'jam_session_left':
+        case 'friend_birthday':
+        case 'weather_checkin':
+          // All three carry a chatId -- the notification is fundamentally
+          // "something happened in this chat", so open it directly.
+          if (data.chatId) {
+            try {
+              const label = data.senderName || data.birthdayUserName || data.targetUserName || null;
+              socketService.navigateToChat(String(data.chatId), label, {
+                otherUserId: data.senderId || data.birthdayUserId || data.targetUserId,
+              });
+            } catch (error) {
+              console.error('❌ Failed to navigate to chat from notification tap:', error);
+            }
+          }
+          break;
+        case 'blind_date_match':
+        case 'blind_date_reveal':
+        case 'help_request_accepted':
+          // Anonymous/blind chats are opened the same way as any other chat
+          // once matched -- the chatId is what actually resolves to a screen.
+          if (data.chatId) {
+            try {
+              socketService.navigateToChat(String(data.chatId), null, {});
+            } catch (error) {
+              console.error('❌ Failed to navigate to chat from notification tap:', error);
+            }
+          }
+          break;
+        case 'blind_date_reminder':
+          // Only carries a bare matchId, no chatId to resolve to a screen --
+          // fall back to the notifications hub so the tap isn't a no-op.
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/notifications');
+          } catch (error) {
+            console.error('❌ Failed to navigate from blind date reminder tap:', error);
+          }
+          break;
+        case 'meme_liked_by_friend':
+        case 'meme_discovery':
+          if (data.memeId) {
+            try {
+              const { router } = await import('expo-router');
+              router.push({ pathname: '/secure/meme-view', params: { memeId: String(data.memeId) } });
+            } catch (error) {
+              console.error('❌ Failed to navigate to meme from notification tap:', error);
+            }
+          }
+          break;
         case 'match':
-          // Navigate to matches
-          //console.log('📱 Opening matches');
+        case 'new_match':
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/(tabs)/match');
+          } catch (error) {
+            console.error('❌ Failed to navigate to match tab from notification tap:', error);
+          }
           break;
         case 'activity':
-          // Navigate to activity feed
-          //console.log('📱 Opening activity feed');
+          // Informational activity-feed pushes (user joined, friends
+          // connected, etc.) have no dedicated screen to deep-link into.
           break;
         case 'profile_visit':
-          // Navigate to profile or notifications
-          //console.log('📱 Opening profile visits');
+        case 'nearby_user':
+          if (data.userId) {
+            try {
+              const { router } = await import('expo-router');
+              router.push(`/secure/user-profile/${data.userId}`);
+            } catch (error) {
+              console.error('❌ Failed to navigate to profile from notification tap:', error);
+            }
+          }
           break;
         case 'voice_call':
-          if (response.actionIdentifier === 'ACCEPT_CALL') {
-            //console.log('📱 Accept voice call');
-          } else if (response.actionIdentifier === 'DECLINE_CALL') {
-            //console.log('📱 Decline voice call');
-          } else {
-            //console.log('📱 Handling voice call');
+        case 'incoming_call':
+          // ACCEPT_CALL/DECLINE_CALL only make sense while the WebRTC
+          // signaling session from a live socket connection is still around
+          // (VoiceCallService.acceptCall/declineCall act on that in-memory
+          // state) -- they can't be wired up here since a cold-start tap has
+          // no such session. A plain tap can still always open the call
+          // screen with what the payload tells us.
+          if (actionIdentifier === 'ACCEPT_CALL' || actionIdentifier === 'DECLINE_CALL') {
+            break;
+          }
+          if (data.callId) {
+            try {
+              const { router } = await import('expo-router');
+              router.push({
+                pathname: '/secure/voice-call',
+                params: {
+                  callId: String(data.callId),
+                  ...(data.callerId ? { callerId: String(data.callerId) } : {}),
+                  ...(data.callerName ? { callerName: data.callerName } : {}),
+                  isIncoming: 'true',
+                },
+              });
+            } catch (error) {
+              console.error('❌ Failed to navigate to call screen from notification tap:', error);
+            }
+          }
+          break;
+        case 'help_request':
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/help-request');
+          } catch (error) {
+            console.error('❌ Failed to navigate to help request from notification tap:', error);
+          }
+          break;
+        case 'help_request_expired':
+        case 'help_request_no_helpers':
+          if (data.requestId) {
+            try {
+              const { router } = await import('expo-router');
+              router.push({ pathname: '/secure/help-searching', params: { requestId: String(data.requestId) } });
+            } catch (error) {
+              console.error('❌ Failed to navigate to help status from notification tap:', error);
+            }
+          }
+          break;
+        case 'referral_signup':
+        case 'referral_approved':
+        case 'referral_rejected':
+        case 'referral_paid':
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/(tabs)/profile/referrals');
+          } catch (error) {
+            console.error('❌ Failed to navigate to referrals from notification tap:', error);
+          }
+          break;
+        case 'verification_success':
+        case 'verification_rejected':
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/notifications');
+          } catch (error) {
+            console.error('❌ Failed to navigate from verification notification tap:', error);
           }
           break;
         case 'marketing_campaign':
-          // Handle marketing campaign notification
-          //console.log('📱 Marketing campaign notification:', data.campaignId);
-          // Can navigate to specific campaign landing page if needed
+          // Admin-authored copy has no guaranteed deep-link target today --
+          // open the notifications hub so the tap is never a no-op.
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/notifications');
+          } catch (error) {
+            console.error('❌ Failed to navigate from marketing campaign tap:', error);
+          }
           break;
         case 'profile_suggestion':
           // Meme-connect requests reuse this generic type (see
           // memeConnect.service.ts) since they deliberately carry no
           // sender/user id -- route to the Connect Requests screen instead
-          // of a profile. Other profile_suggestion pushes have no tap action.
+          // of a profile. Admin announcement broadcasts also reuse it via
+          // action: 'announcement'.
           if (data.action === 'meme_connect') {
             try {
               const { router } = await import('expo-router');
@@ -498,10 +661,27 @@ class AndroidNotificationService {
             } catch (error) {
               console.error('❌ Failed to navigate to connect requests from notification tap:', error);
             }
+          } else if (data.action === 'announcement') {
+            try {
+              const { router } = await import('expo-router');
+              router.push('/secure/notifications');
+            } catch (error) {
+              console.error('❌ Failed to navigate from announcement notification tap:', error);
+            }
           }
           break;
+        case 'birthday_self':
+          // Celebratory only, no deep-link target.
+          break;
         default:
-          //console.log('📱 Unknown notification type:', data.type);
+          // Unknown/future type -- open the notifications hub rather than
+          // silently doing nothing on tap.
+          try {
+            const { router } = await import('expo-router');
+            router.push('/secure/notifications');
+          } catch (error) {
+            console.error('❌ Failed to navigate from unknown notification type tap:', error);
+          }
       }
     }
   }
@@ -703,7 +883,7 @@ class AndroidNotificationService {
 
   // Request notification permissions
   async requestPermissions() {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await ensureNotificationPermission();
     return status;
   }
 

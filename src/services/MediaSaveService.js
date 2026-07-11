@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native';
+import { ensureMediaLibraryPermission } from '@/utils/permissionGate';
 
 // Dynamic imports to handle cases where expo-media-library might not be available
 let MediaLibrary = null;
@@ -31,7 +32,7 @@ class MediaSaveService {
         return false;
       }
 
-      const { status } = await MediaLibrary.requestPermissionsAsync();
+      const { status } = await ensureMediaLibraryPermission();
       this.hasPermission = status === 'granted';
       this.permissionChecked = true;
       

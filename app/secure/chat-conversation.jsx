@@ -18,6 +18,7 @@ import * as ScreenCapture from "expo-screen-capture";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { ensureImagePickerMediaLibraryPermission, ensureMediaLibraryPermission } from "@/utils/permissionGate";
 // expo-media-library is native-only (saving to the device photo gallery,
 // which handleDownloadMedia below already skips on web via a browser
 // download-link fallback). Its web build extends expo-modules-core's
@@ -85,21 +86,65 @@ export default function ChatConversationScreen() {
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { session: jamSession, startSession: startJamSession, setIsExpanded: setJamExpanded, setActiveChat } = useJamSession();
+  const { session: jamSession, isExpanded: isJamExpanded, startSession: startJamSession, setIsExpanded: setJamExpanded, setActiveChat } = useJamSession();
+  // Mirrors JamMiniPlayerBar's own visibility condition -- when the bar is showing above
+  // the composer, the floating scroll-to-bottom button (fixed-positioned relative to the
+  // composer) needs to float higher too, or it renders on top of the bar instead of above it.
+  const showJamBarAboveComposer = !!(jamSession && jamSession.status !== 'ended' && !isJamExpanded);
 
   const conversationId = typeof id === "string" ? id : "chat";
+
+  // Fallback hydration for when this screen opens with only a chatId and no
+  // name/avatar/otherUserId params -- e.g. a notification tap, which only
+  // ever carries chatId (+ sometimes senderId/senderAvatar, but not every
+  // notification type includes those, and other entry points may pass none
+  // of it at all). Without this, the header silently rendered the
+  // "Conversation" placeholder / no avatar forever, since nothing else in
+  // this screen ever re-fetches that info once mounted.
+  const [hydratedOtherUser, setHydratedOtherUser] = useState(null); // { id, name, avatar }
+  useEffect(() => {
+    const hasName = typeof name === "string" && name.trim();
+    const hasAvatar = typeof avatar === "string" && avatar.trim();
+    if (hasName && hasAvatar && paramOtherUserId) return; // already fully specified
+    if (!token || !conversationId || conversationId === "chat") return;
+    // Blind date / meme-connect identity is intentionally withheld until a
+    // reveal and is hydrated by their own reveal-driven flows elsewhere in
+    // this file -- fetching real members here would leak it early.
+    if (paramIsBlindDate === 'true' || paramIsMemeConnect === 'true') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { members } = await chatApi.getMembers(conversationId, token);
+        if (cancelled || !Array.isArray(members)) return;
+        const other = members.find((m) => String(m.user_id) !== String(user?.id));
+        if (!other) return;
+        const fullName = `${other.first_name || ''} ${other.last_name || ''}`.trim();
+        setHydratedOtherUser({
+          id: other.user_id,
+          name: fullName || other.username || null,
+          avatar: other.profile_photo_url || null,
+        });
+      } catch (error) {
+        console.error('Failed to hydrate chat header info:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, token, paramIsBlindDate, paramIsMemeConnect]);
+
   const conversationName =
-    typeof name === "string" ? name : "Conversation";
+    (typeof name === "string" && name.trim()) ? name : (hydratedOtherUser?.name || "Conversation");
   const avatarUrl =
-    typeof avatar === "string" && avatar.trim() ? avatar.trim() : null;
+    (typeof avatar === "string" && avatar.trim()) ? avatar.trim() : (hydratedOtherUser?.avatar || null);
+  const resolvedOtherUserId = paramOtherUserId || hydratedOtherUser?.id || null;
 
   // Tells the (now app-global) JamSessionContext which chat is currently being viewed, so
   // it knows which chat's session to check/track — see setActiveChat's own comment for why
   // this doesn't tear down an ALREADY-ongoing session in a different chat just because the
   // user opened this one to read messages.
   useEffect(() => {
-    setActiveChat({ chatId: conversationId, otherUserId: paramOtherUserId, otherUserName: name });
-  }, [conversationId, paramOtherUserId, name, setActiveChat]);
+    setActiveChat({ chatId: conversationId, otherUserId: resolvedOtherUserId, otherUserName: conversationName });
+  }, [conversationId, resolvedOtherUserId, conversationName, setActiveChat]);
   
   // Blind date info
   const isBlindDate = paramIsBlindDate === 'true';
@@ -173,6 +218,11 @@ export default function ChatConversationScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  // Backend-driven search results (id/text/createdAt only) -- searches the
+  // chat's full lifetime history, not just whatever page is currently loaded
+  // into `messages` via pagination. Oldest-first, same convention as before.
+  const [searchMatches, setSearchMatches] = useState([]);
+  const [isHydratingSearchMatch, setIsHydratingSearchMatch] = useState(false);
   
   // Media sharing state
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
@@ -281,7 +331,7 @@ export default function ChatConversationScreen() {
       }
 
       try {
-        const perm = await MediaLibrary.requestPermissionsAsync();
+        const perm = await ensureMediaLibraryPermission();
         if (!perm.granted) {
           Alert.alert('Permission Required', 'Please allow access to Photos to download media.');
           return;
@@ -642,8 +692,8 @@ export default function ChatConversationScreen() {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [canMessage, setCanMessage] = useState(() => {
     if (isBlindDate) return true;
-    if (!paramOtherUserId) return true;
-    if (user?.id != null && String(paramOtherUserId) === String(user.id)) return true;
+    if (!resolvedOtherUserId) return true;
+    if (user?.id != null && String(resolvedOtherUserId) === String(user.id)) return true;
     return false;
   });
   const [otherUserVerified, setOtherUserVerified] = useState(paramIsOtherUserVerified === 'true');
@@ -868,7 +918,28 @@ export default function ChatConversationScreen() {
           return { ...msg, status };
         });
 
-      setMessages(deduplicated);
+      // chat:history always carries only the newest page (server-side, this is
+      // a hardcoded `getChatMessages(chatId, 30, ...)`), and this handler fires
+      // on every rejoin -- not just the first load: mobile sockets reconnect
+      // routinely (see the rejoinOnReconnect comment above) and re-emit
+      // chat:join each time. A plain overwrite here used to wipe out every
+      // older page the user had already scrolled back through via loadMore,
+      // silently truncating history back to the newest 30 (breaking mark-as-read
+      // for anything scrolled past) and regressing `oldestAt` so `loadMore`'s
+      // `!hasMore` guard could get stuck. Merge instead: fresh rows win for any
+      // message we already had (keeps reactions/status in sync), older
+      // pagination-loaded messages outside this page are preserved.
+      setMessages((prev) => {
+        if (prev.length === 0) return deduplicated;
+        const freshIds = new Set(deduplicated.map((m) => m.id));
+        const keptOlder = prev.filter((m) => !freshIds.has(m.id));
+        const merged = [...keptOlder, ...deduplicated].sort((a, b) => {
+          const at = new Date(a.createdAt || 0).getTime();
+          const bt = new Date(b.createdAt || 0).getTime();
+          return at - bt;
+        });
+        return deduplicateMessages(merged);
+      });
       deduplicated.forEach((msg) => {
         if (msg.id) {
           processedMessageIdsRef.current.add(msg.id);
@@ -876,7 +947,17 @@ export default function ChatConversationScreen() {
       });
 
       if (deduplicated.length > 0) {
-        setOldestAt(deduplicated[0].createdAt || null);
+        const incomingOldest = deduplicated[0].createdAt || null;
+        setOldestAt((prev) => {
+          if (!prev) return incomingOldest;
+          if (!incomingOldest) return prev;
+          // A rejoin's fresh page is always the newest N messages -- never let
+          // it regress the oldest boundary we've already established via
+          // scroll-back pagination.
+          return new Date(incomingOldest).getTime() < new Date(prev).getTime()
+            ? incomingOldest
+            : prev;
+        });
       }
     };
 
@@ -1148,7 +1229,13 @@ export default function ChatConversationScreen() {
       pendingSendTimeoutsRef.current.forEach((handle) => clearTimeout(handle));
       pendingSendTimeoutsRef.current.clear();
     };
-  }, [conversationId, myUserId, user]);
+    // Note: `user` itself is never dereferenced in this effect's body, only
+    // `myUserId` (derived from `user.id`) is. AuthContext replaces `user` with
+    // a new object on every setUser(...) call, which used to re-run this
+    // whole effect (tear down socket listeners, re-emit chat:join) any time
+    // that fired while a chat screen was open -- contributing to the
+    // history-truncation issue handleHistory's merge above now guards against.
+  }, [conversationId, myUserId]);
 
   // Mark messages as read when they are loaded (separate from socket setup)
   useEffect(() => {
@@ -1392,7 +1479,7 @@ export default function ChatConversationScreen() {
     const socket = token ? getSocket(token) : null;
 
     // Hard requirements to send. The recipient is resolved server-side from the
-    // chatId, so paramOtherUserId is NOT required here — some entry points open
+    // chatId, so resolvedOtherUserId is NOT required here — some entry points open
     // a chat without it. If we genuinely can't send, say so instead of silently
     // doing nothing (which looked like "the button is broken").
     if (
@@ -1414,8 +1501,8 @@ export default function ChatConversationScreen() {
     if (
       !isBlindDate &&
       !canMessage &&
-      paramOtherUserId &&
-      String(paramOtherUserId) !== String(user.id)
+      resolvedOtherUserId &&
+      String(resolvedOtherUserId) !== String(user.id)
     ) {
       Alert.alert(
         "Can't message yet",
@@ -1521,7 +1608,7 @@ export default function ChatConversationScreen() {
     myUserId,
     isBlindDate,
     canMessage,
-    paramOtherUserId,
+    resolvedOtherUserId,
     editingMessage,
     replyToMessage,
   ]);
@@ -1641,7 +1728,7 @@ export default function ChatConversationScreen() {
     }
 
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const perm = await ensureImagePickerMediaLibraryPermission();
       if (!perm.granted) {
         Alert.alert('Permission Required', 'Please allow access to your photo library.');
         return;
@@ -1850,33 +1937,84 @@ export default function ChatConversationScreen() {
     }, 1500);
   }, [messagesById, scrollToMessageId]);
 
-  // In-chat message search: matches follow `messages`' own order (oldest
-  // first, same as render order), so index 0 is the oldest match and the
-  // last index is the most recent -- the one you'd usually want to land on
-  // first when opening search mid-conversation.
-  const searchMatches = React.useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    return messages.filter(
-      (m) => m && typeof m.text === "string" && m.text.trim() && m.type !== "system_screenshot" && m.text.toLowerCase().includes(q)
-    );
-  }, [messages, searchQuery]);
-
-  // Jump to the newest match whenever the search text itself changes (a new
-  // search), not on every unrelated message-list update.
+  // In-chat message search: previously this filtered only the `messages`
+  // array already loaded client-side via pagination (~30-50 messages), so
+  // anything scrolled past silently became unsearchable. Now backed by
+  // GET /chat/:chatId/messages/search, which queries the full history.
+  // Matches are sorted oldest-first (same convention as before: index 0 is
+  // the oldest match, the last index is the most recent).
   useEffect(() => {
-    setSearchMatchIndex(searchMatches.length > 0 ? searchMatches.length - 1 : 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+    const q = searchQuery.trim();
+    if (!q || !conversationId || !token) {
+      setSearchMatches([]);
+      return;
+    }
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      try {
+        const { messages: results } = await chatApi.searchMessages(conversationId, q, token);
+        if (cancelled) return;
+        const ascending = [...results].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        setSearchMatches(ascending);
+        setSearchMatchIndex(ascending.length > 0 ? ascending.length - 1 : 0);
+      } catch (error) {
+        if (!cancelled) setSearchMatches([]);
+      }
+    }, 300); // debounce while the user is still typing
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [searchQuery, conversationId, token]);
 
   const currentSearchMatchId = searchMatches[searchMatchIndex]?.id ?? null;
 
   // Scroll to (and highlight, via the same mechanism as reply-tap) whichever
-  // message is currently selected in the search results.
+  // message is currently selected in the search results. A match found via
+  // full-history search may not be in the currently-loaded `messages` page
+  // at all -- when that's the case, hydrate a window of messages around it
+  // first (merged into `messages` the same way loadMore/chat:history do),
+  // then scroll once it's actually present for FlashList to measure.
   useEffect(() => {
     if (!searchVisible || !currentSearchMatchId) return;
-    scrollToMessageId(currentSearchMatchId);
-  }, [currentSearchMatchId, searchVisible, scrollToMessageId]);
+    if (messagesById.has(currentSearchMatchId)) {
+      scrollToMessageId(currentSearchMatchId);
+      return;
+    }
+    if (!conversationId || !token) return;
+    let cancelled = false;
+    setIsHydratingSearchMatch(true);
+    (async () => {
+      try {
+        const { messages: around } = await chatApi.getMessagesAround(conversationId, currentSearchMatchId, token);
+        if (cancelled || !around.length) return;
+        const normalized = around.map((msg) => normalizeIncomingMessage(msg));
+        setMessages((prev) => {
+          const merged = deduplicateMessages([...prev, ...normalized]).sort(
+            (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+          );
+          return merged;
+        });
+        const earliest = normalized.reduce(
+          (min, m) => (m.createdAt && (!min || m.createdAt < min) ? m.createdAt : min),
+          null
+        );
+        if (earliest) {
+          setOldestAt((prev) => (!prev || earliest < new Date(prev).getTime() ? earliest : prev));
+        }
+        // Let the merged state commit and FlashList lay out the new rows
+        // before asking it to scroll to one of them.
+        setTimeout(() => {
+          if (!cancelled) scrollToMessageId(currentSearchMatchId);
+        }, 50);
+      } catch (error) {
+        // Silent: the match stays selected, just doesn't auto-scroll.
+      } finally {
+        if (!cancelled) setIsHydratingSearchMatch(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentSearchMatchId, searchVisible, conversationId, token, messagesById, scrollToMessageId]);
 
   const goToPreviousSearchMatch = useCallback(() => {
     setSearchMatchIndex((i) => Math.max(0, i - 1));
@@ -2510,8 +2648,8 @@ export default function ChatConversationScreen() {
       return;
     }
 
-    if (!token || !paramOtherUserId || !user?.id) {
-      if (!paramOtherUserId || (user?.id != null && String(paramOtherUserId) === String(user.id))) {
+    if (!token || !resolvedOtherUserId || !user?.id) {
+      if (!resolvedOtherUserId || (user?.id != null && String(resolvedOtherUserId) === String(user.id))) {
         setFriendStatus('self');
         setCanMessage(true);
       }
@@ -2535,7 +2673,7 @@ export default function ChatConversationScreen() {
     };
 
     socket.on('friend:status:response', handleStatusResponse);
-    socket.emit('friend:status:get', { userId: paramOtherUserId });
+    socket.emit('friend:status:get', { userId: resolvedOtherUserId });
 
     const timeout = setTimeout(() => {
       socket.off('friend:status:response', handleStatusResponse);
@@ -2550,17 +2688,17 @@ export default function ChatConversationScreen() {
       clearTimeout(timeout);
       socket.off('friend:status:response', handleStatusResponse);
     };
-  }, [token, paramOtherUserId, user?.id, friendStatus]);
+  }, [token, resolvedOtherUserId, user?.id, friendStatus]);
 
   // Fetch other user's verification status using the same endpoint
   // as [userId].jsx and the self profile tab
   useEffect(() => {
-    if (!token || !paramOtherUserId || isBlindDate) return;
+    if (!token || !resolvedOtherUserId || isBlindDate) return;
     
     const fetchVerificationStatus = async () => {
       try {
         const { API_BASE_URL } = await import('@/src/api/config');
-        const response = await fetch(`${API_BASE_URL}/api/friends/user/${paramOtherUserId}/profile`, {
+        const response = await fetch(`${API_BASE_URL}/api/friends/user/${resolvedOtherUserId}/profile`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -2580,7 +2718,7 @@ export default function ChatConversationScreen() {
     };
     
     fetchVerificationStatus();
-  }, [token, paramOtherUserId, isBlindDate]);
+  }, [token, resolvedOtherUserId, isBlindDate]);
 
   // If myUserId changes after initial mount, ensure we don't show myself as typing
   useEffect(() => {
@@ -2698,9 +2836,9 @@ export default function ChatConversationScreen() {
         token
       );
 
-      const olderAsc = [...older].sort(
-        (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-      );
+      const olderAsc = [...older]
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+        .map((msg) => normalizeIncomingMessage(msg));
 
       if (!olderAsc.length) {
         setHasMore(false);
@@ -2828,7 +2966,7 @@ export default function ChatConversationScreen() {
           isBlindDate={isBlindDate}
           bothRevealed={bothRevealed}
           otherUserProfile={otherUserProfile}
-          paramOtherUserId={paramOtherUserId}
+          paramOtherUserId={resolvedOtherUserId}
           justRevealed={justRevealed}
           avatarUrl={avatarUrl}
           revealAnim={revealAnim}
@@ -2843,7 +2981,7 @@ export default function ChatConversationScreen() {
           conversationId={conversationId}
           setJamExpanded={setJamExpanded}
           startJamSession={startJamSession}
-          name={name}
+          name={conversationName}
           setSearchVisible={setSearchVisible}
         />
 
@@ -2864,7 +3002,7 @@ export default function ChatConversationScreen() {
           theme={theme}
           revealToastAnim={revealToastAnim}
           otherUserProfile={otherUserProfile}
-          paramOtherUserId={paramOtherUserId}
+          paramOtherUserId={resolvedOtherUserId}
           router={router}
           isMemeConnect={isMemeConnect}
           memeConnectBothRevealed={memeConnectBothRevealed}
@@ -2923,6 +3061,7 @@ export default function ChatConversationScreen() {
             isDarkMode={isDarkMode}
             newMessageCount={newMessageCount}
             onPress={scrollToBottom}
+            style={showJamBarAboveComposer ? styles.scrollToBottomAboveJamBar : null}
           />
 
           <JamMiniPlayerBar style={styles.jamBarAboveComposer} />

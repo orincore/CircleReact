@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { ensureLocationPermission } from '@/utils/permissionGate';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const LOCATION_TRACKING_KEY = 'location_tracking_enabled';
@@ -138,18 +139,28 @@ async function checkNearbyUsersAndNotify(latitude, longitude, token) {
 
 // Location tracking service class
 class LocationTrackingService {
+  /**
+   * Only ever call this from a flow where the user has just tapped
+   * "Allow" on an in-app disclosure (e.g. the Settings location-tracking
+   * toggle -> BackgroundLocationDisclosureModal). It shows the shared
+   * "location" disclosure for foreground access (no-ops if already granted)
+   * and then requests background access, which is only reached after the
+   * caller's own background-specific disclosure has already been shown.
+   * Never call this from an auto-resume path (login, app relaunch) --
+   * use resumeTrackingIfPermitted() there instead, which never surfaces an
+   * undisclosed OS permission prompt.
+   */
   static async requestPermissions() {
     try {
-      // Request foreground location permission first
-      const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
-      
+      const { status: foregroundStatus } = await ensureLocationPermission();
+
       if (foregroundStatus !== 'granted') {
         throw new Error('Foreground location permission denied');
       }
 
       // Request background location permission
       const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-      
+
       if (backgroundStatus !== 'granted') {
         console.warn('Background location permission denied - will only track when app is open');
         return { foreground: true, background: false };
@@ -162,67 +173,107 @@ class LocationTrackingService {
     }
   }
 
+  // Shared by startTracking() (explicit opt-in, permission just requested
+  // above) and resumeTrackingIfPermitted() (permission already confirmed
+  // granted, no request made) -- never calls any permission API itself.
+  static async _beginLocationUpdates() {
+    const hasHasStarted = typeof Location.hasStartedLocationUpdatesAsync === 'function';
+    let isTracking = false;
+    if (hasHasStarted) {
+      isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+    } else if (typeof TaskManager.isTaskRegisteredAsync === 'function') {
+      isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+    }
+    if (isTracking) {
+      //console.log('📍 Location tracking already active');
+      return true;
+    }
+
+    // Start background location updates with 15-30 min random interval
+    if (typeof Location.startLocationUpdatesAsync === 'function') {
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.Balanced, // Good balance of accuracy and battery
+        timeInterval: MIN_UPDATE_INTERVAL, // 15 minutes minimum (rate limiting done in handler)
+        distanceInterval: 500, // Update if moved 500 meters (more battery efficient)
+        deferredUpdatesInterval: MIN_UPDATE_INTERVAL,
+        foregroundService: {
+          notificationTitle: 'Circle Location',
+          notificationBody: 'Finding Circle users near you',
+          notificationColor: '#7C2B86',
+        },
+        pausesUpdatesAutomatically: false, // Keep tracking even when stationary
+        showsBackgroundLocationIndicator: true, // iOS requirement
+      });
+    }
+
+    // Mark tracking as enabled
+    await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'true');
+
+    //console.log('✅ Location tracking started successfully');
+    return true;
+  }
+
   static async startTracking(authToken = null) {
     try {
       //console.log('🚀 Starting location tracking service...');
-      
+
       // Store auth token if provided (for background access)
       if (authToken) {
         await AsyncStorage.setItem('@circle:access_token', authToken);
         //console.log('✅ Auth token stored for background location updates');
       }
-      
+
       // Verify token is available
       const storedToken = await AsyncStorage.getItem('@circle:access_token');
       if (!storedToken) {
         console.warn('⚠️ No auth token available - background location updates may fail');
       }
-      
-      const hasHasStarted = typeof Location.hasStartedLocationUpdatesAsync === 'function';
-      let isTracking = false;
-      if (hasHasStarted) {
-        isTracking = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-      } else if (typeof TaskManager.isTaskRegisteredAsync === 'function') {
-        isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-      }
-      if (isTracking) {
-        //console.log('📍 Location tracking already active');
-        return true;
-      }
 
-      // Request permissions
+      // Request permissions (shows in-app disclosure first if not already granted)
       const permissions = await this.requestPermissions();
-      
+
       if (!permissions.foreground) {
         throw new Error('Location permissions required for tracking');
       }
 
-      // Start background location updates with 15-30 min random interval
-      if (typeof Location.startLocationUpdatesAsync === 'function') {
-        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.Balanced, // Good balance of accuracy and battery
-          timeInterval: MIN_UPDATE_INTERVAL, // 15 minutes minimum (rate limiting done in handler)
-          distanceInterval: 500, // Update if moved 500 meters (more battery efficient)
-          deferredUpdatesInterval: MIN_UPDATE_INTERVAL,
-          foregroundService: {
-            notificationTitle: 'Circle Location',
-            notificationBody: 'Finding Circle users near you',
-            notificationColor: '#7C2B86',
-          },
-          pausesUpdatesAutomatically: false, // Keep tracking even when stationary
-          showsBackgroundLocationIndicator: true, // iOS requirement
-        });
-      }
-
-      // Mark tracking as enabled
-      await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'true');
-      
-      //console.log('✅ Location tracking started successfully');
-      return true;
-      
+      return await this._beginLocationUpdates();
     } catch (error) {
       console.error('❌ Failed to start location tracking:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Resumes previously-enabled tracking on login/app-resume without ever
+   * triggering an OS permission prompt -- this path has no preceding in-app
+   * disclosure, so it must never be the trigger for a fresh permission
+   * request (Google Play "Prominent Disclosure" policy). If the user
+   * revoked location access since it was granted, this just turns tracking
+   * back off instead of surprising them with a bare OS dialog; they can
+   * re-enable it (and see the disclosure again) from Settings.
+   */
+  static async resumeTrackingIfPermitted(authToken = null) {
+    try {
+      if (authToken) {
+        await AsyncStorage.setItem('@circle:access_token', authToken);
+      }
+
+      const trackingEnabled = await AsyncStorage.getItem(LOCATION_TRACKING_KEY);
+      if (trackingEnabled !== 'true') {
+        return false;
+      }
+
+      const foreground = await Location.getForegroundPermissionsAsync();
+      if (foreground.status !== 'granted') {
+        console.warn('⚠️ Location permission no longer granted - disabling tracking resume');
+        await AsyncStorage.setItem(LOCATION_TRACKING_KEY, 'false');
+        return false;
+      }
+
+      return await this._beginLocationUpdates();
+    } catch (error) {
+      console.error('❌ Failed to resume location tracking:', error);
+      return false;
     }
   }
 
@@ -274,8 +325,8 @@ class LocationTrackingService {
 
   static async getCurrentLocation() {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
+      const { status } = await ensureLocationPermission();
+
       if (status !== 'granted') {
         throw new Error('Location permission denied');
       }

@@ -1,8 +1,10 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJamSession } from '@/contexts/JamSessionContext';
+import { unreadCountService } from '@/src/services/unreadCountService';
 
 /**
  * "Now playing" bar for an active jam session. Reads from the app-wide JamSessionContext
@@ -15,6 +17,7 @@ import { useJamSession } from '@/contexts/JamSessionContext';
  * those screens unconditionally.
  */
 export default function JamMiniPlayerBar({ style }) {
+  const router = useRouter();
   const { theme } = useTheme();
   const {
     session, currentQueueItem, isExpanded, setIsExpanded, play, pause, next, isOtherPresent,
@@ -22,6 +25,36 @@ export default function JamMiniPlayerBar({ style }) {
   } = useJamSession();
 
   const thumbRef = useRef(null);
+
+  // Live unread count for the chat this jam session belongs to. A message from the other
+  // participant while the user is off elsewhere (explore, match, chat list) -- not
+  // interrupting their music, which is the whole point of this bar persisting across
+  // screens -- would otherwise go unnoticed until they happened to open that chat later.
+  const chatId = session?.chat_id ?? null;
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  useEffect(() => {
+    if (!chatId) {
+      setChatUnreadCount(0);
+      return;
+    }
+    const unsubscribe = unreadCountService.subscribe(({ chatUnreadCounts }) => {
+      setChatUnreadCount(chatUnreadCounts[chatId] || 0);
+    });
+    return unsubscribe;
+  }, [chatId]);
+
+  const openChat = useCallback((e) => {
+    e.stopPropagation?.();
+    if (!chatId) return;
+    router.push({
+      pathname: '/secure/chat-conversation',
+      params: {
+        id: chatId,
+        name: activeChatOtherUserName || 'Chat',
+        ...(activeChatOtherUserId ? { otherUserId: String(activeChatOtherUserId) } : {}),
+      },
+    });
+  }, [router, chatId, activeChatOtherUserId, activeChatOtherUserName]);
 
   // Reports this bar's thumbnail rect as the dock target for the persistent player while
   // collapsed. Currently inert in practice — the player runs at a fixed 1x1px (confirmed to
@@ -71,6 +104,17 @@ export default function JamMiniPlayerBar({ style }) {
         </Text>
       </View>
 
+      {chatUnreadCount > 0 && (
+        <TouchableOpacity
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={[styles.chatBadge, { backgroundColor: theme.primary }]}
+          onPress={openChat}
+        >
+          <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+          <Text style={styles.chatBadgeText}>{chatUnreadCount > 9 ? '9+' : chatUnreadCount}</Text>
+        </TouchableOpacity>
+      )}
+
       {needsAudioUnlock ? (
         <TouchableOpacity
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -83,15 +127,15 @@ export default function JamMiniPlayerBar({ style }) {
         <TouchableOpacity
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={styles.controlButton}
-          // Blocked (not left to fail server-side) whenever the other listener isn't here —
-          // pausing is always allowed.
-          disabled={!session.is_playing && !otherPresent}
+          // Blocked (not left to fail server-side) whenever the other listener isn't here,
+          // or there's nothing queued to play at all -- pausing is always allowed.
+          disabled={!session.is_playing && (!otherPresent || !currentQueueItem)}
           onPress={(e) => { e.stopPropagation?.(); session.is_playing ? pause() : play(); }}
         >
           <Ionicons
             name={session.is_playing ? 'pause' : 'play'}
             size={20}
-            color={!session.is_playing && !otherPresent ? theme.textMuted : theme.primary}
+            color={!session.is_playing && (!otherPresent || !currentQueueItem) ? theme.textMuted : theme.primary}
           />
         </TouchableOpacity>
       )}
@@ -145,5 +189,18 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     padding: 6,
+  },
+  chatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  chatBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

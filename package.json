@@ -1,7 +1,7 @@
 {
   "name": "circle",
   "main": "expo-router/entry",
-  "version": "2.1.1",
+  "version": "8.0.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -17,6 +17,12 @@
     "export:android": "expo export --platform android --output-dir dist-android",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "generate:icons": "node scripts/generate-icons.js",
+    "version:bump": "node scripts/bump-version.js patch",
+    "version:bump:minor": "node scripts/bump-version.js minor",
+    "version:bump:major": "node scripts/bump-version.js major",
+    "build:android:release": "npm run version:bump && cd android && NODE_ENV=production ./gradlew :app:bundleRelease",
+    "build:android:release:minor": "npm run version:bump:minor && cd android && NODE_ENV=production ./gradlew :app:bundleRelease",
+    "build:android:release:major": "npm run version:bump:major && cd android && NODE_ENV=production ./gradlew :app:bundleRelease",
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
