@@ -16,6 +16,20 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
+// The backend can send activity timestamps straight from Postgres's default
+// timestamptz text form, e.g. "2026-07-09 12:39:28.289+00" -- a space instead
+// of "T" and a bare 2-digit offset instead of "+00:00"/"Z". That's not valid
+// ISO-8601: lenient engines (V8 in a browser) parse it fine, but React
+// Native's Hermes engine doesn't and silently produces an Invalid Date,
+// which turned into "NaNd ago" once fed through the diff math below.
+// Normalize before parsing (same fix as ActiveSessionsSection.jsx).
+function toParseableDate(value) {
+  if (value instanceof Date) return value;
+  if (!value) return new Date();
+  const s = String(value).replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  return new Date(s);
+}
+
 const LiveActivityFeed = ({ isVisible = true, maxItems = 5 }) => {
   const { theme, isDarkMode } = useTheme();
   const [activities, setActivities] = useState([]);
@@ -213,7 +227,7 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 5 }) => {
           .map(activity => ({
             ...activity,
             id: activity.id || Date.now() + Math.random(),
-            timestamp: new Date(activity.timestamp || Date.now()),
+            timestamp: toParseableDate(activity.timestamp),
             isNew: false, // Initial activities are not new
           }));
         
@@ -250,8 +264,11 @@ const LiveActivityFeed = ({ isVisible = true, maxItems = 5 }) => {
 
   // Format time ago
   const formatTimeAgo = (timestamp) => {
+    const then = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    if (Number.isNaN(then.getTime())) return 'just now';
+
     const now = new Date();
-    const diff = Math.floor((now - timestamp) / 1000);
+    const diff = Math.floor((now - then) / 1000);
 
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;

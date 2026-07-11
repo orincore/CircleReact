@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { notificationApi } from '@/src/api/notifications';
+import { feedApi } from '@/src/api/feed';
 import { getSocket } from '@/src/api/socket';
 import { useLocalNotificationCount } from '@/src/hooks/useLocalNotificationCount';
 import { Ionicons } from '@expo/vector-icons';
@@ -133,7 +134,10 @@ export default function NotificationPanel({ visible, onClose }) {
     // Listen for new notifications
     socket.on('notification:new', ({ notification }) => {
       if (notification && notification.id) {
-        setNotifications(prev => [notification, ...prev]);
+        setNotifications(prev => {
+          if (prev.some(n => n.id === notification.id)) return prev;
+          return [notification, ...prev];
+        });
         setUnreadCount(prev => prev + 1);
       } else {
         console.error('❌ Invalid notification data:', notification);
@@ -168,52 +172,27 @@ export default function NotificationPanel({ visible, onClose }) {
       setUnreadCount(prev => Math.max(0, prev - 1));
     });
 
-    // Keep existing friend request listeners for compatibility
-    socket.on('friend:request:received', ({ request, sender }) => {
-      const actualSender = sender || request?.sender;
-
-      if (!request || !actualSender) {
-        console.error('❌ Invalid friend request data:', { request, sender: actualSender });
-        return;
-      }
-
-      const senderName = actualSender.first_name ?
-        actualSender.first_name + (actualSender.last_name ? ` ${actualSender.last_name}` : '') :
-        actualSender.name || 'Unknown User';
-
-      const newNotification = {
-        id: `friend_request_${request.id}`,
-        type: 'friend_request',
-        sender: {
-          id: actualSender.id || actualSender.user_id,
-          name: senderName,
-          first_name: actualSender.first_name || actualSender.name?.split(' ')[0],
-          last_name: actualSender.last_name || actualSender.name?.split(' ')[1],
-          profile_photo_url: actualSender.profile_photo_url || actualSender.avatar,
-          avatar: actualSender.profile_photo_url || actualSender.avatar
-        },
-        data: {
-          requestId: request.id,
-          userName: senderName,
-          userId: actualSender.id || actualSender.user_id
-        },
-        timestamp: new Date().toISOString(),
-        read: false
-      };
-
-      setNotifications(prev => [newNotification, ...prev]);
-      setUnreadCount(prev => prev + 1);
-    });
-
+    // 'friend:request:received' used to also insert its own notification entry
+    // here, but the backend already creates a DB-backed notification row for
+    // every friend request (see friendRequestHandler.ts) which arrives via the
+    // 'notification:new' handler above -- inserting a second entry for the same
+    // request duplicated the row (two different ids: the DB notification id vs.
+    // `friend_request_${request.id}`), making the list jump/reshuffle every time
+    // a request came in. 'notification:new' alone is now the single source of
+    // truth; this listener only needs to clean up once a request is resolved.
     socket.on('friend:request:accept:confirmed', ({ request, newFriend }) => {
       if (request?.id) {
-        setNotifications(prev => prev.filter(notif => notif.id !== `friend_request_${request.id}`));
+        setNotifications(prev => prev.filter(notif =>
+          notif.id !== `friend_request_${request.id}` && notif.data?.requestId !== request.id
+        ));
       }
     });
 
     socket.on('friend:request:decline:confirmed', ({ request }) => {
       if (request?.id) {
-        setNotifications(prev => prev.filter(notif => notif.id !== `friend_request_${request.id}`));
+        setNotifications(prev => prev.filter(notif =>
+          notif.id !== `friend_request_${request.id}` && notif.data?.requestId !== request.id
+        ));
       }
     });
   };
@@ -224,7 +203,6 @@ export default function NotificationPanel({ visible, onClose }) {
     socket.off('notification:removed');
     socket.off('notification:friend_request_removed');
     socket.off('notification:deleted');
-    socket.off('friend:request:received');
     socket.off('friend:request:accept:confirmed');
     socket.off('friend:request:decline:confirmed');
   };
@@ -248,8 +226,83 @@ export default function NotificationPanel({ visible, onClose }) {
   // Squircle avatar/fallback matching the chat list's avatarContainer pattern,
   // used instead of the shared (circular) Avatar component in this panel.
   const NotificationAvatar = ({ item }) => {
-    const avatarUrl = item.sender?.avatar || item.sender?.profile_photo_url || item.avatar;
-    const name = item.sender?.name || item.sender?.first_name || item.data?.userName || '';
+    const isMemeNotification = item.type === 'meme_liked_by_friend' || item.type === 'meme_discovery';
+    const memeId = item.data?.memeId;
+    const [memeThumbUrl, setMemeThumbUrl] = useState(null);
+    const [memeThumbLoading, setMemeThumbLoading] = useState(isMemeNotification && !!memeId);
+
+    // weather_checkin carries no sender_id (see notificationService.ts --
+    // recipient_id is the person being notified, the friend it's about only
+    // ever lives in data.targetUserId), so item.sender is always null here.
+    // Fetch that friend's profile photo the same way UserProfileModal.jsx does.
+    const isWeatherNotification = item.type === 'weather_checkin';
+    const weatherFriendId = item.data?.targetUserId;
+    const [weatherFriendAvatar, setWeatherFriendAvatar] = useState(null);
+
+    useEffect(() => {
+      if (!isWeatherNotification || !weatherFriendId) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const { API_BASE_URL } = await import('@/src/api/config');
+          const response = await fetch(`${API_BASE_URL}/api/friends/user/${weatherFriendId}/profile`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          if (!cancelled) setWeatherFriendAvatar(data?.profilePhotoUrl || null);
+        } catch (e) {
+          console.error('Failed to load friend avatar for weather notification:', e);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [isWeatherNotification, weatherFriendId]);
+
+    // Meme notifications show a preview of the actual meme instead of a
+    // sender avatar -- the list endpoint only sends memeId, so this fetches
+    // the meme (same call MemeSharePreview.jsx uses) purely for its thumbnail.
+    useEffect(() => {
+      if (!isMemeNotification || !memeId) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await feedApi.getMeme(memeId, token);
+          const thumbAsset = res?.meme?.assets?.find(
+            (a) => a.asset_type === 'image' || a.asset_type === 'thumbnail'
+          );
+          if (!cancelled) setMemeThumbUrl(thumbAsset?.s3_url || null);
+        } catch (e) {
+          console.error('Failed to load meme thumbnail for notification:', e);
+        } finally {
+          if (!cancelled) setMemeThumbLoading(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [isMemeNotification, memeId]);
+
+    if (isMemeNotification) {
+      return (
+        <View style={styles.avatarWrap}>
+          {memeThumbUrl ? (
+            <View style={{ overflow: 'hidden', borderRadius: AVATAR_RADIUS, borderWidth: 1.5, borderColor: theme.primary + '26' }}>
+              <Image source={{ uri: memeThumbUrl }} style={[styles.avatarImage, { borderRadius: AVATAR_RADIUS }]} resizeMode="cover" />
+            </View>
+          ) : (
+            <View style={[styles.fallbackAvatar, { backgroundColor: theme.primaryLight, borderColor: theme.primary + '26' }]}>
+              {memeThumbLoading ? (
+                <Loader size={14} color={theme.primary} />
+              ) : (
+                <Ionicons name="image-outline" size={20} color={theme.primary} />
+              )}
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    const avatarUrl = item.sender?.avatar || item.sender?.profile_photo_url || item.avatar || weatherFriendAvatar;
+    const name = item.sender?.name || item.sender?.first_name || item.data?.userName || item.data?.targetUserName || '';
     const initial = (name && name.charAt(0).toUpperCase()) || '?';
 
     return (
@@ -349,18 +402,33 @@ export default function NotificationPanel({ visible, onClose }) {
 
                 <View style={styles.textContent}>
                   <View style={styles.textTopRow}>
-                    {item.type === 'friend_accepted' ? (
-                      <Text style={[styles.successText, styles.notificationText]} numberOfLines={2}>
-                        {item.message || `You are now friends with ${item.sender?.name || item.data?.userName}!`}
-                      </Text>
-                    ) : (
-                      <Text style={[styles.notificationText, { flexShrink: 1 }]} numberOfLines={2}>
-                        <Text style={[styles.usernameText, { color: theme.textPrimary }]}>
-                          {item.sender?.name || item.data?.userName || 'Someone'}
+                    {(() => {
+                      const actionText = getNotificationActionText(item.type, item);
+                      if (item.type === 'friend_accepted') {
+                        return (
+                          <Text style={[styles.successText, styles.notificationText]} numberOfLines={2}>
+                            {item.message || `You are now friends with ${item.sender?.name || item.data?.userName}!`}
+                          </Text>
+                        );
+                      }
+                      if (actionText) {
+                        return (
+                          <Text style={[styles.notificationText, { flexShrink: 1 }]} numberOfLines={2}>
+                            <Text style={[styles.usernameText, { color: theme.textPrimary }]}>
+                              {item.sender?.name || item.data?.userName || 'Someone'}
+                            </Text>
+                            <Text style={[styles.actionText, { color: theme.textSecondary }]}> {actionText}</Text>
+                          </Text>
+                        );
+                      }
+                      // Types with no hardcoded action phrase above -- render
+                      // the backend's own message instead of a generic fallback.
+                      return (
+                        <Text style={[styles.notificationText, { color: theme.textPrimary, flexShrink: 1 }]} numberOfLines={2}>
+                          {item.message || item.title || 'You have a new notification'}
                         </Text>
-                        <Text style={[styles.actionText, { color: theme.textSecondary }]}> {getNotificationActionText(item.type, item)}</Text>
-                      </Text>
-                    )}
+                      );
+                    })()}
                     <Text style={[styles.timeText, { color: theme.textMuted }]}>{formatTimeAgo(item.timestamp)}</Text>
                   </View>
 
@@ -420,6 +488,25 @@ export default function NotificationPanel({ visible, onClose }) {
     if (item.data?.action === 'meme_connect') {
       onClose();
       router.push('/secure/(tabs)/memes/connect-requests');
+      return;
+    }
+
+    if ((item.type === 'meme_liked_by_friend' || item.type === 'meme_discovery') && item.data?.memeId) {
+      onClose();
+      router.push({ pathname: '/secure/meme-view', params: { memeId: String(item.data.memeId) } });
+      return;
+    }
+
+    if (item.type === 'weather_checkin' && item.data?.chatId) {
+      onClose();
+      router.push({
+        pathname: '/secure/chat-conversation',
+        params: {
+          id: String(item.data.chatId),
+          name: item.data?.targetUserName || 'Chat',
+          ...(item.data?.targetUserId ? { otherUserId: String(item.data.targetUserId) } : {}),
+        },
+      });
       return;
     }
 
@@ -548,7 +635,13 @@ export default function NotificationPanel({ visible, onClose }) {
       case 'help_request':
         return 'requested your help';
       default:
-        return 'sent you an update';
+        // Every notification type the backend creates already comes with a
+        // specific, correct `message` (see NotificationService.createNotification
+        // call sites) -- for types not in this switch (referrals, verification,
+        // subscriptions, meme engagement, jam sessions, birthdays, weather
+        // check-ins, etc.), fall back to rendering that instead of a
+        // synthesized "{name} sent you an update" phrase that discards it.
+        return null;
     }
   };
 
