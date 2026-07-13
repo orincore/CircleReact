@@ -14,9 +14,10 @@ async function getToken() {
  * Uses the centralized http utility for consistent token handling.
  */
 export const feedApi = {
-  async getFeed(limit = 20, token = null) {
+  async getFeed(limit = 20, token = null, genre = null) {
     const authToken = token || await getToken();
-    return http.get(`/api/feed/memes?limit=${limit}`, authToken);
+    const genreParam = genre ? `&genre=${encodeURIComponent(genre)}` : '';
+    return http.get(`/api/feed/memes?limit=${limit}${genreParam}`, authToken);
   },
 
   async getMeme(memeId, token = null) {
@@ -108,5 +109,27 @@ export const feedApi = {
     const authToken = token || await getToken();
     if (!chatIds || chatIds.length === 0) return { counts: {} };
     return http.get(`/api/feed/share-counts?chat_ids=${chatIds.join(',')}`, authToken);
+  },
+
+  // Canonical genre list for uploading + the feed's filter bar -- never
+  // hardcoded client-side, always fetched (see memeGenres.ts on the server).
+  async getGenres(token = null) {
+    const authToken = token || await getToken();
+    return http.get('/api/feed/genres', authToken);
+  },
+
+  async searchMusic(query, token = null) {
+    const authToken = token || await getToken();
+    return http.get(`/api/feed/music-search?q=${encodeURIComponent(query)}`, authToken);
+  },
+
+  async deleteMeme(memeId, token = null) {
+    const authToken = token || await getToken();
+    return http.delete(`/api/feed/memes/${memeId}`, authToken);
+  },
+
+  async getMyMemes(token = null) {
+    const authToken = token || await getToken();
+    return http.get('/api/feed/my-memes', authToken);
   },
 };

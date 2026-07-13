@@ -1,5 +1,6 @@
 import { withBase } from "./config";
 import { persistRenewedToken } from "./tokenStore";
+import { reportInvalidToken } from "./authEvents";
 
 export type MeResponse = {
   data?: { me?: any };
@@ -48,6 +49,11 @@ async function gqlFetch<T>(query: string, variables: any = {}, token?: string | 
 
   // Check for authentication errors (401/403) and throw with status code
   if (res.status === 401 || res.status === 403) {
+    // A token we sent was rejected -- report it so AuthContext can log out
+    // instead of every caller retrying the same bad token indefinitely.
+    if (res.status === 401 && token) {
+      reportInvalidToken();
+    }
     const error: any = new Error(`Authentication failed: ${res.status}`);
     error.status = res.status;
     error.isAuthError = true;

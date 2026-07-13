@@ -8,24 +8,22 @@
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform, Alert } from 'react-native';
 import { API_BASE_URL } from '../api/config';
 import { ensureImagePickerCameraPermission, ensureImagePickerMediaLibraryPermission } from '@/utils/permissionGate';
-// Hardware-accelerated compression (AVAssetExportSession on iOS,
-// MediaCodec on Android) — already a project dependency but previously
-// unused, so video "compression" was a no-op that just warned when a video
-// was too large instead of actually shrinking it.
-import { Video as VideoCompressor, createVideoThumbnail } from 'react-native-compressor';
+import {
+  compressImage as compressImageShared,
+  compressVideo as compressVideoShared,
+  generateVideoThumbnail as generateVideoThumbnailShared,
+  formatFileSize as formatFileSizeShared,
+} from '@/src/utils/mediaCompression';
 
 // Compression targets
 const IMAGE_MAX_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
 const VIDEO_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 // Image compression settings
-const IMAGE_INITIAL_QUALITY = 0.9;
-const IMAGE_MIN_QUALITY = 0.3;
 const IMAGE_MAX_DIMENSION = 1920;
 
 class ChatMediaService {
@@ -215,162 +213,31 @@ class ChatMediaService {
   }
 
   /**
-   * Compress image to target size (max 1MB)
+   * Compress image to target size (max 1MB). Delegates to the shared
+   * mediaCompression util (also used by memeUploadService.js).
    */
   async compressImage(uri, onProgress) {
-    try {
-      if (onProgress) onProgress(0.1, 'Analyzing image...');
-
-      // Get original file info
-      let originalSize = 0;
-      if (Platform.OS === 'web') {
-        if (uri.startsWith('data:')) {
-          const base64Length = uri.split(',')[1]?.length || 0;
-          originalSize = (base64Length * 3) / 4;
-        }
-      } else {
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        originalSize = fileInfo.size || 0;
-      }
-
-      console.log(`🖼️ Original image size: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
-
-      // If already under limit, just resize if needed
-      if (originalSize <= IMAGE_MAX_SIZE_BYTES) {
-        if (onProgress) onProgress(0.5, 'Optimizing...');
-        const resized = await this._resizeImage(uri, IMAGE_MAX_DIMENSION);
-        if (onProgress) onProgress(1, 'Done');
-        return resized;
-      }
-
-      if (onProgress) onProgress(0.2, 'Compressing image...');
-
-      // Progressive compression to reach target size
-      let quality = IMAGE_INITIAL_QUALITY;
-      let compressedUri = uri;
-      let compressedSize = originalSize;
-      let attempts = 0;
-      const maxAttempts = 5;
-
-      while (compressedSize > IMAGE_MAX_SIZE_BYTES && quality >= IMAGE_MIN_QUALITY && attempts < maxAttempts) {
-        attempts++;
-        const progress = 0.2 + (attempts / maxAttempts) * 0.6;
-        if (onProgress) onProgress(progress, `Compressing (${Math.round(quality * 100)}% quality)...`);
-
-        if (Platform.OS === 'web') {
-          compressedUri = await this._compressImageWeb(uri, quality);
-          const base64Length = compressedUri.split(',')[1]?.length || 0;
-          compressedSize = (base64Length * 3) / 4;
-        } else {
-          const result = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: IMAGE_MAX_DIMENSION } }],
-            { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
-          );
-          compressedUri = result.uri;
-          const fileInfo = await FileSystem.getInfoAsync(compressedUri);
-          compressedSize = fileInfo.size || 0;
-        }
-
-        console.log(`🖼️ Compression attempt ${attempts}: ${(compressedSize / 1024 / 1024).toFixed(2)}MB at ${Math.round(quality * 100)}% quality`);
-        quality -= 0.15;
-      }
-
-      if (onProgress) onProgress(1, 'Done');
-      console.log(`✅ Final image size: ${(compressedSize / 1024 / 1024).toFixed(2)}MB`);
-
-      return compressedUri;
-    } catch (error) {
-      console.error('❌ Image compression failed:', error);
-      return uri; // Return original on failure
-    }
+    return compressImageShared(uri, { maxSizeBytes: IMAGE_MAX_SIZE_BYTES, maxDimension: IMAGE_MAX_DIMENSION }, onProgress);
   }
 
   /**
    * Compress video to target size (max 10MB) using react-native-compressor,
    * which drives the device's own hardware video encoder (AVAssetExportSession
    * on iOS, MediaCodec on Android) — the same class of compression WhatsApp
-   * uses, not a JS-side re-encode. This used to be a no-op that only warned
-   * when a video was too large without actually shrinking it.
+   * uses, not a JS-side re-encode. Delegates to the shared mediaCompression
+   * util (also used by memeUploadService.js).
    */
   async compressVideo(uri, onProgress) {
-    try {
-      if (onProgress) onProgress(0.1, 'Analyzing video...');
-
-      // Get original file info
-      let originalSize = 0;
-      if (Platform.OS !== 'web') {
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        originalSize = fileInfo.size || 0;
-      }
-
-      console.log(`🎥 Original video size: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
-
-      // No native video compressor on web; send as-is.
-      if (Platform.OS === 'web') {
-        if (onProgress) onProgress(1, 'Video ready');
-        return { uri, wasCompressed: false, size: originalSize };
-      }
-
-      // Already small enough — skip re-encoding to save battery/time.
-      if (originalSize > 0 && originalSize <= VIDEO_MAX_SIZE_BYTES) {
-        if (onProgress) onProgress(1, 'Video ready');
-        return { uri, wasCompressed: false, size: originalSize };
-      }
-
-      if (onProgress) onProgress(0.15, 'Compressing video...');
-
-      // 'auto' lets the hardware encoder pick resolution/bitrate the same
-      // way WhatsApp-style compression does (see react-native-compressor's
-      // own docs), rather than us guessing fixed numbers.
-      const compressedUri = await VideoCompressor.compress(
-        uri,
-        { compressionMethod: 'auto' },
-        (progress) => {
-          if (onProgress) onProgress(0.15 + progress * 0.7, 'Compressing video...');
-        }
-      );
-
-      const compressedInfo = await FileSystem.getInfoAsync(compressedUri);
-      const compressedSize = compressedInfo.size || 0;
-      console.log(`🎥 Compressed video size: ${(compressedSize / 1024 / 1024).toFixed(2)}MB`);
-
-      if (onProgress) onProgress(1, 'Done');
-
-      if (compressedSize > VIDEO_MAX_SIZE_BYTES) {
-        const sizeMB = (compressedSize / 1024 / 1024).toFixed(1);
-        const maxMB = (VIDEO_MAX_SIZE_BYTES / 1024 / 1024).toFixed(0);
-        console.warn(`⚠️ Video is still ${sizeMB}MB after compression, exceeds ${maxMB}MB target.`);
-        return {
-          uri: compressedUri,
-          wasCompressed: true,
-          size: compressedSize,
-          warning: `Video is ${sizeMB}MB after compression. For best results, use videos under ${maxMB}MB.`,
-        };
-      }
-
-      return { uri: compressedUri, wasCompressed: true, size: compressedSize };
-    } catch (error) {
-      console.error('❌ Video compression failed:', error);
-      return { uri, wasCompressed: false, error: error.message };
-    }
+    return compressVideoShared(uri, { maxSizeBytes: VIDEO_MAX_SIZE_BYTES }, onProgress);
   }
 
   /**
    * Generate a real video thumbnail (an actual extracted frame), via the
-   * same hardware-backed react-native-compressor module — this used to just
-   * return the video URI itself with no actual thumbnail image.
+   * same hardware-backed react-native-compressor module. Delegates to the
+   * shared mediaCompression util (also used by memeUploadService.js).
    */
   async generateVideoThumbnail(videoUri) {
-    try {
-      if (Platform.OS === 'web') return videoUri;
-      console.log('🎬 Generating video thumbnail for:', videoUri);
-      const result = await createVideoThumbnail(videoUri);
-      return result?.path || videoUri;
-    } catch (error) {
-      console.error('❌ Video thumbnail generation failed:', error);
-      return videoUri; // Fallback to video URI
-    }
+    return generateVideoThumbnailShared(videoUri);
   }
 
   /**
@@ -508,54 +375,6 @@ class ChatMediaService {
 
   // Private helper methods
 
-  async _resizeImage(uri, maxDimension) {
-    if (Platform.OS === 'web') {
-      return this._resizeImageWeb(uri, maxDimension);
-    }
-
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: maxDimension } }],
-      { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    return result.uri;
-  }
-
-  _compressImageWeb(uri, quality) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION) {
-          if (width > height) {
-            height = (height / width) * IMAGE_MAX_DIMENSION;
-            width = IMAGE_MAX_DIMENSION;
-          } else {
-            width = (width / height) * IMAGE_MAX_DIMENSION;
-            height = IMAGE_MAX_DIMENSION;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = uri;
-    });
-  }
-
-  _resizeImageWeb(uri, maxDimension) {
-    return this._compressImageWeb(uri, 0.9);
-  }
-
   _pickMediaWeb() {
     return new Promise((resolve) => {
       const input = document.createElement('input');
@@ -682,11 +501,7 @@ class ChatMediaService {
    * Format file size for display
    */
   formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+    return formatFileSizeShared(bytes);
   }
 }
 

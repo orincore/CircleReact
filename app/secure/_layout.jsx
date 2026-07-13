@@ -92,6 +92,22 @@ export default function SecureLayout() {
             animation: 'slide_from_bottom'
           }}
         />
+        <Stack.Screen
+          name="meme-edit-image"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom'
+          }}
+        />
+        <Stack.Screen
+          name="meme-edit-video"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom'
+          }}
+        />
       </Stack>
 
         {/* Global Giver Request Modal - shows incoming help requests on any screen */}

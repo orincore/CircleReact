@@ -3,6 +3,7 @@ import { authApi } from "@/src/api/auth";
 import { meGql, updateMeGql } from "@/src/api/graphql";
 import socketService from "@/src/services/socketService";
 import { onTokenRenewed } from "@/src/api/tokenStore";
+import { onInvalidToken } from "@/src/api/authEvents";
 import { getOrCreateDeviceId } from "@/src/services/deviceId";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from 'expo-device';
@@ -47,6 +48,7 @@ export function AuthProvider({ children }) {
   const appStateRef = useRef(AppState.currentState);
   const statusCheckRetries = useRef(0);
   const maxStatusCheckRetries = 3;
+  const isLoggingOutRef = useRef(false);
 
   const checkAccountStatus = useCallback(async (userData, accessToken) => {
     // Check if account is deleted or suspended
@@ -345,10 +347,16 @@ export function AuthProvider({ children }) {
   }, [token, user, router]);
 
   const logOut = useCallback(async () => {
+    // Guards against a burst of concurrent 401s (e.g. several screens firing
+    // requests with the same now-invalid token) each triggering their own
+    // logOut() call before state has a chance to update.
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+    try {
     // IMPORTANT: Get the current token BEFORE clearing state
     // We need it to unregister push notifications
     const currentToken = token;
-    
+
     // Unregister push token for this user on logout FIRST (before clearing auth)
     // This ensures we can still make the API call with valid auth
     if (currentToken) {
@@ -423,6 +431,9 @@ export function AuthProvider({ children }) {
     } else {
       // Native: normal router navigation is enough
       router.replace("/");
+    }
+    } finally {
+      isLoggingOutRef.current = false;
     }
   }, [router]);
 
@@ -501,6 +512,21 @@ export function AuthProvider({ children }) {
       socketService.updateToken(newToken);
     });
   }, []);
+
+  // A token we sent was rejected by the server as invalid (bad signature,
+  // revoked session, etc. -- see src/api/authEvents.ts). Unlike expiry, this
+  // can't be detected locally before the request goes out, so every screen
+  // that fires a request keeps sending the same bad token and keeps getting
+  // 401'd until the backend's brute-force rate limiter trips. Log out on the
+  // first report instead of letting that repeat.
+  useEffect(() => {
+    return onInvalidToken(() => {
+      if (isAuthenticated) {
+        console.error('❌ Server rejected current token as invalid - logging out');
+        logOut();
+      }
+    });
+  }, [isAuthenticated, logOut]);
 
   useEffect(() => {
     if (isRestoring) {

@@ -11,7 +11,7 @@ export default function MemesLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: "Memes",
+          title: "Nudges",
           tabBarStyle: undefined
         }}
       />
@@ -20,6 +20,14 @@ export default function MemesLayout() {
         options={{
           title: "Connect Requests",
           tabBarStyle: { display: 'none' }
+        }}
+      />
+      <Stack.Screen
+        name="create"
+        options={{
+          title: "New Nudge",
+          tabBarStyle: { display: 'none' },
+          animation: 'slide_from_bottom'
         }}
       />
     </Stack>

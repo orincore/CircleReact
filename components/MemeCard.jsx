@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import CachedMediaImage from '@/src/components/CachedMediaImage';
 import AnonymousAvatar from '@/components/AnonymousAvatar';
+import JamPlayerWebView from '@/src/components/jam/JamPlayerWebView';
 
 const CONTROLS_HIDE_DELAY_MS = 3000;
 
@@ -30,29 +31,79 @@ const CONTROLS_HIDE_DELAY_MS = 3000;
  * the same approach ChatVideoPlayer.jsx and CachedMediaImage already use
  * successfully in this app.
  */
-function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
+function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike, mutedByDefault = false }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
+    // A meme with attached music replaces the clip's own audio entirely --
+    // muted at construction, not toggled after, so there's never a brief
+    // flash of the original audio before the music player catches up.
+    p.muted = mutedByDefault;
   });
 
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(mutedByDefault);
   const [controlsVisible, setControlsVisible] = useState(false);
+  const [speedingUp, setSpeedingUp] = useState(false);
   const hideTimerRef = useRef(null);
   const lastTapRef = useRef(0);
   const singleTapTimerRef = useRef(null);
+  // Tracked in a ref as well so onPressOut (which also fires after a normal
+  // tap) can tell whether a hold-to-speed-up was actually in progress.
+  const speedingUpRef = useRef(false);
+  // handleTap's single-tap branch is itself deferred by a timer (below), so
+  // it needs the CURRENT visibility at the moment that timer fires, not
+  // whatever `controlsVisible` closed over back when the tap started.
+  const controlsVisibleRef = useRef(false);
+  // The user's actual mute preference (toggled via the speaker button),
+  // independent of the focus-driven muting below -- so losing focus and
+  // regaining it restores what the user chose, not always "unmuted".
+  const userMutedRef = useRef(mutedByDefault);
 
   useEffect(() => {
     if (!player) return;
     if (isFocused) {
+      // Restore the real mute preference. Unlike play()/pause() (below),
+      // expo-video's `muted` setter is synchronous on the native side, so
+      // this can't lag behind and briefly leave a card silent after it's
+      // focused.
+      player.muted = userMutedRef.current;
       player.play();
       setIsPlaying(true);
     } else {
+      // Mute synchronously the instant this card loses focus. On Android,
+      // expo-video dispatches play()/pause() as coroutines queued onto the
+      // native main-thread's Dispatchers.Main queue rather than executing
+      // them synchronously -- the same queue FlashList's own scroll/layout
+      // work competes on. During fast/sustained scrolling that queue can
+      // back up, so a card's pause() can land noticeably after the next
+      // card's play(), leaving both audible at once (this is what produced
+      // "multiple memes' audio playing and accumulating while scrolling").
+      // `muted`, unlike play/pause, is a synchronous property set on the
+      // native side, so setting it here is the one command guaranteed to
+      // land immediately and silence the outgoing card regardless of how
+      // backed up the async play/pause queue is. pause() is still called
+      // too, to actually stop decoding/free resources, just not relied on
+      // for the audible cutoff.
+      player.muted = true;
       player.pause();
       setIsPlaying(false);
       setControlsVisible(false);
+      controlsVisibleRef.current = false;
+      // A card can scroll away mid-hold (finger still down) -- make sure the
+      // 2x rate never sticks on a now-unfocused card.
+      speedingUpRef.current = false;
+      setSpeedingUp(false);
+      try { player.playbackRate = 1.0; } catch {}
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     }
+    // Belt-and-suspenders for the same async-native-queue issue: if this
+    // instance unmounts (e.g. FlashList recycles its cell for another item)
+    // while still marked focused, mute it synchronously right away rather
+    // than waiting on the also-async native release() to actually silence
+    // the outgoing player.
+    return () => {
+      try { player.muted = true; } catch {}
+    };
   }, [isFocused, player]);
 
   useEffect(() => {
@@ -64,8 +115,18 @@ function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
 
   const revealControls = () => {
     setControlsVisible(true);
+    controlsVisibleRef.current = true;
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_DELAY_MS);
+    hideTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+      controlsVisibleRef.current = false;
+    }, CONTROLS_HIDE_DELAY_MS);
+  };
+
+  const hideControls = () => {
+    setControlsVisible(false);
+    controlsVisibleRef.current = false;
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
   };
 
   const togglePlayPause = () => {
@@ -84,6 +145,7 @@ function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
     if (!player) return;
     player.muted = !player.muted;
     setIsMuted(player.muted);
+    userMutedRef.current = player.muted;
     revealControls();
   };
 
@@ -104,13 +166,46 @@ function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
       return;
     }
 
-    // Delay revealing controls just long enough to find out whether a
+    // Delay resolving the single tap just long enough to find out whether a
     // second tap is coming -- otherwise the very first tap of a double-tap
-    // would already have shown them before we know it's a double tap.
+    // would already have toggled controls before we know it's a double tap.
+    // Toggle, not always-reveal: tapping while controls are already showing
+    // dismisses them instead of just resetting the auto-hide timer.
     singleTapTimerRef.current = setTimeout(() => {
       singleTapTimerRef.current = null;
-      revealControls();
+      if (controlsVisibleRef.current) {
+        hideControls();
+      } else {
+        revealControls();
+      }
     }, 250);
+  };
+
+  // TikTok/Reels-style press-and-hold anywhere on the video to fast-forward
+  // at 2x, released back to 1x. A long press fires instead of onPress, so it
+  // never collides with the tap (play/pause) or double-tap (like) gestures;
+  // a swipe to scroll the feed moves the finger enough to cancel the press
+  // (firing onPressOut), so the rate resets when the user scrolls away.
+  const startSpeedUp = () => {
+    if (!player) return;
+    speedingUpRef.current = true;
+    setSpeedingUp(true);
+    try { player.playbackRate = 2.0; } catch {}
+    // Cancel the pending single-tap control reveal so a hold doesn't also
+    // flash the play/pause overlay.
+    if (singleTapTimerRef.current) {
+      clearTimeout(singleTapTimerRef.current);
+      singleTapTimerRef.current = null;
+    }
+  };
+
+  const endSpeedUp = () => {
+    if (!speedingUpRef.current) return;
+    speedingUpRef.current = false;
+    setSpeedingUp(false);
+    if (player) {
+      try { player.playbackRate = 1.0; } catch {}
+    }
   };
 
   return (
@@ -132,18 +227,83 @@ function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike }) {
           surface, invisible. Stacking it as a separate top-level sibling
           with explicit elevation guarantees it composites above the video on
           Android; iOS composites normally either way. */}
-      <Pressable style={[StyleSheet.absoluteFill, styles.videoTapLayer]} onPress={handleTap}>
+      <Pressable
+        style={[StyleSheet.absoluteFill, styles.videoTapLayer]}
+        onPress={handleTap}
+        onLongPress={startSpeedUp}
+        onPressOut={endSpeedUp}
+        delayLongPress={220}
+      >
         {controlsVisible ? (
           <View style={styles.videoControlsOverlay} pointerEvents="box-none">
             <TouchableOpacity style={styles.videoControlButton} onPress={togglePlayPause} activeOpacity={0.7}>
               <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.videoControlButton} onPress={toggleMute} activeOpacity={0.7}>
-              <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={26} color="#FFFFFF" />
-            </TouchableOpacity>
+            {/* When music replaces the clip's own audio (mutedByDefault), the
+                video track has nothing meaningful to mute/unmute -- omit the
+                control entirely rather than leave a button that does nothing
+                audible. */}
+            {!mutedByDefault ? (
+              <TouchableOpacity style={styles.videoControlButton} onPress={toggleMute} activeOpacity={0.7}>
+                <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
       </Pressable>
+      {speedingUp ? (
+        <View style={styles.speedPill} pointerEvents="none">
+          <Ionicons name="play-forward" size={14} color="#FFFFFF" />
+          <Text style={styles.speedPillText}>2x</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Renders a meme's attached YouTube track as audio -- no visible video
+ * chrome, just JamPlayerWebView (the same component jam-session uses)
+ * sized small-but-nonzero (its own player needs a real layout frame to
+ * bind, see its comments) and hidden behind the card's actual content.
+ *
+ * Play/pause is driven purely by `isFocused`, same one-signal pattern as
+ * VideoAsset -- deliberately NOT wired to the video's own manual
+ * play/pause tap controls (see VideoAsset below), so a manual pause only
+ * ever pauses the visual, not the music; scrolling away is what stops it.
+ *
+ * Loops just the trimmed segment [start_seconds, start_seconds+trim_seconds)
+ * via onTimeUpdate (polled every ~1s by JamPlayerWebView) -- the YouTube
+ * iframe API has no built-in clip-range loop, so this seeks back to the
+ * start once playback passes the trim window's end.
+ */
+function MemeMusicPlayer({ music, isFocused }) {
+  const playerRef = useRef(null);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      playerRef.current?.pause();
+      return;
+    }
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      playerRef.current?.load(music.youtube_video_id, music.start_seconds * 1000, true);
+    } else {
+      playerRef.current?.play();
+    }
+  }, [isFocused, music.youtube_video_id, music.start_seconds]);
+
+  const handleTimeUpdate = useCallback((positionMs) => {
+    const endMs = (music.start_seconds + music.trim_seconds) * 1000;
+    if (positionMs >= endMs) {
+      playerRef.current?.seekTo(music.start_seconds * 1000);
+    }
+  }, [music.start_seconds, music.trim_seconds]);
+
+  return (
+    <View style={styles.hiddenMusicPlayer} pointerEvents="none">
+      <JamPlayerWebView ref={playerRef} onTimeUpdate={handleTimeUpdate} />
     </View>
   );
 }
@@ -194,7 +354,7 @@ function CarouselAssets({ assets, height, width, dotsBottom, onDoubleTapLike }) 
   );
 }
 
-export default function MemeCard({ item, isFocused, height, width, bottomInset = 0, onLike, onOpenComments, onShare }) {
+export default function MemeCard({ item, isFocused, height, width, bottomInset = 0, onLike, onOpenComments, onShare, onCompose }) {
   const videoAsset = item.assets.find(a => a.asset_type === 'video');
   const imageAssets = item.assets.filter(a => a.asset_type === 'image');
   const contentBottom = bottomInset + 24;
@@ -252,7 +412,7 @@ export default function MemeCard({ item, isFocused, height, width, bottomInset =
         // forces React to fully unmount the old VideoAsset (destroying its
         // player) and mount a brand new one -- a fresh useVideoPlayer call,
         // fresh native player -- whenever the video changes.
-        <VideoAsset key={videoAsset.s3_url} uri={videoAsset.s3_url} isFocused={isFocused} height={height} width={width} onDoubleTapLike={handleDoubleTapLike} />
+        <VideoAsset key={videoAsset.s3_url} uri={videoAsset.s3_url} isFocused={isFocused} height={height} width={width} onDoubleTapLike={handleDoubleTapLike} mutedByDefault={!!item.music} />
       ) : item.post_type === 'carousel' ? (
         <CarouselAssets assets={imageAssets} height={height} width={width} dotsBottom={contentBottom + 110} onDoubleTapLike={handleDoubleTapLike} />
       ) : imageAssets[0] ? (
@@ -264,6 +424,16 @@ export default function MemeCard({ item, isFocused, height, width, bottomInset =
           showSaveButton={false}
           onPress={handleImageTap}
         />
+      ) : null}
+
+      {item.music ? (
+        // Keyed on the track id for the same reason VideoAsset is keyed on its
+        // uri above: FlashList recycles this cell for a different feed item
+        // without unmounting it, and MemeMusicPlayer's hasLoadedRef otherwise
+        // makes it "resume" (play()) whatever track the previous item loaded
+        // instead of loading the new one -- a stale/wrong track kept playing
+        // audio underneath the new (muted) video.
+        <MemeMusicPlayer key={item.music.youtube_video_id} music={item.music} isFocused={isFocused} />
       ) : null}
 
       <Animated.View
@@ -286,9 +456,28 @@ export default function MemeCard({ item, isFocused, height, width, bottomInset =
         {item.caption ? (
           <Text style={styles.caption} numberOfLines={3}>{item.caption}</Text>
         ) : null}
+        {item.music ? (
+          <View style={styles.musicChip}>
+            <Ionicons name="musical-notes" size={12} color="#FFFFFF" />
+            <Text style={styles.musicChipText} numberOfLines={1}>
+              {item.music.title}{item.music.channel_title ? ` · ${item.music.channel_title}` : ''}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={[styles.actionsColumn, { bottom: actionsBottom }]} pointerEvents="box-none">
+        {onCompose ? (
+          // Rendered per-card (not as a screen-level overlay in memes/index.jsx)
+          // specifically so it scrolls/transitions with the feed exactly like
+          // Like/Comment/Share do, instead of sitting fixed on screen while
+          // the card underneath it moves.
+          <TouchableOpacity style={styles.actionButton} onPress={onCompose} activeOpacity={0.7}>
+            <View style={styles.iconShadow}>
+              <Feather name="plus" size={28} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.actionButton} onPress={onLike} activeOpacity={0.7}>
           <View style={styles.iconShadow}>
             {item.liked_by_me ? (
@@ -348,9 +537,42 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  musicChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  musicChipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  // JamPlayerWebView needs a real, nonzero layout frame to bind its
+  // underlying native player to (same constraint VideoView has) -- can't be
+  // 0x0. Small + absolutely positioned + opacity 0 keeps it functionally
+  // invisible without violating that.
+  hiddenMusicPlayer: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    opacity: 0,
+  },
   actionsColumn: {
     position: 'absolute',
     right: 12,
+    // Fixed width so all 4 buttons (compose/Like/Comment/Share) center on the
+    // same vertical line regardless of which icon glyph is widest -- without
+    // it this box shrink-wraps to its widest child, so the column's
+    // horizontal center (and thus every button's center) shifts card to card.
+    width: 52,
     alignItems: 'center',
     gap: 18,
     // Must outrank videoTapLayer's elevation/zIndex (10) below, or on
@@ -434,6 +656,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // "2x" pill shown top-center while a hold-to-fast-forward is active.
+  speedPill: {
+    position: 'absolute',
+    top: 70,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 20,
+    elevation: 20,
+  },
+  speedPillText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   likeBurst: {
     position: 'absolute',
     top: 0,

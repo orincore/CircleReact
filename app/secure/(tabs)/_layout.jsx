@@ -33,7 +33,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="memes"
-        options={{ title: "Memes" }}
+        options={{ title: "Nudges" }}
       />
       <Tabs.Screen
         name="chat"

@@ -21,7 +21,15 @@ export default function MemeSharePreview({ memeId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for the auth token before fetching. Without this the effect fired
+    // once on mount with a null token (e.g. a chat opened right after a cold
+    // start, before AuthContext finished hydrating) -- that request failed
+    // and, because the deps were [memeId] only, it never retried, so the
+    // card was permanently stuck on "Nudge no longer available". Keying on
+    // token too makes it refetch the moment auth becomes available.
+    if (!token) return;
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const res = await feedApi.getMeme(memeId, token);
@@ -33,7 +41,7 @@ export default function MemeSharePreview({ memeId }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [memeId]);
+  }, [memeId, token]);
 
   if (loading) {
     return (
@@ -46,7 +54,7 @@ export default function MemeSharePreview({ memeId }) {
   if (!meme) {
     return (
       <View style={[styles.card, styles.center]}>
-        <Text style={styles.unavailableText}>Meme no longer available</Text>
+        <Text style={styles.unavailableText}>Nudge no longer available</Text>
       </View>
     );
   }
@@ -67,7 +75,7 @@ export default function MemeSharePreview({ memeId }) {
         </View>
       )}
       <View style={styles.textCol}>
-        <Text style={styles.label}>Shared a meme</Text>
+        <Text style={styles.label}>Shared a nudge</Text>
         {meme.caption ? (
           <Text style={styles.caption} numberOfLines={2}>{meme.caption}</Text>
         ) : null}

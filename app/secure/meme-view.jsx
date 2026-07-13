@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import Loader from '@/components/Loader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/contexts/AuthContext';
 import { feedApi } from '@/src/api/feed';
@@ -28,6 +28,12 @@ export default function MemeViewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { memeId } = useLocalSearchParams();
+  // Stack screens stay mounted underneath whatever's pushed on top of them
+  // (needed for the native back-swipe transition) -- without this, `isFocused`
+  // being hardcoded true meant the video (and its audio) kept playing here
+  // even after navigating to a different tab/screen. Same fix already
+  // applied to the (tabs)/memes feed screen.
+  const isScreenFocused = useIsFocused();
 
   const [meme, setMeme] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,12 +98,12 @@ export default function MemeViewScreen() {
         <Loader size={36} color="#FFFFFF" style={styles.centerLoader} />
       ) : !meme ? (
         <View style={styles.centerLoader}>
-          <Text style={styles.emptyText}>Meme no longer available</Text>
+          <Text style={styles.emptyText}>Nudge no longer available</Text>
         </View>
       ) : (
         <MemeCard
           item={meme}
-          isFocused
+          isFocused={isScreenFocused}
           height={cardHeight}
           width={cardWidth}
           bottomInset={insets.bottom}

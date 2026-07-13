@@ -1,6 +1,7 @@
 import { withBase } from "./config";
 import { API_BASE_URL } from '../config/api.js';
 import { persistRenewedToken } from './tokenStore';
+import { reportInvalidToken } from './authEvents';
 
 export interface ApiError extends Error {
   status?: number;
@@ -63,6 +64,7 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
   const { method = "GET", body, token, headers } = opts;
   const url = `${API_BASE_URL}${path}`;
   let res: Response;
+  let sentToken: string | undefined;
   try {
     // Centralized token fallback (web only): if caller didn't pass a token but user is logged in,
     // try to read from localStorage to avoid races with context hydration.
@@ -88,6 +90,7 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
     const rawToken = isValidToken(effectiveToken) ? (effectiveToken as string) : undefined;
     const tokenExpired = !!rawToken && isJwtExpired(rawToken);
     const useToken = rawToken && !tokenExpired ? rawToken : undefined;
+    sentToken = useToken;
 
     // Short-circuit protected requests when no usable token is available.
     // Firing token-less requests at auth-protected endpoints (e.g. screens that
@@ -174,6 +177,14 @@ async function request<TResp, TBody = unknown>(path: string, opts: RequestOption
     } else {
       // Just log 404s as warnings
       console.warn(`⚠️ Resource not found [404]: ${method} ${url}`);
+    }
+
+    // A token we sent was rejected as invalid (bad signature, revoked session,
+    // etc.) -- not just "not logged in yet". Report it so AuthContext can log
+    // out, otherwise every screen keeps retrying the same bad token and trips
+    // the backend's brute-force rate limiter (see authEvents.ts).
+    if (res.status === 401 && sentToken) {
+      reportInvalidToken();
     }
 
     const err: ApiError = new Error(errorMessage);

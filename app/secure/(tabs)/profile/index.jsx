@@ -9,6 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { circleStatsApi } from "@/src/api/circle-stats";
 import { friendsApi } from "@/src/api/friends";
 import PhotoGalleryService, { MAX_PHOTOS } from "@/src/services/photoGalleryService";
+import { feedApi } from "@/src/api/feed";
 import { shareProfile } from "@/src/utils/shareProfile";
 import { usePullToRefreshHaptics } from "@/hooks/usePullToRefreshHaptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -58,6 +59,8 @@ export default function ProfileScreen() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [imageErrors, setImageErrors] = useState(new Set());
+  const [myMemes, setMyMemes] = useState([]);
+  const [loadingMyMemes, setLoadingMyMemes] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(
     user?.verification_status || user?.verificationStatus || 'unverified'
   );
@@ -174,17 +177,18 @@ export default function ProfileScreen() {
         refreshUser().catch(err => console.error('Failed to refresh user:', err)),
         subscriptionContext?.fetchSubscription?.().catch(err => console.error('Failed to refresh subscription:', err)),
         loadStats().catch(err => console.error('Failed to load stats:', err)),
-        loadPhotos().catch(err => console.error('Failed to load photos:', err))
+        loadPhotos().catch(err => console.error('Failed to load photos:', err)),
+        loadMyMemes().catch(err => console.error('Failed to load my memes:', err))
       ].filter(Boolean);
-      
+
       await Promise.allSettled(promises);
-      
+
       try {
         await loadFriends();
       } catch (err) {
         console.error('Failed to load friends:', err);
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('Failed to refresh profile data:', error);
@@ -202,9 +206,10 @@ export default function ProfileScreen() {
       try {
         const promises = [
           loadStats().catch(err => console.error('Failed to load stats:', err)),
-          loadPhotos().catch(err => console.error('Failed to load photos:', err))
+          loadPhotos().catch(err => console.error('Failed to load photos:', err)),
+          loadMyMemes().catch(err => console.error('Failed to load my memes:', err))
         ];
-        
+
         await Promise.allSettled(promises);
         
         try {
@@ -271,6 +276,48 @@ export default function ProfileScreen() {
     } finally {
       setLoadingPhotos(false);
     }
+  };
+
+  // Load this user's own meme uploads
+  const loadMyMemes = async () => {
+    if (!token) return;
+
+    try {
+      setLoadingMyMemes(true);
+      const res = await feedApi.getMyMemes(token);
+      setMyMemes(res?.memes || []);
+    } catch (error) {
+      console.error('Failed to load my memes:', error);
+      setMyMemes([]);
+    } finally {
+      setLoadingMyMemes(false);
+    }
+  };
+
+  const handleDeleteMeme = async (memeId) => {
+    Alert.alert(
+      'Delete Nudge',
+      'Are you sure you want to delete this nudge?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const previousMemes = myMemes;
+            // Optimistic removal, same pattern as handleDeletePhoto below.
+            setMyMemes(prev => prev.filter(m => m.id !== memeId));
+            try {
+              await feedApi.deleteMeme(memeId, token);
+            } catch (error) {
+              console.error('Failed to delete meme:', error);
+              setMyMemes(previousMemes);
+              Alert.alert('Error', 'Failed to delete nudge. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Load friends
@@ -674,6 +721,17 @@ export default function ProfileScreen() {
       textAlign: 'center',
       marginTop: 4,
     },
+    emptyMemesBox: {
+      height: 100,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceSecondary,
+      borderWidth: 2,
+      borderColor: theme.border,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+    },
     avatarImage: {
       width: 80,
       height: 80,
@@ -1056,6 +1114,87 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* My Memes */}
+          <View style={dynamicStyles.photoSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={dynamicStyles.sectionTitle}>My Nudges ({myMemes.length})</Text>
+              <TouchableOpacity
+                style={dynamicStyles.addPhotoButton}
+                onPress={() => router.push('/secure/(tabs)/memes/create')}
+              >
+                <Ionicons name="add" size={20} color={theme.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingMyMemes ? (
+              <Loader size={24} color={theme.primary} />
+            ) : myMemes.length === 0 ? (
+              <TouchableOpacity
+                style={dynamicStyles.emptyMemesBox}
+                onPress={() => router.push('/secure/(tabs)/memes/create')}
+              >
+                <Ionicons name="happy-outline" size={28} color={theme.textMuted} />
+                <Text style={dynamicStyles.emptyPhotoText}>Post your first nudge</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.photoGrid}>
+                {myMemes.map((meme) => {
+                  const thumbAsset = meme.assets?.find(a => a.asset_type === 'image')
+                    || meme.assets?.find(a => a.asset_type === 'thumbnail');
+                  const isHidden = meme.status !== 'active';
+
+                  return (
+                    <TouchableOpacity
+                      key={meme.id}
+                      style={styles.photoItem}
+                      // Hidden memes (self-deleted or admin-hidden) 404 on
+                      // meme-view -- its fetch only ever returns status='active'
+                      // rows (see feed-memes.routes.ts's getMemeContentBatch).
+                      // Only active ones are tappable; a hidden thumbnail is
+                      // still visible here (with its badge) but only offers delete.
+                      onPress={isHidden ? undefined : () => router.push({ pathname: '/secure/meme-view', params: { memeId: meme.id } })}
+                      onLongPress={() => handleDeleteMeme(meme.id)}
+                      activeOpacity={isHidden ? 1 : 0.7}
+                    >
+                      {thumbAsset ? (
+                        <Image source={{ uri: thumbAsset.s3_url }} style={[styles.photoImage, isHidden && styles.memeHiddenThumb]} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.photoImage, dynamicStyles.emptyPhotoSlot, { marginBottom: 0 }, isHidden && styles.memeHiddenThumb]}>
+                          <Ionicons name="videocam" size={24} color={theme.textMuted} />
+                        </View>
+                      )}
+
+                      {meme.post_type === 'video' ? (
+                        <View style={styles.memeTypeBadge}>
+                          <Ionicons name="videocam" size={13} color="#FFFFFF" />
+                        </View>
+                      ) : meme.post_type === 'carousel' ? (
+                        <View style={styles.memeTypeBadge}>
+                          <Ionicons name="copy" size={13} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+
+                      {isHidden ? (
+                        <View style={styles.memeHiddenBadge}>
+                          <Text style={styles.memeHiddenBadgeText}>Hidden</Text>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.photoOverlay}>
+                        <TouchableOpacity
+                          style={styles.deletePhotoButton}
+                          onPress={() => handleDeleteMeme(meme.id)}
+                        >
+                          <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Subscription Summary */}
@@ -1569,6 +1708,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  memeTypeBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memeHiddenBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  memeHiddenBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  memeHiddenThumb: {
+    opacity: 0.45,
   },
   emptyPhotoSlot: {
     width: '32%',

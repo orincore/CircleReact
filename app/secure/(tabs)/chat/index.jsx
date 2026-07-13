@@ -367,7 +367,7 @@ export default function ChatListScreen() {
     // carries shared_meme_id instead), so without this check it fell through
     // to the generic "Media" fallback below.
     const sharedMemeId = lastMessage.sharedMemeId || lastMessage.shared_meme_id;
-    if (sharedMemeId) return 'Shared a meme';
+    if (sharedMemeId) return 'Shared a nudge';
     const mediaUrl = lastMessage.mediaUrl || lastMessage.media_url;
     const mediaType = lastMessage.mediaType || lastMessage.media_type;
     if (mediaType) {
@@ -1487,11 +1487,11 @@ export default function ChatListScreen() {
                         <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>{blindDateSubtitle}</Text>
                       )}
                       {!isBlindDateOngoing && isMemeConnectOngoing && (
-                        <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>🎭 Anonymous meme connection</Text>
+                        <Text style={[styles.blindDateTag, { color: theme.primary }]} numberOfLines={1}>🎭 Anonymous nudge connection</Text>
                       )}
                       {!isBlindDateOngoing && !isMemeConnectOngoing && recentlyRevealedFrom && (
                         <Text style={[styles.recentlyRevealedTag, { color: theme.textMuted }]} numberOfLines={1}>
-                          {recentlyRevealedFrom === 'meme_connect' ? '✨ From Meme Blind Connect' : '✨ From Blind Connect'}
+                          {recentlyRevealedFrom === 'meme_connect' ? '✨ From Nudge Blind Connect' : '✨ From Blind Connect'}
                         </Text>
                       )}
                       <View style={styles.chatLine2}>

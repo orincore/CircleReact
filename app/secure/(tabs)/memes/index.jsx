@@ -12,7 +12,18 @@ import MemeCard from '@/components/MemeCard';
 import CommentsSheet from '@/components/CommentsSheet';
 import SharePickerModal from '@/components/SharePickerModal';
 
-const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60 };
+// FlashList v2 defaults minimumViewTime to 250ms (unlike RN's own 0ms
+// default) to avoid flicker from transient partial visibility during
+// continuous drag-scrolling. That doesn't apply here -- the list is
+// pagingEnabled, so a card is either fully snapped into place or it isn't,
+// with no risk of rapidly oscillating past the 60% threshold. Left at the
+// default, every card transition silently ate an extra ~250ms before
+// onViewableItemsChanged (and therefore focusedId, and therefore each
+// VideoAsset's play/pause) fired at all -- on top of native play/pause
+// latency, this was the dominant source of audio start/stop feeling
+// sluggish while scrolling. minimumViewTime: 0 fires the moment a card
+// crosses the threshold.
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60, minimumViewTime: 0 };
 
 // Rolling-window tuning: how many cards ahead of the focused one to warm the
 // cache for, and how many behind it to keep mounted before trimming. Keeps
@@ -109,7 +120,19 @@ export default function MemesFeedScreen() {
     try {
       const res = await feedApi.getFeed(20, token);
       const newMemes = res?.memes || [];
-      setMemes(prev => (append ? [...prev, ...newMemes] : newMemes));
+      setMemes(prev => {
+        if (!append) return newMemes;
+        // The server excludes already-viewed memes via committed
+        // meme_feed_views rows, but recordView() below is fire-and-forget --
+        // if a view hasn't landed yet when the next page is requested, the
+        // same meme can come back and end up mounted twice. Two mounted
+        // copies of the same id both flip isFocused=true whenever focusedId
+        // matches that id, so both play audio simultaneously. De-dupe here
+        // so a given meme id is never in the list more than once.
+        const existingIds = new Set(prev.map(m => m.id));
+        const deduped = newMemes.filter(m => !existingIds.has(m.id));
+        return [...prev, ...deduped];
+      });
       if (!append) {
         setFocusedId(newMemes[0]?.id ?? null);
         requestAnimationFrame(() => {
@@ -299,7 +322,7 @@ export default function MemesFeedScreen() {
         </View>
       ) : memes.length === 0 ? (
         <View style={[styles.centerLoader, styles.fill]}>
-          <Text style={styles.emptyText}>No memes yet. Check back soon!</Text>
+          <Text style={styles.emptyText}>No nudges yet. Check back soon!</Text>
         </View>
       ) : (
         <FlashList
@@ -316,6 +339,7 @@ export default function MemesFeedScreen() {
               onLike={() => handleLike(item)}
               onOpenComments={() => setCommentsFor(item)}
               onShare={() => setShareFor(item.id)}
+              onCompose={() => router.push('/secure/(tabs)/memes/create')}
             />
           )}
           estimatedItemSize={cardHeight}

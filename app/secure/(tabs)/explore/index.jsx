@@ -132,8 +132,12 @@ export default function ExploreScreen() {
       setNewUsers([]);
       setCompatibleUsers([]);
       
-      // Only show alert if not a timeout
-      if (!error.message?.includes('timeout')) {
+      // Skip the generic alert for a timeout, and for an auth failure --
+      // an invalid/expired token here means AuthContext is already logging
+      // the user out and redirecting to login (see src/api/authEvents.ts),
+      // so this alert would just be a confusing second popup.
+      const isAuthError = error?.isAuthError === true || error?.status === 401 || error?.status === 403;
+      if (!error.message?.includes('timeout') && !isAuthError) {
         Alert.alert('Error', 'Failed to load explore data. Please try again.');
       }
     } finally {
