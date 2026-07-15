@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import useSelfStoppingVideoPlayer from "@/src/hooks/useSelfStoppingVideoPlayer";
 
 /**
  * Thin wrapper around expo-video that mirrors the subset of the old expo-av
@@ -13,7 +14,11 @@ import { useVideoPlayer, VideoView } from "expo-video";
  * when the source can change so the player re-initialises with the new URL.
  */
 export default function ChatVideoPlayer({ uri, style, autoPlay = false }) {
-  const player = useVideoPlayer(uri, (p) => {
+  // Self-stopping wrapper (not raw useVideoPlayer): guarantees the player is
+  // muted/paused/unloaded before release on unmount, so a video that's
+  // playing when the viewer closes can't keep its audio going. See the
+  // hook's comments for why the raw hook can leak a playing player.
+  const player = useSelfStoppingVideoPlayer(uri, (p) => {
     p.loop = false;
     if (autoPlay) {
       p.play();

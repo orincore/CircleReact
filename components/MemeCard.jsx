@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, View, Text, StyleSheet, TouchableOpacity, Pressable, FlatList } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { VideoView } from 'expo-video';
+import useSelfStoppingVideoPlayer from '@/src/hooks/useSelfStoppingVideoPlayer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import CachedMediaImage from '@/src/components/CachedMediaImage';
@@ -32,7 +33,15 @@ const CONTROLS_HIDE_DELAY_MS = 3000;
  * successfully in this app.
  */
 function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike, mutedByDefault = false }) {
-  const player = useVideoPlayer(uri, (p) => {
+  // NOT the raw useVideoPlayer: this wrapper guarantees the player is muted,
+  // paused, and unloaded BEFORE it's released when this component unmounts.
+  // FlashList recycles a cell for a different item in the same commit that
+  // moves focus, so a playing card can unmount without ever re-rendering
+  // with isFocused=false -- the raw hook then released a still-playing,
+  // looping player whose audio nothing could ever stop again (it kept
+  // looping over other cards and even after leaving the tab). See the
+  // hook's own comments for the full mechanics.
+  const player = useSelfStoppingVideoPlayer(uri, (p) => {
     p.loop = true;
     // A meme with attached music replaces the clip's own audio entirely --
     // muted at construction, not toggled after, so there's never a brief
@@ -96,14 +105,12 @@ function VideoAsset({ uri, isFocused, height, width, onDoubleTapLike, mutedByDef
       try { player.playbackRate = 1.0; } catch {}
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     }
-    // Belt-and-suspenders for the same async-native-queue issue: if this
-    // instance unmounts (e.g. FlashList recycles its cell for another item)
-    // while still marked focused, mute it synchronously right away rather
-    // than waiting on the also-async native release() to actually silence
-    // the outgoing player.
-    return () => {
-      try { player.muted = true; } catch {}
-    };
+    // No unmount cleanup here: it would be dead code. useVideoPlayer's
+    // internal release() cleanup is declared before this effect, so at
+    // unmount it runs first and any player call from here throws on the
+    // already-released object. The unmount stop lives inside
+    // useSelfStoppingVideoPlayer, whose effect IS declared before the
+    // release and therefore runs while the player is still alive.
   }, [isFocused, player]);
 
   useEffect(() => {
