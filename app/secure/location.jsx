@@ -151,7 +151,11 @@ export default function LocationPage() {
   useEffect(() => {
     if (user?.invisibleMode) {
       //console.log('🚫 User is in invisible mode, redirecting back...');
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/secure/(tabs)/match');
+      }
     }
   }, [user?.invisibleMode]);
 

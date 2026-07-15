@@ -233,7 +233,7 @@ export default function BlindDatingAdmin() {
   };
 
   const handleTestReminderService = async () => {
-    const confirmMessage = 'This will test the inactive blind date reminder service. Continue?';
+    const confirmMessage = 'This will test the inactive Blind Connect reminder service. Continue?';
     
     if (Platform.OS === 'web') {
       if (!window.confirm(confirmMessage)) return;
@@ -511,7 +511,7 @@ export default function BlindDatingAdmin() {
       if (response.ok && data.success) {
         Alert.alert(
           '✅ Match Created!', 
-          `Successfully created blind date match between ${selectedUserA.first_name || selectedUserA.username} and ${selectedUserB.first_name || selectedUserB.username}. Both users have been notified.`
+          `Successfully created Blind Connect match between ${selectedUserA.first_name || selectedUserA.username} and ${selectedUserB.first_name || selectedUserB.username}. Both users have been notified.`
         );
         setShowCreateMatchModal(false);
         setSelectedUserA(null);
@@ -1180,7 +1180,7 @@ export default function BlindDatingAdmin() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Manual Blind Date</Text>
+              <Text style={styles.modalTitle}>Create Manual Blind Connect</Text>
               <TouchableOpacity onPress={() => setShowCreateMatchModal(false)}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
@@ -1188,7 +1188,7 @@ export default function BlindDatingAdmin() {
             
             <ScrollView style={styles.modalBody}>
               <Text style={styles.createMatchLabel}>
-                Select two users to create a blind date match. Both users will be notified.
+                Select two users to create a Blind Connect match. Both users will be notified.
               </Text>
               
               {/* User A Selection */}
@@ -1343,7 +1343,7 @@ export default function BlindDatingAdmin() {
                 ) : (
                   <>
                     <Ionicons name="heart" size={20} color="#FFF" />
-                    <Text style={styles.createMatchBtnText}>Create Blind Date Match</Text>
+                    <Text style={styles.createMatchBtnText}>Create Blind Connect Match</Text>
                   </>
                 )}
               </TouchableOpacity>

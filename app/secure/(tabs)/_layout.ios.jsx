@@ -108,7 +108,7 @@ export default function TabsLayoutIOS() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="memes">
-          <NativeTabs.Trigger.Icon sf={{ default: "face.smiling", selected: "face.smiling.fill" }} />
+          <NativeTabs.Trigger.Icon sf={{ default: "flame", selected: "flame.fill" }} />
           <NativeTabs.Trigger.Label>Nudges</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 

@@ -6,6 +6,7 @@ import { usePromptMatching } from "@/src/hooks/usePromptMatching";
 import GiverRequestModal from "@/components/GiverRequestModal";
 import DateOfBirthMigrationModal from "@/components/DateOfBirthMigrationModal";
 import { JamSessionProvider } from "@/contexts/JamSessionContext";
+import { WatchPartyProvider } from "@/contexts/WatchPartyContext";
 import androidNotificationService from "@/src/services/AndroidNotificationService";
 
 export default function SecureLayout() {
@@ -54,6 +55,7 @@ export default function SecureLayout() {
     // globally from here — chat-conversation, the chat list, explore and match each embed
     // it in their own specific spot; it renders nothing on any screen that doesn't.
     <JamSessionProvider>
+    <WatchPartyProvider>
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen
@@ -62,6 +64,22 @@ export default function SecureLayout() {
         />
         <Stack.Screen
           name="chat-conversation"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right'
+          }}
+        />
+        <Stack.Screen
+          name="group-create"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right'
+          }}
+        />
+        <Stack.Screen
+          name="group-info/[chatId]"
           options={{
             headerShown: false,
             presentation: 'card',
@@ -122,6 +140,7 @@ export default function SecureLayout() {
         {/* Blocking date-of-birth migration prompt for existing users */}
         <DateOfBirthMigrationModal />
       </View>
+    </WatchPartyProvider>
     </JamSessionProvider>
   );
 }

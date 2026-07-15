@@ -57,6 +57,10 @@ export interface ChatInboxItem {
   isBlindDateOngoing?: boolean;
   blindDateInfo?: BlindDateInfo | null;
   isMemeConnectOngoing?: boolean;
+  isGroup?: boolean;
+  groupName?: string | null;
+  groupAvatarUrl?: string | null;
+  memberCount?: number | null;
 }
 
 export const chatApi = {
@@ -105,6 +109,10 @@ export const chatApi = {
       isBlindDateOngoing: !!it.isBlindDateOngoing,
       blindDateInfo: it.blindDateInfo || null,
       isMemeConnectOngoing: !!it.isMemeConnectOngoing,
+      isGroup: !!it.isGroup,
+      groupName: it.groupName ?? null,
+      groupAvatarUrl: it.groupAvatarUrl ?? null,
+      memberCount: it.memberCount ?? null,
     }))
     return { inbox }
   },
@@ -277,8 +285,27 @@ export const chatApi = {
   // notification tap, which only ever carries chatId/senderId, not the
   // other member's current name/photo.
   getMembers: (chatId: string, token?: string | null) =>
-    http.get<{ members: Array<{ user_id: string; first_name?: string; last_name?: string; profile_photo_url?: string; username?: string }> }>(
+    http.get<{ members: Array<{ user_id: string; role?: string; first_name?: string; last_name?: string; profile_photo_url?: string; username?: string }> }>(
       `/chat/${encodeURIComponent(chatId)}/members`,
+      token
+    ),
+  createGroup: (name: string, memberIds: string[], token?: string | null) =>
+    http.post<{ chat: any; members: Array<{ id: string; firstName?: string; lastName?: string; profilePhotoUrl?: string }> }, { name: string; memberIds: string[] }>(
+      `/chat/group`,
+      { name, memberIds },
+      token
+    ),
+  renameGroup: (chatId: string, name: string, token?: string | null) =>
+    http.put<{ success: boolean; groupName: string }, { name: string }>(`/chat/${encodeURIComponent(chatId)}/group`, { name }, token),
+  addGroupMembers: (chatId: string, memberIds: string[], token?: string | null) =>
+    http.post<{ success: boolean; members: any[] }, { memberIds: string[] }>(`/chat/${encodeURIComponent(chatId)}/group/members`, { memberIds }, token),
+  removeGroupMember: (chatId: string, userId: string, token?: string | null) =>
+    http.delete<{ success: boolean }>(`/chat/${encodeURIComponent(chatId)}/group/members/${encodeURIComponent(userId)}`, token),
+  leaveGroup: (chatId: string, token?: string | null) =>
+    http.post<{ success: boolean }>(`/chat/${encodeURIComponent(chatId)}/leave`, {}, token),
+  getChat: (chatId: string, token?: string | null) =>
+    http.get<{ chat: { id: string; is_group: boolean; group_name: string | null; group_avatar_url: string | null; created_by: string | null } }>(
+      `/chat/${encodeURIComponent(chatId)}`,
       token
     ),
   // New chat-list APIs

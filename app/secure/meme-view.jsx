@@ -89,7 +89,7 @@ export default function MemeViewScreen() {
     >
       <TouchableOpacity
         style={[styles.backButton, { top: insets.top + 8 }]}
-        onPress={() => router.back()}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/secure/(tabs)/memes'))}
       >
         <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
       </TouchableOpacity>

@@ -245,26 +245,23 @@ export default function CreateMemeScreen() {
         (p, msg) => setProgress({ pct: 0.65 + p * 0.35, message: msg })
       );
 
-      // NudgePreview renders the draft through the real MemeCard with
-      // isFocused hardcoded true (it's the only thing on screen at that
-      // point) -- it has no focus gating of its own. router.replace below
-      // targets a path outside this screen's local (tabs)/memes stack, which
-      // doesn't unmount this screen, only covers it (stack screens stay
-      // mounted underneath whatever's pushed on top, for the native
-      // back-swipe transition). Left up, that video/audio would keep playing
-      // forever in the background regardless of which tab the user is on.
-      // Closing the preview here unmounts MemeCard/VideoAsset and releases
-      // its player before we navigate away.
+      // NudgePreview renders the draft through the real MemeCard -- close it
+      // here so its player is released before we navigate away, rather than
+      // relying on unmount ordering mid-transition.
       setShowPreview(false);
 
       // Land on the newly created nudge (same viewer used for shared-meme
       // links) instead of just returning to wherever the feed happened to be
-      // scrolled -- replace, not push, so back from there exits to the feed
-      // rather than back into this now-finished create screen.
+      // scrolled. Pop this finished create screen in its own (tabs)/memes
+      // stack first, then push the viewer on the outer stack, so back from
+      // the viewer exits to the feed. Don't collapse this into a single
+      // router.replace: meme-view lives outside this screen's navigator, and
+      // a cross-navigator replace degenerates into a push plus a GO_BACK
+      // that no navigator handles ("The action 'GO_BACK' was not handled"),
+      // leaving this screen mounted underneath forever.
+      router.back();
       if (result?.meme_id) {
-        router.replace(`/secure/meme-view?memeId=${result.meme_id}`);
-      } else {
-        router.back();
+        router.push(`/secure/meme-view?memeId=${result.meme_id}`);
       }
     } catch (e) {
       console.error('Failed to post meme:', e);
@@ -405,15 +402,12 @@ export default function CreateMemeScreen() {
           cardHeight={SCREEN_HEIGHT}
           posting={posting}
           progress={progress}
-          // Tied to real navigation focus, not just showPreview -- this
-          // screen stays mounted (not unmounted) underneath meme-view after
-          // a successful post (router.replace targets a path outside this
-          // screen's local stack, so it only covers this screen rather than
-          // popping it -- see handlePost). Without a real isFocused signal,
-          // NudgePreview's embedded video had no way to ever find out it
-          // should stop, so it just kept playing in the background across
-          // the whole app. isScreenFocused going false is what actually
-          // silences it now, the same mechanism the feed and meme-view use.
+          // Tied to real navigation focus, not just showPreview -- stack
+          // screens stay mounted underneath whatever covers them (e.g. the
+          // editor screens pushed on top), and without a real isFocused
+          // signal NudgePreview's embedded video kept playing in the
+          // background. isScreenFocused going false is what silences it,
+          // the same mechanism the feed and meme-view use.
           isFocused={isScreenFocused && showPreview}
           onBack={() => setShowPreview(false)}
           onShare={handlePost}

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MemeCard from '@/components/MemeCard';
@@ -11,11 +11,20 @@ const noop = () => {};
  * Share rail the real feed uses), not a boxed-in editor preview, so what the
  * user approves here is pixel-for-pixel what shows up in the feed.
  * Like/Comment/Share are no-ops here -- there's no real post yet to act on.
+ *
+ * Rendered through a real native Modal (presentationStyle="fullScreen"),
+ * not an absolutely-positioned View layered inside the create screen --
+ * this screen already has its own header and sits inside the tabs
+ * navigator's screen area, so a plain View overlay (even with a high
+ * zIndex) wasn't guaranteed to paint above that header or the tab bar
+ * underneath it. A Modal renders as its own native surface above
+ * everything, sidestepping that stacking entirely.
  */
 export default function NudgePreview({ item, cardWidth, cardHeight, posting, progress, isFocused = true, onBack, onShare }) {
   const insets = useSafeAreaInsets();
 
   return (
+    <Modal visible animationType="slide" presentationStyle="fullScreen" statusBarTranslucent onRequestClose={onBack}>
     <View style={styles.overlay}>
       {cardWidth > 0 && cardHeight > 0 ? (
         <MemeCard
@@ -52,14 +61,14 @@ export default function NudgePreview({ item, cardWidth, cardHeight, posting, pro
         </View>
       ) : null}
     </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: '#000000',
-    zIndex: 100,
   },
   backButton: {
     position: 'absolute',

@@ -82,7 +82,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
         
         // Show success message
         Alert.alert(
-          '🎭 Blind Dating Enabled!',
+          '🎭 Blind Connect Enabled!',
           'We\'ll start finding anonymous matches for you. You\'ll receive a new match every morning!',
           [{ text: 'Awesome!' }]
         );
@@ -212,7 +212,7 @@ const BlindDatingSettings = ({ onClose, onEnabledChange }) => {
             <Step 
               icon="search" 
               title="Match" 
-              description="We find compatible users with blind dating enabled"
+              description="We find compatible users with Blind Connect enabled"
               theme={theme}
             />
             <Step 

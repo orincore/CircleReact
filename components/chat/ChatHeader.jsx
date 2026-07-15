@@ -31,6 +31,9 @@ function ChatHeader({
   startJamSession,
   name,
   setSearchVisible,
+  isGroup,
+  groupMemberCount,
+  onGroupInfoPress,
 }) {
   return (
     <View
@@ -62,6 +65,10 @@ function ChatHeader({
       <TouchableOpacity
         style={{ position: 'relative' }}
         onPress={() => {
+          if (isGroup) {
+            onGroupInfoPress?.();
+            return;
+          }
           // Allow profile view if not blind date OR if both revealed
           const canViewProfile = !isBlindDate || bothRevealed;
           const profileId = otherUserProfile?.id || paramOtherUserId;
@@ -69,7 +76,7 @@ function ChatHeader({
             router.push(`/secure/user-profile/${profileId}`);
           }
         }}
-        disabled={!paramOtherUserId && !otherUserProfile?.id}
+        disabled={!isGroup && !paramOtherUserId && !otherUserProfile?.id}
       >
         {(() => {
           // Use revealed profile photo if available, otherwise use
@@ -165,7 +172,16 @@ function ChatHeader({
             </View>
           )}
         </View>
-        {isBlindDate && !bothRevealed && (blindDateInfo || otherUserProfile) ? (
+        {isGroup ? (
+          <TouchableOpacity onPress={onGroupInfoPress}>
+            <Text
+              style={[styles.headerSubtitle, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              {groupMemberCount ? `${groupMemberCount} member${groupMemberCount !== 1 ? 's' : ''} • Tap for group info` : 'Tap for group info'}
+            </Text>
+          </TouchableOpacity>
+        ) : isBlindDate && !bothRevealed && (blindDateInfo || otherUserProfile) ? (
           <Text
             style={[styles.headerSubtitle, { color: theme.primary }]}
             numberOfLines={1}

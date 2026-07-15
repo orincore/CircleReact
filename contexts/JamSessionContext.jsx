@@ -19,10 +19,13 @@ const DRIFT_TOLERANCE_MS = 1500;
 // events (which, over a long track, can let the two sides quietly drift apart).
 const SYNC_REQUEST_INTERVAL_MS = 5000;
 
-// TEMPORARY DIAGNOSTIC — set true to shrink the persistent player to 1x1 and stop it
-// docking into the mini-bar/expanded-screen slots, to test whether iOS actually still
-// plays audio at a size far below the ~200x200 we've confirmed works. Revert to false
-// (or delete this + its usage below) once the test is done either way.
+// Confirmed steady state, not a temporary diagnostic (despite the name's history): the
+// persistent player runs at a fixed 1x1px and never docks into the mini-bar/expanded-screen
+// slots. Device testing confirmed iOS keeps YouTube audio alive at this size, and the
+// jam UI treats the player as audio-only (the expanded screen's video slot shows the
+// track thumbnail). Do NOT casually flip this to false: the slot-docking path it would
+// re-enable (measureInWindow-based positioning across screens) was never re-verified
+// after this became the shipped configuration.
 const TEST_TINY_PLAYER = true;
 
 // Mounted once at the app root (app/secure/_layout.jsx) rather than per chat screen, so a
@@ -213,11 +216,13 @@ export const JamSessionProvider = ({ children }) => {
   useEffect(() => {
     if (!session || session.status === 'ended') return;
     const memberIds = Object.keys(presence);
-    // Nothing to check yet (presence map not populated) — don't treat that as "absent".
-    if (memberIds.length === 0) return;
-    const otherIds = memberIds.filter((id) => id !== myUserId);
-    const bothPresent = otherIds.length === 0 || otherIds.every((id) => presence[id]);
-    if (!bothPresent && session.is_playing) {
+    // Presence map not fully populated yet (e.g. right after mount) — don't treat that as "absent".
+    if (memberIds.length < 2) return;
+    // Group-aware: requires 2+ concurrently present, not *every* member present —
+    // in a group jam, one member stepping away shouldn't pause it for everyone else.
+    const presentCount = memberIds.filter((id) => presence[id]).length;
+    const enoughPresent = presentCount >= 2;
+    if (!enoughPresent && session.is_playing) {
       playerRef.current?.pause();
       setSession((prev) => prev && { ...prev, is_playing: false, paused_for_presence: true });
     }

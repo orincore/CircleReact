@@ -11,6 +11,9 @@ import { getSocket } from '@/src/api/socket';
 import MemeCard from '@/components/MemeCard';
 import CommentsSheet from '@/components/CommentsSheet';
 import SharePickerModal from '@/components/SharePickerModal';
+import { useWatchParty } from '@/contexts/WatchPartyContext';
+import WatchPartyBar from '@/components/watchparty/WatchPartyBar';
+import WatchPartyGuestView from '@/components/watchparty/WatchPartyGuestView';
 
 // FlashList v2 defaults minimumViewTime to 250ms (unlike RN's own 0ms
 // default) to avoid flicker from transient partial visibility during
@@ -63,6 +66,25 @@ export default function MemesFeedScreen() {
   const [cardHeight, setCardHeight] = useState(0);
   const [cardWidth, setCardWidth] = useState(0);
   const [pendingConnectCount, setPendingConnectCount] = useState(0);
+
+  const { session: watchPartySession, isHost: isWatchPartyHost, startParty, extendParty, advance: advanceWatchParty } = useWatchParty();
+  // onViewableItemsChanged below is a stable `useRef(fn).current` closure (see
+  // its own declaration) -- it needs a ref, not the context values directly,
+  // to read fresh isHost/session/advance without being recreated per render.
+  const watchPartyRef = useRef({ isHost: false, session: null, advance: () => {} });
+  useEffect(() => {
+    watchPartyRef.current = { isHost: isWatchPartyHost, session: watchPartySession, advance: advanceWatchParty };
+  }, [isWatchPartyHost, watchPartySession, advanceWatchParty]);
+
+  // Extend the party's shared meme snapshot as the host paginates further --
+  // extendMemeIds on the backend already dedupes, so it's safe to just pass
+  // every currently-loaded id on each change rather than tracking a diff.
+  useEffect(() => {
+    if (!isWatchPartyHost || !watchPartySession) return;
+    const known = new Set(watchPartySession.meme_ids);
+    const newIds = memes.filter(m => !known.has(m.id)).map(m => m.id);
+    if (newIds.length) extendParty(newIds);
+  }, [memes, isWatchPartyHost, watchPartySession, extendParty]);
 
   const viewedIds = useRef(new Set());
   const prefetchedIds = useRef(new Set());
@@ -194,13 +216,28 @@ export default function MemesFeedScreen() {
 
   // Double-tap the Memes tab icon to refresh. `tabPress` fires every time the
   // tab is pressed -- including while it's already the active tab -- on both
-  // the JS tab bar (Android/web) and the native iOS tab bar (NativeTabs
-  // explicitly documents `tabPress` as its one supported nav event), so this
-  // works the same way on every platform without touching the tab bar itself.
+  // the JS tab bar (Android/web, TabBarWithNotifications emits it manually)
+  // and the native iOS tab bar (NativeTabs explicitly documents `tabPress`
+  // as its one supported nav event).
+  //
+  // Registered on the PARENT tab navigator, not this screen's own navigation:
+  // this screen belongs to the nested memes Stack (memes/_layout.jsx), and
+  // React Navigation delivers `tabPress` only to the tab navigator's own
+  // tab-level route (its `target` is the memes *tab* route key) -- a listener
+  // on the inner Stack screen never receives it, on any tab bar type. Walk
+  // up to the navigator whose state is actually of type 'tab' rather than
+  // hardcoding one getParent() hop, so an extra layout group inserted
+  // between the tab and this screen can't silently break it again.
   const navigation = useNavigation();
   const lastTabPressRef = useRef(0);
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabPress', () => {
+    let tabNavigation = navigation;
+    while (tabNavigation && tabNavigation.getState?.()?.type !== 'tab') {
+      tabNavigation = tabNavigation.getParent();
+    }
+    if (!tabNavigation) tabNavigation = navigation;
+
+    const unsubscribe = tabNavigation.addListener('tabPress', () => {
       const now = Date.now();
       const isDoubleTap = now - lastTabPressRef.current < 350;
       lastTabPressRef.current = now;
@@ -217,6 +254,19 @@ export default function MemesFeedScreen() {
     if (!top?.item) return;
 
     setFocusedId(top.item.id);
+
+    // Broadcast the host's scroll position to the party -- looked up by
+    // meme id in the party's own meme_ids snapshot, not the local `memes`
+    // array's index, so this stays correct independent of the rolling trim
+    // below (which only affects what's mounted locally, not the party's
+    // shared position).
+    const wp = watchPartyRef.current;
+    if (wp.isHost && wp.session) {
+      const partyIndex = wp.session.meme_ids.indexOf(top.item.id);
+      if (partyIndex >= 0 && partyIndex !== wp.session.current_index) {
+        wp.advance(partyIndex);
+      }
+    }
 
     if (dwellRef.current.id !== top.item.id) {
       flushDwell();
@@ -300,6 +350,18 @@ export default function MemesFeedScreen() {
     );
   }
 
+  // A guest doesn't scroll their own feed during a party -- the host drives
+  // the position (see the extend/advance effects above). Swap the whole
+  // screen body for the passive synced viewer rather than trying to
+  // reconcile two independently-scrolling FlashLists.
+  if (watchPartySession && !isWatchPartyHost) {
+    return (
+      <View style={styles.container}>
+        <WatchPartyGuestView height={cardHeight} width={cardWidth} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -315,6 +377,17 @@ export default function MemesFeedScreen() {
           </View>
         )}
       </TouchableOpacity>
+
+      {watchPartySession && isWatchPartyHost ? (
+        <WatchPartyBar topOffset={insets.top + 8} />
+      ) : (
+        <TouchableOpacity
+          style={[styles.watchPartyButton, { top: insets.top + 8 }]}
+          onPress={() => startParty(memesRef.current.map(m => m.id))}
+        >
+          <Ionicons name="albums-outline" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
 
       {loading ? (
         <View style={[styles.centerLoader, styles.fill]}>
@@ -408,6 +481,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
+  },
+  watchPartyButton: {
+    position: 'absolute',
+    right: 60,
+    zIndex: 10,
   },
   fill: {
     flex: 1,

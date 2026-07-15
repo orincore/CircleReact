@@ -71,10 +71,10 @@ import MessageBubble from "@/components/chat/MessageBubble";
 
 export default function ChatConversationScreen() {
   const router = useRouter();
-  const { 
-    id, 
-    name, 
-    avatar, 
+  const {
+    id,
+    name,
+    avatar,
     otherUserId: paramOtherUserId,
     isBlindDate: paramIsBlindDate,
     blindDateMatchReason,
@@ -82,7 +82,9 @@ export default function ChatConversationScreen() {
     blindDateAge,
     isOtherUserVerified: paramIsOtherUserVerified,
     isMemeConnect: paramIsMemeConnect,
+    isGroup: paramIsGroup,
   } = useLocalSearchParams();
+  const isGroup = paramIsGroup === 'true';
   const { token, user } = useAuth();
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
@@ -103,6 +105,11 @@ export default function ChatConversationScreen() {
   // this screen ever re-fetches that info once mounted.
   const [hydratedOtherUser, setHydratedOtherUser] = useState(null); // { id, name, avatar }
   useEffect(() => {
+    // A group chat has no single "other user" -- picking one member at
+    // random to hydrate the header used to misname group conversations
+    // whenever they opened without name/avatar params (e.g. a notification
+    // tap). Group name/avatar come from groupMembers hydration below instead.
+    if (isGroup) return;
     const hasName = typeof name === "string" && name.trim();
     const hasAvatar = typeof avatar === "string" && avatar.trim();
     if (hasName && hasAvatar && paramOtherUserId) return; // already fully specified
@@ -130,7 +137,33 @@ export default function ChatConversationScreen() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, token, paramIsBlindDate, paramIsMemeConnect]);
+  }, [conversationId, token, paramIsBlindDate, paramIsMemeConnect, isGroup]);
+
+  // Group member display names, keyed by user id -- used to label each
+  // incoming bubble with its actual sender ("Alice: hey") instead of the
+  // single conversation-partner name a 1:1 chat gets away with.
+  const [groupMemberNames, setGroupMemberNames] = useState({}); // userId -> name
+  const [groupMembers, setGroupMembers] = useState([]); // raw member rows, incl. role
+  useEffect(() => {
+    if (!isGroup || !token || !conversationId || conversationId === "chat") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { members } = await chatApi.getMembers(conversationId, token);
+        if (cancelled || !Array.isArray(members)) return;
+        const names = {};
+        for (const m of members) {
+          const fullName = `${m.first_name || ''} ${m.last_name || ''}`.trim();
+          names[String(m.user_id)] = fullName || m.username || 'Someone';
+        }
+        setGroupMemberNames(names);
+        setGroupMembers(members);
+      } catch (error) {
+        console.error('Failed to load group members:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isGroup, conversationId, token]);
 
   const conversationName =
     (typeof name === "string" && name.trim()) ? name : (hydratedOtherUser?.name || "Conversation");
@@ -2163,8 +2196,11 @@ export default function ChatConversationScreen() {
     const isMine = senderIdStr && myUserId && senderIdStr === myUserId;
     // Same reveal-aware display name the header uses, so the in-bubble
     // "Room Chat" style header row shows the same name as the screen title.
-    const otherDisplayName =
-      (bothRevealed && otherUserProfile?.first_name) || (isBlindDate && otherUserProfile?.first_name)
+    // Groups have no single "other" person -- look the actual sender up by
+    // id instead, or every incoming bubble would show the group's name.
+    const otherDisplayName = isGroup
+      ? (groupMemberNames[senderIdStr] || 'Someone')
+      : (bothRevealed && otherUserProfile?.first_name) || (isBlindDate && otherUserProfile?.first_name)
         ? `${otherUserProfile.first_name} ${otherUserProfile.last_name || ''}`.trim()
         : conversationName;
     const isSelected = selectedMessageIds.includes(item.id);
@@ -2235,6 +2271,8 @@ export default function ChatConversationScreen() {
     bothRevealed,
     otherUserProfile,
     isBlindDate,
+    isGroup,
+    groupMemberNames,
     conversationName,
     selectedMessageIds,
     editingMessage,
@@ -2983,6 +3021,9 @@ export default function ChatConversationScreen() {
           startJamSession={startJamSession}
           name={conversationName}
           setSearchVisible={setSearchVisible}
+          isGroup={isGroup}
+          groupMemberCount={groupMembers.length}
+          onGroupInfoPress={() => router.push({ pathname: "/secure/group-info/[chatId]", params: { chatId: conversationId, name: conversationName } })}
         />
 
         <ChatSearchBar

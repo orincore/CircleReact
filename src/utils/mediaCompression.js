@@ -7,7 +7,7 @@
  */
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Platform } from 'react-native';
+import { Image, Platform } from 'react-native';
 // Hardware-accelerated compression (AVAssetExportSession on iOS, MediaCodec
 // on Android), not a JS-side re-encode -- see compressVideo below.
 import { Video as VideoCompressor, createVideoThumbnail } from 'react-native-compressor';
@@ -47,10 +47,44 @@ function resizeImageWeb(uri, maxDimension, quality = 0.9) {
   });
 }
 
-async function resizeImageNative(uri, maxDimension, quality = 0.9) {
+function getImageSizeNative(uri) {
+  return new Promise((resolve, reject) => {
+    Image.getSize(uri, (width, height) => resolve({ width, height }), reject);
+  });
+}
+
+/**
+ * Resizes only DOWN, never up. The old version always applied
+ * `resize: { width: maxDimension }`, which (a) UPSCALED anything narrower
+ * than maxDimension -- every cropped/filtered nudge image came out
+ * interpolation-blurred, then got downscaled again server-side, stacking a
+ * third lossy re-encode on top -- and (b) resized by width alone, so
+ * portrait images could still exceed maxDimension in height.
+ *
+ * Now: images already inside the maxDimension box are returned byte-for-byte
+ * untouched (no pointless re-encode) unless `forceReencode` is set, which
+ * the over-size-budget compression loop uses to lower JPEG quality without
+ * ever enlarging. Resize goes on the LONGER side so the result always fits
+ * the box regardless of orientation.
+ */
+async function resizeImageNative(uri, maxDimension, quality = 0.9, forceReencode = false) {
+  let size = null;
+  try {
+    size = await getImageSizeNative(uri);
+  } catch {
+    // Can't measure (odd uri scheme, corrupt header): don't guess at a
+    // resize that might enlarge. The server's own resize-inside cap is the
+    // safety net for oversized dimensions.
+  }
+  const needsResize = size ? (size.width > maxDimension || size.height > maxDimension) : false;
+  if (!needsResize && !forceReencode) return uri;
+
+  const actions = needsResize
+    ? [size.width >= size.height ? { resize: { width: maxDimension } } : { resize: { height: maxDimension } }]
+    : [];
   const result = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: maxDimension } }],
+    actions,
     { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
   );
   return result.uri;
@@ -78,6 +112,9 @@ export async function compressImage(uri, { maxSizeBytes, maxDimension, initialQu
 
     if (originalSize <= maxSizeBytes) {
       if (onProgress) onProgress(0.5, 'Optimizing...');
+      // Within the size budget: only cap dimensions (downscale-only). An
+      // image already inside the box passes through completely untouched --
+      // re-encoding it would just shave quality for nothing.
       const resized = Platform.OS === 'web'
         ? await resizeImageWeb(uri, maxDimension)
         : await resizeImageNative(uri, maxDimension);
@@ -102,7 +139,9 @@ export async function compressImage(uri, { maxSizeBytes, maxDimension, initialQu
         const base64Length = compressedUri.split(',')[1]?.length || 0;
         compressedSize = (base64Length * 3) / 4;
       } else {
-        compressedUri = await resizeImageNative(uri, maxDimension, quality);
+        // forceReencode: over budget, so a re-encode at this (reduced)
+        // quality must happen even when no resize is needed.
+        compressedUri = await resizeImageNative(uri, maxDimension, quality, true);
         const fileInfo = await FileSystem.getInfoAsync(compressedUri);
         compressedSize = fileInfo.size || 0;
       }

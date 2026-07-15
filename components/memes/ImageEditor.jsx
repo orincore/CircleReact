@@ -242,7 +242,14 @@ export default function ImageEditor({ uri, onCancel, onDone }) {
         { width: outW, height: outH }
       );
 
-      const base64 = skImageResult.encodeToBase64(ImageFormat.JPEG, 0.92);
+      // Quality is on Skia's 0-100 INTEGER scale, not expo-image-manipulator's
+      // 0-1 float scale: native side does `options.fQuality = quality` on an
+      // int -- passing 0.95 here truncated to JPEG quality ZERO, which is what
+      // produced posterized, flat-blob output on every filtered image. 95:
+      // with the upload compressor passing dimension-fitting files through
+      // untouched, this encode is usually the ONLY client-side lossy step
+      // before the server's final re-encode -- keep it high.
+      const base64 = skImageResult.encodeToBase64(ImageFormat.JPEG, 95);
       const outPath = `${FileSystem.cacheDirectory}nudge-edit-${Date.now()}.jpg`;
       await FileSystem.writeAsStringAsync(outPath, base64, { encoding: FileSystem.EncodingType.Base64 });
       onDone(outPath);

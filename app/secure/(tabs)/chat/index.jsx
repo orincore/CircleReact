@@ -835,6 +835,14 @@ export default function ChatListScreen() {
       loadBlindDateStatus();
     };
 
+    // Group created/renamed/membership changed, or this user got removed --
+    // a full reload is simplest and correct here (same rationale as
+    // handleMemeConnectResponded above): these are low-frequency lifecycle
+    // events, not a hot path worth a local patch.
+    const handleGroupChanged = () => {
+      loadInbox(true);
+    };
+
     try {
       // Register global handlers
       if (socketService && typeof socketService.addMessageHandler === 'function') {
@@ -860,6 +868,9 @@ export default function ChatListScreen() {
         socket.on('meme_connect:revealed', handleChatRevealedRealtime);
         socket.on('blind_date:revealed', handleChatRevealedRealtime);
         socket.on('blind_date:new_match', handleNewBlindDateMatch);
+        socket.on('chat:group_created', handleGroupChanged);
+        socket.on('chat:group_updated', handleGroupChanged);
+        socket.on('chat:group_removed', handleGroupChanged);
 
       } else {
         console.error('❌ [ChatList] Socket.on not available');
@@ -894,6 +905,9 @@ export default function ChatListScreen() {
           socket.off('meme_connect:revealed', handleChatRevealedRealtime);
           socket.off('blind_date:revealed', handleChatRevealedRealtime);
           socket.off('blind_date:new_match', handleNewBlindDateMatch);
+          socket.off('chat:group_created', handleGroupChanged);
+          socket.off('chat:group_updated', handleGroupChanged);
+          socket.off('chat:group_removed', handleGroupChanged);
         }
       } catch (error) {
       }
@@ -939,13 +953,17 @@ export default function ChatListScreen() {
       return conversations.filter(item => {
         try {
           if (!item) return false;
-          if (!item.otherId || !(item.otherName || '').trim()) return false;
-          
+          if (item.isGroup) {
+            if (!(item.groupName || '').trim()) return false;
+          } else if (!item.otherId || !(item.otherName || '').trim()) {
+            return false;
+          }
+
           const query = (searchQuery || '').toLowerCase();
-          const otherName = (item.otherName || '').toLowerCase();
+          const displayName = (item.isGroup ? item.groupName : item.otherName || '').toLowerCase();
           const messageText = (item.lastMessage?.text || '').toLowerCase();
-          
-          return otherName.includes(query) || messageText.includes(query);
+
+          return displayName.includes(query) || messageText.includes(query);
         } catch (err) {
           console.error('[ChatList] Error filtering conversation:', err, item);
           return false;
@@ -1047,7 +1065,11 @@ export default function ChatListScreen() {
         // below -- otherwise this count includes rows (missing otherId/name,
         // e.g. an unresolved other user) that never actually render in the
         // list, so the header count doesn't match what's visible.
-        if (!item.otherId || !(item.otherName || '').trim()) return false;
+        if (item.isGroup) {
+          if (!(item.groupName || '').trim()) return false;
+        } else if (!item.otherId || !(item.otherName || '').trim()) {
+          return false;
+        }
         const isBlind = !!item.isBlindDateOngoing || !!item.isMemeConnectOngoing;
         if (activeTab === 'blind' && !isBlind) return false;
         if (activeTab === 'chats' && isBlind) return false;
@@ -1060,7 +1082,7 @@ export default function ChatListScreen() {
   }, [conversations, activeTab, showArchived]);
 
 
-  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null, isVerified = false, isMemeConnect = false) => {
+  const handleChatPress = (chatId, name, profilePhoto, otherUserId, blindDateInfo = null, isVerified = false, isMemeConnect = false, isGroup = false) => {
     try {
       if (!chatId) {
         console.error('[ChatList] Invalid chatId:', chatId);
@@ -1087,6 +1109,7 @@ export default function ChatListScreen() {
           blindDateAge: blindDateInfo?.age ? String(blindDateInfo.age) : '',
           isOtherUserVerified: isVerified ? 'true' : 'false',
           isMemeConnect: isMemeConnect ? 'true' : 'false',
+          isGroup: isGroup ? 'true' : 'false',
         }
       });
     } catch (error) {
@@ -1191,6 +1214,13 @@ export default function ChatListScreen() {
               onPress={toggleSearch}
             >
               <Ionicons name={searchVisible ? 'close' : 'search'} size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={styles.headerIconButton}
+              onPress={() => router.push('/secure/group-create')}
+            >
+              <Ionicons name="people-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.75}
@@ -1359,16 +1389,20 @@ export default function ChatListScreen() {
                 // this as otherName, but stating it explicitly here keeps the
                 // identity-hiding rule visible in one place rather than
                 // relying entirely on trusting the API response.
-                const displayName = isBlindDateOngoing && blindDateInfo?.maskedName
-                  ? blindDateInfo.maskedName
-                  : isMemeConnectOngoing && memeConnectInfo?.maskedName
-                    ? memeConnectInfo.maskedName
-                    : (item.otherName || 'Unknown');
+                const displayName = item.isGroup
+                  ? (item.groupName || 'Group')
+                  : isBlindDateOngoing && blindDateInfo?.maskedName
+                    ? blindDateInfo.maskedName
+                    : isMemeConnectOngoing && memeConnectInfo?.maskedName
+                      ? memeConnectInfo.maskedName
+                      : (item.otherName || 'Unknown');
                 // Meme-connect avatars are already blurred server-side (see
                 // anonAvatar.service.ts), so no client-side blur is applied
                 // for them below -- only blind date gets the live blur
                 // treatment since its photo is the real, unblurred one.
-                const displayAvatar = item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '';
+                const displayAvatar = item.isGroup
+                  ? (item.groupAvatarUrl && item.groupAvatarUrl.trim() ? item.groupAvatarUrl : '')
+                  : (item.otherProfilePhoto && item.otherProfilePhoto.trim() ? item.otherProfilePhoto : '');
                 const isTyping = typingIndicators[chatId] && Array.isArray(typingIndicators[chatId]) && typingIndicators[chatId].length > 0;
                 // `unreadCounts` is a live mirror of unreadCountService (see
                 // the subscription effect above) -- the single source of
@@ -1418,7 +1452,7 @@ export default function ChatListScreen() {
                       justMoved && [styles.chatRowJustMoved, { backgroundColor: theme.primaryLight, borderColor: theme.primary }],
                     ]}
                     activeOpacity={0.6}
-                    onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified, isMemeConnectOngoing)}
+                    onPress={() => handleChatPress(chatId, displayName, displayAvatar, item.otherId, isBlindDateOngoing ? blindDateInfo : null, isOtherUserVerified, isMemeConnectOngoing, item.isGroup)}
                     onLongPress={() => {
                       if (Platform.OS !== 'web') {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
