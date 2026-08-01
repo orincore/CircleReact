@@ -91,6 +91,7 @@ export async function meGql(token?: string | null) {
         profilePhotoUrl
         instagramUsername
         invisibleMode
+        emailNotificationsEnabled
         is_suspended
         suspension_reason
         suspended_at
@@ -141,6 +142,7 @@ export async function updateMeGql(input: any, token?: string | null) {
         profilePhotoUrl
         instagramUsername
         invisibleMode
+        emailNotificationsEnabled
         location {
           latitude
           longitude

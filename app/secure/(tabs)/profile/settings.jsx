@@ -68,6 +68,10 @@ export default function SettingsScreen() {
   
   // Invisible mode
   const [invisibleMode, setInvisibleMode] = useState(false);
+
+  // Email notifications
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [savingEmailNotifications, setSavingEmailNotifications] = useState(false);
   
   // Customer support modal
   const [showCustomerSupport, setShowCustomerSupport] = useState(false);
@@ -135,6 +139,9 @@ export default function SettingsScreen() {
       
       // Load invisible mode status from user profile
       setInvisibleMode(user?.invisibleMode || false);
+
+      // Load email notifications preference (defaults to enabled)
+      setEmailNotificationsEnabled(user?.emailNotificationsEnabled !== false);
     } catch (error) {
       console.error('Error loading preferences:', error);
     } finally {
@@ -367,6 +374,25 @@ export default function SettingsScreen() {
       
       // Revert the toggle if it failed
       setInvisibleMode(!enabled);
+    }
+  };
+
+  const toggleEmailNotifications = async (enabled) => {
+    const previous = emailNotificationsEnabled;
+    setEmailNotificationsEnabled(enabled);
+    setSavingEmailNotifications(true);
+    try {
+      await updateProfile({ emailNotificationsEnabled: enabled });
+    } catch (error) {
+      console.error('Error toggling email notifications:', error);
+      setEmailNotificationsEnabled(previous);
+      if (Platform.OS === 'web') {
+        window.alert('Error\n\nFailed to update email notification settings. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to update email notification settings. Please try again.');
+      }
+    } finally {
+      setSavingEmailNotifications(false);
     }
   };
 
@@ -895,6 +921,35 @@ export default function SettingsScreen() {
             )}
           </View>
 
+          {/* Email Notifications */}
+          <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="mail" size={20} color="#FFD6F2" />
+              <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>Email Notifications</Text>
+            </View>
+            <Text style={[styles.sectionDescription, dynamicStyles.sectionDescription]}>
+              Control which emails Circle sends you
+            </Text>
+
+            <View style={styles.switchOption}>
+              <View style={styles.switchContent}>
+                <Text style={[styles.switchLabel, dynamicStyles.switchLabel]}>Notification Emails</Text>
+                <Text style={[styles.switchDescription, dynamicStyles.switchDescription]}>
+                  {emailNotificationsEnabled
+                    ? 'You\'ll receive emails about new Blind Connect matches, reminders, and help requests.'
+                    : 'You won\'t receive notification emails. Security and account emails (like login alerts and password resets) are always sent.'}
+                </Text>
+              </View>
+              <Switch
+                value={emailNotificationsEnabled}
+                onValueChange={toggleEmailNotifications}
+                disabled={savingEmailNotifications}
+                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: '#FFD6F2' }}
+                thumbColor={emailNotificationsEnabled ? '#7C2B86' : '#f4f3f4'}
+              />
+            </View>
+          </View>
+
           {/* Location Tracking */}
           <View style={[styles.sectionCard, dynamicStyles.sectionCard]}>
             <View style={styles.sectionHeader}>
@@ -974,6 +1029,10 @@ export default function SettingsScreen() {
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Location Tracking:</Text>
               <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{locationTrackingEnabled ? 'Enabled' : 'Disabled'}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, dynamicStyles.summaryLabel]}>Email Notifications:</Text>
+              <Text style={[styles.summaryValue, dynamicStyles.summaryValue]}>{emailNotificationsEnabled ? 'Enabled' : 'Disabled'}</Text>
             </View>
           </View>
 
